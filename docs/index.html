@@ -266,12 +266,10 @@
       const trendUp = ys.length >= 2 ? ys[ys.length - 1] >= ys[0] : true;
       const zone = c.target_zone ? `${fmt(c.target_zone.low)}–${fmt(c.target_zone.high)}` : '–';
       const ez = c.target_zone_extended;
-      // Extension nur zeigen, wenn sie WIRKLICH ambitionierter ist als die
-      // Basiszone. In seltenen W4-Fällen (kurze Netto-Strecke P0->P3 relativ
-      // zu W1) läge die Ext-Zone sonst unter der Basis — das wäre irreführend
-      // für eine "Extension". Das Feld bleibt additiv im JSON erhalten.
-      const showExt = ez && c.target_zone && ez.high > c.target_zone.high;
-      const extLine = showExt
+      // Easy-Entscheidung: Extension IMMER anzeigen (auch in den seltenen
+      // W4-Fällen mit kurzer Netto-Strecke P0->P3, wo sie knapp unter der
+      // Basiszone liegen kann). Konsequente Darstellung; Feld ist additiv.
+      const extLine = ez
         ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmt(ez.low)}–${fmt(ez.high)}</div>`
         : '';
       const nameLine = (c.name && c.name !== c.ticker) ? `<div class="name">${esc(c.name)}</div>` : '';
