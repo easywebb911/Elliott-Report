@@ -45,10 +45,18 @@ REPORT_SCHEMA = {
                                 "chart_points",
                                 "status",
                                 "direction",
+                                "company_name",
+                                "sector",
+                                "change_pct",
+                                "change_abs",
                             ],
                             "properties": {
                                 "ticker": {"type": "string"},
                                 "name": {"type": "string"},
+                                "company_name": {"type": "string"},
+                                "sector": {"type": "string"},
+                                "change_pct": {"type": "number"},
+                                "change_abs": {"type": "number"},
                                 "close": {"type": "number"},
                                 "direction": {"type": "string", "enum": ["long"]},
                                 "count_label": {"type": "string"},
@@ -173,6 +181,32 @@ def test_score_is_neutral_to_extension_field():
     setup["target_zone_extended"] = {"low": 999.0, "high": 9999.0}
     s2 = pipe.score_setup(setup)
     assert s0 == s1 == s2
+
+
+def test_change_pct_from_last_two_closes():
+    # change_pct/change_abs = Tagesveränderung aus den letzten ZWEI Closes.
+    dates, closes = pipe.fetch_synthetic("AAPL").data
+    entry, reason, _ = pipe.build_candidate("AAPL", dates, closes)
+    assert entry is not None and reason is None
+    prev, last = closes[-2], closes[-1]
+    assert entry["change_abs"] == round(last - prev, 4)
+    assert entry["change_pct"] == round((last / prev - 1.0) * 100.0, 4)
+
+
+def test_company_meta_loaded_and_failsoft():
+    # Bekannter Ticker -> kuratierter Name/Sektor; unbekannter -> Fallback.
+    assert pipe._meta_name("AAPL") == "Apple Inc."
+    assert pipe._meta_sector("AAPL") == "Technology"
+    assert pipe._meta_name("ZZ_UNKNOWN") == "ZZ_UNKNOWN"  # fail-soft -> Ticker
+    assert pipe._meta_sector("ZZ_UNKNOWN") == ""
+
+
+def test_new_header_fields_score_neutral():
+    # company_name/sector/change_* fließen NICHT in den Score.
+    setup = {"base_points": 55.0, "fib_bonus": 5.0, "inval_bonus": 10.0}
+    s0 = pipe.score_setup(setup)
+    setup.update({"company_name": "X AG", "sector": "Tech", "change_pct": 3.1, "change_abs": 2.0})
+    assert pipe.score_setup(setup) == s0
 
 
 def test_ranking_unchanged_when_extension_stripped():
