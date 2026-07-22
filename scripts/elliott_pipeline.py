@@ -97,30 +97,67 @@ def fetch_yfinance(ticker: str) -> FetchOutcome:
             progress=False,
             threads=False,
         )
-        if df is None or df.empty or "Close" not in df:
-            shape = getattr(df, "shape", None)
-            cols = list(getattr(df, "columns", []))
-            return FetchOutcome(
-                reason=EMPTY_DATA,
-                detail=f"df leer/ohne 'Close'; shape={shape}, columns={cols}",
-            )
-        closes = [float(x) for x in df["Close"].dropna().tolist()]
-        dates = [d.strftime("%Y-%m-%d") for d in df.index.to_pydatetime()]
-        dates = dates[: len(closes)]
-        if len(closes) < config.MIN_BARS:
-            return FetchOutcome(
-                reason=EMPTY_DATA,
-                detail=(
-                    f"zu wenige Kerzen: {len(closes)} < MIN_BARS={config.MIN_BARS}; "
-                    f"shape={df.shape}, columns={list(df.columns)}"
-                ),
-            )
-        return FetchOutcome(data=(dates, closes))
+        # Verarbeitung (inkl. Spalten-Normalisierung) zentral + testbar.
+        return parse_download_df(df)
     except Exception as exc:  # noqa: BLE001 — fail-soft ist hier Absicht
         return FetchOutcome(
             reason=FETCH_ERROR,
             detail=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}",
         )
+
+
+def _normalize_columns(df):
+    """Reduziert MultiIndex-Spalten robust auf Ebene 0.
+
+    yfinance liefert je nach Version FLACHE oder MULTIINDEX-Spalten — z. B.
+    ``[('Close','AAPL'), ('High','AAPL'), ...]`` AUCH bei Einzel-Tickern
+    (so ab 0.2.5x). Ohne Reduktion trifft ``df["Close"]`` dann ein
+    Sub-DataFrame statt einer Series -> ``.tolist()`` wirft AttributeError.
+
+    Diese EINE zentrale Normalisierung fängt BEIDE Formen ab (per
+    ``get_level_values(0)``, mehrstufen-robust) und macht alle späteren
+    Spalten-Zugriffe (Close/High/Low/Open/Volume) versionsunabhängig.
+    """
+    if getattr(df.columns, "nlevels", 1) > 1:
+        df = df.copy()
+        df.columns = df.columns.get_level_values(0)
+    return df
+
+
+def parse_download_df(df) -> FetchOutcome:
+    """Wandelt einen yfinance-Download in ein FetchOutcome um.
+
+    Netz-/versionsunabhängig und damit unit-testbar (synthetischer DataFrame).
+    Einzige Stelle für Spalten-Normalisierung + Skip-Grund-Klassifizierung.
+    Die Skip-ENTSCHEIDUNGEN sind identisch zu vorher.
+    """
+    if df is None or getattr(df, "empty", True):
+        shape = getattr(df, "shape", None)
+        cols = list(getattr(df, "columns", []))
+        return FetchOutcome(
+            reason=EMPTY_DATA,
+            detail=f"df leer/None; shape={shape}, columns={cols}",
+        )
+
+    df = _normalize_columns(df)
+    if "Close" not in df.columns:
+        return FetchOutcome(
+            reason=EMPTY_DATA,
+            detail=f"keine 'Close'-Spalte; columns={list(df.columns)}",
+        )
+
+    closes = [float(x) for x in df["Close"].dropna().tolist()]
+    dates = [d.strftime("%Y-%m-%d") for d in df.index.to_pydatetime()]
+    dates = dates[: len(closes)]
+    if len(closes) < config.MIN_BARS:
+        return FetchOutcome(
+            reason=EMPTY_DATA,
+            detail=(
+                f"zu wenige Kerzen: {len(closes)} < MIN_BARS={config.MIN_BARS}; "
+                f"shape={df.shape}, columns={list(df.columns)}"
+            ),
+        )
+    return FetchOutcome(data=(dates, closes))
 
 
 def fetch_synthetic(ticker: str) -> FetchOutcome:
