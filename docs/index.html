@@ -124,6 +124,19 @@
     .live-time { font-size:.56rem; color:var(--txt-dim); font-variant-numeric:tabular-nums; }
     @keyframes livePulse { 0%,100% { box-shadow:0 0 6px rgba(34,197,94,.55); } 50% { box-shadow:0 0 2px rgba(34,197,94,.25); } }
     @media (prefers-reduced-motion: reduce) { .live-dot.live-on { animation:none; } }
+    /* Score-Donut (mittig, zwischen Header und Kacheln). Ring/Zahl in
+       scoreColor; Badge darunter. Größe bewusst 104px, damit die Karte nicht
+       übermäßig wächst. */
+    .donut-block { display:flex; flex-direction:column; align-items:center; gap:8px; padding:2px 12px 12px; }
+    .donut { position:relative; width:104px; height:104px; }
+    .donut-svg { width:104px; height:104px; display:block; }
+    .donut-ring { animation:donutDraw .9s ease; }
+    @keyframes donutDraw { from { stroke-dashoffset:var(--doff, 0); } }
+    @media (prefers-reduced-motion: reduce) { .donut-ring { animation:none; } }
+    .donut-center { position:absolute; inset:0; display:flex; flex-direction:column;
+      align-items:center; justify-content:center; }
+    .donut-num { font-size:2rem; font-weight:900; line-height:1; font-variant-numeric:tabular-nums; }
+    .donut-scale { font-size:.66rem; color:#64748b; font-variant-numeric:tabular-nums; margin-top:1px; }
     .setup { color:var(--txt); font-size:.78rem; padding:0 12px 8px; line-height:1.35; }
 
     .metrics-row { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; padding:0 12px 12px; }
@@ -318,6 +331,43 @@
       return `<span class="chg ${cls}" data-quote="change">${arrow} ${sgn}${fmt(a)} (${sgn}${fmt(p)}%)</span>`;
     }
 
+    // Score-Farbe: EXAKT die Schwellen aus aktien-update/app.html scoreColor()
+    // (KI_DOT_STRONG/MODERATE/WEAK) — dieselbe Zahl trägt in beiden Tools
+    // dieselbe Farbe. >=60 grün, >=30 orange, >=15 rot, sonst grau.
+    function scoreColor(s) {
+      if (s == null || isNaN(+s)) return '#6b7280';
+      if (s >= 60) return '#22c55e';
+      if (s >= 30) return '#f59e0b';
+      if (s >= 15) return '#ef4444';
+      return '#6b7280';
+    }
+
+    // Score-Donut (Ring + Zahl + "/100") nach Squeeze-Vorbild: viewBox 120,
+    // r=54, stroke-width 7, Fortschritt via dasharray (pathLength=100), Ring
+    // & Zahl in scoreColor. Badge sitzt unter dem Donut.
+    function donutBlock(score, status) {
+      const valid = (typeof score === 'number' && isFinite(score));
+      const s = valid ? Math.max(0, Math.min(100, score)) : 0;
+      const col = scoreColor(score);
+      const fill = s.toFixed(2), rest = (100 - s).toFixed(2);
+      const num = valid ? Math.round(score) : '–';
+      return `<div class="donut-block">
+        <div class="donut">
+          <svg class="donut-svg" viewBox="0 0 120 120" aria-hidden="true">
+            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="7"/>
+            <circle class="donut-ring" cx="60" cy="60" r="54" fill="none" stroke="${col}" stroke-width="7"
+                    stroke-linecap="round" pathLength="100" stroke-dasharray="${fill} ${rest}"
+                    stroke-dashoffset="0" style="--doff:${fill}" transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="donut-center">
+            <span class="donut-num" style="color:${col}">${num}</span>
+            <span class="donut-scale">/100</span>
+          </div>
+        </div>
+        <span class="badge">${esc(status || 'heuristisch · unvalidiert')}</span>
+      </div>`;
+    }
+
     function card(c, rank) {
       const ys = (c.chart_points || []).map(p => p.price);
       const trendUp = ys.length >= 2 ? ys[ys.length - 1] >= ys[0] : true;
@@ -348,7 +398,6 @@
           <div class="card-right">
             <div class="cockpit-price" data-quote="price">${fmt(c.close)}</div>
             ${changeHtml(c)}
-            <div class="score-mini">Score ${fmt(c.score_heuristic)}</div>
             <div class="live-row">
               <span class="live-dot" data-quote="dot" title="Live-Quote wird geladen …"></span>
               <span class="live-time" data-quote="time"></span>
@@ -356,6 +405,7 @@
           </div>
         </div>
         <div class="setup">${esc(c.count_label || '')}</div>
+        ${donutBlock(c.score_heuristic, c.status)}
         <div class="metrics-row">
           <div class="metric-box"><span class="m-val inval">${fmt(c.invalidation_price)}</span><span class="m-lbl">Invalidierung</span></div>
           <div class="metric-box zone"><span class="m-val">${zone}</span><span class="m-lbl">Zielzone</span></div>
@@ -367,9 +417,6 @@
             <span class="spark-trend" style="color:${trendUp ? 'var(--grn)' : 'var(--red)'}">${trendUp ? '▲' : '▼'}</span>
           </div>
           <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-inval="${c.invalidation_price ?? ''}"></div>
-        </div>
-        <div class="card-foot">
-          <span class="badge">${esc(c.status || 'heuristisch · unvalidiert')}</span>
         </div>
       </article>`;
     }
