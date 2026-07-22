@@ -114,6 +114,16 @@
       font-size:.72rem; font-weight:700; color:var(--accent);
       font-variant-numeric:tabular-nums; margin-top:4px;
     }
+    /* Live-Quote-Indikator (portiert aus dem Squeeze-Poller). Standard grau;
+       live = pulsierendes Grün, stale = statisches Grau, paused = gedimmt. */
+    .live-row { display:flex; align-items:center; justify-content:flex-end; gap:5px; margin-top:5px; min-height:12px; }
+    .live-dot { width:8px; height:8px; border-radius:50%; background:#475569; flex-shrink:0; }
+    .live-dot.live-on { background:var(--grn); box-shadow:0 0 6px rgba(34,197,94,.55); animation:livePulse 2s ease-in-out infinite; }
+    .live-dot.live-stale { background:var(--txt-dim); box-shadow:none; animation:none; }
+    .live-dot.live-paused { background:var(--grn); opacity:.4; box-shadow:none; animation:none; }
+    .live-time { font-size:.56rem; color:var(--txt-dim); font-variant-numeric:tabular-nums; }
+    @keyframes livePulse { 0%,100% { box-shadow:0 0 6px rgba(34,197,94,.55); } 50% { box-shadow:0 0 2px rgba(34,197,94,.25); } }
+    @media (prefers-reduced-motion: reduce) { .live-dot.live-on { animation:none; } }
     .setup { color:var(--txt); font-size:.78rem; padding:0 12px 8px; line-height:1.35; }
 
     .metrics-row { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; padding:0 12px 12px; }
@@ -305,7 +315,7 @@
       const cls = p > 0 ? 'chg-up' : p < 0 ? 'chg-down' : 'chg-flat';
       const arrow = p > 0 ? '▲' : p < 0 ? '▼' : '•';
       const sgn = p > 0 ? '+' : '';  // Minus liefert fmt() selbst (de-DE)
-      return `<span class="chg ${cls}">${arrow} ${sgn}${fmt(a)} (${sgn}${fmt(p)}%)</span>`;
+      return `<span class="chg ${cls}" data-quote="change">${arrow} ${sgn}${fmt(a)} (${sgn}${fmt(p)}%)</span>`;
     }
 
     function card(c, rank) {
@@ -322,7 +332,7 @@
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
-      return `<article class="card">
+      return `<article class="card" data-ticker="${esc(c.ticker)}">
         <div class="card-top">
           <div class="card-left">
             <span class="rank">${rank}</span>
@@ -336,9 +346,13 @@
             </div>
           </div>
           <div class="card-right">
-            <div class="cockpit-price">${fmt(c.close)}</div>
+            <div class="cockpit-price" data-quote="price">${fmt(c.close)}</div>
             ${changeHtml(c)}
             <div class="score-mini">Score ${fmt(c.score_heuristic)}</div>
+            <div class="live-row">
+              <span class="live-dot" data-quote="dot" title="Live-Quote wird geladen …"></span>
+              <span class="live-time" data-quote="time"></span>
+            </div>
           </div>
         </div>
         <div class="setup">${esc(c.count_label || '')}</div>
@@ -402,6 +416,7 @@
         renderMarket('US', r.markets.US);
         renderMarket('DE', r.markets.DE);
         drawAllSparklines();
+        startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
         if (announce) showToast(`Aktualisiert · Stand ${r.run_timestamp_utc || '?'}`);
       } catch (e) {
         document.getElementById('meta').innerHTML =
@@ -419,6 +434,98 @@
       if (rzTimer) clearTimeout(rzTimer);
       rzTimer = setTimeout(drawAllSparklines, 150);
     });
+
+    // ── Live-Quote-Polling (portiert aus easywebb911/aktien-update, app.html) ──
+    // Cloudflare-Worker proxyt Yahoo v8; 15-s-Intervall; visibilitychange
+    // pausiert im inaktiven Tab. WICHTIG (Squeeze-Lesson): Poller-Ziele über
+    // data-quote-Attribute ankern, NICHT über Styling-Klassen — so bricht ein
+    // CSS-Rename den Poller NICHT. Fail-soft: jeder Fehler -> Punkt grau,
+    // Pipeline-Werte bleiben stehen, kein Retry-Sturm, keine Konsolen-Ausgabe.
+    const QUOTE_PROXY_URL = 'https://quote-proxy.easywebb.workers.dev';
+    const QUOTE_POLL_MS = 15000;
+    const quotePollers = new Map();  // ticker -> intervalId
+    let quoteVisHook = false;
+
+    function quoteSetDot(card, state, timeStr) {
+      const dot = card.querySelector('[data-quote="dot"]');
+      if (dot) {
+        dot.classList.remove('live-on', 'live-stale', 'live-paused');
+        dot.classList.add(state === 'live' ? 'live-on' : state === 'paused' ? 'live-paused' : 'live-stale');
+        dot.title = state === 'live' ? 'Live · alle 15 s'
+                  : state === 'paused' ? 'Pausiert (Tab inaktiv)'
+                  : 'Live-Quelle nicht erreichbar — zeigt Schlusskurs';
+      }
+      if (state === 'live' && timeStr) {
+        const t = card.querySelector('[data-quote="time"]');
+        if (t) t.textContent = 'Live · ' + timeStr;
+      }
+    }
+
+    function quotePatch(card, q) {
+      if (typeof q.price === 'number' && isFinite(q.price)) {
+        const el = card.querySelector('[data-quote="price"]');
+        if (el) el.textContent = fmt(q.price);
+      }
+      const p = q.change, a = q.change_abs;  // change == Tages-% (Worker-Vertrag)
+      if (typeof p === 'number' && isFinite(p)) {
+        const el = card.querySelector('[data-quote="change"]');
+        if (el) {
+          const cls = p > 0 ? 'chg-up' : p < 0 ? 'chg-down' : 'chg-flat';
+          const arrow = p > 0 ? '▲' : p < 0 ? '▼' : '•';
+          const sgn = p > 0 ? '+' : '';
+          const abs = (typeof a === 'number' && isFinite(a)) ? a : (q.price * p / 100);
+          el.className = 'chg ' + cls;  // data-quote bleibt (eigenes Attribut)
+          el.textContent = `${arrow} ${sgn}${fmt(abs)} (${sgn}${fmt(p)}%)`;
+        }
+      }
+    }
+
+    async function quoteFetchOnce(card, ticker) {
+      if (!QUOTE_PROXY_URL || !ticker) return;
+      try {
+        const res = await fetch(`${QUOTE_PROXY_URL}/?ticker=${encodeURIComponent(ticker)}`, { cache: 'no-store' });
+        if (!res.ok) { quoteSetDot(card, 'stale'); return; }
+        const q = await res.json();
+        if (!q || q.error || q.ticker !== ticker) { quoteSetDot(card, 'stale'); return; }
+        quotePatch(card, q);
+        const hhmm = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        quoteSetDot(card, 'live', hhmm);
+      } catch (_) {
+        quoteSetDot(card, 'stale');  // fail-soft, kein console/Toast
+      }
+    }
+
+    function stopAllQuotePolls() {
+      quotePollers.forEach(id => clearInterval(id));
+      quotePollers.clear();
+    }
+
+    function ensureQuoteVisHook() {
+      if (quoteVisHook) return;
+      quoteVisHook = true;
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          stopAllQuotePolls();
+          document.querySelectorAll('.card[data-ticker]').forEach(c => quoteSetDot(c, 'paused'));
+        } else {
+          startQuotePolls();  // Resume: sofort-Fetch + neue Intervalle
+        }
+      });
+    }
+
+    function startQuotePolls() {
+      if (!QUOTE_PROXY_URL) return;
+      stopAllQuotePolls();
+      ensureQuoteVisHook();
+      const hidden = document.visibilityState === 'hidden';
+      document.querySelectorAll('.card[data-ticker]').forEach(card => {
+        const ticker = card.getAttribute('data-ticker');
+        if (!ticker) return;
+        quoteFetchOnce(card, ticker);  // sofortiger erster Fetch
+        if (hidden) { quoteSetDot(card, 'paused'); return; }
+        quotePollers.set(ticker, setInterval(() => quoteFetchOnce(card, ticker), QUOTE_POLL_MS));
+      });
+    }
 
     document.getElementById('reload').addEventListener('click', () => refresh({ announce: true }));
     refresh();
