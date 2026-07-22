@@ -47,6 +47,12 @@ DATA_PERIOD = "2y"       # 2 Jahre Historie
 DATA_INTERVAL = "1d"     # Tageskerzen
 MIN_BARS = 60            # Ticker mit weniger Kerzen werden übersprungen
 
+# Großer Wellengrad (zweite Zählung, Wochen-Ebene) — NUR für die finalen Top-5
+# je Markt, damit die Extra-Fetches bei ~10 Tickern bleiben (nicht ganzes
+# Universum). Lange Historie, damit die großen Züge sichtbar werden.
+DATA_PERIOD_WEEKLY = "10y"
+DATA_INTERVAL_WEEKLY = "1wk"
+
 # ---------------------------------------------------------------------------
 # ZIGZAG / PIVOT-ENGINE
 # ---------------------------------------------------------------------------

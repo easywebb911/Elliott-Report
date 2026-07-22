@@ -49,6 +49,8 @@ REPORT_SCHEMA = {
                                 "sector",
                                 "change_pct",
                                 "change_abs",
+                                "count_wave_labels",
+                                "higher_degree",
                             ],
                             "properties": {
                                 "ticker": {"type": "string"},
@@ -86,6 +88,26 @@ REPORT_SCHEMA = {
                                     },
                                 },
                                 "status": {"type": "string"},
+                                "count_wave_labels": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "required": ["index", "wave"],
+                                        "properties": {
+                                            "index": {"type": "integer"},
+                                            "wave": {"type": "integer"},
+                                        },
+                                    },
+                                },
+                                "higher_degree": {
+                                    "type": ["object", "null"],
+                                    "properties": {
+                                        "count_label": {"type": "string"},
+                                        "invalidation_price": {"type": "number"},
+                                        "target_zone": {"type": "object"},
+                                        "target_zone_extended": {"type": "object"},
+                                    },
+                                },
                             },
                         },
                     },
@@ -221,3 +243,64 @@ def test_ranking_unchanged_when_extension_stripped():
             stripped.append(c2)
         stripped.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
         assert [(c["ticker"], c["score_heuristic"]) for c in stripped] == with_ext
+
+
+# --- Großer Wellengrad (higher_degree, Wochen) + Wellen-Ziffern ---
+def _build_weekly():
+    return pipe.build_report(pipe.fetch_synthetic, FIXED_TS, pipe.fetch_synthetic_weekly)
+
+
+def test_higher_degree_populated_with_weekly_fetcher():
+    report = _build_weekly()
+    seen = 0
+    for m in report["markets"].values():
+        for c in m["candidates"]:
+            hd = c["higher_degree"]
+            assert hd is not None, "Wochen-Fetcher liefert -> higher_degree gesetzt"
+            for key in ("count_label", "invalidation_price", "target_zone", "target_zone_extended"):
+                assert key in hd
+            assert set(hd["target_zone"]) == {"low", "high"}
+            assert "Short" not in hd["count_label"]  # long-only
+            seen += 1
+    assert seen > 0
+
+
+def test_higher_degree_none_without_weekly_fetcher():
+    # Ohne Wochen-Fetcher (Default) ist higher_degree null (Feld existiert).
+    report = _build()
+    for m in report["markets"].values():
+        for c in m["candidates"]:
+            assert c["higher_degree"] is None
+
+
+def test_higher_degree_failsoft_on_empty_and_none():
+    # Fail-soft: leere Quelle bzw. kein Fetcher -> None (kein Absturz).
+    empty = lambda t: pipe.FetchOutcome(reason=pipe.EMPTY_DATA, detail="leer")
+    assert pipe.higher_degree_for("AAPL", empty) is None
+    assert pipe.higher_degree_for("AAPL", None) is None
+    boom = lambda t: (_ for _ in ()).throw(RuntimeError("net down"))
+    assert pipe.higher_degree_for("AAPL", boom) is None  # Exception -> None
+
+
+def test_higher_degree_ranking_neutral():
+    # higher_degree wird NACH dem Ranking gesetzt -> Reihenfolge/Scores gleich.
+    a = _build()
+    b = _build_weekly()
+    for mk in ("US", "DE"):
+        ra = [(c["ticker"], c["score_heuristic"]) for c in a["markets"][mk]["candidates"]]
+        rb = [(c["ticker"], c["score_heuristic"]) for c in b["markets"][mk]["candidates"]]
+        assert ra == rb
+
+
+def test_count_wave_labels_map_last_k_pivots():
+    # Ziffern sitzen auf den letzten k Pivots (k=3 bei W2, 5 bei W4), wave 0..k-1.
+    report = _build()
+    for m in report["markets"].values():
+        for c in m["candidates"]:
+            cwl = c["count_wave_labels"]
+            k = 5 if "W4" in c["count_label"] else 3
+            ncp = len(c["chart_points"])
+            assert [x["wave"] for x in cwl] == list(range(k))
+            assert [x["index"] for x in cwl] == list(range(ncp - k, ncp))
+            # letzter Index ist der aktuelle Pivot
+            assert cwl[-1]["index"] == ncp - 1

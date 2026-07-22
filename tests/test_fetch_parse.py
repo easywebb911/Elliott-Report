@@ -88,3 +88,25 @@ def test_parse_multiindex_matches_flat():
     flat = pd.DataFrame(_rows(), index=_index(),
                         columns=["Close", "High", "Low", "Open", "Volume"])
     assert pipe.parse_download_df(mi).data == pipe.parse_download_df(flat).data
+
+
+def test_parse_weekly_multiindex_form():
+    # Wochenkerzen spiegeln die ECHTE yfinance-Form: gleicher MultiIndex je
+    # Ticker, nur wöchentlicher DatetimeIndex (freq 'W'). parse_download_df ist
+    # geteilt -> der große Grad erbt die MultiIndex-Lesson.
+    N = 120  # >= MIN_BARS
+    idx = pd.date_range("2016-01-04", periods=N, freq="W")  # Wochen-Index
+    cols = pd.MultiIndex.from_tuples(
+        [("Close", "SAP.DE"), ("High", "SAP.DE"), ("Low", "SAP.DE"),
+         ("Open", "SAP.DE"), ("Volume", "SAP.DE")]
+    )
+    closes = [100.0 + i for i in range(N)]
+    rows = [[closes[i], closes[i] + 1, closes[i] - 1, closes[i], 1000 + i] for i in range(N)]
+    df = pd.DataFrame(rows, index=idx, columns=cols)
+    assert df.columns.nlevels == 2
+
+    outcome = pipe.parse_download_df(df)
+    assert outcome.reason is None, outcome.detail
+    assert outcome.data is not None
+    d, c = outcome.data
+    assert c == closes and len(d) == N
