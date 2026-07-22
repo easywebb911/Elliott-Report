@@ -100,6 +100,12 @@ TARGET_EXTENSIONS = {
     "w3": [1.0, 1.618],   # Zielzone W3 = P2 + [1.0 .. 1.618] * len(W1)
     "w5": [0.618, 1.0],   # Zielzone W5 = P4 + [0.618 .. 1.0] * len(W1)
     "c_resume": [0.618, 1.0],
+    # Ambitioniertere EXTENSION-Zielzonen (additiv, nur Anzeige — kein Einfluss
+    # auf Score/Ranking). W3-Ext bezieht sich weiter auf die W1-Länge; W5-Ext
+    # bewusst auf die NETTO-Strecke P0->P3 (nicht auf W1), damit das Ziel nicht
+    # an einer kleinen W1 klebt.
+    "w3_ext": [1.618, 2.618],  # Zielzone-Ext W3 = P2 + [1.618 .. 2.618] * len(W1)
+    "w5_ext": [0.382, 0.618],  # Zielzone-Ext W5 = P4 + [0.382 .. 0.618] * |P3-P0|
 }
 
 # ---------------------------------------------------------------------------

@@ -274,12 +274,17 @@ def classify_setup(pivots: List[Pivot], close: float) -> Optional[Dict]:
             inval_bonus = _invalidation_bonus(close, invalid)
             base_pts = config.SETUP_BASE_POINTS["end_of_w4"]
             side = "Long" if direction > 0 else "Short"
+            # Extension-Zielzone (additiv): W5 gemessen an der Netto-Strecke
+            # P0->P3 (nicht an W1), ab P4. _target_zone sichert die min/max-
+            # Ordnung auch bei degenerierten Fällen (winzige Strecke etc.).
+            net_len = abs(p3 - p0)
             return {
                 "setup": "end_of_w4",
                 "direction": direction,
                 "count_label": f"Impuls 1–5 · {side}-Setup am Ende W4 (W5 erwartet)",
                 "invalidation_price": round(invalid, 4),
                 "target_zone": _target_zone(p4, direction, w1_len, config.TARGET_EXTENSIONS["w5"]),
+                "target_zone_extended": _target_zone(p4, direction, net_len, config.TARGET_EXTENSIONS["w5_ext"]),
                 "base_points": base_pts,
                 "fib_bonus": fib,
                 "inval_bonus": inval_bonus,
@@ -307,6 +312,7 @@ def classify_setup(pivots: List[Pivot], close: float) -> Optional[Dict]:
                     "count_label": f"Impuls 1–5 · {side}-Setup am Ende W2 (W3 erwartet)",
                     "invalidation_price": round(invalid, 4),
                     "target_zone": _target_zone(p2, direction, w1_len, config.TARGET_EXTENSIONS["w3"]),
+                    "target_zone_extended": _target_zone(p2, direction, w1_len, config.TARGET_EXTENSIONS["w3_ext"]),
                     "base_points": base_pts,
                     "fib_bonus": fib,
                     "inval_bonus": inval_bonus,
@@ -381,6 +387,7 @@ def build_candidate(
         "count_label": setup["count_label"],
         "invalidation_price": setup["invalidation_price"],
         "target_zone": setup["target_zone"],
+        "target_zone_extended": setup["target_zone_extended"],
         "score_heuristic": score_setup(setup),
         "chart_points": chart_points,
         "status": config.CARD_STATUS,
