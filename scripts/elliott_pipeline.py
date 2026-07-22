@@ -336,9 +336,37 @@ def score_setup(setup: Dict) -> float:
 # 5/6) REPORT-AUFBAU
 # ---------------------------------------------------------------------------
 def _company_name(ticker: str) -> str:
-    # Skelett: Klartext-Name folgt später (z. B. yfinance longName).
-    # Bis dahin bewusst = Ticker, damit das Schema stabil bleibt.
+    # Bestehendes Feld "name" bleibt unverändert = Ticker (Schema-Stabilität).
+    # Der Klartext-Name kommt additiv über "company_name" (s. _meta_name).
     return ticker
+
+
+_TICKER_META_CACHE: Optional[Dict[str, Dict]] = None
+
+
+def _load_ticker_meta() -> Dict[str, Dict]:
+    """Lädt die kuratierte Ticker-Metadaten-Map einmalig. Fail-soft: {}."""
+    global _TICKER_META_CACHE
+    if _TICKER_META_CACHE is None:
+        try:
+            path = REPO_ROOT / config.TICKER_META_PATH
+            with path.open(encoding="utf-8") as fh:
+                _TICKER_META_CACHE = json.load(fh)
+        except Exception:  # noqa: BLE001 — fail-soft (Datei fehlt/kaputt)
+            _TICKER_META_CACHE = {}
+    return _TICKER_META_CACHE
+
+
+def _meta_name(ticker: str) -> str:
+    """Klartext-Firmenname aus der Mapping-Datei; fail-soft -> Ticker."""
+    entry = _load_ticker_meta().get(ticker) or {}
+    return entry.get("name") or ticker
+
+
+def _meta_sector(ticker: str) -> str:
+    """Sektor aus der Mapping-Datei; fail-soft -> leer."""
+    entry = _load_ticker_meta().get(ticker) or {}
+    return entry.get("sector") or ""
 
 
 def build_candidate(
@@ -377,9 +405,19 @@ def build_candidate(
         )
 
     chart_points = [p.as_dict() for p in pivots[-12:]]
+    # Tagesveränderung aus den letzten ZWEI bereits geladenen Schlusskursen —
+    # KEIN zusätzlicher API-Call, kein Live-Polling.
+    prev_close = closes[-2] if len(closes) >= 2 else close
+    change_abs = round(close - prev_close, 4)
+    change_pct = round((close / prev_close - 1.0) * 100.0, 4) if prev_close else 0.0
     entry = {
         "ticker": ticker,
         "name": _company_name(ticker),
+        # Additive Header-Felder (kuratierte Meta + Tagesveränderung).
+        "company_name": _meta_name(ticker),
+        "sector": _meta_sector(ticker),
+        "change_abs": change_abs,
+        "change_pct": change_pct,
         "close": round(close, 4),
         # Additiv: immer "long" (Short-Setups sind bereits ausgefiltert). Eine
         # spätere Wiedereinführung von Shorts wäre so kein Schema-Bruch.

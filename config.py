@@ -121,6 +121,12 @@ CARD_STATUS = "heuristisch · unvalidiert"
 REPORT_PATH = "data/report.json"
 REPORT_PATH_PUBLISHED = "docs/data/report.json"
 
+# Kuratierte Ticker-Metadaten (Klartext-Name + Sektor). Bewusst als committete
+# Mapping-Datei statt yfinance .info je Ticker (teuer/ratelimit-anfällig).
+# Fail-soft: fehlt die Datei oder ein Ticker, wird auf den Ticker
+# zurückgefallen (Name = Ticker, Sektor = "").
+TICKER_META_PATH = "data/ticker_meta.json"
+
 # ---------------------------------------------------------------------------
 # STALENESS
 # ---------------------------------------------------------------------------
