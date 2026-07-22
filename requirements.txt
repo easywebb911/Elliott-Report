@@ -1,0 +1,16 @@
+# Elliott-Report — Abhängigkeiten.
+#
+# BEWUSST als Bereiche (>=x,<y) gepinnt: KEINE harten Pins (==) und KEIN
+# komplett offenes Pinning. Grund (yfinance-Segfault-Lesson): offene oder
+# inkompatible numpy/pandas-Kombinationen mit yfinance haben in der
+# Vergangenheit Segfaults ausgelöst. Die oberen Grenzen (< nächste Major)
+# halten inkompatible Majors fern; die unteren sichern benötigte Features.
+
+# --- Laufzeit (Pipeline) ---
+yfinance>=0.2.40,<0.3
+pandas>=2.0,<3.0
+numpy>=1.24,<2.3
+
+# --- Tests / Validierung ---
+pytest>=8.0,<9.0
+jsonschema>=4.0,<5.0
