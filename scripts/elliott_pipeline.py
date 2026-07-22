@@ -44,13 +44,19 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # ---------------------------------------------------------------------------
 # DIAGNOSE-INSTRUMENTIERUNG (reines Logging — KEINE Logik-/Schema-Änderung)
 # ---------------------------------------------------------------------------
-# Die vier möglichen Skip-Gründe. Sie klassifizieren nur, warum ein Ticker
-# ohnehin übersprungen wird; die Skip-ENTSCHEIDUNG selbst ist unverändert.
+# Die möglichen Skip-Gründe. Sie klassifizieren nur, warum ein Ticker ohnehin
+# übersprungen wird; die Skip-ENTSCHEIDUNG selbst ist ansonsten unverändert.
 FETCH_ERROR = "fetch_error"        # Exception beim Abruf (yfinance/Netz/Import)
 EMPTY_DATA = "empty_data"          # Abruf ok, aber keine/zu wenige Kursdaten
 TOO_FEW_PIVOTS = "too_few_pivots"  # ZigZag liefert < 3 Pivots
 NO_VALID_COUNT = "no_valid_count"  # kein regelkonformes Setup gefunden
-SKIP_REASONS = (FETCH_ERROR, EMPTY_DATA, TOO_FEW_PIVOTS, NO_VALID_COUNT)
+# Long-only-Report: Short-Setups (Abwärts-Erwartung) werden vor dem Ranking
+# verworfen. Eigener Grund, damit im Diag-Log sichtbar bleibt, wie viele
+# Shorts aussortiert wurden. Die Richtungs-ERKENNUNG ist unverändert.
+SHORT_SETUP_EXCLUDED = "short_setup_excluded"
+SKIP_REASONS = (
+    FETCH_ERROR, EMPTY_DATA, TOO_FEW_PIVOTS, NO_VALID_COUNT, SHORT_SETUP_EXCLUDED,
+)
 
 
 @dataclass
@@ -352,11 +358,26 @@ def build_candidate(
             f"pivots={len(pivots)}, kein regelkonformes Setup (W2/W4)",
         )
 
+    # Long-only: Short-Setups (Abwärts-Erwartung, direction < 0) VOR dem
+    # Ranking verwerfen, damit sie keine Longs aus den Top 5 verdrängen.
+    # Die Richtungs-Erkennung in classify_setup bleibt unangetastet — hier
+    # wird nur gefiltert.
+    if setup["direction"] < 0:
+        return (
+            None,
+            SHORT_SETUP_EXCLUDED,
+            f"{setup['setup']} short (direction={setup['direction']}): "
+            f"{setup['count_label']}",
+        )
+
     chart_points = [p.as_dict() for p in pivots[-12:]]
     entry = {
         "ticker": ticker,
         "name": _company_name(ticker),
         "close": round(close, 4),
+        # Additiv: immer "long" (Short-Setups sind bereits ausgefiltert). Eine
+        # spätere Wiedereinführung von Shorts wäre so kein Schema-Bruch.
+        "direction": "long",
         "count_label": setup["count_label"],
         "invalidation_price": setup["invalidation_price"],
         "target_zone": setup["target_zone"],
@@ -367,17 +388,21 @@ def build_candidate(
     return entry, None, ""
 
 
-def build_market(market_key: str, fetcher: Fetcher) -> Dict:
-    """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
+def _scan_market(
+    universe: Sequence[str], fetcher: Fetcher
+) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]]]:
+    """Verarbeitet ein Universum (fail-soft je Ticker) — ohne I/O/Logging.
 
-    Instrumentiert: zählt Skips nach Grund und loggt für die ersten 3 Skips
-    je Markt das volle Detail (Traceback bzw. Datenform). Report/Schema und
-    die Skip-Entscheidungen selbst bleiben unverändert.
+    Ausgelagert aus build_market, damit die Skip-Zähler (inkl.
+    short_setup_excluded) direkt unit-testbar sind. Verhalten identisch.
+
+    Returns:
+        (candidates, reason_counts, first_samples)
+        candidates: unsortierte Long-Kandidaten
+        reason_counts: Zähler je Skip-Grund (SKIP_REASONS)
+        first_samples: erste 3 Skips (ticker, reason, detail) fürs Log
     """
-    cfg = config.MARKETS[market_key]
-    universe = cfg["universe"]
     candidates: List[Dict] = []
-
     reason_counts: Dict[str, int] = {r: 0 for r in SKIP_REASONS}
     first_samples: List[Tuple[str, str, str]] = []  # (ticker, reason, detail)
     MAX_SAMPLES = 3
@@ -410,6 +435,21 @@ def build_market(market_key: str, fetcher: Fetcher) -> Dict:
             continue
         candidates.append(entry)
 
+    return candidates, reason_counts, first_samples
+
+
+def build_market(market_key: str, fetcher: Fetcher) -> Dict:
+    """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
+
+    Instrumentiert: zählt Skips nach Grund (inkl. short_setup_excluded) und
+    loggt für die ersten 3 Skips je Markt das volle Detail (Traceback bzw.
+    Datenform). Report/Schema bleiben unverändert.
+    """
+    cfg = config.MARKETS[market_key]
+    universe = cfg["universe"]
+
+    candidates, reason_counts, first_samples = _scan_market(universe, fetcher)
+
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
     top = candidates[: config.TOP_N]
@@ -423,7 +463,8 @@ def build_market(market_key: str, fetcher: Fetcher) -> Dict:
         f"fetch_error={reason_counts[FETCH_ERROR]}, "
         f"empty_data={reason_counts[EMPTY_DATA]}, "
         f"too_few_pivots={reason_counts[TOO_FEW_PIVOTS]}, "
-        f"no_valid_count={reason_counts[NO_VALID_COUNT]}"
+        f"no_valid_count={reason_counts[NO_VALID_COUNT]}, "
+        f"short_setup_excluded={reason_counts[SHORT_SETUP_EXCLUDED]}"
     )
     for i, (tk, reason, detail) in enumerate(first_samples, start=1):
         _log(f"[elliott][diag] {market_key} Skip-Probe {i}/{len(first_samples)}: "
