@@ -43,11 +43,13 @@ REPORT_SCHEMA = {
                                 "score_heuristic",
                                 "chart_points",
                                 "status",
+                                "direction",
                             ],
                             "properties": {
                                 "ticker": {"type": "string"},
                                 "name": {"type": "string"},
                                 "close": {"type": "number"},
+                                "direction": {"type": "string", "enum": ["long"]},
                                 "count_label": {"type": "string"},
                                 "invalidation_price": {"type": "number"},
                                 "target_zone": {
@@ -92,6 +94,16 @@ def test_two_markets_with_candidates():
     for m in report["markets"].values():
         # Synthetischer Fetcher liefert für jeden Ticker ein valides Setup.
         assert 1 <= len(m["candidates"]) <= config.TOP_N
+
+
+def test_all_candidates_are_long():
+    # Long-only-Report: jeder Kandidat trägt direction "long" und kein
+    # count_label enthält "Short".
+    report = _build()
+    for m in report["markets"].values():
+        for c in m["candidates"]:
+            assert c["direction"] == "long"
+            assert "Short" not in c["count_label"]
 
 
 def test_no_probability_language():
