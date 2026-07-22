@@ -107,6 +107,11 @@
       color:var(--txt-dim); margin-top:3px;
     }
 
+    .ext-zone {
+      padding:0 12px 12px; margin-top:-6px;
+      font-size:.66rem; color:var(--txt-dim); font-variant-numeric:tabular-nums;
+    }
+    .ext-zone .ext-lbl { text-transform:uppercase; letter-spacing:.08em; margin-right:5px; }
     .spark-wrap { padding:8px 12px 6px; border-top:1px solid var(--brd); }
     .spark-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
     .spark-title { font-size:.6rem; text-transform:uppercase; letter-spacing:.08em; color:var(--txt-dim); font-weight:700; }
@@ -260,6 +265,13 @@
       const ys = (c.chart_points || []).map(p => p.price);
       const trendUp = ys.length >= 2 ? ys[ys.length - 1] >= ys[0] : true;
       const zone = c.target_zone ? `${fmt(c.target_zone.low)}–${fmt(c.target_zone.high)}` : '–';
+      const ez = c.target_zone_extended;
+      // Easy-Entscheidung: Extension IMMER anzeigen (auch in den seltenen
+      // W4-Fällen mit kurzer Netto-Strecke P0->P3, wo sie knapp unter der
+      // Basiszone liegen kann). Konsequente Darstellung; Feld ist additiv.
+      const extLine = ez
+        ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmt(ez.low)}–${fmt(ez.high)}</div>`
+        : '';
       const nameLine = (c.name && c.name !== c.ticker) ? `<div class="name">${esc(c.name)}</div>` : '';
       return `<article class="card">
         <div class="card-top">
@@ -278,6 +290,7 @@
           <div class="metric-box"><span class="m-val inval">${fmt(c.invalidation_price)}</span><span class="m-lbl">Invalidierung</span></div>
           <div class="metric-box zone"><span class="m-val">${zone}</span><span class="m-lbl">Zielzone</span></div>
         </div>
+        ${extLine}
         <div class="spark-wrap">
           <div class="spark-header">
             <span class="spark-title">Pivot-Verlauf</span>
