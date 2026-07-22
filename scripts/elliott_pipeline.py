@@ -112,6 +112,32 @@ def fetch_yfinance(ticker: str) -> FetchOutcome:
         )
 
 
+def fetch_yfinance_weekly(ticker: str) -> FetchOutcome:
+    """Wie fetch_yfinance, aber Wochenkerzen über lange Historie (großer Grad).
+
+    Nutzt DIESELBE parse_download_df — die yfinance-Wochenform ist spaltengleich
+    zur Tagesform (MultiIndex je Ticker), daher ist die MultiIndex-Lesson
+    bereits abgedeckt. Fail-soft wie gehabt.
+    """
+    try:
+        import yfinance as yf  # noqa: WPS433
+
+        df = yf.download(
+            ticker,
+            period=config.DATA_PERIOD_WEEKLY,
+            interval=config.DATA_INTERVAL_WEEKLY,
+            auto_adjust=True,
+            progress=False,
+            threads=False,
+        )
+        return parse_download_df(df)
+    except Exception as exc:  # noqa: BLE001 — fail-soft
+        return FetchOutcome(
+            reason=FETCH_ERROR,
+            detail=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+        )
+
+
 def _normalize_columns(df):
     """Reduziert MultiIndex-Spalten robust auf Ebene 0.
 
@@ -215,11 +241,65 @@ def _synthetic_dates(n: int) -> List[str]:
     return [(anchor + timedelta(days=i)).isoformat() for i in range(n)]
 
 
+def _synthetic_weekly_dates(n: int) -> List[str]:
+    """Wöchentlich gespaced (kein 'today'), damit die Wochen-Ebene realistisch
+    aussieht (Wellen-Beine über Monate)."""
+    from datetime import date, timedelta
+
+    anchor = date(2016, 1, 4)  # Montag
+    return [(anchor + timedelta(weeks=i)).isoformat() for i in range(n)]
+
+
+def fetch_synthetic_weekly(ticker: str) -> FetchOutcome:
+    """Deterministischer Wochen-Ersatz (NUR Dev/Demo). Erzeugt einen sauberen
+    W1–W4-Impuls (end_of_w4) über die Wochen-Ebene, damit die zweite Zählung
+    (großer Grad) nachweisbar erscheint. Variation je Ticker über Seed.
+    """
+    seed = sum(ord(c) for c in ticker)
+    base = 80.0 + (seed % 25)
+    w1 = 22.0 + (seed % 6) * 3.0
+    retr2 = [0.5, 0.618, 0.382][seed % 3]
+    w3 = w1 * (1.6 + (seed % 4) * 0.1)         # W3 > W1 (nicht kürzeste)
+    retr4 = [0.382, 0.5][seed % 2]
+
+    a_start = base + w1 * 0.6
+    a0 = base
+    a1 = base + w1
+    a2 = a1 - retr2 * w1                        # P2 (W2-Tief, > P0)
+    a3 = a2 + w3                                # P3 (W3-Hoch, > P1)
+    a4 = a3 - retr4 * w3                        # P4 (W4-Tief, > P1)
+    a5_partial = a4 + 0.30 * w3                 # Beginn W5, bestätigt P4
+
+    w = config.ZIGZAG_WINDOW
+    seg = [
+        (a_start, a0, w + 2),
+        (a0, a1, w + 4),
+        (a1, a2, w + 3),
+        (a2, a3, w + 4),
+        (a3, a4, w + 3),
+        (a4, a5_partial, w + 2),
+    ]
+    closes: List[float] = []
+    for start, end, n in seg:
+        rng = range(n + 1) if not closes else range(1, n + 1)
+        for k in rng:
+            closes.append(start + (end - start) * (k / n))
+
+    return FetchOutcome(data=(_synthetic_weekly_dates(len(closes)), closes))
+
+
 def get_fetcher() -> Fetcher:
     """Wählt Fetcher nach Umgebungsvariable (Default: yfinance)."""
     if os.environ.get("ELLIOTT_OFFLINE") == "1":
         return fetch_synthetic
     return fetch_yfinance
+
+
+def get_weekly_fetcher() -> Fetcher:
+    """Wochen-Fetcher für den großen Grad (passend zum Modus)."""
+    if os.environ.get("ELLIOTT_OFFLINE") == "1":
+        return fetch_synthetic_weekly
+    return fetch_yfinance_weekly
 
 
 # ---------------------------------------------------------------------------
@@ -369,6 +449,40 @@ def _meta_sector(ticker: str) -> str:
     return entry.get("sector") or ""
 
 
+def higher_degree_for(ticker: str, weekly_fetcher: Optional[Fetcher]) -> Optional[Dict]:
+    """Zweite Zählung auf WOCHEN-Basis (großer Grad) für EINEN Ticker.
+
+    Reuse der bestehenden ZigZag-/Regel-/Zielzonen-Logik (inkl.
+    target_zone_extended). Long-only: Short-Zählungen werden auch hier
+    verworfen. Fail-soft: jedes Problem (kein Netz, junge Aktie mit <MIN_BARS
+    Wochen, kein regelkonformer Long-Count) -> None -> keine Sektion auf der
+    Karte. Wird NUR für die finalen Top-5 je Markt aufgerufen.
+    """
+    if weekly_fetcher is None:
+        return None
+    try:
+        outcome = weekly_fetcher(ticker)
+    except Exception:  # noqa: BLE001 — fail-soft
+        return None
+    if outcome is None or outcome.data is None:
+        return None
+    dates, closes = outcome.data
+    if len(closes) < 2:
+        return None
+    pivots = zigzag(closes, config.ZIGZAG_WINDOW, dates)
+    if len(pivots) < 3:
+        return None
+    setup = classify_setup(pivots, closes[-1])
+    if setup is None or setup["direction"] < 0:
+        return None
+    return {
+        "count_label": setup["count_label"],
+        "invalidation_price": setup["invalidation_price"],
+        "target_zone": setup["target_zone"],
+        "target_zone_extended": setup["target_zone_extended"],
+    }
+
+
 def build_candidate(
     ticker: str, dates: List[str], closes: List[float]
 ) -> Tuple[Optional[Dict], Optional[str], str]:
@@ -405,6 +519,12 @@ def build_candidate(
         )
 
     chart_points = [p.as_dict() for p in pivots[-12:]]
+    # Wellen-Ziffern für die Sparkline (additiv): die GEZÄHLTE Struktur sind
+    # die letzten k Pivots (end_of_w4 -> 5 Pivots P0..P4, sonst 3 Pivots
+    # P0..P2). index bezieht sich auf chart_points; wave 0 = P0-Start.
+    k = 5 if setup["setup"] == "end_of_w4" else 3
+    ncp = len(chart_points)
+    count_wave_labels = [{"index": ncp - k + j, "wave": j} for j in range(k)]
     # Tagesveränderung aus den letzten ZWEI bereits geladenen Schlusskursen —
     # KEIN zusätzlicher API-Call, kein Live-Polling.
     prev_close = closes[-2] if len(closes) >= 2 else close
@@ -428,6 +548,7 @@ def build_candidate(
         "target_zone_extended": setup["target_zone_extended"],
         "score_heuristic": score_setup(setup),
         "chart_points": chart_points,
+        "count_wave_labels": count_wave_labels,
         "status": config.CARD_STATUS,
     }
     return entry, None, ""
@@ -483,12 +604,19 @@ def _scan_market(
     return candidates, reason_counts, first_samples
 
 
-def build_market(market_key: str, fetcher: Fetcher) -> Dict:
+def build_market(
+    market_key: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None
+) -> Dict:
     """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
 
     Instrumentiert: zählt Skips nach Grund (inkl. short_setup_excluded) und
     loggt für die ersten 3 Skips je Markt das volle Detail (Traceback bzw.
     Datenform). Report/Schema bleiben unverändert.
+
+    Großer Grad: NUR für die finalen Top-5 (nach Ranking) wird der
+    Wochen-Count geholt und additiv als higher_degree angehängt — hält die
+    Extra-Fetches bei ~TOP_N Tickern. higher_degree berührt Score/Ranking NICHT
+    (wird erst NACH der Sortierung gesetzt).
     """
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
@@ -498,6 +626,14 @@ def build_market(market_key: str, fetcher: Fetcher) -> Dict:
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
     top = candidates[: config.TOP_N]
+
+    # Großer Grad NUR für die Top-N (additiv, ranking-neutral).
+    higher_count = 0
+    for entry in top:
+        hd = higher_degree_for(entry["ticker"], weekly_fetcher)
+        entry["higher_degree"] = hd
+        if hd is not None:
+            higher_count += 1
 
     skipped = sum(reason_counts.values())
 
@@ -511,6 +647,8 @@ def build_market(market_key: str, fetcher: Fetcher) -> Dict:
         f"no_valid_count={reason_counts[NO_VALID_COUNT]}, "
         f"short_setup_excluded={reason_counts[SHORT_SETUP_EXCLUDED]}"
     )
+    _log(f"[elliott][diag] {market_key} großer Grad: "
+         f"{higher_count}/{len(top)} Top-Kandidaten mit Wochen-Count")
     for i, (tk, reason, detail) in enumerate(first_samples, start=1):
         _log(f"[elliott][diag] {market_key} Skip-Probe {i}/{len(first_samples)}: "
              f"{tk} -> {reason}")
@@ -526,11 +664,13 @@ def build_market(market_key: str, fetcher: Fetcher) -> Dict:
     }
 
 
-def build_report(fetcher: Fetcher, run_timestamp_utc: str) -> Dict:
+def build_report(
+    fetcher: Fetcher, run_timestamp_utc: str, weekly_fetcher: Optional[Fetcher] = None
+) -> Dict:
     """Baut das komplette Report-Objekt (deterministisch bei festem Input)."""
     markets: Dict[str, Dict] = {}
     for key in config.MARKETS:
-        markets[key] = build_market(key, fetcher)
+        markets[key] = build_market(key, fetcher, weekly_fetcher)
     return {
         "schema_version": config.SCHEMA_VERSION,
         "run_timestamp_utc": run_timestamp_utc,
@@ -596,7 +736,7 @@ def main() -> int:
         probe_ticker("AAPL")
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    report = build_report(fetcher, ts)
+    report = build_report(fetcher, ts, get_weekly_fetcher())
     written = write_report(report)
 
     us = report["markets"]["US"]

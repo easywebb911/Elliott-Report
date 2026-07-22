@@ -52,10 +52,11 @@
     }
     .banner.show { display:block; }
     h2 {
-      font-size:12px; text-transform:uppercase; letter-spacing:.12em;
-      color:var(--txt-sub); font-weight:700; margin:22px 0 10px;
+      font-size:17px; text-transform:uppercase; letter-spacing:.08em;
+      color:var(--txt); font-weight:800; margin:26px 0 12px;
       display:flex; align-items:center; gap:8px;
     }
+    h2 .flag { font-size:19px; }
     h2::after { content:""; flex:1; height:1px; background:linear-gradient(90deg,var(--brd),transparent); }
 
     .grid { display:grid; gap:10px; grid-template-columns:1fr; }
@@ -161,12 +162,29 @@
       font-size:.66rem; color:var(--txt-dim); font-variant-numeric:tabular-nums;
     }
     .ext-zone .ext-lbl { text-transform:uppercase; letter-spacing:.08em; margin-right:5px; }
+    /* Zweite Zählung (großer Grad / Wochen): dezent abgesetzter Block unter den
+       Kacheln. Erscheint nur, wenn higher_degree existiert. */
+    .hd-block { margin:0 12px 12px; padding:8px 10px; border:1px solid var(--brd);
+      border-radius:10px; background:rgba(88,166,255,.05); }
+    .hd-title { font-size:.58rem; text-transform:uppercase; letter-spacing:.09em;
+      color:var(--accent); font-weight:800; }
+    .hd-label { font-size:.74rem; color:var(--txt-sub); margin-top:3px; line-height:1.3; }
+    .hd-rows { display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px 8px; margin-top:7px; }
+    .hd-rows > div { display:flex; flex-direction:column; min-width:0; }
+    .hd-k { font-size:.52rem; text-transform:uppercase; letter-spacing:.04em; color:var(--txt-dim); }
+    .hd-v { font-size:.66rem; color:var(--txt); font-variant-numeric:tabular-nums;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
     .spark-wrap { padding:8px 12px 6px; border-top:1px solid var(--brd); }
     .spark-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
     .spark-title { font-size:.6rem; text-transform:uppercase; letter-spacing:.08em; color:var(--txt-dim); font-weight:700; }
     .spark-trend { font-size:12px; font-weight:700; }
     .spark-svg { width:100%; height:56px; }
     .spark-svg svg { width:100%; height:56px; display:block; overflow:visible; }
+    /* Wellen-Ziffern in der Sparkline: kleiner, mit BG-Halo (paint-order) für
+       Lesbarkeit über Linie/Fill. */
+    .wave-num { font-size:8px; font-weight:800; fill:var(--txt);
+      paint-order:stroke; stroke:var(--bg-card); stroke-width:2.4px;
+      font-variant-numeric:tabular-nums; }
     .spark-empty { font-size:.7rem; color:var(--txt-dim); font-style:italic; padding:16px 0; text-align:center; }
     /* Sparkline ohne Animation (Easy-Wunsch): statische Kurve mit sichtbaren
        Pivot-Punkten (Wendepunkte), Endpunkt betont — Squeeze-TopTen-Optik. */
@@ -250,8 +268,9 @@
     // Kurve, weiche Linie, Endpunkt-Marker. Die Invalidierungs-Linie ist eine
     // Elliott-Ergänzung (nur wenn im Sichtbereich), nicht aus dem Vorbild.
     function drawSparkline(el) {
-      let ys, inval;
+      let ys, inval, waves;
       try { ys = JSON.parse(el.dataset.pts || '[]'); } catch (e) { ys = []; }
+      try { waves = JSON.parse(el.dataset.waves || '[]'); } catch (e) { waves = []; }
       inval = el.dataset.inval === '' ? null : parseFloat(el.dataset.inval);
       if (!ys || ys.length < 2) { el.innerHTML = '<div class="spark-empty">Kein Verlauf</div>'; return; }
 
@@ -261,13 +280,24 @@
       const xOf = i => PX + (i / (n - 1)) * (W - 2 * PX);
       const yOf = v => H - PY - ((v - min) / span) * (H - 2 * PY);
 
+      // Gezählte Struktur: die Pivots aus count_wave_labels (letzte k). Ab
+      // countStart hebt sich der Abschnitt farblich vom Vorlauf ab; die Pivots
+      // tragen kleine Wellen-Ziffern (0 = P0-Start).
+      const waveByIdx = new Map(waves.map(w => [w.index, w.wave]));
+      const countStart = waves.length ? Math.min(...waves.map(w => w.index)) : 0;
+
       let area = `M${xOf(0).toFixed(1)},${yOf(ys[0]).toFixed(1)}`;
-      let line = area;
-      for (let i = 1; i < n; i++) {
-        const x = xOf(i).toFixed(1), y = yOf(ys[i]).toFixed(1);
-        area += `L${x},${y}`; line += `L${x},${y}`;
-      }
+      for (let i = 1; i < n; i++) area += `L${xOf(i).toFixed(1)},${yOf(ys[i]).toFixed(1)}`;
       area += `L${xOf(n - 1).toFixed(1)},${(H - PY).toFixed(1)}L${xOf(0).toFixed(1)},${(H - PY).toFixed(1)}Z`;
+
+      const pathFrom = (a, b) => {
+        let d = `M${xOf(a).toFixed(1)},${yOf(ys[a]).toFixed(1)}`;
+        for (let i = a + 1; i <= b; i++) d += `L${xOf(i).toFixed(1)},${yOf(ys[i]).toFixed(1)}`;
+        return d;
+      };
+      const preLine = countStart > 0
+        ? `<path d="${pathFrom(0, countStart)}" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.65"/>` : '';
+      const cntLine = `<path d="${pathFrom(countStart, n - 1)}" fill="none" stroke="var(--spark-end)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
 
       const id = 'sg' + Math.random().toString(36).slice(2, 8);
       let invLine = '';
@@ -275,13 +305,21 @@
         const iy = yOf(inval).toFixed(1);
         invLine = `<line x1="0" y1="${iy}" x2="${W}" y2="${iy}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>`;
       }
-      // Jeden Pivot (Wendepunkt) als sichtbaren Punkt markieren, mit Ring in
-      // Karten-Hintergrundfarbe -> hebt sich klar von der Linie ab. Endpunkt
-      // (letzter Pivot) etwas größer. (Squeeze-TopTen-Optik.)
-      let dots = '';
+
+      let dots = '', labels = '', lastLabelX = -999;
       for (let i = 0; i < n; i++) {
-        const r = (i === n - 1) ? 3.4 : 2.5;
-        dots += `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(ys[i]).toFixed(1)}" r="${r}" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.5"/>`;
+        const x = xOf(i), y = yOf(ys[i]);
+        if (i >= countStart) {
+          const r = (i === n - 1) ? 3.2 : 2.5;
+          dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.5"/>`;
+          if (waveByIdx.has(i) && (x - lastLabelX) >= 9) {  // Kollision -> Ziffer weglassen
+            const ly = (y < 14) ? (y + 11) : (y - 6);       // nahe oben -> unter den Punkt
+            labels += `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" class="wave-num" text-anchor="middle">${waveByIdx.get(i)}</text>`;
+            lastLabelX = x;
+          }
+        } else {
+          dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" fill="var(--spark)" opacity="0.5"/>`;
+        }
       }
 
       el.innerHTML =
@@ -292,8 +330,8 @@
           </linearGradient></defs>
           ${invLine}
           <path d="${area}" fill="url(#${id})"/>
-          <path d="${line}" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          ${dots}
+          ${preLine}${cntLine}
+          ${dots}${labels}
         </svg>`;
     }
     function drawAllSparklines() {
@@ -372,6 +410,19 @@
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
+      // Zweite Zählung (großer Grad, Wochen) — NUR wenn vorhanden (fail-soft:
+      // kein leerer Block, kein "—").
+      const zoneStr = z => z ? `${fmt(z.low)}–${fmt(z.high)}` : '–';
+      const hd = c.higher_degree;
+      const hdBlock = hd ? `<div class="hd-block">
+          <div class="hd-title">Großer Grad · Wochen</div>
+          <div class="hd-label">${esc(hd.count_label || '')}</div>
+          <div class="hd-rows">
+            <div><span class="hd-k">Invalidierung</span><span class="hd-v">${fmt(hd.invalidation_price)}</span></div>
+            <div><span class="hd-k">Zielzone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span></div>
+            <div><span class="hd-k">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span></div>
+          </div>
+        </div>` : '';
       return `<article class="card" data-ticker="${esc(c.ticker)}">
         <div class="card-top">
           <div class="card-left">
@@ -401,20 +452,23 @@
           <div class="metric-box zone"><span class="m-val">${zone}</span><span class="m-lbl">Zielzone</span></div>
         </div>
         ${extLine}
+        ${hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">
             <span class="spark-title">Pivot-Verlauf</span>
             <span class="spark-trend" style="color:${trendUp ? 'var(--grn)' : 'var(--red)'}">${trendUp ? '▲' : '▼'}</span>
           </div>
-          <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-inval="${c.invalidation_price ?? ''}"></div>
+          <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-inval="${c.invalidation_price ?? ''}" data-waves="${esc(JSON.stringify(c.count_wave_labels || []))}"></div>
         </div>
       </article>`;
     }
 
+    const MARKET_FLAG = { US: '🇺🇸', DE: '🇩🇪' };
     function renderMarket(id, market) {
       const el = document.getElementById(id);
       const cards = (market.candidates || []).map((c, i) => card(c, i + 1)).join('');
-      el.innerHTML = `<h2>${esc(market.label)}</h2>` +
+      const flag = MARKET_FLAG[id] ? ` <span class="flag">${MARKET_FLAG[id]}</span>` : '';
+      el.innerHTML = `<h2>${esc(market.label)}${flag}</h2>` +
         (cards ? `<div class="grid">${cards}</div>`
                : `<div class="empty">Keine validen Kandidaten für diesen Lauf.</div>`);
     }
