@@ -87,6 +87,26 @@ zusätzlich manuell (`workflow_dispatch`). Er baut den Report, validiert das
 JSON und committet Änderungen auf `main` (fail-soft: ein fehlerhafter Lauf
 committet nichts).
 
+## Qualitätssicherung: CI + Guardian
+
+Zwei Ebenen, bevor etwas auf `main` landet:
+
+- **CI (`.github/workflows/ci.yml`, Check `test`)** — läuft automatisch bei
+  **jedem PR** und Push auf `main`, führt die Offline-`pytest` aus. Empfohlen als
+  *required status check* in den Branch-Protection-Regeln (Settings → Branches).
+- **Guardian (`.claude/agents/guardian.md`)** — ein **Zweitblick-Review-
+  Subagent**. Er läuft **vor Manual-Merge-PRs** über den Diff — konkret, wenn ein
+  PR **Workflow-Files**, das **`report.json`-Schema** oder **Score-/Filter-/
+  Pipeline-Logik** berührt. Seine Prüfliste ist repo-spezifisch (u. a.:
+  Ziel-Mechanik statt „nichts kaputt", ob Test-Mocks die echte yfinance-Form
+  spiegeln, additive Schema-Änderung, alle Konsumenten geänderter Strukturen
+  gegrept, Long-only-Invariante, Revert-Weg, Determinismus). Der Guardian gibt
+  ein kurzes Urteil **OK / Nits / Blocker** ab.
+
+  **Guardian ist Zweitblick, kein Gatekeeper — Easy entscheidet über den Merge.**
+  Reine Doku-/Daten-PRs (z. B. der tägliche `report.json`-Commit) brauchen keinen
+  Guardian-Lauf.
+
 ## Rückweg (Revert)
 
 Ein **kompletter PR-Revert genügt.** Es gibt keine Daten-Migration und kein
