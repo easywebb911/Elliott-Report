@@ -128,14 +128,14 @@
        scoreColor; Badge darunter. Größe bewusst 104px, damit die Karte nicht
        übermäßig wächst. */
     .donut-block { display:flex; flex-direction:column; align-items:center; gap:8px; padding:2px 12px 12px; }
-    .donut { position:relative; width:104px; height:104px; }
-    .donut-svg { width:104px; height:104px; display:block; }
+    .donut { position:relative; width:90px; height:90px; }
+    .donut-svg { width:90px; height:90px; display:block; }
     .donut-ring { animation:donutDraw .9s ease; }
     @keyframes donutDraw { from { stroke-dashoffset:var(--doff, 0); } }
     @media (prefers-reduced-motion: reduce) { .donut-ring { animation:none; } }
     .donut-center { position:absolute; inset:0; display:flex; flex-direction:column;
       align-items:center; justify-content:center; }
-    .donut-num { font-size:2rem; font-weight:900; line-height:1; font-variant-numeric:tabular-nums; }
+    .donut-num { font-size:1.8rem; font-weight:900; line-height:1; font-variant-numeric:tabular-nums; }
     .donut-scale { font-size:.66rem; color:#64748b; font-variant-numeric:tabular-nums; margin-top:1px; }
     .setup { color:var(--txt); font-size:.78rem; padding:0 12px 8px; line-height:1.35; }
 
@@ -168,20 +168,8 @@
     .spark-svg { width:100%; height:56px; }
     .spark-svg svg { width:100%; height:56px; display:block; overflow:visible; }
     .spark-empty { font-size:.7rem; color:var(--txt-dim); font-style:italic; padding:16px 0; text-align:center; }
-    /* Sparkline-Animation: Linie zeichnet sich ein, Fill/Punkte blenden auf,
-       Endpunkt-Marker poppt. Reduced-motion wird respektiert. */
-    .spark-line { stroke-dasharray:1; stroke-dashoffset:1; animation:sparkDraw .9s ease forwards; }
-    .spark-fill { opacity:0; animation:sparkFade .5s ease .45s forwards; }
-    .spark-end  { opacity:0; transform-box:fill-box; transform-origin:center;
-                  animation:sparkPop .35s cubic-bezier(.2,1.4,.4,1) .8s forwards; }
-    @keyframes sparkDraw { to { stroke-dashoffset:0; } }
-    @keyframes sparkFade { to { opacity:1; } }
-    @keyframes sparkPop  { from { opacity:0; transform:scale(.2); } to { opacity:1; transform:scale(1); } }
-    @media (prefers-reduced-motion: reduce) {
-      .spark-line { stroke-dasharray:none; stroke-dashoffset:0; animation:none; }
-      .spark-fill { opacity:1; animation:none; }
-      .spark-end  { opacity:1; transform:none; animation:none; }
-    }
+    /* Sparkline ohne Animation (Easy-Wunsch): statische Kurve mit sichtbaren
+       Pivot-Punkten (Wendepunkte), Endpunkt betont — Squeeze-TopTen-Optik. */
 
     .card-foot { padding:0 12px 12px; }
     .badge {
@@ -287,11 +275,14 @@
         const iy = yOf(inval).toFixed(1);
         invLine = `<line x1="0" y1="${iy}" x2="${W}" y2="${iy}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>`;
       }
+      // Jeden Pivot (Wendepunkt) als sichtbaren Punkt markieren, mit Ring in
+      // Karten-Hintergrundfarbe -> hebt sich klar von der Linie ab. Endpunkt
+      // (letzter Pivot) etwas größer. (Squeeze-TopTen-Optik.)
       let dots = '';
-      for (let i = 0; i < n - 1; i++) {
-        dots += `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(ys[i]).toFixed(1)}" r="1.6" fill="var(--spark)" opacity="0.55"/>`;
+      for (let i = 0; i < n; i++) {
+        const r = (i === n - 1) ? 3.4 : 2.5;
+        dots += `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(ys[i]).toFixed(1)}" r="${r}" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.5"/>`;
       }
-      const ex = xOf(n - 1).toFixed(1), ey = yOf(ys[n - 1]).toFixed(1);
 
       el.innerHTML =
         `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -300,10 +291,9 @@
             <stop offset="100%" stop-color="var(--spark-fill)" stop-opacity="0.03"/>
           </linearGradient></defs>
           ${invLine}
-          <path class="spark-fill" d="${area}" fill="url(#${id})"/>
-          <path class="spark-line" d="${line}" pathLength="1" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          <g class="spark-fill">${dots}</g>
-          <circle class="spark-end" cx="${ex}" cy="${ey}" r="3.2" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.6"/>
+          <path d="${area}" fill="url(#${id})"/>
+          <path d="${line}" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          ${dots}
         </svg>`;
     }
     function drawAllSparklines() {
