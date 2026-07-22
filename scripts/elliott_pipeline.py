@@ -21,6 +21,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import traceback
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
@@ -37,20 +39,52 @@ import config  # noqa: E402
 from rules import validate_partial_to_w4  # noqa: E402
 from zigzag import Pivot, zigzag  # noqa: E402
 
-# Ein Fetcher liefert (dates, closes) oder None (fail-soft).
-Fetcher = Callable[[str], Optional[Tuple[List[str], List[float]]]]
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# ---------------------------------------------------------------------------
+# DIAGNOSE-INSTRUMENTIERUNG (reines Logging — KEINE Logik-/Schema-Änderung)
+# ---------------------------------------------------------------------------
+# Die vier möglichen Skip-Gründe. Sie klassifizieren nur, warum ein Ticker
+# ohnehin übersprungen wird; die Skip-ENTSCHEIDUNG selbst ist unverändert.
+FETCH_ERROR = "fetch_error"        # Exception beim Abruf (yfinance/Netz/Import)
+EMPTY_DATA = "empty_data"          # Abruf ok, aber keine/zu wenige Kursdaten
+TOO_FEW_PIVOTS = "too_few_pivots"  # ZigZag liefert < 3 Pivots
+NO_VALID_COUNT = "no_valid_count"  # kein regelkonformes Setup gefunden
+SKIP_REASONS = (FETCH_ERROR, EMPTY_DATA, TOO_FEW_PIVOTS, NO_VALID_COUNT)
+
+
+@dataclass
+class FetchOutcome:
+    """Ergebnis eines Abrufs. Trägt bei Misserfolg den Grund + ein Detail.
+
+    Das Detail dient NUR dem Log (Traceback bzw. Datenform). Es beeinflusst
+    weder Report noch die Skip-Entscheidung.
+    """
+
+    data: Optional[Tuple[List[str], List[float]]] = None
+    reason: Optional[str] = None
+    detail: str = ""
+
+
+# Ein Fetcher liefert ein FetchOutcome (Daten ODER Skip-Grund + Detail).
+Fetcher = Callable[[str], FetchOutcome]
+
+
+def _log(msg: str) -> None:
+    """Einheitliche, sofort sichtbare Log-Ausgabe (stdout, für Actions-Log)."""
+    print(msg, flush=True)
 
 
 # ---------------------------------------------------------------------------
 # 2) KURSDATEN
 # ---------------------------------------------------------------------------
-def fetch_yfinance(ticker: str) -> Optional[Tuple[List[str], List[float]]]:
-    """Holt Tageskerzen via yfinance. Fail-soft: None bei jedem Problem.
+def fetch_yfinance(ticker: str) -> FetchOutcome:
+    """Holt Tageskerzen via yfinance. Fail-soft: Skip-Grund statt Absturz.
 
     yfinance wird bewusst LAZY importiert, damit Tests und Offline-Läufe die
-    Bibliothek (und das Netz) nicht benötigen.
+    Bibliothek (und das Netz) nicht benötigen. Die Skip-ENTSCHEIDUNGEN sind
+    identisch zu vorher; nur der GRUND (+ Detail fürs Log) wird jetzt
+    mitgeliefert.
     """
     try:
         import yfinance as yf  # noqa: WPS433 (lazy import gewollt)
@@ -64,18 +98,32 @@ def fetch_yfinance(ticker: str) -> Optional[Tuple[List[str], List[float]]]:
             threads=False,
         )
         if df is None or df.empty or "Close" not in df:
-            return None
+            shape = getattr(df, "shape", None)
+            cols = list(getattr(df, "columns", []))
+            return FetchOutcome(
+                reason=EMPTY_DATA,
+                detail=f"df leer/ohne 'Close'; shape={shape}, columns={cols}",
+            )
         closes = [float(x) for x in df["Close"].dropna().tolist()]
         dates = [d.strftime("%Y-%m-%d") for d in df.index.to_pydatetime()]
         dates = dates[: len(closes)]
         if len(closes) < config.MIN_BARS:
-            return None
-        return dates, closes
-    except Exception:  # noqa: BLE001 — fail-soft ist hier Absicht
-        return None
+            return FetchOutcome(
+                reason=EMPTY_DATA,
+                detail=(
+                    f"zu wenige Kerzen: {len(closes)} < MIN_BARS={config.MIN_BARS}; "
+                    f"shape={df.shape}, columns={list(df.columns)}"
+                ),
+            )
+        return FetchOutcome(data=(dates, closes))
+    except Exception as exc:  # noqa: BLE001 — fail-soft ist hier Absicht
+        return FetchOutcome(
+            reason=FETCH_ERROR,
+            detail=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+        )
 
 
-def fetch_synthetic(ticker: str) -> Optional[Tuple[List[str], List[float]]]:
+def fetch_synthetic(ticker: str) -> FetchOutcome:
     """Deterministischer Ersatz-Fetcher (NUR Dev/Demo, kein Netz).
 
     Erzeugt eine saubere W1-W2-Struktur (Long-Setup am Ende W2), damit die
@@ -112,7 +160,7 @@ def fetch_synthetic(ticker: str) -> Optional[Tuple[List[str], List[float]]]:
             closes.append(start + (end - start) * (k / n))
 
     dates = _synthetic_dates(len(closes))
-    return dates, closes
+    return FetchOutcome(data=(dates, closes))
 
 
 def _synthetic_dates(n: int) -> List[str]:
@@ -244,18 +292,31 @@ def _company_name(ticker: str) -> str:
     return ticker
 
 
-def build_candidate(ticker: str, dates: List[str], closes: List[float]) -> Optional[Dict]:
-    """Baut einen Kandidaten-Eintrag oder None (kein valides Setup)."""
+def build_candidate(
+    ticker: str, dates: List[str], closes: List[float]
+) -> Tuple[Optional[Dict], Optional[str], str]:
+    """Baut einen Kandidaten-Eintrag.
+
+    Returns (entry, reason, detail):
+      - Erfolg -> (entry, None, "")
+      - Skip   -> (None, reason, detail-fürs-Log)
+    Die Entscheidungslogik ist unverändert; es wird nur der Grund + ein
+    Detail fürs Log ergänzt.
+    """
     pivots = zigzag(closes, config.ZIGZAG_WINDOW, dates)
     if len(pivots) < 3:
-        return None
+        return None, TOO_FEW_PIVOTS, f"pivots={len(pivots)} (< 3), bars={len(closes)}"
     close = closes[-1]
     setup = classify_setup(pivots, close)
     if setup is None:
-        return None
+        return (
+            None,
+            NO_VALID_COUNT,
+            f"pivots={len(pivots)}, kein regelkonformes Setup (W2/W4)",
+        )
 
     chart_points = [p.as_dict() for p in pivots[-12:]]
-    return {
+    entry = {
         "ticker": ticker,
         "name": _company_name(ticker),
         "close": round(close, 4),
@@ -266,33 +327,71 @@ def build_candidate(ticker: str, dates: List[str], closes: List[float]) -> Optio
         "chart_points": chart_points,
         "status": config.CARD_STATUS,
     }
+    return entry, None, ""
 
 
 def build_market(market_key: str, fetcher: Fetcher) -> Dict:
-    """Verarbeitet ein Marktuniversum (fail-soft je Ticker)."""
+    """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
+
+    Instrumentiert: zählt Skips nach Grund und loggt für die ersten 3 Skips
+    je Markt das volle Detail (Traceback bzw. Datenform). Report/Schema und
+    die Skip-Entscheidungen selbst bleiben unverändert.
+    """
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
     candidates: List[Dict] = []
-    skipped = 0
+
+    reason_counts: Dict[str, int] = {r: 0 for r in SKIP_REASONS}
+    first_samples: List[Tuple[str, str, str]] = []  # (ticker, reason, detail)
+    MAX_SAMPLES = 3
+
+    def _record_skip(tk: str, reason: str, detail: str) -> None:
+        reason_counts[reason] += 1
+        if len(first_samples) < MAX_SAMPLES:
+            first_samples.append((tk, reason, detail))
 
     for ticker in universe:
+        # Sicherheitsnetz: ein Fetcher soll ein FetchOutcome liefern, aber
+        # falls er doch wirft, als fetch_error klassifizieren (kein Absturz).
         try:
-            data = fetcher(ticker)
-        except Exception:  # noqa: BLE001 — fail-soft
-            data = None
-        if data is None:
-            skipped += 1
+            outcome = fetcher(ticker)
+        except Exception as exc:  # noqa: BLE001 — fail-soft
+            _record_skip(
+                ticker, FETCH_ERROR,
+                f"Fetcher warf: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+            )
             continue
-        dates, closes = data
-        entry = build_candidate(ticker, dates, closes)
+
+        if outcome.data is None:
+            _record_skip(ticker, outcome.reason or FETCH_ERROR, outcome.detail)
+            continue
+
+        dates, closes = outcome.data
+        entry, reason, detail = build_candidate(ticker, dates, closes)
         if entry is None:
-            skipped += 1
+            _record_skip(ticker, reason or NO_VALID_COUNT, detail)
             continue
         candidates.append(entry)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
     top = candidates[: config.TOP_N]
+
+    skipped = sum(reason_counts.values())
+
+    # --- Diagnose-Log (verändert Report/Schema NICHT) ---
+    _log(
+        f"[elliott][diag] {market_key}: {len(candidates)} Kandidaten, "
+        f"{skipped} übersprungen von {len(universe)} — Gründe: "
+        f"fetch_error={reason_counts[FETCH_ERROR]}, "
+        f"empty_data={reason_counts[EMPTY_DATA]}, "
+        f"too_few_pivots={reason_counts[TOO_FEW_PIVOTS]}, "
+        f"no_valid_count={reason_counts[NO_VALID_COUNT]}"
+    )
+    for i, (tk, reason, detail) in enumerate(first_samples, start=1):
+        _log(f"[elliott][diag] {market_key} Skip-Probe {i}/{len(first_samples)}: "
+             f"{tk} -> {reason}")
+        _log(f"[elliott][diag]   Detail: {detail}")
 
     return {
         "label": cfg["label"],
@@ -331,26 +430,64 @@ def write_report(report: Dict) -> List[Path]:
     return written
 
 
+def probe_ticker(ticker: str = "AAPL") -> None:
+    """Expliziter Roh-Abruf eines Probe-Tickers rein fürs Log.
+
+    Loggt yfinance-Version, Zeilen-/Spaltenform und die Datums-Range (KEINE
+    Preisflut). Fängt alles ab — die Probe darf den Lauf nie beeinflussen.
+    """
+    _log(f"[elliott][diag] Probe-Abruf '{ticker}' (Roh-yfinance):")
+    try:
+        import yfinance as yf  # noqa: WPS433
+
+        _log(f"[elliott][diag]   yfinance-Version: {getattr(yf, '__version__', '?')}")
+        df = yf.download(
+            ticker,
+            period=config.DATA_PERIOD,
+            interval=config.DATA_INTERVAL,
+            auto_adjust=True,
+            progress=False,
+            threads=False,
+        )
+        if df is None or getattr(df, "empty", True):
+            _log(f"[elliott][diag]   Ergebnis: LEER (df={df!r})")
+            return
+        idx = df.index
+        first = idx[0].strftime("%Y-%m-%d") if len(idx) else "?"
+        last = idx[-1].strftime("%Y-%m-%d") if len(idx) else "?"
+        _log(f"[elliott][diag]   Zeilen: {len(df)}, Spalten: {list(df.columns)}")
+        _log(f"[elliott][diag]   Datums-Range: {first} .. {last}")
+    except Exception as exc:  # noqa: BLE001 — Probe fail-soft
+        _log(f"[elliott][diag]   Probe-Fehler: {type(exc).__name__}: {exc}")
+        _log(f"[elliott][diag]   {traceback.format_exc().rstrip()}")
+
+
 def main() -> int:
     fetcher = get_fetcher()
+    mode = "OFFLINE/synthetisch" if fetcher is fetch_synthetic else "yfinance"
+    _log(f"[elliott] Modus: {mode}")
+
+    # Probe nur im echten yfinance-Modus (dort liegt die zu diagnostizierende
+    # Ursache); im Offline-Modus wäre der Roh-Abruf nur Rauschen.
+    if fetcher is not fetch_synthetic:
+        probe_ticker("AAPL")
+
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     report = build_report(fetcher, ts)
     written = write_report(report)
 
     us = report["markets"]["US"]
     de = report["markets"]["DE"]
-    mode = "OFFLINE/synthetisch" if fetcher is fetch_synthetic else "yfinance"
-    print(f"[elliott] Modus: {mode}")
-    print(
+    _log(
         f"[elliott] US: {us['candidates_found']} Kandidaten "
         f"({us['skipped']} übersprungen von {us['universe_size']})"
     )
-    print(
+    _log(
         f"[elliott] DE: {de['candidates_found']} Kandidaten "
         f"({de['skipped']} übersprungen von {de['universe_size']})"
     )
     for p in written:
-        print(f"[elliott] geschrieben: {p.relative_to(REPO_ROOT)}")
+        _log(f"[elliott] geschrieben: {p.relative_to(REPO_ROOT)}")
     return 0
 
 
