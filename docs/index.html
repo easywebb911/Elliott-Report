@@ -18,6 +18,8 @@
       --brd:#1e2d4a; --shadow:0 2px 12px rgba(0,0,0,.35);
       --accent:#3b82f6; --radius:14px;
       --red:#ef4444; --ora:#f59e0b; --grn:#22c55e; --disc:#ca8a04;
+      /* Sparkline: dunkelgrün */
+      --spark:#15803d; --spark-fill:#22c55e; --spark-end:#22c55e;
       --mono:'SF Mono','SFMono-Regular',ui-monospace,'Courier New',monospace;
     }
     * { box-sizing: border-box; }
@@ -112,6 +114,20 @@
     .spark-svg { width:100%; height:56px; }
     .spark-svg svg { width:100%; height:56px; display:block; overflow:visible; }
     .spark-empty { font-size:.7rem; color:var(--txt-dim); font-style:italic; padding:16px 0; text-align:center; }
+    /* Sparkline-Animation: Linie zeichnet sich ein, Fill/Punkte blenden auf,
+       Endpunkt-Marker poppt. Reduced-motion wird respektiert. */
+    .spark-line { stroke-dasharray:1; stroke-dashoffset:1; animation:sparkDraw .9s ease forwards; }
+    .spark-fill { opacity:0; animation:sparkFade .5s ease .45s forwards; }
+    .spark-end  { opacity:0; transform-box:fill-box; transform-origin:center;
+                  animation:sparkPop .35s cubic-bezier(.2,1.4,.4,1) .8s forwards; }
+    @keyframes sparkDraw { to { stroke-dashoffset:0; } }
+    @keyframes sparkFade { to { opacity:1; } }
+    @keyframes sparkPop  { from { opacity:0; transform:scale(.2); } to { opacity:1; transform:scale(1); } }
+    @media (prefers-reduced-motion: reduce) {
+      .spark-line { stroke-dasharray:none; stroke-dashoffset:0; animation:none; }
+      .spark-fill { opacity:1; animation:none; }
+      .spark-end  { opacity:1; transform:none; animation:none; }
+    }
 
     .card-foot { padding:0 12px 12px; }
     .badge {
@@ -219,21 +235,21 @@
       }
       let dots = '';
       for (let i = 0; i < n - 1; i++) {
-        dots += `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(ys[i]).toFixed(1)}" r="1.6" fill="var(--accent)" opacity="0.5"/>`;
+        dots += `<circle cx="${xOf(i).toFixed(1)}" cy="${yOf(ys[i]).toFixed(1)}" r="1.6" fill="var(--spark)" opacity="0.55"/>`;
       }
       const ex = xOf(n - 1).toFixed(1), ey = yOf(ys[n - 1]).toFixed(1);
 
       el.innerHTML =
         `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
           <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.30"/>
-            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.03"/>
+            <stop offset="0%" stop-color="var(--spark-fill)" stop-opacity="0.30"/>
+            <stop offset="100%" stop-color="var(--spark-fill)" stop-opacity="0.03"/>
           </linearGradient></defs>
           ${invLine}
-          <path d="${area}" fill="url(#${id})"/>
-          <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-          ${dots}
-          <circle cx="${ex}" cy="${ey}" r="3.2" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="1.6"/>
+          <path class="spark-fill" d="${area}" fill="url(#${id})"/>
+          <path class="spark-line" d="${line}" pathLength="1" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <g class="spark-fill">${dots}</g>
+          <circle class="spark-end" cx="${ex}" cy="${ey}" r="3.2" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.6"/>
         </svg>`;
     }
     function drawAllSparklines() {
