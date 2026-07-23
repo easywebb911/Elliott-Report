@@ -312,13 +312,15 @@ def test_market_diag_present_and_shaped():
     report = _build()
     for m in report["markets"].values():
         d = m["diag"]
-        assert set(d) == {"reason_counts", "higher_degree_count", "top_count"}
+        assert set(d) == {"reason_counts", "higher_degree_count", "top_count",
+                          "dead_tickers"}
         assert set(d["reason_counts"]) == set(pipe.SKIP_REASONS)
         assert all(isinstance(v, int) for v in d["reason_counts"].values())
         assert isinstance(d["higher_degree_count"], int)
         assert d["top_count"] == len(m["candidates"])
         # großer Grad kann höchstens so viele wie Top-Kandidaten sein.
         assert 0 <= d["higher_degree_count"] <= d["top_count"]
+        assert isinstance(d["dead_tickers"], list)  # Synthetik: leer
 
 
 def test_diag_counts_match_skipped_total():

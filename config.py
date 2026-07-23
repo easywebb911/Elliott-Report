@@ -8,30 +8,80 @@ Scraping) und als Startpunkt gedacht — siehe Kommentare.
 # ---------------------------------------------------------------------------
 # UNIVERSUM (STARTLISTEN — statisch, kein Scraping)
 # ---------------------------------------------------------------------------
-# US: ~50 liquide Large/Mid Caps als Startliste. Bewusst breit gestreut,
-# keine Gewichtung, keine Sektor-Balance — nur ein sinnvoller Ausgangspunkt.
-# Später erweiterbar / durch echte Index-Konstituenten ersetzbar.
+# US: ~240 liquide S&P-500-Titel (Large/Mega Caps, sektorbreit). Statisch und
+# deterministisch — KEIN Screener, keine dynamischen Quellen. Quelle: S&P-500-
+# Konstituenten nach Marktkapitalisierung (Stand: 23.07.2026, Wissensbasis
+# Jan 2026). Dual-Class bewusst nur EINMAL: GOOGL (nicht GOOG), FOXA (nicht
+# FOX), NWSA (nicht NWS) — die liquidere/stimmberechtigte Klasse.
 US_UNIVERSE = [
-    "AAPL", "MSFT", "AMZN", "GOOGL", "META", "NVDA", "TSLA", "AVGO", "JPM",
-    "V", "MA", "UNH", "HD", "PG", "JNJ", "XOM", "CVX", "KO", "PEP", "COST",
-    "WMT", "MCD", "DIS", "CSCO", "ADBE", "CRM", "NFLX", "INTC", "AMD", "QCOM",
-    "TXN", "ORCL", "IBM", "GE", "BA", "CAT", "GS", "MS", "BAC", "WFC", "C",
-    "PFE", "MRK", "ABBV", "TMO", "NKE", "SBUX", "LOW", "PYPL", "UBER",
+    "AAPL", "MSFT", "NVDA", "AVGO", "ORCL", "CRM",
+    "ADBE", "AMD", "ACN", "CSCO", "INTC", "TXN",
+    "QCOM", "IBM", "NOW", "INTU", "AMAT", "MU",
+    "LRCX", "KLAC", "ADI", "SNPS", "CDNS", "PANW",
+    "CRWD", "FTNT", "ANET", "MSI", "ROP", "MCHP",
+    "NXPI", "ADSK", "MPWR", "FICO", "IT", "HPQ",
+    "DELL", "KEYS", "GLW", "ON", "GOOGL", "META",
+    "NFLX", "DIS", "CMCSA", "T", "VZ", "TMUS",
+    "CHTR", "EA", "TTWO", "WBD", "OMC", "FOXA",
+    "NWSA", "AMZN", "TSLA", "HD", "MCD", "NKE",
+    "LOW", "SBUX", "BKNG", "TJX", "ORLY", "AZO",
+    "MAR", "HLT", "GM", "F", "CMG", "ROST",
+    "YUM", "LULU", "DHI", "LEN", "EBAY", "APTV",
+    "GRMN", "DRI", "WMT", "PG", "COST", "KO",
+    "PEP", "PM", "MO", "MDLZ", "CL", "TGT",
+    "KMB", "GIS", "KHC", "SYY", "KR", "STZ",
+    "KVUE", "HSY", "MNST", "ADM", "UNH", "JNJ",
+    "LLY", "ABBV", "MRK", "TMO", "ABT", "PFE",
+    "DHR", "AMGN", "ISRG", "MDT", "BMY", "SYK",
+    "VRTX", "GILD", "CI", "REGN", "BSX", "ELV",
+    "ZTS", "CVS", "MCK", "BDX", "HCA", "EW",
+    "HUM", "IDXX", "A", "IQV", "DXCM", "GEHC",
+    "BRK-B", "JPM", "V", "MA", "BAC", "WFC",
+    "GS", "MS", "C", "AXP", "SCHW", "BLK",
+    "SPGI", "PGR", "CB", "MMC", "PNC", "USB",
+    "AON", "ICE", "CME", "MCO", "TFC", "COF",
+    "BX", "KKR", "PYPL", "AJG", "AFL", "TRV",
+    "ALL", "MET", "AIG", "PRU", "FIS", "FI",
+    "GE", "CAT", "RTX", "HON", "UNP", "BA",
+    "ETN", "DE", "LMT", "UPS", "GD", "NOC",
+    "MMM", "CSX", "FDX", "EMR", "NSC", "ITW",
+    "PH", "TDG", "GEV", "CTAS", "PCAR", "CMI",
+    "WM", "CARR", "OTIS", "JCI", "UBER", "XOM",
+    "CVX", "COP", "SLB", "EOG", "MPC", "PSX",
+    "WMB", "OXY", "VLO", "KMI", "HES", "LIN",
+    "SHW", "APD", "ECL", "FCX", "NEM", "NUE",
+    "DOW", "DD", "PPG", "NEE", "DUK", "SO",
+    "D", "AEP", "SRE", "EXC", "XEL", "ED",
+    "PEG", "PLD", "AMT", "EQIX", "WELL", "SPG",
+    "PSA", "O", "CCI", "DLR", "CBRE",
 ]
 
-# DE: DAX + MDAX Ticker mit .DE-Suffix (Yahoo-Finance-Konvention, Xetra).
-# Startliste — nicht garantiert vollständig/aktuell; einzelne .DE-Ticker
-# können bei yfinance zeitweise ohne Daten sein (fail-soft fängt das ab).
+# DE: DAX 40 + Auswahl MDAX + SDAX (.DE / Xetra-Konvention bei yfinance).
+# Statisch, Stand: 23.07.2026 (Wissensbasis Jan 2026). Einzelne .DE-Ticker
+# können bei yfinance zeitweise ohne Daten sein — fail-soft fängt das ab, und
+# der Diag-Log benennt tote Symbole namentlich (Listen-Hygiene).
 DE_UNIVERSE = [
-    # DAX (Auswahl der 40)
-    "SAP.DE", "SIE.DE", "ALV.DE", "DTE.DE", "AIR.DE", "MBG.DE", "BMW.DE",
-    "BAS.DE", "BAYN.DE", "ADS.DE", "DBK.DE", "DB1.DE", "MUV2.DE", "IFX.DE",
-    "VOW3.DE", "RWE.DE", "EOAN.DE", "MRK.DE", "HEN3.DE", "FRE.DE", "FME.DE",
-    "HEI.DE", "CON.DE", "DHL.DE", "PAH3.DE", "QIA.DE", "SHL.DE", "SY1.DE",
-    "VNA.DE", "ZAL.DE", "BEI.DE", "1COV.DE", "MTX.DE", "RHM.DE", "CBK.DE",
-    # MDAX (Auswahl)
-    "AFX.DE", "LHA.DE", "SDF.DE", "EVK.DE", "FRA.DE", "G1A.DE", "HFG.DE",
-    "KGX.DE", "LEG.DE", "NDA.DE", "PUM.DE", "SZG.DE", "TEG.DE", "WCH.DE",
+    "SAP.DE", "SIE.DE", "ALV.DE", "DTE.DE", "AIR.DE", "MBG.DE",
+    "BMW.DE", "BAS.DE", "BAYN.DE", "ADS.DE", "DBK.DE", "DB1.DE",
+    "MUV2.DE", "IFX.DE", "VOW3.DE", "RWE.DE", "EOAN.DE", "MRK.DE",
+    "HEN3.DE", "FRE.DE", "HEI.DE", "CON.DE", "DHL.DE", "PAH3.DE",
+    "P911.DE", "QIA.DE", "SHL.DE", "SY1.DE", "VNA.DE", "ZAL.DE",
+    "BEI.DE", "1COV.DE", "MTX.DE", "RHM.DE", "CBK.DE", "SRT3.DE",
+    "ENR.DE", "HNR1.DE", "FME.DE", "BNR.DE", "AFX.DE", "LHA.DE",
+    "SDF.DE", "EVK.DE", "FRA.DE", "G1A.DE", "HFG.DE", "KGX.DE",
+    "LEG.DE", "NDA.DE", "PUM.DE", "SZG.DE", "TEG.DE", "WCH.DE",
+    "AT1.DE", "BOSS.DE", "CTS.DE", "DUE.DE", "FNTN.DE", "GXI.DE",
+    "JUN3.DE", "KRN.DE", "LXS.DE", "NEM.DE", "RAA.DE", "TLX.DE",
+    "UN01.DE", "WAF.DE", "AIXA.DE", "COK.DE", "EVT.DE", "KCO.DE",
+    "PSM.DE", "SAX.DE", "TMV.DE", "SHA.DE", "BC8.DE", "UTDI.DE",
+    "G24.DE", "DHER.DE", "NDX1.DE", "RDC.DE", "TKA.DE", "FPE3.DE",
+    "KBX.DE", "HAG.DE", "GBF.DE", "DWNI.DE", "8TRA.DE", "1U1.DE",
+    "HOT.DE", "R3NK.DE", "COP.DE", "S92.DE", "DRW3.DE", "GFT.DE",
+    "HAB.DE", "INH.DE", "KWS.DE", "PFV.DE", "SFQ.DE", "VBK.DE",
+    "WUW.DE", "ADN1.DE", "BFSA.DE", "DEQ.DE", "ELG.DE", "GYC.DE",
+    "HYQ.DE", "JEN.DE", "KTN.DE", "NOEJ.DE", "PBB.DE", "SMHN.DE",
+    "SIX2.DE", "STM.DE", "TPE.DE", "VOS.DE", "WAC.DE", "AOF.DE",
+    "SGL.DE", "DBAN.DE",
 ]
 
 # Markt-Metadaten. Reihenfolge = Anzeige-Reihenfolge im Frontend.

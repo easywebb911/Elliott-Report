@@ -559,27 +559,32 @@ def build_candidate(
 def _scan_market(
     universe: Sequence[str], fetcher: Fetcher,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
-) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]]]:
+) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]], List[Tuple[str, str]]]:
     """Verarbeitet ein Universum (fail-soft je Ticker) — ohne I/O/Logging.
 
     Ausgelagert aus build_market, damit die Skip-Zähler (inkl.
     short_setup_excluded) direkt unit-testbar sind. Verhalten identisch.
 
     Returns:
-        (candidates, reason_counts, first_samples)
+        (candidates, reason_counts, first_samples, dead_tickers)
         candidates: unsortierte Long-Kandidaten
         reason_counts: Zähler je Skip-Grund (SKIP_REASONS)
         first_samples: erste 3 Skips (ticker, reason, detail) fürs Log
+        dead_tickers: (ticker, reason) für JEDEN empty_data/fetch_error —
+            Listen-Hygiene: benennt tote/fehlerhafte Symbole namentlich.
     """
     candidates: List[Dict] = []
     reason_counts: Dict[str, int] = {r: 0 for r in SKIP_REASONS}
     first_samples: List[Tuple[str, str, str]] = []  # (ticker, reason, detail)
+    dead_tickers: List[Tuple[str, str]] = []         # (ticker, reason) hygiene
     MAX_SAMPLES = 3
 
     def _record_skip(tk: str, reason: str, detail: str) -> None:
         reason_counts[reason] += 1
         if len(first_samples) < MAX_SAMPLES:
             first_samples.append((tk, reason, detail))
+        if reason in (EMPTY_DATA, FETCH_ERROR):
+            dead_tickers.append((tk, reason))
 
     for ticker in universe:
         # Sicherheitsnetz: ein Fetcher soll ein FetchOutcome liefern, aber
@@ -609,7 +614,7 @@ def _scan_market(
             continue
         candidates.append(entry)
 
-    return candidates, reason_counts, first_samples
+    return candidates, reason_counts, first_samples, dead_tickers
 
 
 def build_market(
@@ -630,7 +635,8 @@ def build_market(
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
 
-    candidates, reason_counts, first_samples = _scan_market(universe, fetcher, price_sink)
+    candidates, reason_counts, first_samples, dead_tickers = _scan_market(
+        universe, fetcher, price_sink)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
@@ -662,6 +668,12 @@ def build_market(
         _log(f"[elliott][diag] {market_key} Skip-Probe {i}/{len(first_samples)}: "
              f"{tk} -> {reason}")
         _log(f"[elliott][diag]   Detail: {detail}")
+    # Listen-Hygiene: tote/fehlerhafte Symbole namentlich (empty_data/fetch_error)
+    # — so lassen sich nach einem echten Lauf gezielt Ticker aus config.py räumen.
+    if dead_tickers:
+        names = ", ".join(f"{tk}({rs})" for tk, rs in dead_tickers)
+        _log(f"[elliott][diag] {market_key} Listen-Hygiene: "
+             f"{len(dead_tickers)} tote/fehlerhafte Ticker -> {names}")
 
     return {
         "label": cfg["label"],
@@ -676,6 +688,8 @@ def build_market(
             "reason_counts": dict(reason_counts),
             "higher_degree_count": higher_count,
             "top_count": len(top),
+            # Listen-Hygiene: tote/fehlerhafte Symbole namentlich (Anzeige/Log).
+            "dead_tickers": [{"ticker": tk, "reason": rs} for tk, rs in dead_tickers],
         },
     }
 

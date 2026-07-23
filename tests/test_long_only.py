@@ -55,7 +55,7 @@ def test_build_candidate_short_excluded():
 def test_scan_market_mixed_only_longs_and_counter():
     universe = ["L1", "L2", "L3", "S1", "S2"]
     mapping = {"L1": "long", "L2": "long", "L3": "long", "S1": "short", "S2": "short"}
-    candidates, reason_counts, _samples = pipe._scan_market(universe, _mixed_fetcher(mapping))
+    candidates, reason_counts, _samples, _dead = pipe._scan_market(universe, _mixed_fetcher(mapping))
 
     # Nur Long-Kandidaten im Output.
     assert len(candidates) == 3
@@ -72,3 +72,31 @@ def test_scan_market_mixed_only_longs_and_counter():
 
 def test_short_setup_excluded_in_skip_reasons():
     assert pipe.SHORT_SETUP_EXCLUDED in pipe.SKIP_REASONS
+
+
+def _dead_fetcher(mapping):
+    """mapping: ticker -> 'ok' | 'empty' | 'boom' — für die Hygiene-Sammlung."""
+    dates, longs = _long_series("SEED")
+
+    def fetcher(ticker):
+        mode = mapping[ticker]
+        if mode == "empty":
+            return pipe.FetchOutcome(reason=pipe.EMPTY_DATA, detail="leer")
+        if mode == "boom":
+            raise RuntimeError("net down")
+        return pipe.FetchOutcome(data=(dates, list(longs)))
+
+    return fetcher
+
+
+def test_scan_market_collects_dead_tickers_by_name():
+    # Listen-Hygiene: empty_data + fetch_error werden NAMENTLICH gesammelt,
+    # too_few_pivots/no_valid_count NICHT (die sind keine toten Symbole).
+    universe = ["OK1", "DEADX", "OK2", "BOOMX"]
+    mapping = {"OK1": "ok", "DEADX": "empty", "OK2": "ok", "BOOMX": "boom"}
+    candidates, reason_counts, _samples, dead = pipe._scan_market(
+        universe, _dead_fetcher(mapping))
+    dead_map = dict(dead)
+    assert dead_map == {"DEADX": pipe.EMPTY_DATA, "BOOMX": pipe.FETCH_ERROR}
+    assert reason_counts[pipe.EMPTY_DATA] == 1
+    assert reason_counts[pipe.FETCH_ERROR] == 1

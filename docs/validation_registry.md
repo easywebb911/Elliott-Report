@@ -70,3 +70,14 @@ Rein für die Review-Ansicht (Hamburger-Menü → „Validierung / Backtesting")
 
 Diese Felder sind reine Anzeige-Daten; die Auswertungs-Sperre (kein Aggregat vor
 n ≥ 100) gilt unverändert.
+
+## Änderungs-Log der Population
+
+- **23.07.2026 — Universum erweitert von 99 auf 361 Ticker** (US ~50 → 239
+  S&P-500-Titel; DE ~49 → 122 DAX/MDAX/SDAX). Statische Listen, kein Screener.
+  **Wirkung auf die Validierung:** die Population (Kandidaten-Grundgesamtheit)
+  wächst — die **Zählweise** ändert sich NICHT. Episoden-Definition,
+  `appearance_count` (Episoden, nicht Tage) und die n ≥ 100-Sperre bleiben
+  unverändert. Ab jetzt gesammelte Episoden entstammen dem größeren Universum;
+  das ist transparent zu halten, wenn später ausgewertet wird (der Score-Test
+  misst weiterhin den Score, nicht die Universums-Auswahl).
