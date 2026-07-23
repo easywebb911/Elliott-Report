@@ -2,14 +2,14 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #23 (dieser PR: **Score-Alert >90**, offen). Alle Zahlen/Hashes sind gegen
-`git log` und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #24 (dieser PR: **Watchlist-Sofortkarte**, offen). Alle Zahlen/Hashes sind
+gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
 > **REBASE-HINWEIS:** dieser Branch war ursprünglich vom #22-Merge abgezweigt und
-> wurde nach dem Merge des **Mini-Sammlers #23** (`market_calendar.py`,
-> kalenderbewusste Staleness) sauber auf `main` (inkl. #23) **rebased** — der
-> Handover-Konflikt (rein textuell) ist aufgelöst, Code-Dateien auto-mergten
-> (getrennte Regionen). Score-Alert und #23-Staleness koexistieren.
+> wurde nach den Merges von **#23 (Mini-Sammler)** und **#24 (Score-Alert)** sauber
+> auf `main` (inkl. #23/#24) **rebased** — der Handover-Konflikt (rein textuell) ist
+> aufgelöst, `docs/index.html` auto-mergte (getrennte Regionen). Watchlist-Sofort-
+> karte und die neuen Alert-/Staleness-Features koexistieren.
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
 > selben PR** aktualisiert — mindestens Abschnitte **2 (PR-Historie)**, **3
@@ -69,7 +69,8 @@ durchgängig ab #13.
 | #21 | `cf2bd9f` | **fix:** `daily.yml` persistiert `forward_collection.json` (Sammlung akkumuliert, Push race-gehärtet) — **live bestätigt** (10 Records auf main) | manual |
 | #22 | `efb57a1` | **Push-Paket Stufe 1** (ntfy, fast stumm): Lauf-Fehlschlag · Staleness-Cron · Meilenstein n≥100 · Review-Wecker | +G manual |
 | #23 | `664952f` | **Mini-Sammler:** Disclaimer-Banner (einklappbar) · Wochenend-/Feiertags-Gate · kalenderbewusste Staleness (`market_calendar.py`) | +G manual +Bild |
-| #(dieser) | `(offen)` | **Score-Alert >90** (Flanke, nicht Zustand): EINMALIGER Push je Episode beim Neu-Überschreiten, gebündelt (1 Push/Lauf), an die vorhandene Episoden-Logik gekoppelt · `SCORE_ALERT_THRESHOLD=90` · Watchlist ausgenommen · fail-soft | +G manual |
+| #24 | `d217d61` | **Score-Alert >90** (Flanke, nicht Zustand): EINMALIGER Push je Episode beim Neu-Überschreiten, gebündelt (1 Push/Lauf), an die vorhandene Episoden-Logik gekoppelt · `SCORE_ALERT_THRESHOLD=90` · Watchlist ausgenommen · fail-soft | +G manual |
+| #(dieser) | `(offen)` | **Watchlist-Sofortkarte** (Frontend): neu hinzugefügter Ticker zeigt sofort Live-Kurs-Karte statt leer/nur Chip; volle Elliott-Analyse weiter aus dem Lauf | manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -96,7 +97,11 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
   Sandbox CORS-geblockt.
 - **OFFEN — Watchlist-Live-Test:** Ticker → „Für die Pipeline speichern" (Token
   zusätzlich **Contents: write**) → PUT auf `watchlist_personal.json` → nach Lauf
-  erscheint die Karte.
+  erscheint die **volle** (analysierte) Karte. **Teil-Entschärft (dieser PR,
+  „Sofort-Karte"):** ein neu hinzugefügter Ticker zeigt ab sofort eine Karte mit
+  **Live-Kurs** (client-seitig, Quote-Worker) statt leer/nur Chip — die
+  Elliott-Analyse (Setup/Score/Wellen) folgt weiterhin erst aus dem Lauf. Die
+  Server-Runde (Token + Lauf) bleibt unverändert live zu prüfen.
 - **OFFEN — Push-Paket Stufe 1 scharfschalten (#22):** Easy muss das Repo-Secret
   **`NTFY_TOPIC`** (z. B. `easy-elliott-report`) setzen — bis dahin ist alles
   **still** (no-op). Danach live prüfen: Lauf-Fehlschlag-Push, Staleness-Push
@@ -343,6 +348,10 @@ Beleg = Abschnitt 3.)
   nicht identifizierbarer toter Ticker, mehrdeutiger Review-Kommentar): kurz
   innehalten + Rückfrage statt bauen.
 - **Guardian vor Manual-Merge** laufen lassen (Diff-Review), Urteil in den PR-Text.
+- **Rebase vor Ready-for-Review (stehende Regel):** Vor jedem Ready-for-Review
+  `origin/main` fetchen und **rebasen, wenn `main` sich seit Branch-Erstellung
+  bewegt hat** — Handover-Konflikte **proaktiv auflösen** statt sie im PR-UI
+  auflaufen zu lassen. Der Guardian prüft das künftig mit.
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
 

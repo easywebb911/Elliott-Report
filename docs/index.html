@@ -504,6 +504,10 @@
     /* Watchlist-Karten ohne/ mit Fehler — dezent abgesetzt, gleiche Grundoptik. */
     .card.wl-card-no_setup { border-style:dashed; }
     .card.wl-card-error { opacity:.9; border-color:rgba(239,68,68,.5); }
+    /* „pending": lokal hinzugefügt, aber noch nicht vom Lauf voll analysiert.
+       Zeigt sofort den Live-Kurs (nie leer); Elliott-Analyse folgt nach dem Lauf. */
+    .card.wl-card-pending { border-style:dashed; border-color:var(--ora); }
+    .wl-note.wl-note-pending { color:var(--ora); border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.08); }
     .wl-note {
       margin:2px 12px 12px; padding:8px 11px; border-radius:8px; font-size:12.5px;
       background:var(--bg-met); color:var(--txt-sub); border:1px solid var(--brd);
@@ -1207,6 +1211,7 @@
     const WL_MAX = 30;
     let _wlArr = null;          // aktuelle (lokale) Ticker-Liste
     let _wlLastRunSet = null;   // Ticker, die der letzte Lauf kannte (aus report)
+    let _wlLastReport = null;   // letzter geladener Report (für Karten-Re-Render bei add/remove)
     let _wlGhSha = null;        // sha der Repo-Datei (für PUT)
 
     function _wlLocal() {
@@ -1281,11 +1286,43 @@
         b.addEventListener('click', () => removeWatchlistTicker(b.dataset.rm)));
     }
 
+    // Sofort-Karte für lokal hinzugefügte Ticker, die der Lauf noch NICHT
+    // analysiert hat: nie leer — zeigt sofort den Live-Kurs (data-quote-Anker,
+    // wird vom Quote-Poller gefüllt) + Chart-Link. Die volle Elliott-Analyse
+    // (Setup/Score/Wellen) folgt aus report.watchlist.entries nach dem Lauf.
+    function _wlInstantCard(ticker) {
+      return `<article class="card wl-card-pending" data-ticker="${esc(ticker)}">
+        <div class="card-top">
+          <div class="card-left">
+            <span class="rank">☆</span>
+            <div class="hdr-block">
+              <div class="ticker-row"><span class="ticker">${esc(ticker)}</span>
+                <a class="chart-btn" href="${esc(chartUrl(ticker))}" target="_blank" rel="noopener noreferrer" title="Chart · stockanalysis.com">${CHART_ICON}<span>Chart</span></a></div>
+            </div>
+          </div>
+          <div class="card-right">
+            <div class="cockpit-price" data-quote="price">…</div>
+            <div class="live-row"><span class="live-dot" data-quote="dot" title="Live-Quote wird geladen …"></span><span class="live-time" data-quote="time"></span></div>
+          </div>
+        </div>
+        <div class="wl-note wl-note-pending">Live-Kurs sofort · volle Elliott-Analyse nach dem nächsten Lauf (☁ „Für die Pipeline speichern")</div>
+      </article>`;
+    }
+
     function renderWatchlistCards(report) {
       const el = document.getElementById('wl-cards');
       const wl = report && report.watchlist;
       const entries = (wl && Array.isArray(wl.entries)) ? wl.entries : [];
-      el.innerHTML = entries.map(watchlistCard).join('');
+      const byTicker = new Map(entries.map(e => [e.ticker, e]));
+      // Lokale Liste führt die Reihenfolge; analysierte Karte wo vorhanden,
+      // sonst Sofort-Karte. Fallback auf die Lauf-Ticker NUR im Initialzustand
+      // (_wlArr === null, vor dem Seeden) — ein bewusst geleertes Array [] bleibt
+      // leer (sonst tauchten nach „alle entfernen" alte Analyse-Karten wieder auf).
+      const list = Array.isArray(_wlArr) ? _wlArr : entries.map(e => e.ticker);
+      el.innerHTML = list.map(t => {
+        const e = byTicker.get(t);
+        return e ? watchlistCard(e) : _wlInstantCard(t);
+      }).join('');
     }
 
     function renderWatchlist(report) {
@@ -1295,10 +1332,18 @@
       const lastRun = (report && report.watchlist && Array.isArray(report.watchlist.entries))
         ? report.watchlist.entries.map(e => e.ticker) : [];
       _wlLastRunSet = new Set(lastRun);
+      _wlLastReport = report;
       if (_wlArr === null) _wlArr = _wlLocal() || lastRun.slice();
       renderWatchlistChips();
       renderWatchlistCards(report);
       _wlMarkDirty();
+    }
+
+    // Karten + Live-Quotes nach lokaler Änderung (add/remove) sofort neu aufsetzen,
+    // damit die Sofort-Karte umgehend erscheint und einen Live-Kurs zieht.
+    function _wlRerenderCards() {
+      renderWatchlistCards(_wlLastReport);
+      if (typeof startQuotePolls === 'function') startQuotePolls();
     }
 
     function _wlMarkDirty() {
@@ -1318,13 +1363,13 @@
       _wlArr.push(v.ticker);
       _wlPersistLocal();
       inp.value = ''; _wlErr('');
-      renderWatchlistChips(); _wlMarkDirty();
-      _wlWarn('Lokal gespeichert — „Für die Pipeline speichern", damit der Ticker beim nächsten Lauf erscheint.');
+      renderWatchlistChips(); _wlRerenderCards(); _wlMarkDirty();
+      _wlWarn('Karte da (Live-Kurs sofort). Volle Elliott-Analyse: „Für die Pipeline speichern" + nächster Lauf.');
     }
     function removeWatchlistTicker(t) {
       _wlArr = _wlArr.filter(x => x !== t);
       _wlPersistLocal();
-      renderWatchlistChips(); _wlMarkDirty();
+      renderWatchlistChips(); _wlRerenderCards(); _wlMarkDirty();
       _wlWarn('Lokal geändert — „Für die Pipeline speichern" nicht vergessen.');
     }
 
