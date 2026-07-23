@@ -45,6 +45,21 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   zählt nur, wenn er **unabhängig** einen Top-5-Platz verdient.
 - Ein **Punktschätzer allein ist nie Bestätigung**.
 
+## Score-Status & Review-Wecker (`review_by`)
+
+**Status:** `heuristisch · unvalidiert` — bleibt so, **bis** die obige
+Erfolgs-Definition BELEGT ist. Der Status-Wechsel ist **rein menschlich**; nichts
+automatisiert ihn.
+
+**`review_by` (menschliche Kopie):** aktuell **2026-12-07** (grob projiziert, wann
+n ≥ 100 gereift erreicht sein könnte). Die maschinenlesbare Quelle liegt in
+`config.SCORE_REVIEW_BY`; **beide bei einer Änderung zusammen pflegen.** Ein
+schlanker Wecker (`scripts/notify.py`) erinnert ~1×/Woche per ntfy, wenn das Datum
+überschritten ist — er **ändert nichts**, weckt nur. Nach einer Auswertung wird
+`review_by` **menschlich** neu gesetzt (Datum in die Zukunft) oder auf `None`
+(abgeschaltet). Der Meilenstein-Push (n ≥ 100 tatsächlich gereift) feuert
+zusätzlich datengetrieben genau einmal.
+
 ## Sammel-Mechanik (Kurzfassung)
 
 - Ein Record **pro Ticker-Episode**. Kein Doppel-Record, wenn derselbe Ticker am

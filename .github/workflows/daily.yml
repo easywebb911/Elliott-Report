@@ -54,6 +54,15 @@ jobs:
           print("report JSON valide")
           PY
 
+      # Selbstüberwachung (bewusst fast stumm): Meilenstein n>=100 + Review-
+      # Wecker. VOR dem Commit, damit die einmalige Meilenstein-Marker-Datei im
+      # selben Lauf mitcommittet wird. notify.py ist total fail-soft (exit 0).
+      - name: Self-monitor push (Meilenstein + Review-Wecker)
+        if: success()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python scripts/notify.py --mode daily
+
       - name: Commit report + collection if changed
         run: |
           git config user.name "github-actions[bot]"
@@ -61,6 +70,9 @@ jobs:
           # Report UND Forward-Sammlung persistieren (sonst wächst n nie).
           git add data/report.json docs/data/report.json \
                   data/forward_collection.json docs/data/forward_collection.json
+          # Einmaliger Meilenstein-Marker (falls in diesem Lauf gesetzt).
+          [ -f data/validation_milestone_fired.flag ] \
+            && git add data/validation_milestone_fired.flag || true
           if git diff --cached --quiet; then
             echo "Keine Änderungen — nichts zu committen."
           else
@@ -84,3 +96,22 @@ jobs:
               exit 1
             fi
           fi
+
+      # Lauf-Fehlschlag → EIN Push. Bewusst inline (curl), damit ein gebrochener
+      # Python-/Pip-Schritt den Alarm nicht mitreißt. Fail-soft: leeres Topic
+      # oder curl-Fehler ändern den (bereits roten) Job-Status nicht.
+      - name: Push bei Lauf-Fehlschlag
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          if [ -z "$NTFY_TOPIC" ]; then
+            echo "kein NTFY_TOPIC → kein Push (graceful)."; exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -m 10 \
+            -H "Title: Elliott-Lauf fehlgeschlagen" \
+            -H "Priority: high" -H "Tags: rotating_light" \
+            -d "Elliott-Lauf fehlgeschlagen · $(date -u +%Y-%m-%d) · ${RUN_URL}" \
+            "https://ntfy.sh/${NTFY_TOPIC}" || echo "ntfy-Push fehlgeschlagen (fail-soft)"
+          exit 0

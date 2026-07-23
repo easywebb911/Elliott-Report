@@ -1,0 +1,43 @@
+name: Staleness-Wächter
+
+# Bewusst fast stumm. Erkennt den NICHT stattgefundenen Daily-Lauf: ein
+# gescheiterter Job meldet sich per if:failure() selbst — ein ausgefallener
+# (GitHub-Outage, deaktivierter Workflow) KANN das nicht. Dieser schlanke,
+# UNABHÄNGIGE Cron prüft das Alter von data/report.json auf main und pusht bei
+# > STALENESS_HOURS.
+#
+# Drossel: läuft 1x/Tag -> von Natur aus max 1 Push je 24h für diesen Anlass
+# (kein State-File nötig). Timing: 06:00 UTC. Ein gesunder Report (Daily 21:45
+# UTC) ist dann ~8 h alt; ein ausgefallener Lauf -> ~32 h -> Push.
+#
+# Fail-soft: notify.py exit 0 immer; ein ntfy-Fehler bricht nichts.
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: elliott-staleness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Staleness-Push (nur wenn Report veraltet)
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python scripts/notify.py --mode staleness

@@ -60,7 +60,8 @@ durchgängig ab #13.
 | #18 | `f89e4c7` | N×-Zähler (`appearance_count`, Episoden nicht Tage) | +G manual +Bild |
 | #19 | `f5e3dac` | Universum 99→361 (statisch) + Listen-Hygiene-Diag (`dead_tickers`) | +G manual |
 | #20 | `d40a1d6` | **docs:** `SESSION_HANDOVER.md` (diese Datei) + Pflege-Regel | self (CI grün) |
-| #21 | `(PR #21)` | **fix:** `daily.yml` persistiert `forward_collection.json` (Sammlung akkumuliert, Push race-gehärtet) | manual |
+| #21 | `cf2bd9f` | **fix:** `daily.yml` persistiert `forward_collection.json` (Sammlung akkumuliert, Push race-gehärtet) — **live bestätigt** (10 Records auf main) | manual |
+| #22 | `(PR #22)` | **Push-Paket Stufe 1** (ntfy, fast stumm): Lauf-Fehlschlag · Staleness-Cron · Meilenstein n≥100 · Review-Wecker | +G manual |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -71,12 +72,11 @@ durchgängig ab #13.
 
 Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 
-- **✅ ERLEDIGT (#21) — Forward-Sammlung wird jetzt persistiert:** `daily.yml`
-  committet ab #21 auch `data/forward_collection.json` (+ Spiegel). Die Sammlung
-  akkumuliert damit über die Läufe; n wächst, `appearance_count`/N×-Badge und die
-  Reifung greifen ab jetzt. Push race-gehärtet (`git pull --rebase` + 3× Retry).
-  **Live-Beleg steht noch aus:** erst nach 1–2 echten Läufen zeigt die committete
-  `forward_collection.json` > 10 Records (bis dahin OFFEN, siehe Abschnitt 6).
+- **✅ ERLEDIGT (#21, live bestätigt) — Forward-Sammlung wird persistiert:**
+  `daily.yml` committet ab #21 auch `data/forward_collection.json` (+ Spiegel);
+  der erste Lauf danach committete **10 Records** auf main (`c972403`). Die
+  Sammlung akkumuliert über die Läufe; n wächst, `appearance_count`/N×-Badge und
+  Reifung greifen. Push race-gehärtet (`git pull --rebase` + 3× Retry).
 - **OFFEN — `.DE`-Chart-Link:** `stockanalysis.com/quote/etr/{SYMBOL ohne .DE}/`
   ist **Best-Guess** (`docs/index.html` `chartUrl`), nie live geöffnet. US-Muster
   `/stocks/{lower}/`.
@@ -89,6 +89,11 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 - **OFFEN — Watchlist-Live-Test:** Ticker → „Für die Pipeline speichern" (Token
   zusätzlich **Contents: write**) → PUT auf `watchlist_personal.json` → nach Lauf
   erscheint die Karte.
+- **OFFEN — Push-Paket Stufe 1 scharfschalten (#22):** Easy muss das Repo-Secret
+  **`NTFY_TOPIC`** (z. B. `easy-elliott-report`) setzen — bis dahin ist alles
+  **still** (no-op). Danach live prüfen: Lauf-Fehlschlag-Push, Staleness-Push
+  (report künstlich altern lassen / Cron dispatchen), ntfy-App auf das Topic
+  abonnieren. Zustellung aus der Sandbox nicht testbar (Netz).
 - **TEILWEISE — Lauf-Status-Ansicht:** der #19-Dispatch-Lauf (`8a7d390`) hat
   `report.json` **mit** `diag` committet → die Ansicht sollte jetzt echte Zahlen
   zeigen (im UI noch gegenzuprüfen).
@@ -104,17 +109,20 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 
 ## 4. WARTESCHLANGE / ROADMAP (Stand 23.07.2026)
 
-**NÄCHSTER BAU-PUNKT — Push-Paket (ntfy-Muster):**
-- Trigger: **Lauf-Fehlschlag / Staleness** (Report > `STALENESS_HOURS`),
-  **Invalidierungs-Riss** bei aktiven Episoden **+ Watchlist**, **Meilenstein
-  n ≥ 100** (Auswertungs-Freigabe).
-- Inkl. **`review_by`-Wecker** am Score-Status (Erinnerung, den Validierungsstand
-  zu prüfen).
-- (Voraussetzung für den „n ≥ 100"-Trigger — der Forward-Sammlung-Persistenz-Fix —
-  ist mit **#21 erledigt**; die Sammlung akkumuliert jetzt.)
+**✅ Push-Paket Stufe 1 — erledigt (#22, `scripts/notify.py`):** ntfy, bewusst
+fast stumm. Anlässe: **Lauf-Fehlschlag** (`if: failure()` in daily.yml),
+**Staleness** (separater Cron `staleness_check.yml`, erkennt den ausgefallenen
+Lauf), **Meilenstein n ≥ 100** (einmalig, Marker-Datei), **`review_by`-Wecker**
+(~1×/Woche). **Bewusst NICHT gebaut:** Invalidierungs-Riss-/Kandidaten-/Tages-
+Pushes (Risse bleiben lautloser ✗-Status im Backtesting). Scharfschalten:
+Secret `NTFY_TOPIC` setzen (Abschnitt 3).
 
-**DANACH — Mini-Sammler:** Disclaimer-Banner + Wochenend-/Feiertags-Gate (keine
-Karten-Neuberechnung erwarten, wenn Börse zu).
+**NÄCHSTER BAU-PUNKT — Mini-Sammler:** Disclaimer-Banner + Wochenend-/Feiertags-
+Gate (keine Karten-Neuberechnung erwarten, wenn Börse zu).
+
+**Push-Paket spätere Stufen (geparkt):** — die im ursprünglichen Roadmap-Text
+genannten **Invalidierungs-Riss-Pushes** bleiben bewusst **weg** (Rauschen); erst
+wieder aufgreifen, wenn Easy es ausdrücklich will.
 
 **GEPARKT (mit Datum):**
 - **KI-Agent** — Easy 23.07.: **weglassen**. Zuschnitts-Optionen für später
@@ -166,8 +174,16 @@ Karten-Neuberechnung erwarten, wenn Börse zu).
   (in `main` gesetzt), `status="heuristisch · unvalidiert"`.
 - **Workflow:** `.github/workflows/daily.yml` — Cron **21:45 UTC** +
   `workflow_dispatch: {}` (keine Inputs), `timeout-minutes: 30`,
-  `concurrency: daily-elliott`, committet report (**nicht** collection → Abschn. 3).
+  `concurrency: daily-elliott`, committet **report + collection** (#21) sowie den
+  einmaligen `data/validation_milestone_fired.flag`.
 - **CI:** `.github/workflows/ci.yml`, Check **`test`**, Offline-`pytest` je PR.
+- **Push / Selbstüberwachung (#22, `scripts/notify.py`):** ntfy, `POST
+  https://ntfy.sh/{NTFY_TOPIC}` + Title/Priority/Tags, fail-soft (`main()` immer
+  exit 0). Topic aus **Secret `NTFY_TOPIC`** (leer → still). Modi: `--mode daily`
+  (Meilenstein + Review-Wecker, in daily.yml VOR dem Commit) und `--mode staleness`
+  (`.github/workflows/staleness_check.yml`, Cron **06:00 UTC**). Lauf-Fehlschlag =
+  inline `if: failure()`-`curl`-Step in daily.yml. Config: `SCORE_REVIEW_BY`
+  (menschlich), `STATUS_REVIEW_WEEKDAY=0`, `EVAL_MIN_N=100`, `STALENESS_HOURS=30`.
 
 ### Frontend (`docs/index.html`, Vanilla-JS, kein Framework, **kein** Service Worker)
 - **Daten:** liest `data/report.json` (Fallback `../data/report.json`);

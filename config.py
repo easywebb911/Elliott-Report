@@ -194,4 +194,18 @@ TICKER_META_PATH = "data/ticker_meta.json"
 # ---------------------------------------------------------------------------
 # STALENESS
 # ---------------------------------------------------------------------------
-STALENESS_HOURS = 30            # Frontend-Banner ab diesem Alter
+STALENESS_HOURS = 30            # Frontend-Banner + Staleness-Wächter ab diesem Alter
+
+# ---------------------------------------------------------------------------
+# PUSH / SELBSTÜBERWACHUNG (Stufe 1 — bewusst fast stumm, siehe scripts/notify.py)
+# ---------------------------------------------------------------------------
+# ntfy-Topic kommt aus der Umgebung (NTFY_TOPIC, als Repo-Secret gesetzt); leer
+# -> kein Push (graceful). NIE hardcoden.
+#
+# Score-Status-Review-Wecker: Datum, bis zu dem eine Validierungs-Auswertung
+# fällig ist (grob projiziert, wenn n>=100 gereifte Setups erreicht sind). NACH
+# der Auswertung MENSCHLICH neu setzen (Datum in die Zukunft) oder auf None.
+# Automatisiert wird NUR das ERINNERN — nie der Status-Wechsel. Auch in
+# docs/validation_registry.md dokumentiert (dort die menschliche Kopie).
+SCORE_REVIEW_BY = "2026-12-07"   # ISO-Datum oder None
+STATUS_REVIEW_WEEKDAY = 0        # 0 = Montag; Drossel ~1x/Woche (Daily läuft 1x/Tag)
