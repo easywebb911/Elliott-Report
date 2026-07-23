@@ -1315,8 +1315,10 @@
       const entries = (wl && Array.isArray(wl.entries)) ? wl.entries : [];
       const byTicker = new Map(entries.map(e => [e.ticker, e]));
       // Lokale Liste führt die Reihenfolge; analysierte Karte wo vorhanden,
-      // sonst Sofort-Karte. Fallback auf die Lauf-Ticker, falls lokal (noch) leer.
-      const list = (_wlArr && _wlArr.length) ? _wlArr : entries.map(e => e.ticker);
+      // sonst Sofort-Karte. Fallback auf die Lauf-Ticker NUR im Initialzustand
+      // (_wlArr === null, vor dem Seeden) — ein bewusst geleertes Array [] bleibt
+      // leer (sonst tauchten nach „alle entfernen" alte Analyse-Karten wieder auf).
+      const list = Array.isArray(_wlArr) ? _wlArr : entries.map(e => e.ticker);
       el.innerHTML = list.map(t => {
         const e = byTicker.get(t);
         return e ? watchlistCard(e) : _wlInstantCard(t);
