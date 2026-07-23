@@ -436,3 +436,129 @@ def test_annotate_is_ranking_neutral():
     after = [(c["ticker"], c["score_heuristic"]) for c in report["markets"]["US"]["candidates"]]
     assert before == after
     assert all("appearance_count" in c for c in report["markets"]["US"]["candidates"])
+
+
+# ---------------------------------------------------------------------------
+# Score-Alert-Flanke (>Schwelle) — an die vorhandene Episoden-Logik gekoppelt.
+# Jede Flanke über echte update_forward_collection-Läufe durchgespielt (KEIN
+# Parallel-State), plus Bündelung, Stumm-Beweis und report.json-Neutralität.
+# ---------------------------------------------------------------------------
+THRESH = 90
+
+
+def _run(coll, report, run_date, price=None):
+    """Ein echter Sammel-Lauf + Flanke danach — wie im Pipeline-main().
+    Gibt die gefeuerten Edges zurück."""
+    price = price or {t: _series("d", [101, 102])
+                      for m in report["markets"].values()
+                      for t in [c["ticker"] for c in m["candidates"]]}
+    fc.update_forward_collection(coll, report, price, {"US": "risk_on", "DE": "risk_on"},
+                                 run_date, NOW)
+    return fc.score_alert_edges(coll, report, THRESH, run_date)
+
+
+def _fresh_coll():
+    return {"schema_version": 1, "last_run_date": None, "updated_utc": None,
+            "records": []}
+
+
+def test_score_alert_fires_when_newly_over_threshold():
+    coll = _fresh_coll()
+    edges = _run(coll, _report(_entry("AAPL", score=93.0)), "2026-07-01")
+    assert [e["ticker"] for e in edges] == ["AAPL"]
+    assert edges[0]["score"] == 93.0 and edges[0]["market"] == "US"
+    # Flanke am Record vermerkt (an der Episode, nicht als Parallel-State).
+    assert coll["records"][0]["score_alert_fired"] == "2026-07-01"
+
+
+def test_score_alert_silent_at_or_below_threshold():
+    coll = _fresh_coll()
+    # exakt 90 ist NICHT > 90 (strikt) und 85 klar darunter -> beide stumm.
+    assert _run(coll, _report(_entry("AAPL", score=90.0)), "2026-07-01") == []
+    assert _run(_fresh_coll(), _report(_entry("MSFT", score=85.0)), "2026-07-01") == []
+
+
+def test_score_alert_silent_when_staying_over_threshold():
+    coll = _fresh_coll()
+    price = {"AAPL": _series("d", [101, 102])}
+    assert _run(coll, _report(_entry("AAPL", score=93.0)), "2026-07-01", price)  # feuert
+    # Folgetag, gleiche Episode, weiter >90 -> STUMM (Zustand, keine neue Flanke).
+    edges2 = _run(coll, _report(_entry("AAPL", score=94.0)), "2026-07-02", price)
+    assert edges2 == []
+    assert len(coll["records"]) == 1  # dieselbe Episode
+    assert coll["records"][0]["score_alert_fired"] == "2026-07-01"  # Erst-Flanke bleibt
+
+
+def test_score_alert_silent_on_dip_and_recross_same_episode():
+    coll = _fresh_coll()
+    price = {"AAPL": _series("d", [101, 102, 103])}
+    assert _run(coll, _report(_entry("AAPL", score=93.0)), "2026-07-01", price)  # feuert
+    assert _run(coll, _report(_entry("AAPL", score=85.0)), "2026-07-02", price) == []  # unter
+    # Wieder >90 in DERSELBEN Episode -> weiterhin stumm (nur 1x je Episode).
+    assert _run(coll, _report(_entry("AAPL", score=95.0)), "2026-07-03", price) == []
+    assert len(coll["records"]) == 1
+
+
+def test_score_alert_fires_again_in_new_episode():
+    coll = _fresh_coll()
+    price = {"AAPL": _series("d", [101, 102])}
+    assert _run(coll, _report(_entry("AAPL", score=93.0)), "2026-07-01", price)  # Episode 1
+    # Ticker fällt aus Top-5 (leerer Report) -> Lücke.
+    assert _run(coll, _report(), "2026-07-02", price) == []
+    # Kommt >90 zurück -> NEUE Episode -> darf erneut feuern.
+    edges = _run(coll, _report(_entry("AAPL", score=91.0)), "2026-07-03", price)
+    assert [e["ticker"] for e in edges] == ["AAPL"]
+    assert len(coll["records"]) == 2  # zwei Episoden
+    assert coll["records"][1]["score_alert_fired"] == "2026-07-03"
+
+
+def test_score_alert_bundles_multiple_tickers_one_batch():
+    coll = _fresh_coll()
+    report = {"markets": {
+        "US": {"candidates": [_entry("XYZ", score=93.0), _entry("ABC", score=91.0)]},
+        "DE": {"candidates": [_entry("SAP.DE", score=92.0)]},
+    }}
+    edges = _run(coll, report, "2026-07-01")
+    # Ein Batch (eine Liste) für alle neu-überschrittenen Ticker beider Märkte.
+    assert {e["ticker"] for e in edges} == {"XYZ", "ABC", "SAP.DE"}
+    assert {e["market"] for e in edges} == {"US", "DE"}
+
+
+def test_score_alert_silent_run_produces_no_edges():
+    # Stumm-Beweis: ein Lauf ohne >90-Flanke feuert NULL.
+    coll = _fresh_coll()
+    report = {"markets": {"US": {"candidates": [
+        _entry("A", score=89.84), _entry("B", score=80.0)]}}}  # Höchststand-nah, aber <90
+    assert _run(coll, report, "2026-07-01") == []
+
+
+def test_score_alert_excludes_watchlist():
+    coll = _fresh_coll()
+    report = {
+        "markets": {"US": {"candidates": [_entry("AAPL", score=93.0)]}},
+        "watchlist": {"entries": [{"ticker": "WLHOT", "score_heuristic": 99.0}]},
+    }
+    edges = _run(coll, report, "2026-07-01")
+    # Watchlist (eigene Auswahl) löst NIE aus, auch bei 99.
+    assert [e["ticker"] for e in edges] == ["AAPL"]
+
+
+def test_score_alert_is_idempotent_within_run():
+    # Zweiter Aufruf im selben Lauf feuert nicht erneut (Flag schon gesetzt).
+    coll = _fresh_coll()
+    report = _report(_entry("AAPL", score=93.0))
+    fc.update_forward_collection(coll, report, {"AAPL": _series("d", [101])},
+                                 {"US": "risk_on"}, "2026-07-01", NOW)
+    assert len(fc.score_alert_edges(coll, report, THRESH, "2026-07-01")) == 1
+    assert fc.score_alert_edges(coll, report, THRESH, "2026-07-01") == []
+
+
+def test_score_alert_does_not_mutate_report_scores():
+    coll = _fresh_coll()
+    report = _report(_entry("AAPL", score=93.0), _entry("MSFT", score=70.0))
+    fc.update_forward_collection(coll, report, {"AAPL": _series("d", [101]),
+                                                "MSFT": _series("d", [101])},
+                                 {"US": "risk_on"}, "2026-07-01", NOW)
+    snap = json.dumps(report, sort_keys=True)
+    fc.score_alert_edges(coll, report, THRESH, "2026-07-01")
+    assert json.dumps(report, sort_keys=True) == snap  # Report unangetastet

@@ -213,3 +213,12 @@ STALENESS_HOURS = 30
 # docs/validation_registry.md dokumentiert (dort die menschliche Kopie).
 SCORE_REVIEW_BY = "2026-12-07"   # ISO-Datum oder None
 STATUS_REVIEW_WEEKDAY = 0        # 0 = Montag; Drossel ~1x/Woche (Daily läuft 1x/Tag)
+
+# Score-Alert: EINMALIGER Push, wenn ein Kandidat in SEINER Episode NEU über
+# diese Schwelle steigt (Flanke, nicht Zustand — siehe forward_collection.
+# score_alert_edges). Bewusst fast stumm: über die gesamte committete
+# Report-Historie (Universum 361) erreichte KEIN Kandidat je >90 (Höchststand
+# 89.84). Schwelle als benannte Konstante, damit sie an EINER Stelle justierbar
+# ist. Watchlist-Karten sind ausgenommen (eigene Auswahl, nicht Teil der
+# gerankten Population). Bewusst ein Aufmerksamkeits-Hinweis, KEIN Signal.
+SCORE_ALERT_THRESHOLD = 90       # strikt größer als (>90) löst aus

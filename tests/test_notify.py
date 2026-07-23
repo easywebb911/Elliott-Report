@@ -159,6 +159,48 @@ def test_send_is_failsoft(monkeypatch):
     assert notify.send_ntfy(TOPIC, "t", "b") is False
 
 
+# ---------------------------------------------------------------------------
+# Score-Alert-Push (>Schwelle): Bündelung, Ehrlichkeit, kein Leak, Fail-soft
+# ---------------------------------------------------------------------------
+_EDGES = [{"ticker": "XYZ", "market": "US", "score": 93.2},
+          {"ticker": "ABC", "market": "DE", "score": 91.0}]
+
+
+def test_score_alert_body_bundles_and_is_honest():
+    body = notify.score_alert_body(_EDGES)
+    assert "XYZ" in body and "ABC" in body           # beide Ticker im EINEN Text
+    assert "93" in body and "91" in body             # Scores (ganzzahlig gerundet)
+    assert "heuristisch · unvalidiert" in body       # Ehrlichkeit: kein Signal
+    assert "🇺🇸" in body and "🇩🇪" in body            # Markt im Text
+
+
+def test_score_alert_single_push_for_multiple_tickers(tmp_path, monkeypatch):
+    sent = _capture(monkeypatch)
+    assert notify.send_score_alert(TOPIC, _EDGES, 90) is True
+    assert len(sent) == 1                             # EIN Push, egal wie viele Ticker
+    assert "XYZ" in sent[0]["body"] and "ABC" in sent[0]["body"]
+    assert ">90" in sent[0]["title"]
+
+
+def test_score_alert_empty_edges_is_silent(tmp_path, monkeypatch):
+    sent = _capture(monkeypatch)
+    assert notify.send_score_alert(TOPIC, [], 90) is False
+    assert sent == []                                 # keine Flanke -> kein Push
+
+
+def test_score_alert_empty_topic_never_posts(tmp_path, monkeypatch):
+    sent = _capture(monkeypatch)
+    assert notify.send_score_alert("", _EDGES, 90) is False
+    assert sent == []                                 # leeres Topic -> kein Netzaufruf
+
+
+def test_score_alert_is_failsoft(monkeypatch):
+    monkeypatch.setattr(notify, "_post",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
+    # Push-Fehler -> False, kein Crash (Lauf darf nie brechen).
+    assert notify.send_score_alert(TOPIC, _EDGES, 90) is False
+
+
 def test_main_always_returns_zero(tmp_path, monkeypatch):
     # Selbstüberwachung darf den Workflow NIE rot färben.
     _fixture_repo(tmp_path, monkeypatch, report_ts="2026-07-27T18:00:00Z", matured=5)

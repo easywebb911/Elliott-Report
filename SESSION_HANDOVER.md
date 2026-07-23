@@ -2,8 +2,14 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #19. Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht
-aus dem Gedächtnis.
+nach PR #23 (dieser PR: **Score-Alert >90**, offen). Alle Zahlen/Hashes sind gegen
+`git log` und den Code geprüft, nicht aus dem Gedächtnis.
+
+> **REBASE-HINWEIS:** dieser Branch war ursprünglich vom #22-Merge abgezweigt und
+> wurde nach dem Merge des **Mini-Sammlers #23** (`market_calendar.py`,
+> kalenderbewusste Staleness) sauber auf `main` (inkl. #23) **rebased** — der
+> Handover-Konflikt (rein textuell) ist aufgelöst, Code-Dateien auto-mergten
+> (getrennte Regionen). Score-Alert und #23-Staleness koexistieren.
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
 > selben PR** aktualisiert — mindestens Abschnitte **2 (PR-Historie)**, **3
@@ -31,7 +37,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-HISTORIE #1–#19
+## 2. PR-HISTORIE #1–#23
 
 Format: `#N` · Feature-Commit-Hash (auf `main`) · Kern · Merge-Klasse.
 Merge-Klassen: **manual** = Easy merged; **+G** = Guardian-Zweitblick vorab;
@@ -62,7 +68,8 @@ durchgängig ab #13.
 | #20 | `d40a1d6` | **docs:** `SESSION_HANDOVER.md` (diese Datei) + Pflege-Regel | self (CI grün) |
 | #21 | `cf2bd9f` | **fix:** `daily.yml` persistiert `forward_collection.json` (Sammlung akkumuliert, Push race-gehärtet) — **live bestätigt** (10 Records auf main) | manual |
 | #22 | `efb57a1` | **Push-Paket Stufe 1** (ntfy, fast stumm): Lauf-Fehlschlag · Staleness-Cron · Meilenstein n≥100 · Review-Wecker | +G manual |
-| #23 | `(PR #23)` | **Mini-Sammler:** Disclaimer-Banner (einklappbar) · Wochenend-/Feiertags-Gate · kalenderbewusste Staleness (`market_calendar.py`) | +G manual +Bild |
+| #23 | `664952f` | **Mini-Sammler:** Disclaimer-Banner (einklappbar) · Wochenend-/Feiertags-Gate · kalenderbewusste Staleness (`market_calendar.py`) | +G manual +Bild |
+| #(dieser) | `(offen)` | **Score-Alert >90** (Flanke, nicht Zustand): EINMALIGER Push je Episode beim Neu-Überschreiten, gebündelt (1 Push/Lauf), an die vorhandene Episoden-Logik gekoppelt · `SCORE_ALERT_THRESHOLD=90` · Watchlist ausgenommen · fail-soft | +G manual |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -95,6 +102,12 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
   **still** (no-op). Danach live prüfen: Lauf-Fehlschlag-Push, Staleness-Push
   (report künstlich altern lassen / Cron dispatchen), ntfy-App auf das Topic
   abonnieren. Zustellung aus der Sandbox nicht testbar (Netz).
+- **OFFEN — Score-Alert >90 live beobachten (dieser PR):** greift erst, wenn ein
+  Kandidat real **>90** erreicht. **Frequenz-Messung über die GESAMTE committete
+  Report-Historie (Universum 361): 0 Kandidaten je >90**, Höchststand **89,84**
+  (PANW, aktueller Lauf) — also **de facto stumm** (aligned mit „bewusst fast
+  stumm", KEIN Mini-Stopp nötig). Scharfschalten = dasselbe Secret **`NTFY_TOPIC`**
+  wie #22. Zustellung aus der Sandbox nicht testbar (Netz).
 - **TEILWEISE — Lauf-Status-Ansicht:** der #19-Dispatch-Lauf (`8a7d390`) hat
   `report.json` **mit** `diag` committet → die Ansicht sollte jetzt echte Zahlen
   zeigen (im UI noch gegenzuprüfen).
@@ -124,6 +137,19 @@ Feiertags-Gate (gemeinsame NYSE∩Xetra-Voll-Schließtage in
 `scripts/market_calendar.py`, mit Ablauf-Warnung ab 01.12.2027) ·
 **kalenderbewusste Staleness** (Wächter rechnet gegen den letzten *erwarteten*
 Lauf → kein Wochenend-/Feiertags-Fehlalarm).
+
+**✅ Score-Alert >90 — erledigt (dieser PR, `forward_collection.score_alert_edges`
++ `notify.send_score_alert`):** EINMALIGER Push, wenn ein Kandidat in SEINER
+Episode **neu** über `SCORE_ALERT_THRESHOLD` (=90) steigt (**Flanke, nicht
+Zustand**). An DIESELBE Episoden-Erkennung wie der N×-Zähler gekoppelt (kein
+Parallel-State): der Record der heutigen Erscheinung trägt `last_seen == run_date`,
+das Flag `score_alert_fired` wird je Episode **einmalig** gesetzt und in der
+Sammlung persistiert. Gebündelt (**1 Push/Lauf**), Markt im Text, trägt
+„heuristisch · unvalidiert". Watchlist ausgenommen, fail-soft. **Lektion aus dem
+Schwester-Repo (dortiger PR #471, 23.07.): Cooldowns ohne Flanken-Logik
+re-alarmieren bei anhaltendem Zustand → Push-Flut.** Deshalb hier von Tag 1:
+Flanke. Revert = Konstante entfernen / `edges`-Aufruf in `main` streichen (rein
+additiv, Feld verschwindet beim nächsten Purge-Lauf).
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
@@ -200,6 +226,16 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   (`.github/workflows/staleness_check.yml`, Cron **06:00 UTC**). Lauf-Fehlschlag =
   inline `if: failure()`-`curl`-Step in daily.yml. Config: `SCORE_REVIEW_BY`
   (menschlich), `STATUS_REVIEW_WEEKDAY=0`, `EVAL_MIN_N=100`, `STALENESS_HOURS=30`.
+- **Score-Alert >90 (dieser PR):** IM Daily-Lauf, in `elliott_pipeline.main()`
+  **nach** `update_forward_collection` (Episoden existieren) und **vor**
+  `write_collection` (Flag persistiert). `fc.score_alert_edges(coll, report,
+  config.SCORE_ALERT_THRESHOLD, run_date)` findet Kandidaten, die in ihrer Episode
+  **neu** >Schwelle sind (Record mit `last_seen == run_date`, Flag
+  `score_alert_fired` noch None → feuern + Flag setzen), gebündelt →
+  `notify.send_score_alert(NTFY_TOPIC, edges, threshold)` = **1 Push/Lauf**. Flanke,
+  nicht Zustand (Bleiben/Dip-Recross derselben Episode = stumm; neue Episode feuert
+  erneut). Watchlist ausgenommen (nur `markets[].candidates`). Push **nach** dem
+  Persistieren → Einmaligkeit vor Zustellgarantie (wie Meilenstein-Marker).
 
 ### Frontend (`docs/index.html`, Vanilla-JS, kein Framework, **kein** Service Worker)
 - **Daten:** liest `data/report.json` (Fallback `../data/report.json`);
@@ -247,10 +283,12 @@ gleiche relative Ziel-/Stop-Distanzen) **Holm-korrigiert signifikant**, UND (2) 
 - Auswertung **erst ab n ≥ 100** gereiften Setups (`EVAL_MIN_N`).
 - Marktregime je Record (SPY/DAX über/unter 200-Tage-Linie).
 - Forward-Daten **nie** mit Backfill gepoolt.
-- **Populations-Schutz (baulich):** **Watchlist**- UND per-`appearance_count`-
-  Logik berühren die Population nicht; die Sammlung liest **nur**
+- **Populations-Schutz (baulich):** **Watchlist**-, per-`appearance_count`- UND
+  **Score-Alert**-Logik berühren die Population nicht; alle lesen **nur**
   `markets[].candidates` (Top-5). Watchlist lebt in `report["watchlist"]` und wird
-  nie gesammelt. Ein Punktschätzer allein ist nie Bestätigung.
+  nie gesammelt/alarmiert. Der Score-Alert setzt nur ein additives, anzeige-/
+  push-neutrales Flag (`score_alert_fired`) — Score/Ranking/Reifung unberührt. Ein
+  Punktschätzer allein ist nie Bestätigung.
 - **Daten je forward-Kandidat (10 Handelstage):** `target_hit`, `ext_hit`,
   `invalidated` (binär), `max_gain_10d`, `max_drawdown_10d`, `r_multiple`.
 
@@ -281,6 +319,11 @@ Beleg = Abschnitt 3.)
 - **Sequenz-Regel:** pro Runde **ein** Anzeige-/Optik-PR (Review-Last klein halten).
 - **Draft-Bild-Freigabe:** Optik-PRs als Draft + Screenshots (~390 px) in den Chat
   → Easys Freigabe → dann ready/merge.
+- **Alert-Flanke statt Zustand (Schwester-Repo PR #471, 23.07.):** Cooldowns/
+  Schwellen ohne **Flanken-Logik** re-alarmieren, solange der Zustand anhält →
+  Push-Flut. Regel: edge-triggered (einmal je Episode, Flag), NICHT
+  level-triggered. Beim Score-Alert an die vorhandene Episoden-Erkennung koppeln,
+  **kein** zweites State-System.
 - **Determinismus:** `report.json` byte-identisch belassen (Realdaten macht nur CI);
   nicht-deterministische Felder (`generated_in_seconds`, `appearance_count`) nur in
   `main` setzen, nicht in `build_report` (Tests bleiben deterministisch).
