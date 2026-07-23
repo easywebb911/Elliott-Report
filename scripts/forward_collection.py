@@ -133,6 +133,18 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     tlow = rec["target_zone"]["low"]
     elow = rec["target_zone_extended"]["low"]
 
+    # PRU-Guard (2026-07-23, siehe docs/validation_registry.md): War der Kurs schon
+    # BEI ANLAGE (entry_close) ≥ Zonen-Unterkante, ist ein späterer „Treffer" ein
+    # Look-ahead-Artefakt — das Ziel war zum Anlage-Zeitpunkt bereits erreicht,
+    # keine Vorhersage. Solche Records reifen NORMAL aus (Invalidierung,
+    # max_gain/drawdown/r_multiple bleiben voll gültig), aber die HIT-Zählung ist
+    # gesperrt (auf 0 gedeckelt, nie 1) und pre_reached_* markiert sie für den
+    # Auswertungs-Ausschluss. Getrennt für Basis- (tlow) und Extension-Zone (elow).
+    pre_reached_target = entry >= tlow
+    pre_reached_ext = entry >= elow
+    rec["pre_reached_target"] = bool(pre_reached_target)
+    rec["pre_reached_ext"] = bool(pre_reached_ext)
+
     maxc = minc = entry
     inval_day = target_day = ext_day = None
     for i, c in enumerate(fwd):
@@ -155,9 +167,13 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
         # der Tag dann als Invalidierung, NICHT als Treffer — ein "hit" wird nie
         # aufgebläht. Deshalb: invalidated mit <= (schlägt bei Gleichstand),
         # target_hit/ext_hit mit striktem < (verlieren bei Gleichstand).
-        rec["target_hit"] = 1 if (target_day is not None and (inval_day is None or target_day < inval_day)) else 0
+        target_hit = 1 if (target_day is not None and (inval_day is None or target_day < inval_day)) else 0
+        ext_hit = 1 if (ext_day is not None and (inval_day is None or ext_day < inval_day)) else 0
+        # PRU-Guard: Hit auf 0 sperren, wenn schon bei Anlage über der Zone
+        # (Invalidierung bleibt UNBERÜHRT — sie ist keine Look-ahead-Größe).
+        rec["target_hit"] = 0 if pre_reached_target else target_hit
         rec["invalidated"] = 1 if (inval_day is not None and (target_day is None or inval_day <= target_day)) else 0
-        rec["ext_hit"] = 1 if (ext_day is not None and (inval_day is None or ext_day < inval_day)) else 0
+        rec["ext_hit"] = 0 if pre_reached_ext else ext_hit
 
     rec["max_gain_10d"] = round((maxc - entry) / entry * 100.0, 4) if entry else None
     rec["max_drawdown_10d"] = round((minc - entry) / entry * 100.0, 4) if entry else None
@@ -204,6 +220,10 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "target_hit": None,
         "ext_hit": None,
         "invalidated": None,
+        # PRU-Guard (2026-07-23): bei der Reifung gesetzt (Kurs schon bei Anlage
+        # ≥ Zonen-Unterkante → Hit gesperrt + aus der Auswertung ausgeschlossen).
+        "pre_reached_target": False,
+        "pre_reached_ext": False,
         "max_gain_10d": None,
         "max_drawdown_10d": None,
         "r_multiple": None,
@@ -267,6 +287,29 @@ def counts(coll: Dict) -> Tuple[int, int]:
     """(gesammelt, gereift)."""
     records = coll.get("records", [])
     return len(records), sum(1 for r in records if r.get("matured"))
+
+
+def is_excluded(rec: Dict) -> bool:
+    """Aus der Auswertungs-POPULATION ausgeschlossen (PRU-Guard, 2026-07-23).
+
+    Grund: Kurs war schon bei Anlage über der Zone (`pre_reached_*`) → ein
+    „Treffer" wäre ein Look-ahead-Artefakt; ODER historisch vor dem Guard als
+    Treffer gezählt (`pre_guard_contaminated`, forward-only ausgewiesen, nie
+    gelöscht). Diese Records reifen weiter (Invalidierung/Kennzahlen gültig),
+    zählen aber NICHT in Trefferquote/AUC. Siehe docs/validation_registry.md."""
+    return bool(rec.get("pre_reached_target") or rec.get("pre_reached_ext")
+                or rec.get("pre_guard_contaminated"))
+
+
+def eval_counts(coll: Dict) -> Tuple[int, int, int]:
+    """(gesammelt, gereift, auswertbar). auswertbar = gereift UND nicht
+    ausgeschlossen (PRU-Guard). Der n≥EVAL_MIN_N-Schwellwert bezieht sich auf
+    ``auswertbar`` — nicht auf ``gereift``."""
+    records = coll.get("records", [])
+    collected = len(records)
+    matured = sum(1 for r in records if r.get("matured"))
+    evaluable = sum(1 for r in records if r.get("matured") and not is_excluded(r))
+    return collected, matured, evaluable
 
 
 def appearance_count(coll: Dict, ticker: str) -> int:

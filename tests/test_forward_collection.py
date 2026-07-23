@@ -562,3 +562,81 @@ def test_score_alert_does_not_mutate_report_scores():
     snap = json.dumps(report, sort_keys=True)
     fc.score_alert_edges(coll, report, THRESH, "2026-07-01")
     assert json.dumps(report, sort_keys=True) == snap  # Report unangetastet
+
+
+# ---------------------------------------------------------------------------
+# PRU-Guard (2026-07-24): Kurs schon bei Anlage über der Zone -> Hit gesperrt.
+# Reifung sonst normal; pre_reached_* markiert für Auswertungs-Ausschluss.
+# ---------------------------------------------------------------------------
+def test_guard_entry_under_zone_hit_counts():
+    # Anlage UNTER Zone, Ziel erst NACH Anlage erreicht -> target_hit zählt.
+    rec = fc._new_record(_entry("AAPL", close=100.0, tlow=120.0, elow=140.0, inval=90.0),
+                         "US", "s", "risk_on", "2026-07-22", NOW)
+    dates, closes = _series("s", [110, 118, 121, 125, 128, 130, 131, 132, 133, 134],
+                            entry_close=100.0)
+    fc.mature_record(rec, dates, closes, NOW)
+    assert rec["pre_reached_target"] is False and rec["pre_reached_ext"] is False
+    assert rec["target_hit"] == 1
+    assert rec["invalidated"] == 0
+
+
+def test_guard_entry_over_low_locks_target_hit_only():
+    # Anlage ÜBER Basis-Low (125>=120), aber unter Ext-Low (125<140):
+    # target_hit gesperrt, ext_hit (nach Anlage erreicht) zählt weiter.
+    rec = fc._new_record(_entry("AAPL", close=125.0, tlow=120.0, elow=140.0, inval=90.0),
+                         "US", "s", "risk_on", "2026-07-22", NOW)
+    dates, closes = _series("s", [126, 130, 135, 141, 145, 146, 147, 148, 149, 150],
+                            entry_close=125.0)
+    fc.mature_record(rec, dates, closes, NOW)
+    assert rec["pre_reached_target"] is True and rec["pre_reached_ext"] is False
+    assert rec["target_hit"] == 0        # gesperrt trotz „Treffer"
+    assert rec["ext_hit"] == 1           # Extension erst nach Anlage -> zählt
+    assert rec["invalidated"] == 0
+    assert rec["max_gain_10d"] is not None and rec["r_multiple"] is not None  # Kennzahlen normal
+
+
+def test_guard_entry_over_high_locks_both():
+    rec = fc._new_record(_entry("AAPL", close=145.0, tlow=120.0, elow=140.0, inval=90.0),
+                         "US", "s", "risk_on", "2026-07-22", NOW)
+    dates, closes = _series("s", [146, 148, 150, 151, 152, 153, 154, 155, 156, 157],
+                            entry_close=145.0)
+    fc.mature_record(rec, dates, closes, NOW)
+    assert rec["pre_reached_target"] is True and rec["pre_reached_ext"] is True
+    assert rec["target_hit"] == 0 and rec["ext_hit"] == 0
+
+
+def test_guard_invalidation_still_counts_when_pre_reached():
+    # Invalidierung ist KEINE Look-ahead-Größe -> zählt auch bei pre_reached.
+    rec = fc._new_record(_entry("AAPL", close=125.0, tlow=120.0, elow=140.0, inval=90.0),
+                         "US", "s", "risk_on", "2026-07-22", NOW)
+    dates, closes = _series("s", [110, 95, 89, 85, 84, 83, 82, 81, 80, 79],
+                            entry_close=125.0)
+    fc.mature_record(rec, dates, closes, NOW)
+    assert rec["pre_reached_target"] is True
+    assert rec["invalidated"] == 1
+    assert rec["target_hit"] == 0
+
+
+def test_guard_idempotent_on_rerun():
+    rec = fc._new_record(_entry("AAPL", close=125.0, tlow=120.0, elow=140.0, inval=90.0),
+                         "US", "s", "risk_on", "2026-07-22", NOW)
+    dates, closes = _series("s", [126, 130, 135, 141, 145, 146, 147, 148, 149, 150],
+                            entry_close=125.0)
+    fc.mature_record(rec, dates, closes, NOW)
+    snap = json.dumps(rec, sort_keys=True)
+    fc.mature_record(rec, dates, closes, NOW)   # erneuter Lauf ändert nichts
+    assert json.dumps(rec, sort_keys=True) == snap
+
+
+def test_eval_counts_excludes_pre_reached_and_contaminated():
+    coll = {"records": [
+        {"matured": True, "pre_reached_target": False, "pre_reached_ext": False},  # auswertbar
+        {"matured": True, "pre_reached_target": True},                             # ausgeschlossen
+        {"matured": True, "pre_guard_contaminated": True},                         # ausgeschlossen
+        {"matured": False},                                                        # nicht gereift
+    ]}
+    assert fc.counts(coll) == (4, 3)
+    assert fc.eval_counts(coll) == (4, 3, 1)   # gesammelt, gereift, auswertbar
+    assert fc.is_excluded({"pre_reached_ext": True}) is True
+    assert fc.is_excluded({"pre_guard_contaminated": True}) is True
+    assert fc.is_excluded({"matured": True}) is False

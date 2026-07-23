@@ -16,6 +16,16 @@ gesammelt:
 
 - **`target_hit`** — Basis-Zielzone erreicht **VOR** der Invalidierung (binär).
 - **`ext_hit`** — Extension-Zone erreicht **VOR** der Invalidierung (binär).
+
+> **Entry-Regel (Prinzip, festgeschrieben 23.07.2026 — PRU-Befund).** Ein Kandidat
+> ist nur **auswertbar**, wenn bei Record-Anlage der Schlusskurs **UNTER
+> `target_zone.low`** liegt — das Ziel darf erst **nach** der Anlage erreicht
+> werden, sonst ist der „Treffer" ein Look-ahead-Artefakt und keine Vorhersage.
+> Analog für `ext_hit` mit `extension.low`. **Hintergrund:** die stillschweigenden
+> Annahmen der Backtest-Literatur (ein Signal wird zum Signalzeitpunkt eröffnet,
+> das Ziel liegt noch voraus) müssen hier als **explizite Regeln** stehen — der
+> PRU-Befund vom 23.07. zeigte, dass sie sonst still verletzt werden. Umsetzung:
+> Guard in `mature_record` ab 23.07. (s. u. „Änderungs-Log").
 - **`invalidated`** — Invalidierung zuerst gerissen (binär).
 - **`max_gain_10d`** — maximaler Gewinn im Horizont (relativ zum Einstiegskurs).
 - **`max_drawdown_10d`** — maximaler Rückgang im Horizont (relativ).
@@ -33,7 +43,19 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
 
 ## Regeln (nicht verhandelbar)
 
-- Auswertung **erst ab n ≥ 100 gereiften Setups**.
+- Auswertung **erst ab n ≥ 100 AUSWERTBAREN Setups** (gereift **und nicht**
+  vom PRU-Guard ausgeschlossen — siehe nächster Punkt). „Gereift" allein reicht
+  nicht; die n-Schwelle zählt `eval_counts(...)[2]` (auswertbar).
+- **PRU-Guard / „Kurs schon bei Anlage über der Zone" (ab 23.07.2026, s. u.):**
+  War der Schlusskurs am Anlage-Tag bereits **≥ Zonen-Unterkante**, ist ein
+  späterer „Treffer" ein **Look-ahead-Artefakt** (das Ziel war zum Anlage-
+  Zeitpunkt schon erreicht, keine Vorhersage). Solche Records reifen **normal**
+  aus (Invalidierung, `max_gain/drawdown/r_multiple` voll gültig), aber
+  `target_hit`/`ext_hit` sind **gesperrt** (auf 0, nie 1) und `pre_reached_target`
+  / `pre_reached_ext` markieren sie. Records mit `pre_reached_*` **oder**
+  `pre_guard_contaminated` sind aus **Trefferquote UND AUC** ausgeschlossen —
+  sie zählen NICHT zur n ≥ 100-Population. Die Invalidierungs-Statistik bleibt
+  von ihnen unberührt gültig.
 - Das **Marktregime** wird je Record mitprotokolliert (z. B. SPY/DAX über/unter
   der 200-Tage-Linie).
 - Forward-Daten werden **NIE mit Backfill gepoolt**.
@@ -96,3 +118,18 @@ n ≥ 100) gilt unverändert.
   unverändert. Ab jetzt gesammelte Episoden entstammen dem größeren Universum;
   das ist transparent zu halten, wenn später ausgewertet wird (der Score-Test
   misst weiterhin den Score, nicht die Universums-Auswahl).
+- **23.07.2026 — PRU-Guard: „Kurs schon bei Anlage über der Zone" von der
+  Trefferquote ausgeschlossen.** Befund (Read-only-Diagnose 23.07.): PRU (Lauf
+  2026-07-23) stand mit Kurs 117,4 **über** Zielzone 112,4–116,2 (Ende-W4), rankte
+  aber mit Score 84 auf Platz 3 — und die Reifung zählte solche Fälle als
+  `target_hit` **an Tag 1** (das Ziel war bei Anlage schon erreicht). Empirisch
+  betroffen im Bestand: **MET, D, PRU** (`entry_close ≥ Zonen-Low`, `target_hit=1`
+  nach 1 Bar). **Maßnahme (forward-only, nichts gelöscht):** (1) Guard in
+  `mature_record` — `target_hit`/`ext_hit` nur, wenn `entry_close < Zonen-Low`
+  (sonst gesperrt + `pre_reached_*`); (2) die 3 Alt-Records mit
+  `pre_guard_contaminated: true` **ausgewiesen** (bleiben im Datenbestand,
+  reifen weiter, zählen aber nicht in Trefferquote/AUC); (3) n ≥ 100 zählt ab
+  jetzt **auswertbare** Records (`eval_counts`). **Bewusst NICHT geändert:** Score,
+  Ranking, Filterung der Kandidaten. Ein **Filter** (verbrauchte Setups gar nicht
+  erst ranken, Skip-Grund `target_exceeded`) ist eine **separate, spätere Produkt-
+  Entscheidung** (offen), kein Teil dieses Registry-Eintrags. Score-Malus verworfen.

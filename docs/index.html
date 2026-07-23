@@ -195,6 +195,16 @@
       font-size:.66rem; color:var(--txt-dim); font-variant-numeric:tabular-nums;
     }
     .ext-zone .ext-lbl { text-transform:uppercase; letter-spacing:.08em; margin-right:5px; }
+    /* „Zielzone erreicht/überschritten" — dezente Ehrlichkeit, KEIN Alarm-Rot.
+       Kurs ≥ Zonen-Unterkante = Setup (teil-)verbraucht. Live-Quote darf es
+       aktualisieren (quotePatch). Erscheint nur, wenn der Kurs die Zone erreicht. */
+    .zone-badge {
+      margin:-4px 12px 12px; padding:3px 9px; border-radius:8px; display:inline-block;
+      font-size:.62rem; font-weight:700; letter-spacing:.03em;
+      color:var(--txt-sub); background:var(--bg-met); border:1px solid var(--brd);
+    }
+    .zone-badge::before { content:"◎ "; opacity:.75; }
+    .zone-badge-over { color:var(--ora); border-color:rgba(245,158,11,.35); }
     /* Zweite Zählung (großer Grad / Wochen): dezent abgesetzter Block unter den
        Kacheln. Erscheint nur, wenn higher_degree existiert. */
     .hd-block { margin:0 12px 12px; padding:8px 10px; border:1px solid var(--brd);
@@ -783,11 +793,22 @@
       if (!coll || !Array.isArray(coll.records)) { sec.hidden = true; return; }
       const n = coll.records.length;
       const matured = coll.records.filter(r => r && r.matured).length;
-      document.getElementById('val-counts').textContent =
-        `${n} gesammelt · ${matured} gereift`;
+      // PRU-Guard: „auswertbar" = gereift UND nicht ausgeschlossen (Kurs schon bei
+      // Anlage über der Zone / vor dem Guard kontaminiert). n≥EVAL_MIN_N bezieht
+      // sich auf DIESE Zahl. Siehe docs/validation_registry.md (24.07.2026).
+      const _isExcluded = r => !!(r && (r.pre_reached_target || r.pre_reached_ext || r.pre_guard_contaminated));
+      const evaluable = coll.records.filter(r => r && r.matured && !_isExcluded(r)).length;
+      const excluded = matured - evaluable;
+      const cnt = document.getElementById('val-counts');
+      cnt.textContent = `${n} gesammelt · ${matured} gereift · ${evaluable} auswertbar`;
+      cnt.title = excluded > 0
+        ? `${excluded} gereifte(r) Record(s) vom PRU-Guard ausgeschlossen `
+          + `(Kurs schon bei Anlage über der Zielzone → „Treffer" wäre Look-ahead) — `
+          + `zählen nicht zur n≥${EVAL_MIN_N}-Auswertung.`
+        : '';
       // WICHTIG: KEINE Trefferquoten/Zwischenergebnisse vor n>=100.
       document.getElementById('val-note').textContent =
-        `Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert`;
+        `Auswertung ab n≥${EVAL_MIN_N} auswertbaren · heuristisch, unvalidiert`;
       sec.hidden = false;
     }
 
@@ -1177,6 +1198,17 @@
       const extLine = ez
         ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmt(ez.low)}–${fmt(ez.high)}</div>`
         : '';
+      // „Zielzone erreicht/überschritten": Anfangszustand aus dem Lauf-Schlusskurs;
+      // Live-Quote aktualisiert es später (quotePatch → _setZoneBadge). Anker
+      // data-zl/data-zh; erscheint nur, wenn Kurs ≥ Zonen-Unterkante.
+      const _zs = (c.close != null && c.target_zone)
+        ? (c.close >= c.target_zone.high ? 'over' : (c.close >= c.target_zone.low ? 'reached' : ''))
+        : '';
+      const zoneBadge = c.target_zone
+        ? `<div class="zone-badge zone-badge-${_zs || 'none'}" data-zone-badge`
+          + ` data-zl="${c.target_zone.low}" data-zh="${c.target_zone.high}"${_zs ? '' : ' hidden'}>`
+          + `${_zs === 'over' ? 'Zielzone überschritten' : (_zs === 'reached' ? 'Zielzone erreicht' : '')}</div>`
+        : '';
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
@@ -1227,6 +1259,7 @@
           <div class="metric-box zone"><span class="m-val">${zone}</span><span class="m-lbl">Zielzone</span></div>
         </div>
         ${extLine}
+        ${zoneBadge}
         ${c.timeframes ? tfPanel(c.timeframes) : hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">
@@ -2123,10 +2156,22 @@
       }
     }
 
+    // „Zielzone erreicht/überschritten"-Badge aus einem Preis neu setzen (aus
+    // dem Lauf-Schlusskurs beim Rendern ODER live via quotePatch). Rein Anzeige.
+    function _setZoneBadge(badge, price) {
+      if (!badge) return;
+      const zl = parseFloat(badge.dataset.zl), zh = parseFloat(badge.dataset.zh);
+      if (!isFinite(zl) || !isFinite(zh) || typeof price !== 'number' || !isFinite(price)) return;
+      if (price >= zh) { badge.textContent = 'Zielzone überschritten'; badge.className = 'zone-badge zone-badge-over'; badge.hidden = false; }
+      else if (price >= zl) { badge.textContent = 'Zielzone erreicht'; badge.className = 'zone-badge zone-badge-reached'; badge.hidden = false; }
+      else { badge.hidden = true; }
+    }
+
     function quotePatch(card, q) {
       if (typeof q.price === 'number' && isFinite(q.price)) {
         const el = card.querySelector('[data-quote="price"]');
         if (el) el.textContent = fmt(q.price);
+        _setZoneBadge(card.querySelector('[data-zone-badge]'), q.price);
       }
       const p = q.change, a = q.change_abs;  // change == Tages-% (Worker-Vertrag)
       if (typeof p === 'number' && isFinite(p)) {
