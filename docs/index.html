@@ -74,10 +74,17 @@
       gap:10px; padding:12px 12px 8px;
     }
     .card-left { display:flex; align-items:flex-start; gap:10px; min-width:0; flex:1; }
+    .rank-col { flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:3px; }
     .rank {
       flex:0 0 auto; display:flex; align-items:center; justify-content:center;
       width:26px; height:26px; border-radius:50%; background:var(--accent); color:#fff;
       font-size:.72rem; font-weight:800; font-variant-numeric:tabular-nums; margin-top:2px;
+    }
+    /* N×-Zähler unter dem Rang-Kreis (rückblickend, reine Anzeige). */
+    .appear-badge {
+      font-size:.6rem; font-weight:800; line-height:1; padding:2px 5px; border-radius:6px;
+      color:var(--txt-sub); background:var(--bg-met); border:1px solid var(--brd);
+      font-variant-numeric:tabular-nums; cursor:help; white-space:nowrap;
     }
     .hdr-block { min-width:0; flex:1; }
     .ticker-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -1068,10 +1075,15 @@
             <div><span class="hd-k">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span></div>
           </div>
         </div>` : '';
+      // N×-Zähler (rückblickend): wie oft der Ticker in den Top 5 stand
+      // (Episoden, nicht Tage). Nur ab N ≥ 2 (1× ist Rauschen). Reine Anzeige.
+      const ac = c.appearance_count;
+      const appBadge = (typeof ac === 'number' && ac >= 2)
+        ? `<span class="appear-badge" title="${ac}-mal in den Top 5 seit ${COLLECTION_START}">${ac}×</span>` : '';
       return `<article class="card" data-ticker="${esc(c.ticker)}">
         <div class="card-top">
           <div class="card-left">
-            <span class="rank">${rank}</span>
+            <div class="rank-col"><span class="rank">${rank}</span>${appBadge}</div>
             <div class="hdr-block">
               <div class="ticker-row">
                 <span class="ticker">${esc(c.ticker)}</span>
@@ -1108,6 +1120,9 @@
       </article>`;
     }
 
+    // Sammlungs-Beginn (Präregistrierung, siehe validation_registry.md). Vor
+    // diesem Stichtag existieren keine Erscheinungen — daher im N×-Tooltip.
+    const COLLECTION_START = '22.07.2026';
     const MARKET_FLAG = { US: '🇺🇸', DE: '🇩🇪' };
     function renderMarket(id, market) {
       const el = document.getElementById(id);

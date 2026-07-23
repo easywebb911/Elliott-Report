@@ -907,6 +907,14 @@ def main() -> int:
     # Lauf-Dauer additiv (nur in main gesetzt -> build_report bleibt
     # deterministisch/testbar). Rein informativ für die „Lauf-Status"-Ansicht.
     report["generated_in_seconds"] = round(time.monotonic() - _t0, 1)
+    # N×-Zähler additiv annotieren — mit dem Sammlungs-Stand VOR dem Update
+    # (die aktuelle Erscheinung wird erst danach eingetragen). Fail-soft: fehlt/
+    # kaputt -> kein Zähler, Report bleibt heil. Rein Anzeige, kein Ranking.
+    try:
+        fc.annotate_appearance_counts(fc.load_collection(), report)
+    except Exception as exc:  # noqa: BLE001
+        _log(f"[elliott] N×-Zähler übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
     written = write_report(report)
 
     us = report["markets"]["US"]
