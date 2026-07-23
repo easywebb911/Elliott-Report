@@ -262,3 +262,36 @@ def counts(coll: Dict) -> Tuple[int, int]:
     """(gesammelt, gereift)."""
     records = coll.get("records", [])
     return len(records), sum(1 for r in records if r.get("matured"))
+
+
+def appearance_count(coll: Dict, ticker: str) -> int:
+    """Wie oft ``ticker`` als Top-5-Kandidat erschienen ist — **Episoden**, nicht
+    Tage — inkl. der AKTUELLEN Erscheinung.
+
+    Ein Record = eine Episode. Zum Report-Bauzeitpunkt ist die aktuelle
+    Erscheinung noch NICHT in der Sammlung (die wird erst nach write_report
+    aktualisiert). Deshalb: Zahl der vorhandenen Episoden + 1, ES SEI DENN die
+    aktuelle Erscheinung verlängert eine bereits offene Episode (Ticker war schon
+    im vorherigen Lauf Top-5) — dann ist sie bereits gezählt. Die
+    Fortsetzungs-Prüfung spiegelt exakt die ``active``-Erkennung in
+    ``update_forward_collection`` (kein Doppelzählen)."""
+    records = coll.get("records", [])
+    episodes = sum(1 for r in records if r.get("ticker") == ticker)
+    prev_run_date = coll.get("last_run_date")
+    continues = any(
+        r.get("ticker") == ticker and not r.get("matured")
+        and r.get("last_seen_top5_date") == prev_run_date
+        for r in records
+    )
+    return episodes if continues else episodes + 1
+
+
+def annotate_appearance_counts(coll: Dict, report: Dict) -> None:
+    """Setzt je Markt-Top-5-Kandidat additiv ``appearance_count``. In-place.
+
+    NUR für markets[].candidates — Watchlist-Karten bekommen KEINEN Zähler
+    (nicht Teil der Population). Reine Anzeige: berührt Score/Ranking/Sammlung
+    nicht."""
+    for market in report.get("markets", {}).values():
+        for entry in market.get("candidates", []):
+            entry["appearance_count"] = appearance_count(coll, entry["ticker"])

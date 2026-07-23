@@ -372,3 +372,67 @@ def test_purge_removes_backtesting_fields(tmp_path):
     assert rc == 0
     back = json.loads((tmp_path / "data/forward_collection.json").read_text())
     assert back["records"] == []  # inkl. chart_points/price_path entfernt
+
+
+# ---------------------------------------------------------------------------
+# N×-Zähler (appearance_count) — Episoden, nicht Tage; inkl. der aktuellen
+# ---------------------------------------------------------------------------
+def _ep(ticker, first_seen, matured=False, last_seen="2026-07-25"):
+    return {"ticker": ticker, "episode_id": f"{ticker}@{first_seen}",
+            "first_seen_date": first_seen, "matured": matured,
+            "last_seen_top5_date": last_seen}
+
+
+def test_appearance_count_counts_episodes_incl_current():
+    coll = {"last_run_date": "2026-07-25", "records": [
+        _ep("AAPL", "2026-07-22", matured=True, last_seen="2026-07-23"),
+        _ep("AAPL", "2026-07-24", matured=True, last_seen="2026-07-24"),
+        _ep("MSFT", "2026-07-25", matured=False, last_seen="2026-07-25"),
+        _ep("NVDA", "2026-07-20", matured=True, last_seen="2026-07-21"),
+    ]}
+    # 2 abgeschlossene Episoden + aktuelle (neu) = 3
+    assert fc.appearance_count(coll, "AAPL") == 3
+    # 1 offene Episode, die HEUTE fortgesetzt wird -> nicht doppelt zählen = 1
+    assert fc.appearance_count(coll, "MSFT") == 1
+    # 1 abgeschlossene + aktuelle (neu) = 2
+    assert fc.appearance_count(coll, "NVDA") == 2
+    # nie gesehen -> aktuelle ist die 1.
+    assert fc.appearance_count(coll, "TSLA") == 1
+    assert fc.appearance_count({"records": []}, "X") == 1
+
+
+def test_appearance_count_reappearance_is_new_episode():
+    # Wiederauftauchen nach Verschwinden (last_seen != prev_run_date) zählt neu.
+    coll = {"last_run_date": "2026-07-25", "records": [
+        _ep("AAPL", "2026-07-20", matured=True, last_seen="2026-07-22"),  # weg seit 22.
+    ]}
+    assert fc.appearance_count(coll, "AAPL") == 2  # alte + neue Episode
+
+
+def test_annotate_only_market_candidates_not_watchlist():
+    coll = {"last_run_date": "2026-07-25", "records": [
+        _ep("AAPL", "2026-07-22", matured=True, last_seen="2026-07-23"),
+    ]}
+    report = {
+        "markets": {"US": {"candidates": [{"ticker": "AAPL"}, {"ticker": "NVDA"}]}},
+        "watchlist": {"entries": [{"ticker": "AAPL"}, {"ticker": "WLONLY"}]},
+    }
+    fc.annotate_appearance_counts(coll, report)
+    assert report["markets"]["US"]["candidates"][0]["appearance_count"] == 2  # AAPL
+    assert report["markets"]["US"]["candidates"][1]["appearance_count"] == 1  # NVDA
+    # Watchlist bekommt KEINEN Zähler (nicht Teil der Population).
+    for e in report["watchlist"]["entries"]:
+        assert "appearance_count" not in e
+
+
+def test_annotate_is_ranking_neutral():
+    # Nur additiv: Ticker/Score-Reihenfolge bleibt, nur ein Feld kommt dazu.
+    coll = {"last_run_date": None, "records": []}
+    cands = [{"ticker": "AAPL", "score_heuristic": 80.0},
+             {"ticker": "MSFT", "score_heuristic": 70.0}]
+    report = {"markets": {"US": {"candidates": cands}}}
+    before = [(c["ticker"], c["score_heuristic"]) for c in cands]
+    fc.annotate_appearance_counts(coll, report)
+    after = [(c["ticker"], c["score_heuristic"]) for c in report["markets"]["US"]["candidates"]]
+    assert before == after
+    assert all("appearance_count" in c for c in report["markets"]["US"]["candidates"])
