@@ -2,14 +2,12 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #24 (dieser PR: **Watchlist-Sofortkarte**, offen). Alle Zahlen/Hashes sind
-gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #25 (dieser PR: **Multi-Timeframe-Analyse Watchlist**, offen). Alle Zahlen/
+Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **REBASE-HINWEIS:** dieser Branch war ursprünglich vom #22-Merge abgezweigt und
-> wurde nach den Merges von **#23 (Mini-Sammler)** und **#24 (Score-Alert)** sauber
-> auf `main` (inkl. #23/#24) **rebased** — der Handover-Konflikt (rein textuell) ist
-> aufgelöst, `docs/index.html` auto-mergte (getrennte Regionen). Watchlist-Sofort-
-> karte und die neuen Alert-/Staleness-Features koexistieren.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #25-Merge `96a69d8`) abgezweigt —
+> kein Rebase nötig. Die stehende Regel „Rebase vor Ready-for-Review" (Abschnitt 8)
+> wird vor dem Ready-Setzen erneut geprüft.
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
 > selben PR** aktualisiert — mindestens Abschnitte **2 (PR-Historie)**, **3
@@ -37,7 +35,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-HISTORIE #1–#23
+## 2. PR-HISTORIE #1–#25
 
 Format: `#N` · Feature-Commit-Hash (auf `main`) · Kern · Merge-Klasse.
 Merge-Klassen: **manual** = Easy merged; **+G** = Guardian-Zweitblick vorab;
@@ -70,7 +68,8 @@ durchgängig ab #13.
 | #22 | `efb57a1` | **Push-Paket Stufe 1** (ntfy, fast stumm): Lauf-Fehlschlag · Staleness-Cron · Meilenstein n≥100 · Review-Wecker | +G manual |
 | #23 | `664952f` | **Mini-Sammler:** Disclaimer-Banner (einklappbar) · Wochenend-/Feiertags-Gate · kalenderbewusste Staleness (`market_calendar.py`) | +G manual +Bild |
 | #24 | `d217d61` | **Score-Alert >90** (Flanke, nicht Zustand): EINMALIGER Push je Episode beim Neu-Überschreiten, gebündelt (1 Push/Lauf), an die vorhandene Episoden-Logik gekoppelt · `SCORE_ALERT_THRESHOLD=90` · Watchlist ausgenommen · fail-soft | +G manual |
-| #(dieser) | `(offen)` | **Watchlist-Sofortkarte** (Frontend): neu hinzugefügter Ticker zeigt sofort Live-Kurs-Karte statt leer/nur Chip; volle Elliott-Analyse weiter aus dem Lauf | manual +Bild |
+| #25 | `408abe4` | **Watchlist-Sofortkarte** (Frontend): neu hinzugefügter Ticker zeigt sofort Live-Kurs-Karte statt leer/nur Chip; volle Elliott-Analyse weiter aus dem Lauf | manual |
+| #(dieser) | `(offen)` | **Multi-Timeframe-Analyse Watchlist** (PR B): je Watchlist-Titel drei Zählungen `timeframes`{day,week,month}; Monatsgrad (`1mo`, `MIN_BARS_MONTHLY=60`) additiv; Analyse-Panel auf der Karte; Markt-Top-5 unberührt | +G manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -102,6 +101,12 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
   **Live-Kurs** (client-seitig, Quote-Worker) statt leer/nur Chip — die
   Elliott-Analyse (Setup/Score/Wellen) folgt weiterhin erst aus dem Lauf. Die
   Server-Runde (Token + Lauf) bleibt unverändert live zu prüfen.
+- **OFFEN — Multi-Timeframe-Panel live (#PR-B):** greift erst mit echten
+  Watchlist-Tickern (`watchlist_personal.json` aktuell `[]`) nach einem Lauf mit
+  echten Monatsdaten. Offline/synthetisch belegt (Node-Harness + pytest): Panel
+  rendert drei Zeilen Tag/Woche/Monat, null → „kein valider Long-Count". **Live zu
+  prüfen:** echte yfinance-`1mo`-Daten je `.DE`/US-Titel (Datenlage ≥ 60 Monate),
+  Panel-Optik am realen Ticker, `.DE`-Monatshistorie-Verfügbarkeit.
 - **OFFEN — Push-Paket Stufe 1 scharfschalten (#22):** Easy muss das Repo-Secret
   **`NTFY_TOPIC`** (z. B. `easy-elliott-report`) setzen — bis dahin ist alles
   **still** (no-op). Danach live prüfen: Lauf-Fehlschlag-Push, Staleness-Push
@@ -156,6 +161,26 @@ re-alarmieren bei anhaltendem Zustand → Push-Flut.** Deshalb hier von Tag 1:
 Flanke. Revert = Konstante entfernen / `edges`-Aufruf in `main` streichen (rein
 additiv, Feld verschwindet beim nächsten Purge-Lauf).
 
+**✅ Watchlist-Sofortkarte — erledigt (#25, Frontend):** lokal hinzugefügter Ticker
+zeigt sofort eine Live-Kurs-Karte (`_wlInstantCard`) statt leer/nur Chip; volle
+Elliott-Analyse weiter aus dem Lauf.
+
+**✅ Multi-Timeframe-Analyse Watchlist — erledigt (dieser PR = „PR B", Herkunft:
+Code-Vorschlag aus der #25-Session, von Easy freigegeben 23.07.):** je Watchlist-
+Titel DREI Zählungen — Tag (bestehende Swing-Logik), Woche (bestehender Wochengrad),
+NEU **Monat** (`interval=1mo`, `period=max`; Mindest-Datenlage
+`config.MIN_BARS_MONTHLY=60` Monatskerzen = 5 Jahre → sonst fail-soft null).
+Additives Feld `timeframes`{day,week,month} je Eintrag (jeweils {count_label,
+invalidation_price, target_zone, target_zone_extended} oder null); Analyse-Panel
+(`tfPanel`) auf der Karte mit drei Zeilen, null → dezent „kein valider Long-Count".
+Reuse der ZigZag-/Regel-/Zielzonen-Mechanik über die geteilten Helfer
+`_count_from_series`/`_count_from_fetch`. **Markt-Top-5, Score, Ranking,
+forward_collection, Score-Alarm beweisbar unberührt** (Monatsgrad NUR Watchlist,
+Watchlist bleibt außerhalb der Validierungs-Population). Laufzeit: bis zu **+2
+Fetches je Watchlist-Titel** (Woche+Monat; Tag reust die geladene Tagesreihe) —
+bei aktueller Liste (`watchlist_personal.json` = `[]`, 0 Titel) heute +0; Cap
+`WATCHLIST_MAX=30` → höchstens +60. Revert = reiner Diff-Revert (Feld additiv).
+
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
 aus Abschnitt 3 abarbeiten (NTFY_TOPIC scharfschalten, .DE-Chart/Quote, Recalculate/
@@ -184,7 +209,10 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 ### Pipeline (`scripts/elliott_pipeline.py`, `scripts/zigzag.py`, `scripts/rules.py`, `config.py`)
 - **ZigZag:** `ZIGZAG_WINDOW = 5` (symmetrisches Fenster, alternierende Pivots).
   Wochen-Grad separat: `DATA_PERIOD_WEEKLY = "10y"`, `DATA_INTERVAL_WEEKLY = "1wk"`.
-  Tagesdaten `DATA_PERIOD = "2y"` / `"1d"`, `MIN_BARS = 60`.
+  Tagesdaten `DATA_PERIOD = "2y"` / `"1d"`, `MIN_BARS = 60`. **Monatsgrad (NUR
+  Watchlist, #PR-B):** `DATA_PERIOD_MONTHLY = "max"`, `DATA_INTERVAL_MONTHLY = "1mo"`,
+  `MIN_BARS_MONTHLY = 60` (5 Jahre — darunter kein Monats-Count, fail-soft null).
+  `parse_download_df(df, min_bars=None)` teilt die Schwelle (Default = `MIN_BARS`).
 - **3 harte Regeln (K.o., `rules.py`):** W2-Retracement ≤ 100 % · W3 nie die
   kürzeste von 1/3/5 · W4 überlappt W1 nicht.
 - **Setups:** `end_of_w2` (letzte 3 Pivots P0–P2) und `end_of_w4` (letzte 5 Pivots
@@ -212,6 +240,18 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   `invalidation_price`, `target_zone(_extended)`, `score_heuristic`,
   `chart_points`, `count_wave_labels`, `higher_degree`, `appearance_count`
   (in `main` gesetzt), `status="heuristisch · unvalidiert"`.
+- **Multi-Timeframe (NUR Watchlist-Einträge, #PR-B):** additives Feld
+  `timeframes`{`day`,`week`,`month`}, jede Ebene `null` **oder** {`count_label`,
+  `invalidation_price`, `target_zone`, `target_zone_extended`}. Aufbau in
+  `build_watchlist_entry` über die geteilten Helfer `_count_from_series` (Tag,
+  reust die geladene Tagesreihe — kein Extra-Fetch) / `_count_from_fetch` (Woche
+  via `get_weekly_fetcher`, Monat via `get_monthly_fetcher` — je +1 Fetch).
+  `higher_degree` == `timeframes.week` (Wochen-Count EINMAL geholt, kein Doppel-
+  Fetch). `build_report(..., monthly_fetcher=None, price_sink=None)` reicht den
+  Monats-Fetcher **nur** an `build_watchlist` weiter — `build_market` bekommt ihn
+  NICHT (Top-5 bleiben Tag+Woche, `timeframes` fehlt dort bewusst). Frontend
+  `tfPanel()` rendert das Panel NUR bei vorhandenem `c.timeframes` (Markt-Karten
+  behalten den reinen Wochen-`hd-block`).
 - **Workflow:** `.github/workflows/daily.yml` — Cron **`45 21 * * 1-5`** (Werktage,
   #23) + `workflow_dispatch: {}`, `timeout-minutes: 30`, `concurrency:
   daily-elliott`, committet **report + collection** (#21) sowie den einmaligen
@@ -288,12 +328,14 @@ gleiche relative Ziel-/Stop-Distanzen) **Holm-korrigiert signifikant**, UND (2) 
 - Auswertung **erst ab n ≥ 100** gereiften Setups (`EVAL_MIN_N`).
 - Marktregime je Record (SPY/DAX über/unter 200-Tage-Linie).
 - Forward-Daten **nie** mit Backfill gepoolt.
-- **Populations-Schutz (baulich):** **Watchlist**-, per-`appearance_count`- UND
-  **Score-Alert**-Logik berühren die Population nicht; alle lesen **nur**
-  `markets[].candidates` (Top-5). Watchlist lebt in `report["watchlist"]` und wird
-  nie gesammelt/alarmiert. Der Score-Alert setzt nur ein additives, anzeige-/
-  push-neutrales Flag (`score_alert_fired`) — Score/Ranking/Reifung unberührt. Ein
-  Punktschätzer allein ist nie Bestätigung.
+- **Populations-Schutz (baulich):** **Watchlist**-, per-`appearance_count`-,
+  **Score-Alert**- UND **Multi-Timeframe**-Logik berühren die Population nicht;
+  alle lesen/schreiben **nur** außerhalb von `markets[].candidates` bzw. rein
+  additiv. Watchlist (inkl. `timeframes`/Monatsgrad) lebt in `report["watchlist"]`
+  und wird nie gesammelt/alarmiert; der Monats-Fetcher erreicht `build_market`
+  nicht. Der Score-Alert setzt nur ein additives, anzeige-/push-neutrales Flag
+  (`score_alert_fired`) — Score/Ranking/Reifung unberührt. Ein Punktschätzer
+  allein ist nie Bestätigung.
 - **Daten je forward-Kandidat (10 Handelstage):** `target_hit`, `ext_hit`,
   `invalidated` (binär), `max_gain_10d`, `max_drawdown_10d`, `r_multiple`.
 
