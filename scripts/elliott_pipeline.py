@@ -680,6 +680,146 @@ def build_market(
     }
 
 
+# ---------------------------------------------------------------------------
+# 5b) PERSÖNLICHE WATCHLIST (Squeeze-Muster)
+# ---------------------------------------------------------------------------
+# Eigene Ticker laufen durch die VOLLE Analyse, unabhängig vom Top-5-Ranking.
+# Sie erscheinen in einem SEPARATEN Report-Feld ``watchlist`` — nie in
+# markets[].candidates. Damit können sie das Ranking nicht beeinflussen UND
+# fließen NIE in die Forward-Sammlung (die liest ausschließlich die Top-5).
+def load_watchlist() -> List[str]:
+    """Lädt die persönliche Watchlist (fail-soft). Akzeptiert ein bloßes Array
+    oder ``{"tickers": [...]}`` / ``{"watchlist": [...]}``. Dedup, Upper, Cap."""
+    try:
+        path = REPO_ROOT / config.WATCHLIST_PATH
+        with path.open(encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception:  # noqa: BLE001 — fehlt/kaputt -> leere Watchlist
+        return []
+    if isinstance(data, dict):
+        data = data.get("tickers") or data.get("watchlist") or []
+    if not isinstance(data, list):
+        return []
+    out: List[str] = []
+    seen = set()
+    for t in data:
+        if not isinstance(t, str):
+            continue
+        tk = t.strip().upper()
+        if tk and tk not in seen:
+            seen.add(tk)
+            out.append(tk)
+        if len(out) >= config.WATCHLIST_MAX:
+            break
+    return out
+
+
+def _wl_base_entry(ticker: str) -> Dict:
+    """Gemeinsames Karten-Gerüst (alle Felder vorhanden -> Frontend fail-soft)."""
+    return {
+        "ticker": ticker,
+        "name": _company_name(ticker),
+        "company_name": _meta_name(ticker),
+        "sector": _meta_sector(ticker),
+        "close": None,
+        "change_abs": 0.0,
+        "change_pct": 0.0,
+        "direction": "long",
+        "watchlist": True,
+        "wl_status": "error",
+        "note": "",
+        "reason": "",
+        "score_heuristic": None,
+        "count_label": None,
+        "invalidation_price": None,
+        "target_zone": None,
+        "target_zone_extended": None,
+        "chart_points": [],
+        "count_wave_labels": [],
+        "higher_degree": None,
+        "status": config.CARD_STATUS,
+    }
+
+
+def _wl_no_setup_entry(ticker: str, dates: List[str], closes: List[float],
+                       reason: Optional[str], detail: str) -> Dict:
+    """Watchlist-Karte OHNE regelkonformes Long-Setup — Kurs + Hinweis statt
+    Verschweigen (bei eigener Watchlist will man den Stand sehen)."""
+    e = _wl_base_entry(ticker)
+    close = closes[-1] if closes else None
+    prev = closes[-2] if len(closes) >= 2 else close
+    if close is not None:
+        e["close"] = round(close, 4)
+        if prev:
+            e["change_abs"] = round(close - prev, 4)
+            e["change_pct"] = round((close / prev - 1.0) * 100.0, 4)
+    # Pivots für eine kleine Sparkline mitgeben, falls vorhanden.
+    if closes:
+        pivots = zigzag(closes, config.ZIGZAG_WINDOW, dates)
+        e["chart_points"] = [p.as_dict() for p in pivots[-12:]]
+    e["wl_status"] = "no_setup"
+    e["note"] = "kein regelkonformes Long-Setup"
+    e["reason"] = reason or NO_VALID_COUNT
+    return e
+
+
+def _wl_error_entry(ticker: str, reason: Optional[str], detail: str) -> Dict:
+    """Watchlist-Karte bei Fetch-/Datenfehler — Fehlhinweis statt Crash."""
+    e = _wl_base_entry(ticker)
+    e["wl_status"] = "error"
+    e["note"] = "Daten nicht abrufbar"
+    e["reason"] = reason or FETCH_ERROR
+    return e
+
+
+def build_watchlist_entry(
+    ticker: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
+    price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
+) -> Dict:
+    """Volle Analyse EINES Watchlist-Tickers. Wiederverwendet bereits geladene
+    Kurse aus price_sink; sonst frischer Fetch. Immer eine Karte (fail-soft)."""
+    data = price_sink.get(ticker) if price_sink else None
+    if data is None:
+        outcome = fetcher(ticker)
+        if outcome.reason is not None or outcome.data is None:
+            return _wl_error_entry(ticker, outcome.reason, outcome.detail)
+        dates, closes = outcome.data
+        if price_sink is not None:
+            price_sink[ticker] = (dates, closes)
+    else:
+        dates, closes = data
+
+    entry, reason, detail = build_candidate(ticker, dates, closes)
+    if entry is not None:
+        # Long-Setup vorhanden -> volle Karte inkl. großem Grad (Wochen).
+        entry["higher_degree"] = higher_degree_for(ticker, weekly_fetcher)
+        entry["watchlist"] = True
+        entry["wl_status"] = "setup"
+        entry["note"] = ""
+        entry["reason"] = ""
+        return entry
+    return _wl_no_setup_entry(ticker, dates, closes, reason, detail)
+
+
+def build_watchlist(
+    fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
+    price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
+    tickers: Optional[Sequence[str]] = None,
+) -> Dict:
+    """Baut die Watchlist-Sektion (separat von den Märkten, ranking-neutral)."""
+    tks = list(tickers) if tickers is not None else load_watchlist()
+    entries: List[Dict] = []
+    counts = {"setup": 0, "no_setup": 0, "error": 0}
+    for tk in tks:
+        e = build_watchlist_entry(tk, fetcher, weekly_fetcher, price_sink)
+        counts[e["wl_status"]] = counts.get(e["wl_status"], 0) + 1
+        entries.append(e)
+    _log(f"[elliott][diag] Watchlist: {len(entries)} Ticker "
+         f"(setup={counts['setup']}, no_setup={counts['no_setup']}, "
+         f"error={counts['error']})")
+    return {"entries": entries, "diag": counts}
+
+
 def build_report(
     fetcher: Fetcher, run_timestamp_utc: str, weekly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
@@ -692,12 +832,16 @@ def build_report(
     markets: Dict[str, Dict] = {}
     for key in config.MARKETS:
         markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink)
+    # Watchlist NACH den Märkten und in EIGENEM Feld -> Ranking unberührt, und
+    # die Forward-Sammlung (liest nur markets[].candidates) sieht sie nie.
+    watchlist = build_watchlist(fetcher, weekly_fetcher, price_sink)
     return {
         "schema_version": config.SCHEMA_VERSION,
         "run_timestamp_utc": run_timestamp_utc,
         "generator": "elliott_pipeline",
         "disclaimer": "Heuristische Elliott-Wellen-Auszählung, unvalidiert. Keine Anlageberatung.",
         "markets": markets,
+        "watchlist": watchlist,
     }
 
 

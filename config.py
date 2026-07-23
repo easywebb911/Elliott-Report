@@ -127,6 +127,14 @@ CARD_STATUS = "heuristisch · unvalidiert"
 REPORT_PATH = "data/report.json"
 REPORT_PATH_PUBLISHED = "docs/data/report.json"
 
+# Persönliche Watchlist (Squeeze-Muster): committete Datei im Repo-Root, aus dem
+# Browser via GitHub-Contents-API gepflegt. Die Pipeline liest sie und läuft die
+# Ticker durch die VOLLE Analyse — unabhängig vom Top-5-Ranking der Märkte.
+# Fail-soft: fehlt/kaputt -> leere Watchlist. Watchlist-Einträge fließen NIE in
+# die Forward-Sammlung (Populations-Schutz, siehe docs/validation_registry.md).
+WATCHLIST_PATH = "watchlist_personal.json"
+WATCHLIST_MAX = 30              # harte Obergrenze (Schutz gegen Fetch-Flut)
+
 # Kuratierte Ticker-Metadaten (Klartext-Name + Sektor). Bewusst als committete
 # Mapping-Datei statt yfinance .info je Ticker (teuer/ratelimit-anfällig).
 # Fail-soft: fehlt die Datei oder ein Ticker, wird auf den Ticker

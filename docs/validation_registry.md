@@ -37,6 +37,12 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
 - Das **Marktregime** wird je Record mitprotokolliert (z. B. SPY/DAX über/unter
   der 200-Tage-Linie).
 - Forward-Daten werden **NIE mit Backfill gepoolt**.
+- **Persönliche Watchlist-Ticker gehören NICHT zur Population.** Sie sind eine
+  eigene Selektion, keine Tool-Auswahl; sie einzumischen würde die Auswahl-
+  Verzerrung messen statt den Score. Der Schutz ist **baulich**: die Sammlung
+  liest ausschließlich die Markt-Top-5 (`markets[].candidates`); die Watchlist
+  lebt im separaten Feld `watchlist` und wird nie gesammelt. Ein Watchlist-Ticker
+  zählt nur, wenn er **unabhängig** einen Top-5-Platz verdient.
 - Ein **Punktschätzer allein ist nie Bestätigung**.
 
 ## Sammel-Mechanik (Kurzfassung)
