@@ -51,6 +51,32 @@
       color:var(--ora); font-size:13px;
     }
     .banner.show { display:block; }
+
+    /* Disclaimer — dezent, dunkel, einklappbar. Auf 390px unaufdringlich. */
+    .disclaimer {
+      display:flex; align-items:flex-start; gap:8px; margin:0 0 14px;
+      padding:9px 11px; border-radius:8px; font-size:12px; line-height:1.5;
+      background:rgba(202,138,4,.09); border:1px solid rgba(202,138,4,.35);
+      color:var(--txt-sub);
+    }
+    .disclaimer[hidden] { display:none; }
+    .disc-ico { color:var(--disc); flex:0 0 auto; }
+    .disc-text { flex:1; min-width:0; }
+    .disc-text strong { color:var(--txt); font-weight:700; }
+    .disc-close {
+      flex:0 0 auto; -webkit-appearance:none; appearance:none; cursor:pointer;
+      background:transparent; border:0; color:var(--txt-dim); font-size:18px;
+      line-height:1; padding:0 2px; margin:-2px -2px 0 0; touch-action:manipulation;
+    }
+    .disc-close:active { color:var(--txt); }
+    .disc-reopen {
+      -webkit-appearance:none; appearance:none; cursor:pointer; margin:0 0 14px;
+      background:var(--bg-met); color:var(--txt-dim); border:1px solid var(--brd);
+      border-radius:999px; padding:4px 10px; font-size:11px; touch-action:manipulation;
+    }
+    .disc-reopen[hidden] { display:none; }
+    .disc-reopen:active { background:var(--bg-hdr); }
+
     h2 {
       font-size:17px; text-transform:uppercase; letter-spacing:.08em;
       color:var(--txt); font-weight:800; margin:26px 0 12px;
@@ -510,6 +536,15 @@
     </div>
   </header>
   <main>
+    <!-- Disclaimer (dezent, einmal einklappbar; Merker in localStorage). -->
+    <div class="disclaimer" id="disclaimer">
+      <span class="disc-ico" aria-hidden="true">⚠</span>
+      <span class="disc-text"><strong>Hinweis:</strong> Nur zu Informationszwecken —
+        <strong>keine Anlageberatung</strong>, keine Kauf- oder Verkaufsempfehlung.
+        Die Scores sind <strong>heuristisch · unvalidiert</strong> (siehe ☰ → Methodik / Validierung).</span>
+      <button class="disc-close" id="disc-close" type="button" aria-label="Hinweis ausblenden">×</button>
+    </div>
+    <button class="disc-reopen" id="disc-reopen" type="button" hidden>ⓘ Hinweis</button>
     <div class="banner" id="staleness"></div>
     <section id="US"></section>
     <section id="DE"></section>
@@ -654,6 +689,35 @@
     // Live-Seite als auch lokale Vorschau (Server im Repo-Root) funktionieren.
     const CANDIDATE_PATHS = ['data/report.json', '../data/report.json'];
     const STALENESS_HOURS = 30;
+
+    // Handelskalender — Spiegel von scripts/market_calendar.py (gemeinsame
+    // NYSE∩Xetra-Voll-Schließtage). BEI ÄNDERUNG BEIDE STELLEN PFLEGEN. Zweck:
+    // der Staleness-Hinweis darf am Wochenende/Feiertag KEINEN Fehlalarm zeigen
+    // (Querbezug #22/#23) — er rechnet gegen den letzten ERWARTETEN Werktags-Lauf.
+    const MARKET_FULL_CLOSURE = new Set([
+      '2026-01-01', '2026-04-03', '2026-12-25',
+      '2027-01-01', '2027-03-26', '2027-12-25']);
+    function _isTradingDay(d) {           // d: Date (UTC-basiert ausgewertet)
+      const wd = d.getUTCDay();           // 0=So … 6=Sa
+      if (wd === 0 || wd === 6) return false;
+      return !MARKET_FULL_CLOSURE.has(d.toISOString().slice(0, 10));
+    }
+    function _lastExpectedRun(now) {       // jüngster vergangener Werktags-Lauf 21:45 UTC
+      const GRACE_MS = 6 * 3.6e6;
+      const cand = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(),
+        now.getUTCDate(), 21, 45, 0));
+      for (let i = 0; i < 400; i++) {
+        if (cand.getTime() + GRACE_MS <= now.getTime() && _isTradingDay(cand)) return cand;
+        cand.setUTCDate(cand.getUTCDate() - 1);
+      }
+      return null;
+    }
+    function _calendarMissedRun(tsUtc, now) {   // Report älter als letzter erwarteter Lauf?
+      const exp = _lastExpectedRun(now);
+      if (!exp) return false;
+      const TOL_MS = 6 * 3.6e6;
+      return new Date(tsUtc).getTime() < (exp.getTime() - TOL_MS);
+    }
 
     async function loadReport() {
       // Cache-Buster + no-store, damit iOS-Safari NICHT die alte Datei liefert
@@ -1314,10 +1378,13 @@
     function checkStaleness(tsUtc) {
       const banner = document.getElementById('staleness');
       if (!tsUtc) return;
-      const ageH = (Date.now() - new Date(tsUtc).getTime()) / 3.6e6;
-      if (ageH > STALENESS_HOURS) {
-        banner.textContent = `⚠️ Daten sind ${Math.round(ageH)} h alt ` +
-          `(> ${STALENESS_HOURS} h) — Update ausstehend.`;
+      const now = new Date();
+      const ageH = (now.getTime() - new Date(tsUtc).getTime()) / 3.6e6;
+      // Kalenderbewusst: nur warnen, wenn die Daten alt sind UND ein erwarteter
+      // Werktags-Lauf ausblieb — kein Wochenend-/Feiertags-Fehlalarm.
+      if (ageH > STALENESS_HOURS && _calendarMissedRun(tsUtc, now)) {
+        banner.textContent = `⚠️ Daten sind ${Math.round(ageH)} h alt — ` +
+          `seit dem letzten erwarteten Werktags-Lauf kein frischer Report.`;
         banner.classList.add('show');
       }
     }
@@ -1689,9 +1756,11 @@
         too_few_pivots: 'zu wenig Pivots', no_valid_count: 'kein reg. Setup',
         short_setup_excluded: 'Short verworfen',
       };
-      const ageH = ts ? (Date.now() - new Date(ts).getTime()) / 3.6e6 : null;
-      const stale = (ageH != null && ageH > STALENESS_HOURS)
-        ? `<div class="info-stale show">⚠️ Daten sind ${Math.round(ageH)} h alt (&gt; ${STALENESS_HOURS} h) — Update ausstehend.</div>` : '';
+      const _now = new Date();
+      const ageH = ts ? (_now.getTime() - new Date(ts).getTime()) / 3.6e6 : null;
+      // Kalenderbewusst (wie das Haupt-Banner) — kein Wochenend-/Feiertags-Fehlalarm.
+      const stale = (ageH != null && ageH > STALENESS_HOURS && _calendarMissedRun(ts, _now))
+        ? `<div class="info-stale show">⚠️ Daten sind ${Math.round(ageH)} h alt — seit dem letzten erwarteten Werktags-Lauf kein frischer Report.</div>` : '';
 
       const FLAGS = { US: '🇺🇸', DE: '🇩🇪' };
       let markets = '';
@@ -1928,6 +1997,24 @@
         if (inDetail) renderEpisodeListView(); else closeBacktesting();
       }
     });
+
+    // Disclaimer einklappen/aufklappen (Merker in localStorage, fail-soft).
+    const DISC_KEY = 'elliott_disc_collapsed';
+    function _applyDisc() {
+      let collapsed = false;
+      try { collapsed = localStorage.getItem(DISC_KEY) === '1'; } catch (_) {}
+      document.getElementById('disclaimer').hidden = collapsed;
+      document.getElementById('disc-reopen').hidden = !collapsed;
+    }
+    document.getElementById('disc-close').addEventListener('click', () => {
+      try { localStorage.setItem(DISC_KEY, '1'); } catch (_) {}
+      _applyDisc();
+    });
+    document.getElementById('disc-reopen').addEventListener('click', () => {
+      try { localStorage.removeItem(DISC_KEY); } catch (_) {}
+      _applyDisc();
+    });
+    _applyDisc();
 
     refresh();
   </script>

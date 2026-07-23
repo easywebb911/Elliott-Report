@@ -9,8 +9,12 @@ name: Daily Elliott Report
 
 on:
   schedule:
-    - cron: "45 21 * * *"   # 21:45 UTC, täglich (nach US-Close)
-  workflow_dispatch: {}       # Tap-Start
+    # Nur Werktage (Mo–Fr) 21:45 UTC — Sa/So gibt es keine neuen Tageskerzen.
+    # Gemeinsame Feiertage (NYSE ∩ Xetra) fängt das Gate in der Pipeline ab
+    # (scripts/market_calendar.py); der Staleness-Wächter kennt denselben
+    # Kalender → keine Wochenend-/Feiertags-Fehlalarme.
+    - cron: "45 21 * * 1-5"
+  workflow_dispatch: {}       # Tap-Start (auch am Wochenende möglich)
 
 # Nicht mehrere Läufe gleichzeitig auf main.
 concurrency:

@@ -41,13 +41,6 @@ def _fixture_repo(tmp_path, monkeypatch, *, report_ts=None, matured=0, marker=Fa
 # ---------------------------------------------------------------------------
 # Pure Checks
 # ---------------------------------------------------------------------------
-def test_staleness_check():
-    assert notify.is_stale("2026-07-01T00:00:00Z", MON) is True     # alt
-    assert notify.is_stale("2026-07-27T18:00:00Z", MON) is False    # frisch
-    assert notify.is_stale("kaputt", MON) is True                   # unlesbar -> stale
-    assert notify.is_stale(None, MON) is True
-
-
 def test_milestone_check():
     assert notify.milestone_reached(100, False) is True
     assert notify.milestone_reached(150, False) is True

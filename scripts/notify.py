@@ -39,6 +39,8 @@ try:
 except Exception:  # pragma: no cover
     _fc = None
 
+import market_calendar as cal  # gemeinsamer Kalender (Gate + Staleness)  # noqa: E402
+
 NTFY_BASE = "https://ntfy.sh"
 REPORT_PATH = "data/report.json"
 COLLECTION_PATH = "data/forward_collection.json"
@@ -47,7 +49,8 @@ MILESTONE_MARKER = "data/validation_milestone_fired.flag"
 # EVAL_MIN_N lebt in forward_collection (Single Source), NICHT in config —
 # von dort lesen, damit eine spätere Änderung hier nicht still divergiert.
 EVAL_MIN_N = getattr(_fc, "EVAL_MIN_N", getattr(config, "EVAL_MIN_N", 100))
-STALENESS_HOURS = getattr(config, "STALENESS_HOURS", 30)
+# Staleness-Entscheidung liegt komplett in market_calendar (kalenderbewusst) —
+# notify hält KEINE eigene Stunden-Schwelle mehr.
 SCORE_REVIEW_BY = getattr(config, "SCORE_REVIEW_BY", None)
 STATUS_REVIEW_WEEKDAY = getattr(config, "STATUS_REVIEW_WEEKDAY", 0)  # 0 = Montag
 
@@ -92,25 +95,6 @@ def send_ntfy(topic: str, title: str, body: str,
 # ---------------------------------------------------------------------------
 # PURE Prüf-Funktionen (deterministisch, kein I/O) — direkt unit-testbar
 # ---------------------------------------------------------------------------
-def staleness_age_hours(report_ts_iso, now: _dt.datetime):
-    """Alter des Reports in Stunden. None, wenn nicht parsebar."""
-    if not report_ts_iso:
-        return None
-    try:
-        ts = _dt.datetime.strptime(report_ts_iso, "%Y-%m-%dT%H:%M:%SZ").replace(
-            tzinfo=_dt.timezone.utc)
-    except Exception:  # noqa: BLE001
-        return None
-    return (now - ts).total_seconds() / 3600.0
-
-
-def is_stale(report_ts_iso, now, max_hours=STALENESS_HOURS) -> bool:
-    age = staleness_age_hours(report_ts_iso, now)
-    if age is None:
-        return True  # unlesbar/fehlend ist selbst ein Staleness-Signal
-    return age > max_hours
-
-
 def milestone_reached(matured: int, marker_exists: bool, min_n=EVAL_MIN_N) -> bool:
     """n≥min_n gereift UND noch nicht gemeldet (Marker fehlt)."""
     return matured >= min_n and not marker_exists
@@ -160,21 +144,27 @@ def _run_url() -> str:
 # Modi (von den Workflows aufgerufen)
 # ---------------------------------------------------------------------------
 def run_staleness(topic: str, now: _dt.datetime) -> bool:
-    """Separater Cron: erkennt auch den NICHT stattgefundenen Lauf."""
+    """Separater Cron: erkennt auch den NICHT stattgefundenen Lauf.
+
+    KALENDERBEWUSST (market_calendar): stale nur, wenn der letzte ERWARTETE
+    Handelstags-Lauf keinen frischen Report hinterlassen hat. Wochenende/
+    Feiertag erzeugen KEINEN Fehlalarm (kein Lauf war erwartet)."""
     report = _load_json(REPORT_PATH)
     ts = (report or {}).get("run_timestamp_utc")
-    if not is_stale(ts, now):
-        age = staleness_age_hours(ts, now)
-        _log(f"Report frisch ({age:.1f} h ≤ {STALENESS_HOURS} h) → kein Push.")
+    if not cal.is_stale(ts, now):
+        age = cal.age_hours(ts, now)
+        _log(f"Report aktuell zum Kalender ({(age or 0):.1f} h) → kein Push.")
         return False
-    age = staleness_age_hours(ts, now)
+    age = cal.age_hours(ts, now)
     age_txt = f"{age:.0f} h" if age is not None else "unbekannt (report.json unlesbar)"
+    exp = cal.last_expected_run(now)
+    exp_txt = exp.strftime("%Y-%m-%d %H:%M UTC") if exp else "?"
     day = now.strftime("%Y-%m-%d")
     return send_ntfy(
         topic,
         "Elliott: Report veraltet",
-        f"Report ist {age_txt} alt (> {STALENESS_HOURS} h) · {day} · "
-        f"Lauf ausgefallen? {_run_url()}",
+        f"Kein frischer Report seit dem letzten erwarteten Lauf ({exp_txt}) · "
+        f"Report {age_txt} alt · {day} · Lauf ausgefallen? {_run_url()}",
         priority="high", tags="warning,hourglass",
     )
 

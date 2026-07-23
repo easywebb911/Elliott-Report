@@ -909,9 +909,23 @@ def main() -> int:
     mode = "OFFLINE/synthetisch" if fetcher is fetch_synthetic else "yfinance"
     _log(f"[elliott] Modus: {mode}")
 
-    # Probe nur im echten yfinance-Modus (dort liegt die zu diagnostizierende
-    # Ursache); im Offline-Modus wäre der Roh-Abruf nur Rauschen.
+    # NUR im echten Modus (offline/Dev läuft immer): Feiertags-Gate + Probe.
     if fetcher is not fetch_synthetic:
+        # Feiertags-Gate: an gemeinsamen Voll-Schließtagen (NYSE ∩ Xetra) NICHT
+        # rechnen — keine neuen Tageskerzen. Wochenenden deckt bereits der
+        # daily.yml-Cron (Mo–Fr) ab. Der Staleness-Wächter kennt denselben
+        # Kalender → kein Fehlalarm. Gate VOR der Probe (an Feiertagen kein Netz).
+        import market_calendar as cal  # noqa: WPS433
+        today = datetime.now(timezone.utc).date()
+        if cal.holiday_list_expiring(today):
+            _log("[elliott] WARNUNG: Feiertagsliste läuft aus — erneuern "
+                 "(scripts/market_calendar.py, FULL_CLOSURE).")
+        holiday = cal.is_full_closure(today)
+        if holiday:
+            _log(f"[elliott] Feiertag {holiday} — übersprungen "
+                 f"(kein Lauf, nichts geschrieben).")
+            return 0
+        # Probe (Diagnose) nur im echten Modus und nur an Handelstagen.
         probe_ticker("AAPL")
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
