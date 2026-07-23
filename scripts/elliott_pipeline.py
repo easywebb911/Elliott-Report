@@ -36,6 +36,7 @@ for _p in (str(_ROOT), str(_HERE)):
         sys.path.insert(0, _p)
 
 import config  # noqa: E402
+import forward_collection as fc  # noqa: E402
 from rules import validate_partial_to_w4  # noqa: E402
 from zigzag import Pivot, zigzag  # noqa: E402
 
@@ -555,7 +556,8 @@ def build_candidate(
 
 
 def _scan_market(
-    universe: Sequence[str], fetcher: Fetcher
+    universe: Sequence[str], fetcher: Fetcher,
+    price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
 ) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]]]:
     """Verarbeitet ein Universum (fail-soft je Ticker) — ohne I/O/Logging.
 
@@ -595,6 +597,11 @@ def _scan_market(
             continue
 
         dates, closes = outcome.data
+        # Kursdaten für die Forward-Sammlung mitnehmen (kein Re-Fetch): ALLE
+        # erfolgreich geladenen Ticker, damit auch aus Top-5 gefallene Records
+        # ausreifen können.
+        if price_sink is not None:
+            price_sink[ticker] = (dates, closes)
         entry, reason, detail = build_candidate(ticker, dates, closes)
         if entry is None:
             _record_skip(ticker, reason or NO_VALID_COUNT, detail)
@@ -605,7 +612,8 @@ def _scan_market(
 
 
 def build_market(
-    market_key: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None
+    market_key: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
+    price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
 ) -> Dict:
     """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
 
@@ -621,7 +629,7 @@ def build_market(
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
 
-    candidates, reason_counts, first_samples = _scan_market(universe, fetcher)
+    candidates, reason_counts, first_samples = _scan_market(universe, fetcher, price_sink)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
@@ -665,12 +673,17 @@ def build_market(
 
 
 def build_report(
-    fetcher: Fetcher, run_timestamp_utc: str, weekly_fetcher: Optional[Fetcher] = None
+    fetcher: Fetcher, run_timestamp_utc: str, weekly_fetcher: Optional[Fetcher] = None,
+    price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
 ) -> Dict:
-    """Baut das komplette Report-Objekt (deterministisch bei festem Input)."""
+    """Baut das komplette Report-Objekt (deterministisch bei festem Input).
+
+    price_sink (optional): wird mit {ticker: (dates, closes)} aller erfolgreich
+    geladenen Ticker gefüllt — für die Forward-Sammlung, ohne Re-Fetch.
+    """
     markets: Dict[str, Dict] = {}
     for key in config.MARKETS:
-        markets[key] = build_market(key, fetcher, weekly_fetcher)
+        markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink)
     return {
         "schema_version": config.SCHEMA_VERSION,
         "run_timestamp_utc": run_timestamp_utc,
@@ -736,7 +749,8 @@ def main() -> int:
         probe_ticker("AAPL")
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    report = build_report(fetcher, ts, get_weekly_fetcher())
+    price_sink: Dict[str, Tuple[List[str], List[float]]] = {}
+    report = build_report(fetcher, ts, get_weekly_fetcher(), price_sink)
     written = write_report(report)
 
     us = report["markets"]["US"]
@@ -751,6 +765,21 @@ def main() -> int:
     )
     for p in written:
         _log(f"[elliott] geschrieben: {p.relative_to(REPO_ROOT)}")
+
+    # Forward-Sammlung — NACH write_report (report.json ist schon geschrieben)
+    # und komplett gekapselt: ein Sammel-Fehler darf den Report NIE brechen.
+    try:
+        run_date = report["run_timestamp_utc"][:10]
+        regimes = fc.market_regimes(fetcher is fetch_synthetic)
+        coll = fc.load_collection()
+        fc.update_forward_collection(coll, report, price_sink, regimes, run_date, ts)
+        fc.write_collection(coll)
+        n, matured = fc.counts(coll)
+        _log(f"[elliott] Forward-Sammlung: {n} gesammelt · {matured} gereift "
+             f"(Auswertung ab n>={fc.EVAL_MIN_N}) · Regime {regimes}")
+    except Exception as exc:  # noqa: BLE001 — Sammlung darf Report nie brechen
+        _log(f"[elliott] Forward-Sammlung übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
     return 0
 
 

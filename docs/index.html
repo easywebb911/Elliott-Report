@@ -197,6 +197,22 @@
     }
 
     .empty { color:var(--txt-sub); font-style:italic; padding:12px 0; }
+
+    /* Validierungs-Panel — dezent, Methodik-Bereich. Reine Zähler; KEINE
+       Trefferquoten/Zwischenergebnisse vor n>=100 (siehe validation_registry.md). */
+    .validation {
+      max-width:1100px; margin:20px auto 0; padding:10px 16px;
+      display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px;
+      font-size:12px; color:var(--txt-dim);
+      border-top:1px dashed var(--brd);
+    }
+    .validation .val-label {
+      text-transform:uppercase; letter-spacing:.06em; font-weight:700;
+      font-size:10px; color:var(--txt-sub);
+    }
+    .validation .val-counts { color:var(--txt-sub); font-variant-numeric:tabular-nums; }
+    .validation .val-note { color:var(--txt-dim); }
+
     footer { color:var(--txt-dim); font-size:11px; text-align:center;
              padding:24px 16px; border-top:1px solid var(--brd); margin-top:24px; }
     .err { color:var(--red); }
@@ -224,6 +240,11 @@
     <section id="US"></section>
     <section id="DE"></section>
   </main>
+  <section class="validation" id="validation" hidden>
+    <span class="val-label">Validierung</span>
+    <span class="val-counts" id="val-counts">–</span>
+    <span class="val-note" id="val-note"></span>
+  </section>
   <footer>
     Heuristische Elliott-Wellen-Auszählung · unvalidiert · keine Anlageberatung.
   </footer>
@@ -251,6 +272,35 @@
         } catch (e) { lastErr = e; }
       }
       throw lastErr || new Error('Report nicht gefunden');
+    }
+
+    // Forward-Sammlung (Score-Validierung) — separates Datenfile, fail-soft.
+    const COLLECTION_PATHS = ['data/forward_collection.json', '../data/forward_collection.json'];
+    const EVAL_MIN_N = 100;
+
+    async function loadCollection() {
+      const bust = '?t=' + Date.now();
+      for (const path of COLLECTION_PATHS) {
+        try {
+          const res = await fetch(path + bust, { cache: 'no-store' });
+          if (res.ok) return await res.json();
+        } catch (e) { /* fail-soft: nächster Pfad */ }
+      }
+      return null;  // fehlt/kaputt -> Panel bleibt verborgen
+    }
+
+    function renderValidation(coll) {
+      const sec = document.getElementById('validation');
+      // Fail-soft: ohne valides File bleibt das Panel unsichtbar (kein Rauschen).
+      if (!coll || !Array.isArray(coll.records)) { sec.hidden = true; return; }
+      const n = coll.records.length;
+      const matured = coll.records.filter(r => r && r.matured).length;
+      document.getElementById('val-counts').textContent =
+        `${n} gesammelt · ${matured} gereift`;
+      // WICHTIG: KEINE Trefferquoten/Zwischenergebnisse vor n>=100.
+      document.getElementById('val-note').textContent =
+        `Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert`;
+      sec.hidden = false;
     }
 
     function fmt(n) {
@@ -508,6 +558,8 @@
         renderMarket('DE', r.markets.DE);
         drawAllSparklines();
         startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
+        // Validierungs-Panel unabhängig laden — darf den Report NIE brechen.
+        loadCollection().then(renderValidation).catch(() => {});
         if (announce) showToast(`Aktualisiert · Stand ${r.run_timestamp_utc || '?'}`);
       } catch (e) {
         document.getElementById('meta').innerHTML =
