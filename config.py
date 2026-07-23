@@ -103,6 +103,19 @@ MIN_BARS = 60            # Ticker mit weniger Kerzen werden übersprungen
 DATA_PERIOD_WEEKLY = "10y"
 DATA_INTERVAL_WEEKLY = "1wk"
 
+# Monatsgrad (dritte Zählung, NUR für Watchlist-Titel — Easys gezielte
+# Studienobjekte). Zeigt die ganz großen, mehrjährigen Wellen. "max" holt die
+# volle verfügbare Historie (Monatskerzen sind billig: wenige hundert Werte
+# selbst über Jahrzehnte). NICHT für die Markt-Top-5 (die bleiben Tag+Woche).
+DATA_PERIOD_MONTHLY = "max"
+DATA_INTERVAL_MONTHLY = "1mo"
+# Mindest-Datenlage für einen Monats-Count: 60 Monatskerzen = 5 Jahre. Begründung:
+# der Monatsgrad SOLL mehrjährige Wellen zeigen — mit < 5 Jahren Historie gibt es
+# schlicht keine große Struktur zu zählen, und ZigZag (Fenster 5) braucht links/
+# rechts Raum für bestätigte Pivots. Darunter fail-soft KEIN Monats-Count (null),
+# statt eine Struktur aus zu wenig Kerzen zu erzwingen.
+MIN_BARS_MONTHLY = 60
+
 # ---------------------------------------------------------------------------
 # ZIGZAG / PIVOT-ENGINE
 # ---------------------------------------------------------------------------

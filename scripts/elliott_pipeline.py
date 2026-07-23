@@ -141,6 +141,32 @@ def fetch_yfinance_weekly(ticker: str) -> FetchOutcome:
         )
 
 
+def fetch_yfinance_monthly(ticker: str) -> FetchOutcome:
+    """Wie fetch_yfinance, aber MONATSKERZEN über die volle Historie (Monatsgrad).
+
+    NUR für Watchlist-Titel. Nutzt DIESELBE parse_download_df (MultiIndex-Lesson
+    geerbt), mit der HÖHEREN Monats-Schwelle config.MIN_BARS_MONTHLY: junge Titel
+    mit < 5 Jahren Historie liefern keinen Monats-Count (fail-soft -> null).
+    """
+    try:
+        import yfinance as yf  # noqa: WPS433
+
+        df = yf.download(
+            ticker,
+            period=config.DATA_PERIOD_MONTHLY,
+            interval=config.DATA_INTERVAL_MONTHLY,
+            auto_adjust=True,
+            progress=False,
+            threads=False,
+        )
+        return parse_download_df(df, config.MIN_BARS_MONTHLY)
+    except Exception as exc:  # noqa: BLE001 — fail-soft
+        return FetchOutcome(
+            reason=FETCH_ERROR,
+            detail=f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+        )
+
+
 def _normalize_columns(df):
     """Reduziert MultiIndex-Spalten robust auf Ebene 0.
 
@@ -159,13 +185,17 @@ def _normalize_columns(df):
     return df
 
 
-def parse_download_df(df) -> FetchOutcome:
+def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
     """Wandelt einen yfinance-Download in ein FetchOutcome um.
 
     Netz-/versionsunabhängig und damit unit-testbar (synthetischer DataFrame).
     Einzige Stelle für Spalten-Normalisierung + Skip-Grund-Klassifizierung.
     Die Skip-ENTSCHEIDUNGEN sind identisch zu vorher.
+
+    min_bars: Mindest-Kerzenzahl; None -> config.MIN_BARS (Tag/Woche, unverändert).
+    Der Monats-Fetcher reicht die höhere Monats-Schwelle herein.
     """
+    mb = config.MIN_BARS if min_bars is None else min_bars
     if df is None or getattr(df, "empty", True):
         shape = getattr(df, "shape", None)
         cols = list(getattr(df, "columns", []))
@@ -184,11 +214,11 @@ def parse_download_df(df) -> FetchOutcome:
     closes = [float(x) for x in df["Close"].dropna().tolist()]
     dates = [d.strftime("%Y-%m-%d") for d in df.index.to_pydatetime()]
     dates = dates[: len(closes)]
-    if len(closes) < config.MIN_BARS:
+    if len(closes) < mb:
         return FetchOutcome(
             reason=EMPTY_DATA,
             detail=(
-                f"zu wenige Kerzen: {len(closes)} < MIN_BARS={config.MIN_BARS}; "
+                f"zu wenige Kerzen: {len(closes)} < min_bars={mb}; "
                 f"shape={df.shape}, columns={list(df.columns)}"
             ),
         )
@@ -291,6 +321,59 @@ def fetch_synthetic_weekly(ticker: str) -> FetchOutcome:
     return FetchOutcome(data=(_synthetic_weekly_dates(len(closes)), closes))
 
 
+def _synthetic_monthly_dates(n: int) -> List[str]:
+    """Monatlich gespaced (kein 'today'), Anker 2010-01 -> die Pivots liegen
+    Jahre auseinander (die großen, mehrjährigen Züge)."""
+    from datetime import date
+
+    out: List[str] = []
+    y, m = 2010, 1
+    for _ in range(n):
+        out.append(date(y, m, 1).isoformat())
+        m += 1
+        if m > 12:
+            m, y = 1, y + 1
+    return out
+
+
+def fetch_synthetic_monthly(ticker: str) -> FetchOutcome:
+    """Deterministischer Monats-Ersatz (NUR Dev/Demo). Sauberer W1–W4-Impuls
+    (end_of_w4) über die Monats-Ebene, damit der Monatsgrad offline nachweisbar
+    erscheint. Variation je Ticker über Seed. Umgeht die MIN_BARS_MONTHLY-Schwelle
+    bewusst (die gilt nur dem echten Netz-Abruf via parse_download_df)."""
+    seed = sum(ord(c) for c in ticker)
+    base = 60.0 + (seed % 30)
+    w1 = 25.0 + (seed % 6) * 4.0
+    retr2 = [0.5, 0.618, 0.382][seed % 3]
+    w3 = w1 * (1.6 + (seed % 4) * 0.15)        # W3 > W1 (nicht kürzeste)
+    retr4 = [0.382, 0.5][seed % 2]
+
+    a_start = base + w1 * 0.6
+    a0 = base
+    a1 = base + w1
+    a2 = a1 - retr2 * w1
+    a3 = a2 + w3
+    a4 = a3 - retr4 * w3
+    a5_partial = a4 + 0.30 * w3
+
+    w = config.ZIGZAG_WINDOW
+    seg = [
+        (a_start, a0, w + 2),
+        (a0, a1, w + 4),
+        (a1, a2, w + 3),
+        (a2, a3, w + 4),
+        (a3, a4, w + 3),
+        (a4, a5_partial, w + 2),
+    ]
+    closes: List[float] = []
+    for start, end, n in seg:
+        rng = range(n + 1) if not closes else range(1, n + 1)
+        for k in rng:
+            closes.append(start + (end - start) * (k / n))
+
+    return FetchOutcome(data=(_synthetic_monthly_dates(len(closes)), closes))
+
+
 def get_fetcher() -> Fetcher:
     """Wählt Fetcher nach Umgebungsvariable (Default: yfinance)."""
     if os.environ.get("ELLIOTT_OFFLINE") == "1":
@@ -303,6 +386,13 @@ def get_weekly_fetcher() -> Fetcher:
     if os.environ.get("ELLIOTT_OFFLINE") == "1":
         return fetch_synthetic_weekly
     return fetch_yfinance_weekly
+
+
+def get_monthly_fetcher() -> Fetcher:
+    """Monats-Fetcher für den Monatsgrad (NUR Watchlist; passend zum Modus)."""
+    if os.environ.get("ELLIOTT_OFFLINE") == "1":
+        return fetch_synthetic_monthly
+    return fetch_yfinance_monthly
 
 
 # ---------------------------------------------------------------------------
@@ -452,27 +542,14 @@ def _meta_sector(ticker: str) -> str:
     return entry.get("sector") or ""
 
 
-def higher_degree_for(ticker: str, weekly_fetcher: Optional[Fetcher]) -> Optional[Dict]:
-    """Zweite Zählung auf WOCHEN-Basis (großer Grad) für EINEN Ticker.
-
-    Reuse der bestehenden ZigZag-/Regel-/Zielzonen-Logik (inkl.
-    target_zone_extended). Long-only: Short-Zählungen werden auch hier
-    verworfen. Fail-soft: jedes Problem (kein Netz, junge Aktie mit <MIN_BARS
-    Wochen, kein regelkonformer Long-Count) -> None -> keine Sektion auf der
-    Karte. Wird NUR für die finalen Top-5 je Markt aufgerufen.
-    """
-    if weekly_fetcher is None:
+def _count_from_series(dates: Sequence[str], closes: Sequence[float]) -> Optional[Dict]:
+    """Long-Count (4 Anzeige-Felder) aus EINER fertigen Kursreihe — reine Logik,
+    kein Netz. Reuse der bestehenden ZigZag-/Regel-/Zielzonen-Mechanik inkl.
+    target_zone_extended. Long-only: Short-Counts -> None. Zu wenig Daten/keine
+    saubere Struktur -> None (fail-soft). Basis für Tag/Woche/Monat."""
+    if not closes or len(closes) < 2:
         return None
-    try:
-        outcome = weekly_fetcher(ticker)
-    except Exception:  # noqa: BLE001 — fail-soft
-        return None
-    if outcome is None or outcome.data is None:
-        return None
-    dates, closes = outcome.data
-    if len(closes) < 2:
-        return None
-    pivots = zigzag(closes, config.ZIGZAG_WINDOW, dates)
+    pivots = zigzag(list(closes), config.ZIGZAG_WINDOW, list(dates))
     if len(pivots) < 3:
         return None
     setup = classify_setup(pivots, closes[-1])
@@ -484,6 +561,32 @@ def higher_degree_for(ticker: str, weekly_fetcher: Optional[Fetcher]) -> Optiona
         "target_zone": setup["target_zone"],
         "target_zone_extended": setup["target_zone_extended"],
     }
+
+
+def _count_from_fetch(ticker: str, fetcher: Optional[Fetcher]) -> Optional[Dict]:
+    """Holt EINE Kursreihe über ``fetcher`` und zählt sie aus (fail-soft: kein
+    Fetcher / kein Netz / Fehler / keine Daten -> None). Fetcher-agnostisch —
+    dieselbe Funktion trägt Wochen- (großer Grad) UND Monatsgrad."""
+    if fetcher is None:
+        return None
+    try:
+        outcome = fetcher(ticker)
+    except Exception:  # noqa: BLE001 — fail-soft
+        return None
+    if outcome is None or outcome.data is None:
+        return None
+    dates, closes = outcome.data
+    return _count_from_series(dates, closes)
+
+
+def higher_degree_for(ticker: str, weekly_fetcher: Optional[Fetcher]) -> Optional[Dict]:
+    """Zweite Zählung auf WOCHEN-Basis (großer Grad) für EINEN Ticker.
+
+    Unverändertes Verhalten (Delegation an die geteilten Helfer). Wird für die
+    finalen Top-5 je Markt UND für Watchlist-Titel (dort als timeframes.week)
+    genutzt. Fail-soft -> None.
+    """
+    return _count_from_fetch(ticker, weekly_fetcher)
 
 
 def build_candidate(
@@ -752,6 +855,11 @@ def _wl_base_entry(ticker: str) -> Dict:
         "chart_points": [],
         "count_wave_labels": [],
         "higher_degree": None,
+        # Multi-Timeframe-Analyse (NUR Watchlist, additiv): drei Zählungen je
+        # Titel. Default alle null -> Fehler-/Kein-Daten-Karten zeigen ehrliche
+        # „kein Count"-Zeilen statt zu verschweigen. Jede Ebene ist entweder null
+        # oder {count_label, invalidation_price, target_zone, target_zone_extended}.
+        "timeframes": {"day": None, "week": None, "month": None},
         "status": config.CARD_STATUS,
     }
 
@@ -789,14 +897,24 @@ def _wl_error_entry(ticker: str, reason: Optional[str], detail: str) -> Dict:
 
 def build_watchlist_entry(
     ticker: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
+    monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
 ) -> Dict:
     """Volle Analyse EINES Watchlist-Tickers. Wiederverwendet bereits geladene
-    Kurse aus price_sink; sonst frischer Fetch. Immer eine Karte (fail-soft)."""
+    Kurse aus price_sink; sonst frischer Fetch. Immer eine Karte (fail-soft).
+
+    Watchlist-Titel bekommen zusätzlich die Multi-Timeframe-Analyse
+    (timeframes = Tag/Woche/Monat). Tag reift aus der bereits geladenen Tagesreihe
+    (kein Extra-Fetch); Woche + Monat kosten je einen Fetch (bis zu +2 pro Titel,
+    NUR im Watchlist-Zweig). Der Wochen-Count wird EINMAL geholt und dient sowohl
+    higher_degree (unverändert) als auch timeframes.week (kein Doppel-Fetch)."""
     data = price_sink.get(ticker) if price_sink else None
     if data is None:
         outcome = fetcher(ticker)
         if outcome.reason is not None or outcome.data is None:
+            # Kein Daten -> Fehler-Karte; timeframes bleiben alle null (aus Base):
+            # Woche/Monat werden NICHT extra probiert (der Tagesabruf scheiterte
+            # bereits — kein Grund, zwei weitere Fehl-Fetches zu erzwingen).
             return _wl_error_entry(ticker, outcome.reason, outcome.detail)
         dates, closes = outcome.data
         if price_sink is not None:
@@ -804,20 +922,32 @@ def build_watchlist_entry(
     else:
         dates, closes = data
 
+    # Drei Zählungen: Tag (reuse geladene Tagesreihe), Woche + Monat (je 1 Fetch).
+    week_count = _count_from_fetch(ticker, weekly_fetcher)
+    timeframes = {
+        "day": _count_from_series(dates, closes),
+        "week": week_count,
+        "month": _count_from_fetch(ticker, monthly_fetcher),
+    }
+
     entry, reason, detail = build_candidate(ticker, dates, closes)
     if entry is not None:
         # Long-Setup vorhanden -> volle Karte inkl. großem Grad (Wochen).
-        entry["higher_degree"] = higher_degree_for(ticker, weekly_fetcher)
+        entry["higher_degree"] = week_count          # == vorher (higher_degree_for)
+        entry["timeframes"] = timeframes
         entry["watchlist"] = True
         entry["wl_status"] = "setup"
         entry["note"] = ""
         entry["reason"] = ""
         return entry
-    return _wl_no_setup_entry(ticker, dates, closes, reason, detail)
+    e = _wl_no_setup_entry(ticker, dates, closes, reason, detail)
+    e["timeframes"] = timeframes
+    return e
 
 
 def build_watchlist(
     fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
+    monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     tickers: Optional[Sequence[str]] = None,
 ) -> Dict:
@@ -826,7 +956,8 @@ def build_watchlist(
     entries: List[Dict] = []
     counts = {"setup": 0, "no_setup": 0, "error": 0}
     for tk in tks:
-        e = build_watchlist_entry(tk, fetcher, weekly_fetcher, price_sink)
+        e = build_watchlist_entry(tk, fetcher, weekly_fetcher, monthly_fetcher,
+                                  price_sink)
         counts[e["wl_status"]] = counts.get(e["wl_status"], 0) + 1
         entries.append(e)
     _log(f"[elliott][diag] Watchlist: {len(entries)} Ticker "
@@ -837,19 +968,23 @@ def build_watchlist(
 
 def build_report(
     fetcher: Fetcher, run_timestamp_utc: str, weekly_fetcher: Optional[Fetcher] = None,
+    monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
 ) -> Dict:
     """Baut das komplette Report-Objekt (deterministisch bei festem Input).
 
     price_sink (optional): wird mit {ticker: (dates, closes)} aller erfolgreich
     geladenen Ticker gefüllt — für die Forward-Sammlung, ohne Re-Fetch.
+
+    monthly_fetcher (optional): NUR für die Watchlist (Monatsgrad). Die
+    Markt-Pipeline (Top-5) bekommt ihn NICHT — sie bleibt Tag+Woche.
     """
     markets: Dict[str, Dict] = {}
     for key in config.MARKETS:
         markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink)
     # Watchlist NACH den Märkten und in EIGENEM Feld -> Ranking unberührt, und
     # die Forward-Sammlung (liest nur markets[].candidates) sieht sie nie.
-    watchlist = build_watchlist(fetcher, weekly_fetcher, price_sink)
+    watchlist = build_watchlist(fetcher, weekly_fetcher, monthly_fetcher, price_sink)
     return {
         "schema_version": config.SCHEMA_VERSION,
         "run_timestamp_utc": run_timestamp_utc,
@@ -932,7 +1067,8 @@ def main() -> int:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     price_sink: Dict[str, Tuple[List[str], List[float]]] = {}
     _t0 = time.monotonic()
-    report = build_report(fetcher, ts, get_weekly_fetcher(), price_sink)
+    report = build_report(fetcher, ts, get_weekly_fetcher(),
+                          get_monthly_fetcher(), price_sink)
     # Lauf-Dauer additiv (nur in main gesetzt -> build_report bleibt
     # deterministisch/testbar). Rein informativ für die „Lauf-Status"-Ansicht.
     report["generated_in_seconds"] = round(time.monotonic() - _t0, 1)
