@@ -193,6 +193,11 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         # Wird bei der Reifung mit den Folgetags-Schlusskursen gefüllt (max 10).
         "price_path": [],
         "last_seen_top5_date": run_date,
+        # Score-Alert-Flanke: das Lauf-Datum, an dem diese Episode ZUERST über
+        # die Alert-Schwelle stieg (None = noch nie). Rein additiv, einmalig je
+        # Episode gesetzt; berührt Score/Ranking/Reifung nicht. Siehe
+        # score_alert_edges + config.SCORE_ALERT_THRESHOLD.
+        "score_alert_fired": None,
         "created_utc": now_iso,
         "bars_elapsed": 0,
         "matured": False,
@@ -295,3 +300,56 @@ def annotate_appearance_counts(coll: Dict, report: Dict) -> None:
     for market in report.get("markets", {}).values():
         for entry in market.get("candidates", []):
             entry["appearance_count"] = appearance_count(coll, entry["ticker"])
+
+
+# ---------------------------------------------------------------------------
+# Score-Alert-Flanke (EINMALIG je Episode) — an die vorhandene Episoden-Logik
+# gekoppelt, KEIN zweites Episoden-System.
+# ---------------------------------------------------------------------------
+def score_alert_edges(coll: Dict, report: Dict, threshold: float,
+                      run_date: str) -> List[Dict]:
+    """Kandidaten, die in IHRER Episode NEU über ``threshold`` steigen (Flanke,
+    nicht Zustand). Setzt je Episode einmalig ``score_alert_fired`` und gibt die
+    neu-überschrittenen Kandidaten für EINEN gebündelten Push zurück.
+
+    MUSS NACH ``update_forward_collection`` laufen: danach trägt der Record der
+    heutigen Erscheinung ``last_seen_top5_date == run_date`` — das ist eindeutig
+    die AKTUELLE Episode (die active-Erkennung von update_forward_collection
+    verlängert genau diesen einen Record bzw. legt einen neuen an). Damit greift
+    die Flanke auf DASSELBE Episoden-System wie der N×-Zähler; kein Parallel-State.
+
+    Verhalten (Flanke, nicht Zustand):
+      - Neu über Schwelle in einer Episode -> Flag None -> feuert, Flag = run_date.
+      - Bleibt über Schwelle (Folgetage, gleiche Episode) -> Flag gesetzt -> stumm.
+      - Fällt unter, steigt in DERSELBEN Episode wieder über -> Flag bleibt -> stumm.
+      - Neue Episode (Ticker war weg, kommt >Schwelle zurück) -> neuer Record,
+        Flag None -> feuert erneut.
+
+    Bewertet wird der AKTUELLE Report-Score (``score_heuristic``), nicht der im
+    Record eingefrorene Anlage-Score — eine Episode kann erst an einem späteren
+    Tag über die Schwelle steigen. Watchlist ist ausgenommen (nicht Teil von
+    ``markets[].candidates``). Rein additiv: Score/Ranking/Reifung unberührt.
+    """
+    records = coll.get("records", [])
+    fired: List[Dict] = []
+    for mk, market in report.get("markets", {}).items():
+        for entry in market.get("candidates", []):
+            score = entry.get("score_heuristic")
+            if not isinstance(score, (int, float)) or score <= threshold:
+                continue
+            # Record der HEUTIGEN Episode: eindeutig der mit last_seen == run_date
+            # (update_forward_collection setzt genau diesen für jeden Top-5-Ticker).
+            rec = next(
+                (r for r in records
+                 if r.get("ticker") == entry["ticker"]
+                 and r.get("last_seen_top5_date") == run_date),
+                None,
+            )
+            if rec is None:
+                continue  # defensiv: kein Episoden-Record -> nichts feuern
+            if rec.get("score_alert_fired"):
+                continue  # in dieser Episode bereits gemeldet -> stumm (Flanke)
+            rec["score_alert_fired"] = run_date
+            fired.append({"ticker": entry["ticker"], "market": mk,
+                          "score": float(score)})
+    return fired

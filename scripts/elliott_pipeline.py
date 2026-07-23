@@ -38,6 +38,7 @@ for _p in (str(_ROOT), str(_HERE)):
 
 import config  # noqa: E402
 import forward_collection as fc  # noqa: E402
+import notify  # noqa: E402 — Score-Alert-Push (fail-soft, no-op ohne NTFY_TOPIC)
 from rules import validate_partial_to_w4  # noqa: E402
 from zigzag import Pivot, zigzag  # noqa: E402
 
@@ -965,7 +966,20 @@ def main() -> int:
         regimes = fc.market_regimes(fetcher is fetch_synthetic)
         coll = fc.load_collection()
         fc.update_forward_collection(coll, report, price_sink, regimes, run_date, ts)
+        # Score-Alert-Flanke: an DIESELBE Episoden-Logik gekoppelt. NACH dem
+        # Update (Episoden-Records tragen jetzt last_seen == run_date), Flags
+        # werden in coll gesetzt -> VOR write_collection persistiert. Der Push
+        # kommt erst NACH dem Schreiben: die Einmaligkeit (Flag) ist dann schon
+        # gesichert und ein Push-Fehler kann sie nicht rückgängig machen
+        # (Einmaligkeit vor Zustellgarantie — wie beim Meilenstein-Marker).
+        edges = fc.score_alert_edges(coll, report, config.SCORE_ALERT_THRESHOLD,
+                                     run_date)
         fc.write_collection(coll)
+        if edges:
+            notify.send_score_alert(os.environ.get("NTFY_TOPIC", ""), edges,
+                                    config.SCORE_ALERT_THRESHOLD)
+            _log(f"[elliott] Score-Alert (>{config.SCORE_ALERT_THRESHOLD}): "
+                 f"{len(edges)} neu — {', '.join(e['ticker'] for e in edges)}")
         n, matured = fc.counts(coll)
         _log(f"[elliott] Forward-Sammlung: {n} gesammelt · {matured} gereift "
              f"(Auswertung ab n>={fc.EVAL_MIN_N}) · Regime {regimes}")

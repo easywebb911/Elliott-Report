@@ -8,9 +8,17 @@ Meldet sich NUR, wenn etwas kaputt ist oder eine Entscheidung fällig wird:
   - Meilenstein n≥100 → einmaliger Push, Marker-Datei gegen Wiederholung.
   - Review-Wecker    → überfälliges `review_by` erinnert ~1×/Woche (Wochentag-
                        gedrosselt, KEIN State — Squeeze-Muster).
+  - Score-Alert >90  → EINMALIGER Push je Episode, wenn ein Kandidat NEU über
+                       SCORE_ALERT_THRESHOLD steigt (`send_score_alert`, aus dem
+                       Daily-Lauf; Flanke, nicht Zustand — die Kopplung an die
+                       Episoden-Logik liegt in forward_collection.score_alert_edges).
+                       Ausdrücklich ein Aufmerksamkeits-Hinweis, KEIN Signal.
 
-KEINE Invalidierungs-Riss-/Kandidaten-/Tages-Pushes (Risse bleiben lautloser
-✗-Status im Backtesting). Erwartete Frequenz: < 1 Push/Monat.
+KEINE Invalidierungs-Riss-/Tages-Pushes (Risse bleiben lautloser ✗-Status im
+Backtesting). Der Score-Alert ist der EINZIGE kandidaten­bezogene Push und bewusst
+flankengetriggert + fast stumm: über die gesamte committete Report-Historie
+(Universum 361) erreichte KEIN Kandidat je >90 (Höchststand 89,84). Erwartete
+Gesamt-Frequenz weiterhin sehr gering (< 1 Push/Monat).
 
 ntfy-Mechanik exakt aus easywebb911/Aktien-Update (`ki_agent.send_ntfy_alert` /
 `status_review_reminder.py`): `POST https://ntfy.sh/{topic}` + Title/Priority/
@@ -90,6 +98,38 @@ def send_ntfy(topic: str, title: str, body: str,
     except Exception as exc:  # noqa: BLE001 — Push darf den Lauf NIE brechen
         _log(f"ntfy-Push fehlgeschlagen (fail-soft): {type(exc).__name__}: {exc}")
         return False
+
+
+_MARKET_FLAG = {"US": "🇺🇸", "DE": "🇩🇪"}
+
+
+def score_alert_body(edges) -> str:
+    """Gebündelter Alert-Text aus den neu-überschrittenen Kandidaten.
+
+    ``edges`` = Liste {ticker, market, score} (aus forward_collection.
+    score_alert_edges). EIN Push pro Lauf, egal wie viele Ticker neu über der
+    Schwelle sind — Markt steht im Text. Trägt bewusst „heuristisch ·
+    unvalidiert": ein Aufmerksamkeits-Hinweis, KEIN Signal."""
+    parts = [
+        f"{e['ticker']} ({_MARKET_FLAG.get(e['market'], e['market'])}) "
+        f"{e['score']:.0f}"
+        for e in edges
+    ]
+    return " · ".join(parts) + " — heuristisch · unvalidiert (kein Signal)"
+
+
+def send_score_alert(topic: str, edges, threshold) -> bool:
+    """EIN gebündelter Push für die heute NEU über die Schwelle gestiegenen
+    Kandidaten. Leere Liste -> kein Push. Fail-soft via send_ntfy."""
+    if not edges:
+        return False
+    return send_ntfy(
+        topic,
+        f"Elliott: Score >{threshold}",
+        score_alert_body(edges),
+        priority="default",  # Aufmerksamkeit, kein Alarm — Elliott bleibt fast stumm
+        tags="chart_with_upwards_trend",
+    )
 
 
 # ---------------------------------------------------------------------------
