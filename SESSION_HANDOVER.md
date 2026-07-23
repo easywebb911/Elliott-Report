@@ -2,7 +2,7 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #25 (dieser PR: **Multi-Timeframe-Analyse Watchlist**, offen). Alle Zahlen/
+nach PR #26 (dieser PR: **Token-Session-Remember**, offen). Alle Zahlen/
 Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
 > **BRANCH-BASIS:** frisch von `main` (HEAD = #25-Merge `96a69d8`) abgezweigt —
@@ -35,7 +35,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-HISTORIE #1–#25
+## 2. PR-HISTORIE #1–#26
 
 Format: `#N` · Feature-Commit-Hash (auf `main`) · Kern · Merge-Klasse.
 Merge-Klassen: **manual** = Easy merged; **+G** = Guardian-Zweitblick vorab;
@@ -69,7 +69,8 @@ durchgängig ab #13.
 | #23 | `664952f` | **Mini-Sammler:** Disclaimer-Banner (einklappbar) · Wochenend-/Feiertags-Gate · kalenderbewusste Staleness (`market_calendar.py`) | +G manual +Bild |
 | #24 | `d217d61` | **Score-Alert >90** (Flanke, nicht Zustand): EINMALIGER Push je Episode beim Neu-Überschreiten, gebündelt (1 Push/Lauf), an die vorhandene Episoden-Logik gekoppelt · `SCORE_ALERT_THRESHOLD=90` · Watchlist ausgenommen · fail-soft | +G manual |
 | #25 | `408abe4` | **Watchlist-Sofortkarte** (Frontend): neu hinzugefügter Ticker zeigt sofort Live-Kurs-Karte statt leer/nur Chip; volle Elliott-Analyse weiter aus dem Lauf | manual |
-| #(dieser) | `(offen)` | **Multi-Timeframe-Analyse Watchlist** (PR B): je Watchlist-Titel drei Zählungen `timeframes`{day,week,month}; Monatsgrad (`1mo`, `MIN_BARS_MONTHLY=60`) additiv; Analyse-Panel auf der Karte; Markt-Top-5 unberührt | +G manual +Bild |
+| #26 | `5fb1188` | **Multi-Timeframe-Analyse Watchlist** (PR B): je Watchlist-Titel drei Zählungen `timeframes`{day,week,month}; Monatsgrad (`1mo`, `MIN_BARS_MONTHLY=60`) additiv; Analyse-Panel + Watchlist nach oben; Markt-Top-5 unberührt | +G manual +Bild |
+| #(dieser) | `(offen)` | **Token-Session-Remember** (Frontend): einmal Master-PW → 28 Tage still (`TOKEN_SESSION_DAYS=28`); IndexedDB-Wrap mit **non-extractable** Session-Key; „Sperren" im ☰; kein Klartext-Token persistiert | +G manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -94,6 +95,12 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 - **OFFEN — Recalculate-Live-Test:** Token hinterlegen (Fine-grained, **Actions:
   write**) → Recalculate → in *Actions* muss ein Lauf erscheinen. Real-POST in der
   Sandbox CORS-geblockt.
+- **OFFEN — Token-Session am echten iPhone (#26/dieser PR):** einmal Master-PW →
+  danach Recalculate/Watchlist-Speichern **ohne** erneutes PW (28 Tage) → „Sperren"
+  fragt sofort wieder. Offline vollständig durchgespielt (Playwright 14/15, secure
+  context http://localhost); die **iOS-ITP-Realität** (räumt Safari nach ~7 Tagen
+  Inaktivität die Website-Daten, ist die Session früher weg → PW-Dialog) ist nur
+  am echten Gerät beobachtbar.
 - **OFFEN — Watchlist-Live-Test:** Ticker → „Für die Pipeline speichern" (Token
   zusätzlich **Contents: write**) → PUT auf `watchlist_personal.json` → nach Lauf
   erscheint die **volle** (analysierte) Karte. **Teil-Entschärft (dieser PR,
@@ -180,6 +187,17 @@ Watchlist bleibt außerhalb der Validierungs-Population). Laufzeit: bis zu **+2
 Fetches je Watchlist-Titel** (Woche+Monat; Tag reust die geladene Tagesreihe) —
 bei aktueller Liste (`watchlist_personal.json` = `[]`, 0 Titel) heute +0; Cap
 `WATCHLIST_MAX=30` → höchstens +60. Revert = reiner Diff-Revert (Feld additiv).
+
+**✅ Token-Session-Remember — erledigt (dieser PR, `docs/index.html`):** einmal
+Master-PW entsperren → **28 Tage** (`TOKEN_SESSION_DAYS`) still, danach schlicht
+wieder der PW-Dialog. IndexedDB-Session-Wrap nach Squeeze-Vorbild
+(easywebb911/Aktien-Update), aber mit **non-extractable** Session-Key (sicherer
+als Squeeze's rohe Key-Bytes) und **fester Frist** statt Rolling. Greift für
+Recalculate UND Watchlist-Speichern (kein Doppel-Dialog); „Sperren"-Menüpunkt
+beendet sofort. Klartext-Token nie persistiert. **Herkunft: Option 1 (Session-
+Entsperrung) nach Risiko-Abwägung, Easy 23.07.** — bei PR #15 bewusst weggelassen,
+jetzt portiert. Verifiziert: 14/15-Playwright-Zyklus (der eine „Fail" = externe
+Quote-Worker-Netzfehler, nicht der Code). Revert = reiner Frontend-Diff-Revert.
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
@@ -304,12 +322,27 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **AES-GCM-256**, Salt **16 B**, IV **12 B**. `localStorage['elliott_gh_token_enc']`
   = nur verschlüsselter Blob `{v,salt,iv,ct}`; Master-PW nie persistiert.
   `GH_OWNER/REPO='easywebb911'/'Elliott-Report'`, `GH_WORKFLOW='daily.yml'`.
+- **Token-Session-Remember (#26/dieser PR, `_ensureToken`-Layer):** nach EINEM
+  Master-PW-Unlock bleibt die Token-Nutzung `TOKEN_SESSION_DAYS = 28` Tage still.
+  Der Klartext-Token wird mit einem frisch generierten **non-extractable**
+  AES-GCM-Key verschlüsselt und `{v, key(CryptoKey), iv, ct, expires_at_ms}` in
+  **IndexedDB** (`elliott_session`/`session_wrap`/`tok`) via structured-clone
+  abgelegt (`_persistSession`). `_ensureToken` probiert erst `_trySessionUnlock`
+  (kein PW) — greift für **Recalculate UND Watchlist-Speichern** (kein Doppel-
+  Dialog); Ablauf/Fehler → still Passwort-Dialog (fail-soft). **Feste Frist ab
+  Unlock** (kein Rolling; Nutzung schreibt frischen Wrap mit SELBER Frist → nur
+  ITP-Timer-Reset). „Sperren" (`mi-lock`) löscht den Record sofort. `_clearToken`
+  löscht ihn mit (kein Geist-Session). **Klartext-Token NIE persistiert** —
+  localStorage nur PW-Blob, IndexedDB nur ct + non-extractable Key. **Abweichung
+  vom Squeeze-Vorbild** (dort rohe Key-Bytes b64 + 7-Tage-Rolling): non-extractable
+  Key (sicherer) + feste 28-Tage-Frist (Easy-Vorgabe). iOS: Safari-Data-Clear →
+  Session weg → normaler PW-Dialog.
 - **Watchlist:** `localStorage['elliott_watchlist']`; Repo-Datei
   `watchlist_personal.json` via Contents-API (GET sha → PUT base64+sha, 409-Retry);
   Token zusätzlich **Contents: write**.
-- **Menü (☰, 5 Punkte):** `mi-backtesting`, `mi-methodik`, `mi-validierung`,
-  `mi-laufstatus`, `mi-recalc`. Escape-Priorität: Token-Modal > Menü >
-  Info-Overlay > Backtesting.
+- **Menü (☰, 6 Punkte):** `mi-backtesting`, `mi-methodik`, `mi-validierung`,
+  `mi-laufstatus`, `mi-recalc`, `mi-lock` („Sperren" — Session sofort beenden,
+  #26/dieser PR). Escape-Priorität: Token-Modal > Menü > Info-Overlay > Backtesting.
 - **Konstanten:** `EVAL_MIN_N = 100`, `COLLECTION_START = '22.07.2026'` (N×-Tooltip,
   an die Präregistrierung gebunden), `STALENESS_HOURS`-Banner bei > 30 h.
 - **Disclaimer (#23):** dezenter, einklappbarer Banner oben; Merker

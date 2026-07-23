@@ -645,6 +645,9 @@
     <button class="menu-item" id="mi-recalc" type="button" role="menuitem">
       <span class="mi-ico">↻</span> Recalculate
     </button>
+    <button class="menu-item" id="mi-lock" type="button" role="menuitem">
+      <span class="mi-ico">🔒</span> Sperren
+    </button>
   </nav>
 
   <!-- Token-Krypto-Dialoge (Master-Passwort → AES-GCM, kein Klartext-Secret) -->
@@ -1554,6 +1557,147 @@
     }
     function _clearToken() {
       try { localStorage.removeItem(TOK_ENC_KEY); } catch (_) {}
+      // Auch die Session mitlöschen — sonst „Geist-Session": Unwrap würde den
+      // alten Token nach einem Reset wieder auferstehen lassen (Squeeze-Lesson).
+      try { _idbDel().catch(() => {}); } catch (_) {}
+    }
+
+    // ── Session-Entsperrung (28-Tage-Fenster, IndexedDB-Wrap) ─────────────
+    // Portiert aus easywebb911/Aktien-Update (app.html, „Session-Wrap Option C").
+    // Nach EINEM Master-Passwort-Unlock bleibt die Token-Nutzung
+    // TOKEN_SESSION_DAYS Tage still: der Klartext-Token wird mit einem frisch
+    // generierten, NON-EXTRACTABLE AES-GCM-Schlüssel verschlüsselt und
+    // (ct + Schlüssel-Handle + Ablauf) in IndexedDB abgelegt.
+    //
+    // ABWEICHUNGEN vom Squeeze-Vorbild (bewusst, begründet):
+    //  1) Schlüssel als NON-EXTRACTABLE CryptoKey via structured-clone in
+    //     IndexedDB — statt Squeeze's roher Key-Bytes (b64). Die Rohbytes
+    //     verlassen das WebCrypto-Subsystem nie → strikt sicherer, erfüllt den
+    //     Sicherheits-Anker wörtlich.
+    //  2) FESTE Frist ab Entsperrung (kein Rolling): expires_at_ms wird EINMAL
+    //     beim Unlock gesetzt und bei Nutzung NICHT vorgeschoben (Easys Vorgabe:
+    //     „feste Frist, einfacher zu verstehen"). Der Storage-Rewrite bei Nutzung
+    //     bleibt (frischer Key/IV, SELBE Frist) — nur um Apples ITP-Inaktivitäts-
+    //     Timer zu resetten, nicht um zu verlängern.
+    //
+    // Sicherheits-Anker: der KLARTEXT-Token wird NIE persistiert. localStorage
+    // hält nur den PW-verschlüsselten Blob; IndexedDB nur das Session-Chiffrat
+    // (ct) + das non-extractable Schlüssel-Handle. Auf einem ENTSPERRTEN Gerät
+    // ist der Token im Fenster ohne PW nutzbar (bewusst akzeptiert, wie Squeeze;
+    // Master-PW schützt weiter den Offline-Blob bei verlorenem/gesperrtem Gerät).
+    //
+    // iOS-Falle (dokumentiert): räumt Safari die Website-Daten (ITP nach ~7 Tagen
+    // ohne Interaktion, oder manuell), ist auch die Session weg → beim nächsten
+    // Mal schlicht wieder der Master-Passwort-Dialog. Kein Fehler, kein Toast.
+    //
+    // Fail-soft (Pflicht): jeder Pfad (kein IndexedDB, Quota, privater Modus,
+    // Decrypt-Fail, Ablauf) fällt STILL auf den Master-Passwort-Dialog zurück.
+    const TOKEN_SESSION_DAYS = 28;                  // Fensterbreite (benannte Konstante)
+    const _SESS_DB = 'elliott_session';
+    const _SESS_STORE = 'session_wrap';
+    const _SESS_REC_KEY = 'tok';
+    const _SESS_WINDOW_MS = TOKEN_SESSION_DAYS * 24 * 60 * 60 * 1000;
+
+    function _idbOpen() {
+      return new Promise(resolve => {
+        try {
+          if (typeof indexedDB === 'undefined' || !indexedDB) { resolve(null); return; }
+          const req = indexedDB.open(_SESS_DB, 1);
+          req.onupgradeneeded = () => { try { req.result.createObjectStore(_SESS_STORE); } catch (_) {} };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+          req.onblocked = () => resolve(null);
+        } catch (_) { resolve(null); }
+      });
+    }
+    function _idbGet() {
+      return new Promise(resolve => {
+        _idbOpen().then(db => {
+          if (!db) { resolve(null); return; }
+          try {
+            const tx = db.transaction(_SESS_STORE, 'readonly');
+            const rq = tx.objectStore(_SESS_STORE).get(_SESS_REC_KEY);
+            rq.onsuccess = () => { try { db.close(); } catch (_) {} resolve(rq.result || null); };
+            rq.onerror = () => { try { db.close(); } catch (_) {} resolve(null); };
+          } catch (_) { try { db.close(); } catch (_) {} resolve(null); }
+        }).catch(() => resolve(null));
+      });
+    }
+    function _idbPut(rec) {
+      return new Promise(resolve => {
+        _idbOpen().then(db => {
+          if (!db) { resolve(false); return; }
+          try {
+            const tx = db.transaction(_SESS_STORE, 'readwrite');
+            tx.objectStore(_SESS_STORE).put(rec, _SESS_REC_KEY);
+            tx.oncomplete = () => { try { db.close(); } catch (_) {} resolve(true); };
+            tx.onerror = () => { try { db.close(); } catch (_) {} resolve(false); };
+            tx.onabort = () => { try { db.close(); } catch (_) {} resolve(false); };
+          } catch (_) { try { db.close(); } catch (_) {} resolve(false); }
+        }).catch(() => resolve(false));
+      });
+    }
+    function _idbDel() {
+      return new Promise(resolve => {
+        _idbOpen().then(db => {
+          if (!db) { resolve(); return; }
+          try {
+            const tx = db.transaction(_SESS_STORE, 'readwrite');
+            tx.objectStore(_SESS_STORE).delete(_SESS_REC_KEY);
+            tx.oncomplete = () => { try { db.close(); } catch (_) {} resolve(); };
+            tx.onerror = () => { try { db.close(); } catch (_) {} resolve(); };
+            tx.onabort = () => { try { db.close(); } catch (_) {} resolve(); };
+          } catch (_) { try { db.close(); } catch (_) {} resolve(); }
+        }).catch(() => resolve());
+      });
+    }
+
+    // Schreibt den Session-Wrap. fixedExpiry (optional): beim Nutzungs-Rewrite
+    // die SELBE Frist behalten (fixe 28-Tage-Frist statt Rolling).
+    async function _persistSession(tok, fixedExpiry) {
+      if (!tok) return;
+      try {
+        const key = await crypto.subtle.generateKey(
+          { name: 'AES-GCM', length: _TOK_KEY_BITS }, false /* non-extractable */,
+          ['encrypt', 'decrypt']);
+        const iv = crypto.getRandomValues(new Uint8Array(_TOK_IV_LEN));
+        const ct = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv: iv }, key, new TextEncoder().encode(tok));
+        await _idbPut({
+          v: 1, key: key, iv: iv, ct: ct,
+          expires_at_ms: (typeof fixedExpiry === 'number') ? fixedExpiry
+                                                           : (Date.now() + _SESS_WINDOW_MS),
+        });
+      } catch (_) { /* fail-soft: bleibt beim Master-Passwort-Pfad */ }
+    }
+
+    // Stille Entsperrung. Liefert Klartext-Token oder null. Bei Ablauf/Fehler
+    // wird der Record entsorgt (→ Passwort-Dialog).
+    async function _trySessionUnlock() {
+      try {
+        const rec = await _idbGet();
+        if (!rec || rec.v !== 1 || !rec.key || !rec.iv || !rec.ct) return null;
+        if (typeof rec.expires_at_ms !== 'number' || Date.now() >= rec.expires_at_ms) {
+          _idbDel().catch(() => {});
+          return null;
+        }
+        const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: rec.iv }, rec.key, rec.ct);
+        const tok = new TextDecoder().decode(pt);
+        if (!tok) return null;
+        // Rewrite mit SELBER Frist (kein Rolling; nur ITP-Timer-Reset). Fire-and-forget.
+        _persistSession(tok, rec.expires_at_ms).catch(() => {});
+        return tok;
+      } catch (_) {
+        _idbDel().catch(() => {});
+        return null;
+      }
+    }
+
+    // ☰ „Sperren": Session sofort beenden (nächste Token-Aktion fragt wieder PW).
+    function _sessionLock() {
+      closeMenu();
+      _idbDel().catch(() => {});
+      showToast('Session gesperrt · beim nächsten Mal wieder Master-Passwort');
     }
 
     // Modal-Steuerung
@@ -1580,8 +1724,14 @@
       if (e) { e.textContent = msg; e.hidden = false; }
     }
 
-    // Orchestrator: hat Token → Unlock-Dialog; sonst → Setup-Dialog.
-    function _ensureToken(cb) {
+    // Orchestrator: erst STILLE Session-Entsperrung (28-Tage-Fenster, kein
+    // Passwort) — greift für Recalculate UND Watchlist-Speichern gleichermaßen
+    // (kein doppelter Dialog). Sonst wie bisher: Unlock- bzw. Setup-Dialog.
+    async function _ensureToken(cb) {
+      try {
+        const t = await _trySessionUnlock();
+        if (t) { if (cb) cb(t); return; }
+      } catch (_) { /* fail-soft → Passwort-Dialog */ }
       _pendingTokenCb = cb;
       if (_hasToken()) _showTokModal('tok-modal-unlock');
       else _showTokModal('tok-modal-setup');
@@ -1599,6 +1749,7 @@
         try { localStorage.setItem(TOK_ENC_KEY, blob); }
         catch (e) { _tokErr('tok-setup-err', 'Speichern fehlgeschlagen: ' + e.message); return; }
         const cb = _pendingTokenCb;
+        _persistSession(tok).catch(() => {});   // Session für 28 Tage etablieren
         _closeTokModals();
         if (cb) cb(tok);
       } catch (e) {
@@ -1620,6 +1771,7 @@
       try {
         const tok = await _decryptToken(blob, pw);
         const cb = _pendingTokenCb;
+        _persistSession(tok).catch(() => {});   // Session für 28 Tage etablieren
         _closeTokModals();
         if (cb) cb(tok);
       } catch (e) {
@@ -2049,6 +2201,7 @@
     document.getElementById('mi-validierung').addEventListener('click', openValidierung);
     document.getElementById('mi-laufstatus').addEventListener('click', openLaufStatus);
     document.getElementById('mi-recalc').addEventListener('click', triggerRecalc);
+    document.getElementById('mi-lock').addEventListener('click', _sessionLock);
 
     // Backtesting-Zurück: aus dem Detail zurück zur Liste, aus der Liste schließen.
     document.getElementById('bt-back').addEventListener('click', () => {
