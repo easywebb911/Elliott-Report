@@ -423,6 +423,60 @@
     }
     .info-stale.show { display:block; }
 
+    /* ── Persönliche Watchlist ───────────────────────────────────────────── */
+    #watchlist-sec .wl-count {
+      font-size:12px; color:var(--txt-dim); background:var(--bg-met);
+      padding:1px 8px; border-radius:10px; font-variant-numeric:tabular-nums;
+    }
+    .wl-controls { margin:4px 0 14px; }
+    .wl-add-row { display:flex; gap:8px; }
+    .wl-input {
+      flex:1; min-width:0; -webkit-appearance:none; appearance:none;
+      background:var(--bg-card); color:var(--txt); border:1px solid var(--brd);
+      border-radius:10px; padding:10px 12px; font-size:15px; min-height:42px;
+      font-family:var(--mono); text-transform:uppercase;
+    }
+    .wl-input:focus { outline:none; border-color:var(--accent); }
+    .wl-add-btn, .wl-save-btn {
+      -webkit-appearance:none; appearance:none; cursor:pointer; min-height:42px;
+      border-radius:10px; padding:9px 14px; font-size:14px; font-weight:700;
+      touch-action:manipulation; border:1px solid var(--brd); white-space:nowrap;
+    }
+    .wl-add-btn { background:var(--grn); color:#04120a; border-color:var(--grn); }
+    .wl-add-btn:active, .wl-save-btn:active { transform:scale(.97); }
+    .wl-err { color:var(--red); font-size:12.5px; font-weight:600; margin:8px 0 0; }
+    .wl-err[hidden] { display:none; }
+    .wl-chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0; }
+    .wl-chip {
+      display:inline-flex; align-items:center; gap:6px; font-family:var(--mono);
+      font-size:12.5px; font-weight:700; color:var(--txt);
+      background:var(--bg-met); border:1px solid var(--brd);
+      border-radius:999px; padding:4px 6px 4px 11px;
+    }
+    .wl-chip button {
+      -webkit-appearance:none; appearance:none; cursor:pointer; border:0;
+      background:transparent; color:var(--txt-dim); font-size:15px; line-height:1;
+      padding:0 3px; touch-action:manipulation;
+    }
+    .wl-chip button:active { color:var(--red); }
+    .wl-chip.dirty { border-color:var(--ora); }
+    .wl-hint { font-size:11.5px; color:var(--txt-dim); line-height:1.5; margin:10px 0 0; }
+    .wl-hint code { font-family:var(--mono); font-size:10.5px; background:var(--bg-met); padding:1px 4px; border-radius:4px; }
+    .wl-warn { display:block; margin-top:5px; color:var(--ora); font-weight:600; }
+    .wl-actions { margin-top:10px; }
+    .wl-save-btn { background:var(--bg-met); color:var(--txt); }
+    .wl-save-btn.dirty { border-color:var(--ora); color:var(--ora); }
+    #wl-cards:empty { display:none; }
+
+    /* Watchlist-Karten ohne/ mit Fehler — dezent abgesetzt, gleiche Grundoptik. */
+    .card.wl-card-no_setup { border-style:dashed; }
+    .card.wl-card-error { opacity:.9; border-color:rgba(239,68,68,.5); }
+    .wl-note {
+      margin:2px 12px 12px; padding:8px 11px; border-radius:8px; font-size:12.5px;
+      background:var(--bg-met); color:var(--txt-sub); border:1px solid var(--brd);
+    }
+    .wl-note.wl-note-err { color:var(--red); border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.08); }
+
     .toast {
       position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
       background:var(--bg-card); color:var(--txt); border:1px solid var(--grn);
@@ -452,6 +506,31 @@
     <div class="banner" id="staleness"></div>
     <section id="US"></section>
     <section id="DE"></section>
+    <!-- Persönliche Watchlist (eigene Ticker, volle Analyse, außer Konkurrenz). -->
+    <section id="watchlist-sec">
+      <h2>Watchlist <span class="flag">☆</span><span class="wl-count" id="wl-count"></span></h2>
+      <div class="wl-controls">
+        <div class="wl-add-row">
+          <input id="wl-input" class="wl-input" type="text" inputmode="text"
+                 autocapitalize="characters" autocomplete="off" spellcheck="false"
+                 maxlength="12" placeholder="Ticker – z. B. NVDA oder SAP.DE" />
+          <button id="wl-add-btn" class="wl-add-btn" type="button">+ Hinzufügen</button>
+        </div>
+        <div class="wl-err" id="wl-err" hidden></div>
+        <div class="wl-chips" id="wl-chips"></div>
+        <div class="wl-hint">
+          Lokal gespeichert. <b>Für die Pipeline speichern</b> überträgt die Liste
+          ins Repo (braucht den GitHub-Token aus „Recalculate", zusätzlich
+          <code>Contents: write</code>); neue Ticker erscheinen dann beim
+          <b>nächsten Lauf</b> (↻ Recalculate).
+          <span class="wl-warn" id="wl-warn"></span>
+        </div>
+        <div class="wl-actions">
+          <button id="wl-save-btn" class="wl-save-btn" type="button">☁ Für die Pipeline speichern</button>
+        </div>
+      </div>
+      <div class="grid" id="wl-cards"></div>
+    </section>
   </main>
   <section class="validation" id="validation" hidden>
     <span class="val-label">Validierung</span>
@@ -1039,6 +1118,184 @@
                : `<div class="empty">Keine validen Kandidaten für diesen Lauf.</div>`);
     }
 
+    // ── Persönliche Watchlist (Squeeze-Muster) ────────────────────────────
+    // Eigene Ticker, volle Analyse, außer Konkurrenz zu Top-5. Chips lokal
+    // (localStorage), Übergabe an die Pipeline via committete Datei
+    // watchlist_personal.json (GitHub-Contents-API PUT, PR-#15-Token +
+    // Contents:write). Karten kommen aus report.watchlist.entries.
+    const WL_KEY = 'elliott_watchlist';
+    const WL_GH_PATH = 'watchlist_personal.json';
+    const WL_MAX = 30;
+    let _wlArr = null;          // aktuelle (lokale) Ticker-Liste
+    let _wlLastRunSet = null;   // Ticker, die der letzte Lauf kannte (aus report)
+    let _wlGhSha = null;        // sha der Repo-Datei (für PUT)
+
+    function _wlLocal() {
+      try { const a = JSON.parse(localStorage.getItem(WL_KEY) || 'null'); return Array.isArray(a) ? a : null; }
+      catch (_) { return null; }
+    }
+    function _wlPersistLocal() {
+      try { localStorage.setItem(WL_KEY, JSON.stringify(_wlArr)); } catch (_) {}
+    }
+    function _wlValidate(raw) {
+      const t = String(raw || '').trim().toUpperCase();
+      if (!t) return { err: 'Bitte einen Ticker eingeben.' };
+      // Buchstaben/Ziffern, optional ein Suffix wie .DE (Xetra) — Squeeze erlaubt
+      // ebenfalls Punkt-Suffixe. Kein Slash/Leerzeichen.
+      if (!/^[A-Z0-9]{1,6}(\.[A-Z]{1,3})?$/.test(t)) return { err: `„${t}" sieht nicht wie ein Ticker aus.` };
+      return { ticker: t };
+    }
+    function _wlWarn(msg) {
+      const w = document.getElementById('wl-warn');
+      if (w) w.textContent = msg || '';
+    }
+    function _wlErr(msg) {
+      const e = document.getElementById('wl-err');
+      if (!e) return;
+      if (msg) { e.textContent = msg; e.hidden = false; } else { e.hidden = true; e.textContent = ''; }
+    }
+
+    // Watchlist-Karte: setup -> volle Karte; sonst kompakte Karte mit Hinweis.
+    function watchlistCard(c) {
+      if (c.wl_status === 'setup') return card(c, '☆');
+      const company = (c.company_name && c.company_name !== c.ticker)
+        ? `<div class="company">${esc(c.company_name)}</div>` : '';
+      const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
+      const isErr = c.wl_status === 'error';
+      const right = (c.close != null)
+        ? `<div class="cockpit-price"${isErr ? '' : ' data-quote="price"'}>${fmt(c.close)}</div>${changeHtml(c)}`
+          + (isErr ? '' : `<div class="live-row"><span class="live-dot" data-quote="dot"></span><span class="live-time" data-quote="time"></span></div>`)
+        : `<div class="cockpit-price">–</div>`;
+      const ys = (c.chart_points || []).map(p => p.price);
+      const spark = (!isErr && ys.length >= 2)
+        ? `<div class="spark-wrap"><div class="spark-header"><span class="spark-title">Pivot-Verlauf</span></div>
+             <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-inval="" data-waves="[]"></div></div>` : '';
+      const tickerAttr = isErr ? '' : ` data-ticker="${esc(c.ticker)}"`;
+      return `<article class="card wl-card-${c.wl_status}"${tickerAttr}>
+        <div class="card-top">
+          <div class="card-left">
+            <span class="rank">☆</span>
+            <div class="hdr-block">
+              <div class="ticker-row"><span class="ticker">${esc(c.ticker)}</span>
+                <a class="chart-btn" href="${esc(chartUrl(c.ticker))}" target="_blank" rel="noopener noreferrer" title="Chart · stockanalysis.com">${CHART_ICON}<span>Chart</span></a></div>
+              ${company}${sector}
+            </div>
+          </div>
+          <div class="card-right">${right}</div>
+        </div>
+        <div class="wl-note${isErr ? ' wl-note-err' : ''}">${esc(c.note || '')}${c.reason ? ` <span style="opacity:.7">(${esc(c.reason)})</span>` : ''}</div>
+        ${spark}
+      </article>`;
+    }
+
+    function renderWatchlistChips() {
+      const wrap = document.getElementById('wl-chips');
+      const cnt = document.getElementById('wl-count');
+      if (cnt) cnt.textContent = _wlArr.length ? String(_wlArr.length) : '';
+      if (!_wlArr.length) { wrap.innerHTML = '<span class="empty" style="font-size:12px">Noch keine eigenen Ticker.</span>'; return; }
+      wrap.innerHTML = _wlArr.map(t => {
+        // „dirty" = seit dem letzten Lauf hinzugekommen (erscheint erst nach Run).
+        const dirty = _wlLastRunSet && !_wlLastRunSet.has(t) ? ' dirty' : '';
+        return `<span class="wl-chip${dirty}" data-t="${esc(t)}">${esc(t)}<button type="button" data-rm="${esc(t)}" aria-label="Entfernen">×</button></span>`;
+      }).join('');
+      wrap.querySelectorAll('button[data-rm]').forEach(b =>
+        b.addEventListener('click', () => removeWatchlistTicker(b.dataset.rm)));
+    }
+
+    function renderWatchlistCards(report) {
+      const el = document.getElementById('wl-cards');
+      const wl = report && report.watchlist;
+      const entries = (wl && Array.isArray(wl.entries)) ? wl.entries : [];
+      el.innerHTML = entries.map(watchlistCard).join('');
+    }
+
+    function renderWatchlist(report) {
+      // Chips: localStorage führend; beim ersten Mal aus dem letzten Lauf seeden
+      // (report.watchlist.entries) — so ist die Liste geräteübergreifend sichtbar,
+      // ohne Token zum Lesen.
+      const lastRun = (report && report.watchlist && Array.isArray(report.watchlist.entries))
+        ? report.watchlist.entries.map(e => e.ticker) : [];
+      _wlLastRunSet = new Set(lastRun);
+      if (_wlArr === null) _wlArr = _wlLocal() || lastRun.slice();
+      renderWatchlistChips();
+      renderWatchlistCards(report);
+      _wlMarkDirty();
+    }
+
+    function _wlMarkDirty() {
+      // „Für die Pipeline speichern" hervorheben, wenn lokal ≠ letzter Lauf.
+      const btn = document.getElementById('wl-save-btn');
+      if (!btn || !_wlLastRunSet) return;
+      const same = _wlArr.length === _wlLastRunSet.size && _wlArr.every(t => _wlLastRunSet.has(t));
+      btn.classList.toggle('dirty', !same);
+    }
+
+    function addWatchlistTicker() {
+      const inp = document.getElementById('wl-input');
+      const v = _wlValidate(inp.value);
+      if (v.err) { _wlErr(v.err); return; }
+      if (_wlArr.includes(v.ticker)) { _wlErr(`${v.ticker} ist schon in der Watchlist.`); return; }
+      if (_wlArr.length >= WL_MAX) { _wlErr(`Maximal ${WL_MAX} Ticker.`); return; }
+      _wlArr.push(v.ticker);
+      _wlPersistLocal();
+      inp.value = ''; _wlErr('');
+      renderWatchlistChips(); _wlMarkDirty();
+      _wlWarn('Lokal gespeichert — „Für die Pipeline speichern", damit der Ticker beim nächsten Lauf erscheint.');
+    }
+    function removeWatchlistTicker(t) {
+      _wlArr = _wlArr.filter(x => x !== t);
+      _wlPersistLocal();
+      renderWatchlistChips(); _wlMarkDirty();
+      _wlWarn('Lokal geändert — „Für die Pipeline speichern" nicht vergessen.');
+    }
+
+    // Übergabe an die Pipeline: watchlist_personal.json via Contents-API PUT
+    // (Token aus PR #15, zusätzlich Contents:write). Portiert aus
+    // aktien-update/app.html (wlSave, Z. 7660–7710).
+    function saveWatchlistToPipeline() {
+      _ensureToken(async (token) => {
+        _wlWarn('Synchronisiere mit GitHub …');
+        try {
+          // aktuelle sha holen (falls Datei existiert)
+          const getR = await fetch(
+            `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
+            { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+          if (getR.ok) { _wlGhSha = (await getR.json()).sha; }
+          else if (getR.status === 404) { _wlGhSha = null; }
+          const _put = (sha) => {
+            const body = { message: 'Update watchlist_personal.json', branch: GH_BRANCH,
+              content: btoa(unescape(encodeURIComponent(JSON.stringify(_wlArr, null, 0)))) };
+            if (sha) body.sha = sha;
+            return fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}`,
+              { method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          };
+          let r = await _put(_wlGhSha);
+          if ((r.status === 409 || r.status === 422)) {
+            // sha-Konflikt -> sha neu holen, 1× retry (Squeeze-Muster)
+            const rf = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
+              { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+            if (rf.ok) { _wlGhSha = (await rf.json()).sha; r = await _put(_wlGhSha); }
+          }
+          if (r.ok) {
+            _wlGhSha = (await r.json()).content?.sha || null;
+            _wlWarn('');
+            showToast('Watchlist gespeichert · erscheint beim nächsten Lauf (↻ Recalculate)');
+          } else if (r.status === 401 || r.status === 403) {
+            _wlWarn(`Token ohne Contents:write oder abgelaufen (HTTP ${r.status}) — nur lokal gespeichert.`);
+            showToast(`Speichern fehlgeschlagen (HTTP ${r.status}) — Token braucht „Contents: write".`, 'error');
+          } else {
+            let bd = ''; try { bd = (await r.text()).slice(0, 140); } catch (_) {}
+            _wlWarn(`GitHub-Fehler HTTP ${r.status} — nur lokal gespeichert.`);
+            showToast(`Speichern fehlgeschlagen HTTP ${r.status}${bd ? ': ' + bd : ''}`, 'error');
+          }
+        } catch (e) {
+          _wlWarn('Netzwerkfehler — nur lokal gespeichert.');
+          showToast('Netzwerkfehler beim Speichern: ' + e.message, 'error');
+        }
+      });
+    }
+
     function checkStaleness(tsUtc) {
       const banner = document.getElementById('staleness');
       if (!tsUtc) return;
@@ -1488,6 +1745,7 @@
         checkStaleness(r.run_timestamp_utc);
         renderMarket('US', r.markets.US);
         renderMarket('DE', r.markets.DE);
+        renderWatchlist(r);  // Watchlist-Sektion (fail-soft, außer Konkurrenz)
         drawAllSparklines();
         startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
         // Validierungs-Panel unabhängig laden — darf den Report NIE brechen.
@@ -1623,6 +1881,14 @@
     });
     // Info-Overlay-Zurück (Methodik/Validierung/Lauf-Status).
     document.getElementById('info-back').addEventListener('click', closeInfo);
+
+    // Watchlist-Bedienung.
+    document.getElementById('wl-add-btn').addEventListener('click', addWatchlistTicker);
+    document.getElementById('wl-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addWatchlistTicker(); }
+    });
+    document.getElementById('wl-input').addEventListener('input', () => _wlErr(''));
+    document.getElementById('wl-save-btn').addEventListener('click', saveWatchlistToPipeline);
 
     // Token-Modal-Verdrahtung (kein Inline-onclick — CSP-freundlich).
     document.getElementById('tok-modal-overlay').addEventListener('click', _closeTokModals);
