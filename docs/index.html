@@ -342,6 +342,7 @@
     .st-ext    { color:var(--grn); border-color:rgba(34,197,94,.55); background:rgba(34,197,94,.16); }
     .st-inval  { color:var(--red); border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.10); }
     .st-neutral{ color:var(--txt-dim); }
+    .st-excluded{ color:var(--ora); border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.08); }
 
     /* Detail-Ansicht */
     .ep-detail-meta {
@@ -776,6 +777,19 @@
     const COLLECTION_PATHS = ['data/forward_collection.json', '../data/forward_collection.json'];
     const EVAL_MIN_N = 100;
 
+    // PRU-Guard (23.07.2026): aus der Auswertungs-Population ausgeschlossen —
+    // Kurs war schon bei Anlage über der Zone (`pre_reached_*`) oder vor dem Guard
+    // kontaminiert. Eine Quelle für Panel, Episoden-Liste und Methodik-Zähler.
+    function _recExcluded(r) {
+      return !!(r && (r.pre_reached_target || r.pre_reached_ext || r.pre_guard_contaminated));
+    }
+    function _evalCounts(records) {
+      const n = records.length;
+      const matured = records.filter(r => r && r.matured).length;
+      const evaluable = records.filter(r => r && r.matured && !_recExcluded(r)).length;
+      return { n, matured, evaluable, excluded: matured - evaluable };
+    }
+
     async function loadCollection() {
       const bust = '?t=' + Date.now();
       for (const path of COLLECTION_PATHS) {
@@ -791,14 +805,9 @@
       const sec = document.getElementById('validation');
       // Fail-soft: ohne valides File bleibt das Panel unsichtbar (kein Rauschen).
       if (!coll || !Array.isArray(coll.records)) { sec.hidden = true; return; }
-      const n = coll.records.length;
-      const matured = coll.records.filter(r => r && r.matured).length;
-      // PRU-Guard: „auswertbar" = gereift UND nicht ausgeschlossen (Kurs schon bei
-      // Anlage über der Zone / vor dem Guard kontaminiert). n≥EVAL_MIN_N bezieht
-      // sich auf DIESE Zahl. Siehe docs/validation_registry.md (24.07.2026).
-      const _isExcluded = r => !!(r && (r.pre_reached_target || r.pre_reached_ext || r.pre_guard_contaminated));
-      const evaluable = coll.records.filter(r => r && r.matured && !_isExcluded(r)).length;
-      const excluded = matured - evaluable;
+      // PRU-Guard: „auswertbar" = gereift UND nicht ausgeschlossen. n≥EVAL_MIN_N
+      // bezieht sich auf DIESE Zahl. Siehe docs/validation_registry.md (23.07.2026).
+      const { n, matured, evaluable, excluded } = _evalCounts(coll.records);
       const cnt = document.getElementById('val-counts');
       cnt.textContent = `${n} gesammelt · ${matured} gereift · ${evaluable} auswertbar`;
       cnt.title = excluded > 0
@@ -822,7 +831,11 @@
 
     function episodeStatus(r) {
       // Dezente Status-Ableitung, keine Erfolgs-Rhetorik.
+      // Invalidierung bleibt immer gültig (auch für ausgeschlossene Records).
       if (r.invalidated === 1) return { label: 'invalidiert ✗', cls: 'st-inval' };
+      // PRU-Guard: ausgeschlossene Records zeigen NIE „Ziel ✓" (der „Treffer" wäre
+      // Look-ahead) — ehrlicher Ausschluss-Status statt Erfolgs-Häkchen.
+      if (_recExcluded(r)) return { label: 'ausgeschlossen · Kurs schon über Zone', cls: 'st-excluded' };
       if (r.ext_hit === 1)     return { label: 'Extension ✓✓', cls: 'st-ext' };
       if (r.target_hit === 1)  return { label: 'Ziel ✓', cls: 'st-target' };
       if (r.matured)           return { label: 'gereift · neutral', cls: 'st-neutral' };
@@ -852,15 +865,14 @@
         return;
       }
       const recs = coll.records.slice();
-      const n = recs.length;
-      const matured = recs.filter(r => r && r.matured).length;
+      const { n, matured, evaluable } = _evalCounts(recs);
       // Neueste zuerst (nach Einstiegsdatum, dann Score).
       recs.sort((a, b) => (b.first_seen_date || '').localeCompare(a.first_seen_date || '')
                           || (b.score_heuristic || 0) - (a.score_heuristic || 0));
 
       // Registry-Sperre: KEIN Aggregat < n=100 — nur die Zähler.
       const counts =
-        `<b>${n}</b> gesammelt · <b>${matured}</b> gereift · `
+        `<b>${n}</b> gesammelt · <b>${matured}</b> gereift · <b>${evaluable}</b> auswertbar · `
         + `Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert`;
 
       let rows = '';
@@ -1954,10 +1966,9 @@
       try {
         const coll = await loadCollection();
         if (coll && Array.isArray(coll.records)) {
-          const n = coll.records.length;
-          const matured = coll.records.filter(r => r && r.matured).length;
+          const { n, matured, evaluable } = _evalCounts(coll.records);
           counters = `<div class="score-formula" style="margin-bottom:16px">
-            <b>${n}</b> gesammelt · <b>${matured}</b> gereift ·
+            <b>${n}</b> gesammelt · <b>${matured}</b> gereift · <b>${evaluable}</b> auswertbar ·
             Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert</div>`;
         }
       } catch (_) { /* fail-soft */ }

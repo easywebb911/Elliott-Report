@@ -640,3 +640,15 @@ def test_eval_counts_excludes_pre_reached_and_contaminated():
     assert fc.is_excluded({"pre_reached_ext": True}) is True
     assert fc.is_excluded({"pre_guard_contaminated": True}) is True
     assert fc.is_excluded({"matured": True}) is False
+
+
+def test_guard_boundary_entry_equals_low_is_pre_reached():
+    # Grenzfall: entry_close == target_zone.low -> pre_reached (>= ist inklusiv).
+    rec = fc._new_record(_entry("AAPL", close=120.0, tlow=120.0, elow=140.0, inval=90.0),
+                         "US", "s", "risk_on", "2026-07-22", NOW)
+    dates, closes = _series("s", [121, 122, 123, 124, 125, 126, 127, 128, 129, 130],
+                            entry_close=120.0)
+    fc.mature_record(rec, dates, closes, NOW)
+    assert rec["pre_reached_target"] is True   # entry == low zählt als schon erreicht
+    assert rec["target_hit"] == 0              # gesperrt
+    assert rec["invalidated"] == 0
