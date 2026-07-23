@@ -303,13 +303,77 @@
     .ep-kv-grid .v { color:var(--txt); font-variant-numeric:tabular-nums; }
     .wave-num { fill:var(--txt); font-size:9px; font-weight:700; font-family:var(--mono); }
 
+    /* ── Hamburger-Menü (Dropdown) ───────────────────────────────────────── */
+    .menu-overlay { position:fixed; inset:0; z-index:34; background:transparent; }
+    .menu-overlay[hidden] { display:none; }
+    .menu-panel {
+      position:fixed; top:64px; left:12px; z-index:35;
+      background:var(--bg-card); border:1px solid var(--brd); border-radius:12px;
+      box-shadow:var(--shadow); min-width:220px; overflow:hidden;
+      padding:6px;
+    }
+    .menu-panel[hidden] { display:none; }
+    .menu-item {
+      -webkit-appearance:none; appearance:none; cursor:pointer; width:100%;
+      text-align:left; background:transparent; color:var(--txt); border:0;
+      border-radius:9px; padding:11px 12px; font-size:14px; font-weight:600;
+      display:flex; align-items:center; gap:10px; touch-action:manipulation;
+    }
+    .menu-item:active { background:var(--bg-met); }
+    .menu-item .mi-ico { width:18px; text-align:center; opacity:.85; }
+
+    /* ── Token-Modals (Master-Passwort-Krypto, portiert aus Aktien-Update) ── */
+    .tok-modal-overlay {
+      position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.55);
+    }
+    .tok-modal-overlay[hidden] { display:none; }
+    .tok-modal {
+      position:fixed; z-index:41; left:50%; top:50%; transform:translate(-50%,-50%);
+      width:min(92vw,380px); background:var(--bg-card); border:1px solid var(--brd);
+      border-radius:16px; box-shadow:var(--shadow); padding:18px 18px 16px;
+    }
+    .tok-modal[hidden] { display:none; }
+    .tok-modal h3 { margin:0 0 8px; font-size:16px; font-weight:800; }
+    .tok-modal-hint { margin:0 0 14px; font-size:12px; color:var(--txt-sub); line-height:1.5; }
+    .tok-modal-hint code {
+      font-family:var(--mono); font-size:11px; background:var(--bg-met);
+      padding:1px 5px; border-radius:5px; color:var(--txt);
+    }
+    .tok-modal-lbl { display:block; font-size:12px; color:var(--txt-sub); margin:0 0 10px; }
+    .tok-modal-inp {
+      -webkit-appearance:none; appearance:none; width:100%; margin-top:5px;
+      background:var(--bg-met); color:var(--txt); border:1px solid var(--brd);
+      border-radius:10px; padding:10px 12px; font-size:15px; min-height:42px;
+      font-family:var(--mono);
+    }
+    .tok-modal-inp:focus { outline:none; border-color:var(--accent); }
+    .tok-modal-err {
+      color:var(--red); font-size:12px; margin:0 0 10px; font-weight:600;
+    }
+    .tok-modal-err[hidden] { display:none; }
+    .tok-modal-btns { display:flex; align-items:center; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+    .tok-btn {
+      -webkit-appearance:none; appearance:none; cursor:pointer; min-height:42px;
+      border-radius:10px; padding:9px 15px; font-size:14px; font-weight:700;
+      touch-action:manipulation; border:1px solid var(--brd);
+    }
+    .tok-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+    .tok-btn-cancel { background:var(--bg-met); color:var(--txt); }
+    .tok-btn:active { transform:scale(.97); }
+    .tok-link {
+      font-size:12px; color:var(--txt-sub); cursor:pointer; text-decoration:underline;
+      margin-right:auto;
+    }
+
     .toast {
       position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
       background:var(--bg-card); color:var(--txt); border:1px solid var(--grn);
       border-radius:999px; padding:8px 16px; font-size:13px;
-      opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:20; max-width:90vw;
+      opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:45; max-width:90vw;
+      text-align:center;
     }
     .toast.show { opacity:1; }
+    .toast.toast-error { border-color:var(--red); color:var(--red); }
   </style>
 </head>
 <body>
@@ -347,6 +411,74 @@
       <span class="bt-title" id="bt-title">Validierung / Backtesting</span>
     </div>
     <div class="bt-body" id="bt-body"></div>
+  </div>
+
+  <!-- Hamburger-Menü (Dropdown) -->
+  <div class="menu-overlay" id="menu-overlay" hidden></div>
+  <nav class="menu-panel" id="menu-panel" hidden role="menu" aria-label="Menü">
+    <button class="menu-item" id="mi-backtesting" type="button" role="menuitem">
+      <span class="mi-ico">📊</span> Validierung / Backtesting
+    </button>
+    <button class="menu-item" id="mi-recalc" type="button" role="menuitem">
+      <span class="mi-ico">↻</span> Recalculate
+    </button>
+  </nav>
+
+  <!-- Token-Krypto-Dialoge (Master-Passwort → AES-GCM, kein Klartext-Secret) -->
+  <div class="tok-modal-overlay" id="tok-modal-overlay" hidden></div>
+
+  <div class="tok-modal" id="tok-modal-setup" hidden role="dialog" aria-modal="true"
+       aria-labelledby="tok-setup-title">
+    <h3 id="tok-setup-title">GitHub-Token einrichten</h3>
+    <p class="tok-modal-hint">Fine-grained Personal Access Token — Permission
+      <code>Actions: Read and write</code>, beschränkt auf <strong>nur dieses
+      Repository</strong> (<code>easywebb911/Elliott-Report</code>). Der Token wird
+      mit deinem Master-Passwort verschlüsselt im Browser gespeichert; das Passwort
+      liegt nirgends persistent vor.</p>
+    <!-- <form> + hidden username: Safari/iCloud-Schlüsselbund erkennt
+         Credential-Felder nur in einer <form> (Squeeze-Lesson). -->
+    <form onsubmit="return false" autocomplete="on">
+      <input type="text" autocomplete="username" name="username"
+             value="elliott-report-master" hidden aria-hidden="true">
+      <label class="tok-modal-lbl">Fine-grained Token
+        <input type="password" id="tok-setup-token" class="tok-modal-inp"
+               autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+      </label>
+      <label class="tok-modal-lbl">Master-Passwort
+        <input type="password" id="tok-setup-pw" class="tok-modal-inp"
+               autocomplete="new-password" spellcheck="false" placeholder="mind. 8 Zeichen">
+      </label>
+      <label class="tok-modal-lbl">Passwort bestätigen
+        <input type="password" id="tok-setup-pw2" class="tok-modal-inp"
+               autocomplete="new-password" spellcheck="false">
+      </label>
+      <div class="tok-modal-err" id="tok-setup-err" hidden></div>
+      <div class="tok-modal-btns">
+        <button type="button" class="tok-btn tok-btn-cancel" id="tok-setup-cancel">Abbrechen</button>
+        <button type="submit" class="tok-btn tok-btn-primary" id="tok-setup-save">Verschlüsseln &amp; Speichern</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="tok-modal" id="tok-modal-unlock" hidden role="dialog" aria-modal="true"
+       aria-labelledby="tok-unlock-title">
+    <h3 id="tok-unlock-title">Master-Passwort eingeben</h3>
+    <p class="tok-modal-hint">Der Token ist verschlüsselt gespeichert. Das
+      Master-Passwort entschlüsselt ihn nur für diesen Aufruf.</p>
+    <form onsubmit="return false" autocomplete="on">
+      <input type="text" autocomplete="username" name="username"
+             value="elliott-report-master" hidden aria-hidden="true">
+      <label class="tok-modal-lbl">Master-Passwort
+        <input type="password" id="tok-unlock-pw" class="tok-modal-inp"
+               autocomplete="current-password" spellcheck="false">
+      </label>
+      <div class="tok-modal-err" id="tok-unlock-err" hidden></div>
+      <div class="tok-modal-btns">
+        <a class="tok-link" id="tok-unlock-reset" role="button" tabindex="0">Token neu eingeben</a>
+        <button type="button" class="tok-btn tok-btn-cancel" id="tok-unlock-cancel">Abbrechen</button>
+        <button type="submit" class="tok-btn tok-btn-primary" id="tok-unlock-ok">Entschlüsseln</button>
+      </div>
+    </form>
   </div>
 
   <div class="toast" id="toast"></div>
@@ -841,13 +973,233 @@
       }
     }
 
+    // ── Recalculate: workflow_dispatch mit Master-Passwort-verschlüsseltem
+    //    Token (portiert aus easywebb911/Aktien-Update, app.html) ──────────
+    // KRYPTO exakt wie im Vorbild: PBKDF2-SHA256, 600.000 Iterationen, Salt
+    // 16 B, IV 12 B, AES-GCM-256. Master-Passwort wird NIE persistiert; nur
+    // der verschlüsselte Blob liegt in localStorage. Kein Token/Secret im Code.
+    const GH_OWNER = 'easywebb911';
+    const GH_REPO = 'Elliott-Report';
+    const GH_WORKFLOW = 'daily.yml';       // workflow_dispatch: {} (keine Inputs)
+    const GH_BRANCH = 'main';
+    const TOK_ENC_KEY = 'elliott_gh_token_enc';
+
+    const _TOK_PBKDF2_ITER = 600000;
+    const _TOK_SALT_LEN = 16;   // 128 bit
+    const _TOK_IV_LEN = 12;     // 96 bit (AES-GCM Standard)
+    const _TOK_KEY_BITS = 256;
+
+    function _b64encode(bytes) {
+      let bin = '';
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    }
+    function _b64decode(b64) {
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    async function _deriveTokenKey(password, salt) {
+      const baseKey = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(password), { name: 'PBKDF2' },
+        false, ['deriveKey']
+      );
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt: salt, iterations: _TOK_PBKDF2_ITER, hash: 'SHA-256' },
+        baseKey,
+        { name: 'AES-GCM', length: _TOK_KEY_BITS },
+        false, ['encrypt', 'decrypt']
+      );
+    }
+    async function _encryptToken(token, password) {
+      const salt = crypto.getRandomValues(new Uint8Array(_TOK_SALT_LEN));
+      const iv = crypto.getRandomValues(new Uint8Array(_TOK_IV_LEN));
+      const key = await _deriveTokenKey(password, salt);
+      const ct = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: iv }, key, new TextEncoder().encode(token)
+      );
+      return JSON.stringify({
+        v: 1,
+        salt: _b64encode(salt),
+        iv: _b64encode(iv),
+        ct: _b64encode(new Uint8Array(ct)),
+      });
+    }
+    async function _decryptToken(blobJson, password) {
+      const blob = JSON.parse(blobJson);
+      if (blob.v !== 1) throw new Error('Unbekanntes Token-Schema v=' + blob.v);
+      const salt = _b64decode(blob.salt);
+      const iv = _b64decode(blob.iv);
+      const ct = _b64decode(blob.ct);
+      const key = await _deriveTokenKey(password, salt);
+      const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct);
+      return new TextDecoder().decode(pt);
+    }
+
+    function _hasToken() {
+      try { return !!localStorage.getItem(TOK_ENC_KEY); } catch (_) { return false; }
+    }
+    function _getTokenBlob() {
+      try { return localStorage.getItem(TOK_ENC_KEY); } catch (_) { return null; }
+    }
+    function _clearToken() {
+      try { localStorage.removeItem(TOK_ENC_KEY); } catch (_) {}
+    }
+
+    // Modal-Steuerung
+    let _pendingTokenCb = null;
+    function _showTokModal(id) {
+      document.getElementById('tok-modal-overlay').hidden = false;
+      document.querySelectorAll('.tok-modal').forEach(m => { m.hidden = true; });
+      const m = document.getElementById(id);
+      if (m) { m.hidden = false; setTimeout(() => { const i = m.querySelector('input:not([hidden])'); if (i) i.focus(); }, 60); }
+    }
+    function _closeTokModals() {
+      document.getElementById('tok-modal-overlay').hidden = true;
+      document.querySelectorAll('.tok-modal').forEach(m => { m.hidden = true; });
+      ['tok-setup-token','tok-setup-pw','tok-setup-pw2','tok-unlock-pw'].forEach(id => {
+        const e = document.getElementById(id); if (e) e.value = '';  // sensible Felder leeren
+      });
+      ['tok-setup-err','tok-unlock-err'].forEach(id => {
+        const e = document.getElementById(id); if (e) { e.hidden = true; e.textContent = ''; }
+      });
+      _pendingTokenCb = null;
+    }
+    function _tokErr(id, msg) {
+      const e = document.getElementById(id);
+      if (e) { e.textContent = msg; e.hidden = false; }
+    }
+
+    // Orchestrator: hat Token → Unlock-Dialog; sonst → Setup-Dialog.
+    function _ensureToken(cb) {
+      _pendingTokenCb = cb;
+      if (_hasToken()) _showTokModal('tok-modal-unlock');
+      else _showTokModal('tok-modal-setup');
+    }
+
+    async function _submitTokenSetup() {
+      const tok = (document.getElementById('tok-setup-token').value || '').trim();
+      const pw = document.getElementById('tok-setup-pw').value || '';
+      const pw2 = document.getElementById('tok-setup-pw2').value || '';
+      if (!tok) { _tokErr('tok-setup-err', 'Token erforderlich.'); return; }
+      if (pw.length < 8) { _tokErr('tok-setup-err', 'Master-Passwort min. 8 Zeichen.'); return; }
+      if (pw !== pw2) { _tokErr('tok-setup-err', 'Passwörter stimmen nicht überein.'); return; }
+      try {
+        const blob = await _encryptToken(tok, pw);
+        try { localStorage.setItem(TOK_ENC_KEY, blob); }
+        catch (e) { _tokErr('tok-setup-err', 'Speichern fehlgeschlagen: ' + e.message); return; }
+        const cb = _pendingTokenCb;
+        _closeTokModals();
+        if (cb) cb(tok);
+      } catch (e) {
+        _tokErr('tok-setup-err', 'Verschlüsseln fehlgeschlagen: ' + e.message);
+      }
+    }
+
+    async function _submitTokenUnlock() {
+      const pw = document.getElementById('tok-unlock-pw').value || '';
+      if (!pw) { _tokErr('tok-unlock-err', 'Passwort erforderlich.'); return; }
+      const blob = _getTokenBlob();
+      if (!blob) {
+        // Squeeze-Lesson: nach Safari-Data-Clear ist der Blob weg → statt
+        // kryptischem 401 klarer Hinweis + zurück zum Setup.
+        _tokErr('tok-unlock-err', 'Kein gespeicherter Token gefunden — bitte neu einrichten.');
+        setTimeout(() => _showTokModal('tok-modal-setup'), 900);
+        return;
+      }
+      try {
+        const tok = await _decryptToken(blob, pw);
+        const cb = _pendingTokenCb;
+        _closeTokModals();
+        if (cb) cb(tok);
+      } catch (e) {
+        // Falsches Passwort → AES-GCM-Auth schlägt fehl (OperationError).
+        _tokErr('tok-unlock-err', 'Falsches Master-Passwort.');
+      }
+    }
+
+    function _resetTokenForReentry() {
+      _clearToken();
+      _showTokModal('tok-modal-setup');
+    }
+
+    function triggerRecalc() {
+      closeMenu();
+      _ensureToken(dispatchRecalc);
+    }
+
+    let _recalcBusy = false;
+    function _setRecalcBtn(label, disabled) {
+      const el = document.getElementById('mi-recalc');
+      if (el) el.innerHTML = `<span class="mi-ico">↻</span> ${label}`;
+      // (Menü ist beim Dispatch bereits geschlossen; Label dient dem nächsten Öffnen.)
+      void disabled;
+    }
+
+    async function dispatchRecalc(token) {
+      if (_recalcBusy) return;
+      _recalcBusy = true;
+      showToast('Neuberechnung wird gestartet …');
+      try {
+        const r = await fetch(
+          `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/actions/workflows/${GH_WORKFLOW}/dispatches`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ref: GH_BRANCH }),
+          }
+        );
+        if (r.status === 204) {
+          _setRecalcBtn('Lauf gestartet', true);
+          showToast('Lauf gestartet · ~2–3 Min · danach „↻ Neu laden" tippen');
+        } else if (r.status === 401 || r.status === 403) {
+          showToast(`Token-Auth fehlgeschlagen (HTTP ${r.status}). Master-Passwort neu `
+            + `eingeben; bleibt es dabei, Token neu hinterlegen (Actions: write).`, 'error');
+        } else if (r.status === 404) {
+          showToast('Workflow/Repo nicht gefunden (HTTP 404) — Token-Scope prüfen '
+            + '(nur dieses Repo, Actions: write).', 'error');
+        } else {
+          let bd = '';
+          try { bd = (await r.text()).slice(0, 160); } catch (_) {}
+          showToast(`Fehler HTTP ${r.status}${bd ? ': ' + bd : ''}`, 'error');
+        }
+      } catch (e) {
+        showToast('Netzwerkfehler: ' + e.message, 'error');
+      } finally {
+        _recalcBusy = false;
+      }
+    }
+
+    // ── Hamburger-Menü (Dropdown mit zwei Einträgen) ──────────────────────
+    let _menuOpen = false;
+    function openMenu() {
+      _menuOpen = true;
+      document.getElementById('menu-overlay').hidden = false;
+      document.getElementById('menu-panel').hidden = false;
+    }
+    function closeMenu() {
+      _menuOpen = false;
+      document.getElementById('menu-overlay').hidden = true;
+      document.getElementById('menu-panel').hidden = true;
+    }
+    function toggleMenu() { _menuOpen ? closeMenu() : openMenu(); }
+
     let toastTimer = null;
-    function showToast(msg) {
+    function showToast(msg, type) {
       const t = document.getElementById('toast');
       t.textContent = msg;
+      t.classList.toggle('toast-error', type === 'error');
       t.classList.add('show');
       if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+      // Fehler länger stehen lassen (mehr Text/Handlungsbedarf).
+      toastTimer = setTimeout(() => t.classList.remove('show'),
+                              type === 'error' ? 6000 : 2600);
     }
 
     async function refresh({ announce = false } = {}) {
@@ -979,16 +1331,38 @@
 
     document.getElementById('reload').addEventListener('click', () => refresh({ announce: true }));
 
-    // Hamburger-Menü → Backtesting-Overlay. Zurück-Button: aus dem Detail zurück
-    // zur Liste, aus der Liste schließt das Overlay. iOS-Safari-tauglich.
-    document.getElementById('menu-btn').addEventListener('click', openBacktesting);
+    // Hamburger öffnet ein kleines Menü (Backtesting + Recalculate).
+    document.getElementById('menu-btn').addEventListener('click', toggleMenu);
+    document.getElementById('menu-overlay').addEventListener('click', closeMenu);
+    document.getElementById('mi-backtesting').addEventListener('click', () => {
+      closeMenu(); openBacktesting();
+    });
+    document.getElementById('mi-recalc').addEventListener('click', triggerRecalc);
+
+    // Backtesting-Zurück: aus dem Detail zurück zur Liste, aus der Liste schließen.
     document.getElementById('bt-back').addEventListener('click', () => {
       const inDetail = !document.getElementById('bt-title').textContent
         .startsWith('Validierung');
       if (inDetail) renderEpisodeListView(); else closeBacktesting();
     });
+
+    // Token-Modal-Verdrahtung (kein Inline-onclick — CSP-freundlich).
+    document.getElementById('tok-modal-overlay').addEventListener('click', _closeTokModals);
+    document.getElementById('tok-setup-cancel').addEventListener('click', _closeTokModals);
+    document.getElementById('tok-setup-save').addEventListener('click', _submitTokenSetup);
+    document.getElementById('tok-unlock-cancel').addEventListener('click', _closeTokModals);
+    document.getElementById('tok-unlock-ok').addEventListener('click', _submitTokenUnlock);
+    document.getElementById('tok-unlock-reset').addEventListener('click', _resetTokenForReentry);
+    document.getElementById('tok-unlock-pw').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); _submitTokenUnlock(); }
+    });
+
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && _btOpen) {
+      if (e.key !== 'Escape') return;
+      // Priorität: Token-Modal > Menü > Backtesting-Overlay.
+      if (!document.getElementById('tok-modal-overlay').hidden) { _closeTokModals(); return; }
+      if (_menuOpen) { closeMenu(); return; }
+      if (_btOpen) {
         const inDetail = !document.getElementById('bt-title').textContent
           .startsWith('Validierung');
         if (inDetail) renderEpisodeListView(); else closeBacktesting();
