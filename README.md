@@ -4,9 +4,14 @@ Tägliche **Top-5-Elliott-Wellen-Kandidaten je Markt** (USA + Deutschland) als
 GitHub-Pages-PWA. Der Report ist eine **heuristische, unvalidierte**
 Wellen-Auszählung — **keine Anlageberatung, keine Wahrscheinlichkeitsaussage.**
 
-> Status: **Skelett / Grundgerüst.** Pipeline läuft end-to-end, Frontend zeigt
-> Karten, Tests grün. Forward-Ergebnis-Sammlung, Kalibrierung und
-> Wahrscheinlichkeits-Anzeige sind bewusst **noch nicht** enthalten.
+> **Projektstand & Kontext:** Die kanonische, allein tragfähige Projekt-Quelle
+> ist **[`SESSION_HANDOVER.md`](SESSION_HANDOVER.md)** — PR-Historie, offene
+> Verifikationen, Roadmap, Architektur-Anker, Validierung, Lessons. Eine frische
+> Session (oder ein Kontext-Verlust) arbeitet allein damit weiter.
+>
+> **PFLEGE-REGEL:** `SESSION_HANDOVER.md` wird bei **jedem Merge im selben PR**
+> aktualisiert (mindestens PR-Historie, Offene Verifikationen, Roadmap). Ein PR
+> **ohne** Handover-Update gilt als unvollständig; der Guardian prüft das mit.
 
 ## Struktur
 
