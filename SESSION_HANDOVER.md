@@ -59,6 +59,8 @@ durchgängig ab #13.
 | #17 | `f65f2f8` | persönliche Watchlist (Contents-API-Sync, `report["watchlist"]`) | +G manual +Bild |
 | #18 | `f89e4c7` | N×-Zähler (`appearance_count`, Episoden nicht Tage) | +G manual +Bild |
 | #19 | `f5e3dac` | Universum 99→361 (statisch) + Listen-Hygiene-Diag (`dead_tickers`) | +G manual |
+| #20 | `d40a1d6` | **docs:** `SESSION_HANDOVER.md` (diese Datei) + Pflege-Regel | self (CI grün) |
+| #21 | `(PR #21)` | **fix:** `daily.yml` persistiert `forward_collection.json` (Sammlung akkumuliert, Push race-gehärtet) | manual |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -69,16 +71,12 @@ durchgängig ab #13.
 
 Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 
-- **⚠️ HOCH — Forward-Sammlung wird nicht persistiert:** `daily.yml` committet
-  **nur** `data/report.json docs/data/report.json` — **NICHT**
-  `forward_collection.json`. Der Runner baut die Sammlung jeden Lauf neu, committet
-  sie aber nie → sie **resettet täglich auf leer**. Folge: **n wächst nie**,
-  `appearance_count` sieht nie Historie (**N×-Badge erscheint nie**),
-  Validierung/Backtesting zeigen dauerhaft ~10 gesammelt · 0 gereift. **Das ist der
-  wichtigste offene Punkt** — muss vor/mit dem Push-Paket gefixt werden (git add um
-  `data/forward_collection.json docs/data/forward_collection.json` erweitern;
-  Merge-Konflikt-Risiko bei parallelen Läufen bedenken, `concurrency`-Group
-  existiert bereits).
+- **✅ ERLEDIGT (#21) — Forward-Sammlung wird jetzt persistiert:** `daily.yml`
+  committet ab #21 auch `data/forward_collection.json` (+ Spiegel). Die Sammlung
+  akkumuliert damit über die Läufe; n wächst, `appearance_count`/N×-Badge und die
+  Reifung greifen ab jetzt. Push race-gehärtet (`git pull --rebase` + 3× Retry).
+  **Live-Beleg steht noch aus:** erst nach 1–2 echten Läufen zeigt die committete
+  `forward_collection.json` > 10 Records (bis dahin OFFEN, siehe Abschnitt 6).
 - **OFFEN — `.DE`-Chart-Link:** `stockanalysis.com/quote/etr/{SYMBOL ohne .DE}/`
   ist **Best-Guess** (`docs/index.html` `chartUrl`), nie live geöffnet. US-Muster
   `/stocks/{lower}/`.
@@ -112,8 +110,8 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
   n ≥ 100** (Auswertungs-Freigabe).
 - Inkl. **`review_by`-Wecker** am Score-Status (Erinnerung, den Validierungsstand
   zu prüfen).
-- (Vorher/mit dabei: den Forward-Sammlung-Persistenz-Fix aus Abschnitt 3 — sonst
-  feuert „n ≥ 100" nie.)
+- (Voraussetzung für den „n ≥ 100"-Trigger — der Forward-Sammlung-Persistenz-Fix —
+  ist mit **#21 erledigt**; die Sammlung akkumuliert jetzt.)
 
 **DANACH — Mini-Sammler:** Disclaimer-Banner + Wochenend-/Feiertags-Gate (keine
 Karten-Neuberechnung erwarten, wenn Börse zu).
@@ -225,9 +223,10 @@ gleiche relative Ziel-/Stop-Distanzen) **Holm-korrigiert signifikant**, UND (2) 
 **Datumsanker:** Sammlungs-Beginn/`COLLECTION_START` **22.07.2026**; **Universums-
 Wechsel 23.07.2026** (99→361, Zählweise unverändert, im Register geloggt).
 
-**Aktueller Zählerstand:** committete `forward_collection.json` = **0 Records**
-(wegen des Persistenz-Gaps aus Abschnitt 3 — der letzte Lauf sammelte 10, committete
-sie aber nicht). **Bis der Fix greift, akkumuliert nichts.**
+**Aktueller Zählerstand:** committete `forward_collection.json` = **0 Records** bis
+zum ersten Lauf nach dem Persistenz-Fix (#21). Ab #21 akkumuliert die Sammlung —
+der erste echte Lauf schreibt ~10 Records, danach wächst n Lauf für Lauf. (Live-
+Beleg = Abschnitt 3.)
 
 ---
 

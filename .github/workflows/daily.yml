@@ -1,7 +1,9 @@
 name: Daily Elliott Report
 
 # Läuft nach US-Börsenschluss (21:45 UTC) + manuell per Tap (workflow_dispatch).
-# Committet data/report.json (+ Spiegel docs/data/report.json) auf main.
+# Committet data/report.json (+ Spiegel) UND data/forward_collection.json
+# (+ Spiegel) auf main — die Forward-Sammlung MUSS persistiert werden, sonst
+# resettet sie jeden Lauf und n wächst nie (siehe SESSION_HANDOVER.md).
 # Fail-soft: Ein fehlerhafter Lauf committet nichts, bricht aber sichtbar ab,
 # statt kaputte Daten zu veröffentlichen.
 
@@ -52,14 +54,33 @@ jobs:
           print("report JSON valide")
           PY
 
-      - name: Commit report if changed
+      - name: Commit report + collection if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/report.json docs/data/report.json
+          # Report UND Forward-Sammlung persistieren (sonst wächst n nie).
+          git add data/report.json docs/data/report.json \
+                  data/forward_collection.json docs/data/forward_collection.json
           if git diff --cached --quiet; then
-            echo "Keine Änderungen am Report — nichts zu committen."
+            echo "Keine Änderungen — nichts zu committen."
           else
-            git commit -m "chore(data): täglicher Elliott-Report [skip ci]"
-            git push
+            git commit -m "chore(data): täglicher Elliott-Report + Sammlung [skip ci]"
+            # Race-Härtung: falls main während des Laufs wanderte (z. B. ein
+            # Feature-PR gemergt), unseren Daten-Commit darauf rebasen und
+            # pushen. Datenfiles kollidieren praktisch nie (nur dieser Job
+            # schreibt sie; Läufe sind per concurrency serialisiert). Bei
+            # echtem Konflikt bricht der Rebase ab -> Lauf schlägt sichtbar
+            # fehl (fail-soft: kein Teil-Push).
+            pushed=""
+            for i in 1 2 3; do
+              if git pull --rebase origin main && git push; then
+                pushed="yes"; break
+              fi
+              echo "Push-Versuch $i fehlgeschlagen — neuer Versuch."
+              sleep $((i * 3))
+            done
+            if [ -z "$pushed" ]; then
+              echo "::error::Daten-Push nach 3 Versuchen fehlgeschlagen."
+              exit 1
+            fi
           fi

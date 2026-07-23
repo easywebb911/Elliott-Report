@@ -89,8 +89,10 @@ Karte den Status **„heuristisch · unvalidiert“**. **Kein Service Worker**
 
 `.github/workflows/daily.yml` läuft täglich **21:45 UTC** (nach US-Close) und
 zusätzlich manuell (`workflow_dispatch`). Er baut den Report, validiert das
-JSON und committet Änderungen auf `main` (fail-soft: ein fehlerhafter Lauf
-committet nichts).
+JSON und committet Änderungen auf `main` — **`report.json` UND
+`forward_collection.json`** (je + `docs/data/`-Spiegel), damit die
+Forward-Sammlung über die Läufe **akkumuliert** (fail-soft: ein fehlerhafter
+Lauf committet nichts; Push race-gehärtet mit Rebase + Retry).
 
 ## Qualitätssicherung: CI + Guardian
 
