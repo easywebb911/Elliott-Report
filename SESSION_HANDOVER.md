@@ -193,6 +193,17 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 - **KI-Agent** — Easy 23.07.: **weglassen**. Zuschnitts-Optionen für später
   notieren: (a) reiner Kommentator je Karte, (b) Research-Digest-Lauf, (c)
   Chat-Q&A über den Report. Keine Score-Beeinflussung.
+- **Konfluenz-Marker** — Easy 23.07. (Lit-Check): Anzeige, wenn eine Zielzone
+  oder die Invalidierung mit einer **Crowd-Marke** zusammenfällt (Vorjahreshoch/
+  -tief, runde Zahl, 200-Tage-Linie). **Erst reine Anzeige/Messung** (additives
+  Anzeige-Feld, wie `higher_degree`/`timeframes`) — **Score-Wirkung ausschließlich
+  nach Validierungsbefund**. Kein Populations-/Ranking-Eingriff vor Beleg.
+- **W5→A-Nachprüfung** — Easy 23.07. (Lit-Check): spätere **Anreicherung der
+  Forward-Sammlung** — nachhalten, ob nach einem erwarteten W5 eine A-Korrektur
+  folgt (Struktur-Nachprüfung des Counts). **Erst Messung/Erfassung** in den
+  Episoden-Records (additiv, forward-only, Population unberührt) — **Score-/
+  Erfolgs-Wirkung erst nach Validierungsbefund**. Kein Rückwirken auf `target_hit`
+  o. Ä. vor Beleg.
 - **Universum-Option B (Screener)** — nur mit **`source`-Markierung** UND
   **Populations-Ausschluss** (wie Watchlist: Screener-Ticker dürfen nie in die
   n ≥ 100-Population).
