@@ -61,7 +61,8 @@ durchgängig ab #13.
 | #19 | `f5e3dac` | Universum 99→361 (statisch) + Listen-Hygiene-Diag (`dead_tickers`) | +G manual |
 | #20 | `d40a1d6` | **docs:** `SESSION_HANDOVER.md` (diese Datei) + Pflege-Regel | self (CI grün) |
 | #21 | `cf2bd9f` | **fix:** `daily.yml` persistiert `forward_collection.json` (Sammlung akkumuliert, Push race-gehärtet) — **live bestätigt** (10 Records auf main) | manual |
-| #22 | `(PR #22)` | **Push-Paket Stufe 1** (ntfy, fast stumm): Lauf-Fehlschlag · Staleness-Cron · Meilenstein n≥100 · Review-Wecker | +G manual |
+| #22 | `efb57a1` | **Push-Paket Stufe 1** (ntfy, fast stumm): Lauf-Fehlschlag · Staleness-Cron · Meilenstein n≥100 · Review-Wecker | +G manual |
+| #23 | `(PR #23)` | **Mini-Sammler:** Disclaimer-Banner (einklappbar) · Wochenend-/Feiertags-Gate · kalenderbewusste Staleness (`market_calendar.py`) | +G manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -117,12 +118,20 @@ Lauf), **Meilenstein n ≥ 100** (einmalig, Marker-Datei), **`review_by`-Wecker*
 Pushes (Risse bleiben lautloser ✗-Status im Backtesting). Scharfschalten:
 Secret `NTFY_TOPIC` setzen (Abschnitt 3).
 
-**NÄCHSTER BAU-PUNKT — Mini-Sammler:** Disclaimer-Banner + Wochenend-/Feiertags-
-Gate (keine Karten-Neuberechnung erwarten, wenn Börse zu).
+**✅ Mini-Sammler — erledigt (#23):** Disclaimer-Banner (dezent, einklappbar,
+localStorage `elliott_disc_collapsed`) · Wochenend-Gate (Cron `45 21 * * 1-5`) ·
+Feiertags-Gate (gemeinsame NYSE∩Xetra-Voll-Schließtage in
+`scripts/market_calendar.py`, mit Ablauf-Warnung ab 01.12.2027) ·
+**kalenderbewusste Staleness** (Wächter rechnet gegen den letzten *erwarteten*
+Lauf → kein Wochenend-/Feiertags-Fehlalarm).
 
-**Push-Paket spätere Stufen (geparkt):** — die im ursprünglichen Roadmap-Text
-genannten **Invalidierungs-Riss-Pushes** bleiben bewusst **weg** (Rauschen); erst
-wieder aufgreifen, wenn Easy es ausdrücklich will.
+**→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
+ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
+aus Abschnitt 3 abarbeiten (NTFY_TOPIC scharfschalten, .DE-Chart/Quote, Recalculate/
+Watchlist), dann irgendwann die KI-Entscheidung.
+
+**Push-Paket spätere Stufen (geparkt):** die **Invalidierungs-Riss-Pushes** bleiben
+bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich will.
 
 **GEPARKT (mit Datum):**
 - **KI-Agent** — Easy 23.07.: **weglassen**. Zuschnitts-Optionen für später
@@ -172,10 +181,17 @@ wieder aufgreifen, wenn Easy es ausdrücklich will.
   `invalidation_price`, `target_zone(_extended)`, `score_heuristic`,
   `chart_points`, `count_wave_labels`, `higher_degree`, `appearance_count`
   (in `main` gesetzt), `status="heuristisch · unvalidiert"`.
-- **Workflow:** `.github/workflows/daily.yml` — Cron **21:45 UTC** +
-  `workflow_dispatch: {}` (keine Inputs), `timeout-minutes: 30`,
-  `concurrency: daily-elliott`, committet **report + collection** (#21) sowie den
-  einmaligen `data/validation_milestone_fired.flag`.
+- **Workflow:** `.github/workflows/daily.yml` — Cron **`45 21 * * 1-5`** (Werktage,
+  #23) + `workflow_dispatch: {}`, `timeout-minutes: 30`, `concurrency:
+  daily-elliott`, committet **report + collection** (#21) sowie den einmaligen
+  `data/validation_milestone_fired.flag`.
+- **Handelskalender (#23, `scripts/market_calendar.py`):** EINE Quelle für Gate +
+  Staleness. `FULL_CLOSURE` = gemeinsame NYSE∩Xetra-Voll-Schließtage (Neujahr,
+  Karfreitag, 1. Weihnachtstag) 2026–2027; `HOLIDAY_LIST_EXPIRES = 2027-12-01`
+  (Ablauf-Warnung). Feiertags-Gate sitzt in `elliott_pipeline.main()` (nur echter
+  Modus): an Voll-Schließtagen → log + `return 0`, nichts geschrieben.
+  `last_expected_run(now)`/`is_stale(...)` überspringen Wochenende + Voll-
+  Schließtage → **kein Staleness-Fehlalarm**. Einzelmarkt-Feiertage laufen normal.
 - **CI:** `.github/workflows/ci.yml`, Check **`test`**, Offline-`pytest` je PR.
 - **Push / Selbstüberwachung (#22, `scripts/notify.py`):** ntfy, `POST
   https://ntfy.sh/{NTFY_TOPIC}` + Title/Priority/Tags, fail-soft (`main()` immer
@@ -204,6 +220,8 @@ wieder aufgreifen, wenn Easy es ausdrücklich will.
   Info-Overlay > Backtesting.
 - **Konstanten:** `EVAL_MIN_N = 100`, `COLLECTION_START = '22.07.2026'` (N×-Tooltip,
   an die Präregistrierung gebunden), `STALENESS_HOURS`-Banner bei > 30 h.
+- **Disclaimer (#23):** dezenter, einklappbarer Banner oben; Merker
+  `localStorage['elliott_disc_collapsed']` ('1' = eingeklappt).
 - **Chart-Link:** `chartUrl` — US `/stocks/{lower}/`, DE `/quote/etr/{ohne .DE}/`
   (Best-Guess, unverifiziert).
 

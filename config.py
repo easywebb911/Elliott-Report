@@ -194,7 +194,11 @@ TICKER_META_PATH = "data/ticker_meta.json"
 # ---------------------------------------------------------------------------
 # STALENESS
 # ---------------------------------------------------------------------------
-STALENESS_HOURS = 30            # Frontend-Banner + Staleness-Wächter ab diesem Alter
+# Alters-Untergrenze für den sichtbaren Frontend-Staleness-Hinweis. Die
+# EIGENTLICHE Staleness-Entscheidung (Banner UND Push-Wächter) ist zusätzlich
+# KALENDERBEWUSST (scripts/market_calendar.py): kein Wochenend-/Feiertags-
+# Fehlalarm — es wird gegen den letzten ERWARTETEN Werktags-Lauf gerechnet.
+STALENESS_HOURS = 30
 
 # ---------------------------------------------------------------------------
 # PUSH / SELBSTÜBERWACHUNG (Stufe 1 — bewusst fast stumm, siehe scripts/notify.py)
