@@ -365,6 +365,64 @@
       margin-right:auto;
     }
 
+    /* ── Info-Ansichten (Methodik / Validierung / Lauf-Status) ───────────── */
+    .info-lead { color:var(--txt-sub); font-size:13px; line-height:1.6; margin:0 0 16px; }
+    .info-section-h {
+      font-size:12px; text-transform:uppercase; letter-spacing:.07em; font-weight:800;
+      color:var(--txt-sub); margin:20px 0 10px;
+    }
+    .legend { display:flex; flex-direction:column; gap:10px; }
+    .legend-row {
+      display:grid; grid-template-columns:96px 1fr; gap:4px 12px; align-items:start;
+      background:var(--bg-card); border:1px solid var(--brd); border-radius:10px; padding:10px 12px;
+    }
+    .legend-k { font-weight:700; font-size:13px; color:var(--txt); }
+    .legend-v { font-size:12.5px; color:var(--txt-sub); line-height:1.5; }
+    .legend-v code, .md-body code {
+      font-family:var(--mono); font-size:11px; background:var(--bg-met);
+      padding:1px 5px; border-radius:5px; color:var(--txt);
+    }
+    .score-formula {
+      background:var(--bg-card); border:1px solid var(--brd); border-radius:10px;
+      padding:12px 14px; font-size:13px; color:var(--txt-sub); line-height:1.65;
+    }
+    .score-formula b { color:var(--txt); }
+    .disc-line { color:var(--disc); font-size:12px; margin-top:12px; font-weight:600; }
+
+    /* Markdown-Rendering (Validierungs-Register) */
+    .md-body { font-size:13.5px; line-height:1.65; color:var(--txt-sub); }
+    .md-body h1 { font-size:18px; color:var(--txt); margin:4px 0 12px; }
+    .md-body h2 { font-size:15px; color:var(--txt); margin:20px 0 8px; }
+    .md-body strong { color:var(--txt); }
+    .md-body ul { margin:8px 0; padding-left:20px; }
+    .md-body li { margin:4px 0; }
+    .md-body blockquote {
+      margin:12px 0; padding:8px 14px; border-left:3px solid var(--disc);
+      background:rgba(202,138,4,.08); color:var(--txt); border-radius:0 8px 8px 0;
+    }
+    .md-body p { margin:8px 0; }
+
+    /* Lauf-Status */
+    .status-market {
+      background:var(--bg-card); border:1px solid var(--brd); border-radius:12px;
+      padding:12px 14px; margin-bottom:12px;
+    }
+    .status-market-h { font-size:15px; font-weight:800; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
+    .status-kv { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; }
+    .status-kv .k { color:var(--txt-dim); }
+    .status-kv .v { color:var(--txt); font-variant-numeric:tabular-nums; }
+    .status-skips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+    .status-chip {
+      font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--brd);
+      color:var(--txt-sub); font-variant-numeric:tabular-nums;
+    }
+    .status-chip.nz { color:var(--txt); border-color:var(--accent); }
+    .info-stale {
+      display:none; margin:0 0 14px; padding:10px 12px; border-radius:8px;
+      background:rgba(245,158,11,.12); border:1px solid var(--ora); color:var(--ora); font-size:13px;
+    }
+    .info-stale.show { display:block; }
+
     .toast {
       position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
       background:var(--bg-card); color:var(--txt); border:1px solid var(--grn);
@@ -413,11 +471,30 @@
     <div class="bt-body" id="bt-body"></div>
   </div>
 
+  <!-- Generisches Info-Overlay für die lesenden Menüpunkte (gleiche Technik). -->
+  <div class="bt-overlay" id="info-overlay" hidden role="dialog"
+       aria-modal="true" aria-label="Info">
+    <div class="bt-head">
+      <button class="bt-back" id="info-back" type="button">‹ Zurück</button>
+      <span class="bt-title" id="info-title"></span>
+    </div>
+    <div class="bt-body" id="info-body"></div>
+  </div>
+
   <!-- Hamburger-Menü (Dropdown) -->
   <div class="menu-overlay" id="menu-overlay" hidden></div>
   <nav class="menu-panel" id="menu-panel" hidden role="menu" aria-label="Menü">
     <button class="menu-item" id="mi-backtesting" type="button" role="menuitem">
-      <span class="mi-ico">📊</span> Validierung / Backtesting
+      <span class="mi-ico">📊</span> Backtesting
+    </button>
+    <button class="menu-item" id="mi-methodik" type="button" role="menuitem">
+      <span class="mi-ico">📖</span> Methodik
+    </button>
+    <button class="menu-item" id="mi-validierung" type="button" role="menuitem">
+      <span class="mi-ico">🎯</span> Validierung
+    </button>
+    <button class="menu-item" id="mi-laufstatus" type="button" role="menuitem">
+      <span class="mi-ico">⚙️</span> Lauf-Status
     </button>
     <button class="menu-item" id="mi-recalc" type="button" role="menuitem">
       <span class="mi-ico">↻</span> Recalculate
@@ -1190,6 +1267,202 @@
     }
     function toggleMenu() { _menuOpen ? closeMenu() : openMenu(); }
 
+    // ── Lesende Info-Ansichten (Methodik / Validierung / Lauf-Status) ─────
+    // Gleiche Overlay-Technik wie Backtesting; ein generisches Overlay, das je
+    // Menüpunkt neu befüllt wird. Alles fail-soft.
+    let _infoOpen = false;
+    function openInfo(title, html) {
+      _infoOpen = true;
+      document.getElementById('info-title').textContent = title;
+      const body = document.getElementById('info-body');
+      body.innerHTML = html;
+      const ov = document.getElementById('info-overlay');
+      ov.hidden = false;
+      ov.scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
+    function closeInfo() {
+      _infoOpen = false;
+      document.getElementById('info-overlay').hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    // a) Methodik — statische Erklärseite. Zahlen/Schwellen sind exakt aus dem
+    //    Code zitiert (config.SCORE_WEIGHTS/SETUP_BASE_POINTS/FIB_*/INVALIDATION_*
+    //    /TARGET_EXTENSIONS bzw. scoreColor()), nicht aus dem Gedächtnis.
+    function openMethodik() {
+      closeMenu();
+      const legend = [
+        ['Count-Label', 'Die erkannte Auszählung, z. B. <code>Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)</code>. Nur Long-Setups werden gezeigt.'],
+        ['Wellen-Ziffern', 'Kleine Ziffern auf den letzten Pivots der Sparkline: <code>0–2</code> beim W2-Setup (P0–P2), <code>0–4</code> beim W4-Setup (P0–P4). 0 ist der Start-Pivot.'],
+        ['Invalidierung', 'K.-o.-Kurs, unter dem die Zählung ungültig wird: beim W2-Setup der Start-Pivot P0 (W2 darf W1 nicht &gt;100 % zurücklaufen), beim W4-Setup P1 (W4 darf W1 nicht überlappen).'],
+        ['Zielzone', 'Basis-Ziel per Fibonacci: W3 = P2 + <code>[1.0–1.618] × W1-Länge</code>; W5 = P4 + <code>[0.618–1.0] × W1</code>.'],
+        ['Extension', 'Ambitionierteres Ziel (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt.'],
+        ['Donut / Farbe', 'Der Score als Ring. Schwellen: <code>≥ 60</code> grün, <code>≥ 30</code> orange, <code>≥ 15</code> rot, darunter/ohne Wert grau.'],
+        ['Großer Grad', 'Zweite, unabhängige Zählung auf <b>Wochen</b>-Basis für die Top-5 (höherer Wellengrad). Zweitblick zur Einordnung — fließt nicht in den Score ein.'],
+        ['Live-Punkt', 'Kurs-Aktualität im Kartenkopf: grün pulsierend = Live-Quote aktiv, grau = Quelle nicht erreichbar/veraltet, gedimmt = Tab inaktiv (Polling pausiert).'],
+      ].map(([k, v]) => `<div class="legend-row"><span class="legend-k">${k}</span><span class="legend-v">${v}</span></div>`).join('');
+
+      const html =
+        `<p class="info-lead">Der Report zählt Elliott-Wellen rein regelbasiert aus
+           den Kursdaten aus und zeigt je Markt die fünf höchstbewerteten Long-Setups.
+           Die folgende Legende erklärt jede Angabe auf einer Karte.</p>
+         <div class="info-section-h">Karten-Legende</div>
+         <div class="legend">${legend}</div>
+         <div class="info-section-h">Wie der Score entsteht</div>
+         <div class="score-formula">
+           Der heuristische Score ist die <b>Summe dreier gleich gewichteter
+           Komponenten</b> (je Multiplikator 1,0):<br>
+           • <b>Setup-Basispunkte</b> — je bestätigter Struktur: Ende W2 = <b>45</b>,
+             Ende W4 = <b>55</b> Punkte.<br>
+           • <b>Fibonacci-Nähe</b> — bis <b>+20</b> Punkte, je näher das Retracement
+             an einem Schlüssel-Level liegt (W2: 0,5 / 0,618 · W4: 0,382 / 0,5;
+             Toleranz ±0,15).<br>
+           • <b>Invalidierungs-Abstand</b> — bis <b>+15</b> Punkte, linear steigend
+             bis 10 % Kurs­abstand zum K.-o.-Level (moderates, handelbares Risiko).<br>
+           Maximum also rund <b>90</b> Punkte. Der Score ist eine reine
+           Rangordnungs-Heuristik — <b>kein Erwartungswert und keine
+           Wahrscheinlichkeit</b>.
+           <div class="disc-line">heuristisch · unvalidiert — siehe „Validierung"
+             für das, woran sich der Score erst noch messen muss.</div>
+         </div>`;
+      openInfo('Methodik', html);
+    }
+
+    // b) Validierung — rendert docs/validation_registry.md + Panel-Zähler.
+    async function openValidierung() {
+      closeMenu();
+      openInfo('Validierung', '<p class="info-lead">lädt …</p>');
+      let counters = '';
+      try {
+        const coll = await loadCollection();
+        if (coll && Array.isArray(coll.records)) {
+          const n = coll.records.length;
+          const matured = coll.records.filter(r => r && r.matured).length;
+          counters = `<div class="score-formula" style="margin-bottom:16px">
+            <b>${n}</b> gesammelt · <b>${matured}</b> gereift ·
+            Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert</div>`;
+        }
+      } catch (_) { /* fail-soft */ }
+
+      let mdHtml = '<p class="info-lead">Register konnte nicht geladen werden.</p>';
+      try {
+        const bust = '?t=' + Date.now();
+        let md = null;
+        for (const p of ['validation_registry.md', '../docs/validation_registry.md']) {
+          try { const r = await fetch(p + bust, { cache: 'no-store' }); if (r.ok) { md = await r.text(); break; } }
+          catch (_) {}
+        }
+        if (md) mdHtml = `<div class="md-body">${_renderMarkdown(md)}</div>`;
+      } catch (_) { /* fail-soft */ }
+
+      // Overlay evtl. inzwischen geschlossen? Nur schreiben, wenn noch offen.
+      if (_infoOpen) document.getElementById('info-body').innerHTML = counters + mdHtml;
+    }
+
+    // Minimaler, sicherer Markdown-Renderer (nur die im Register genutzten
+    // Konstrukte). HTML wird zuerst escaped -> kein Injection-Risiko. Aufeinander
+    // folgende Zeilen desselben Block-Typs werden zusammengefasst (weich
+    // umbrochene Absätze/mehrzeilige Blockquotes ergeben EINEN Block).
+    function _renderMarkdown(md) {
+      const inline = (s) => esc(s)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      const lines = md.replace(/\r/g, '').split('\n');
+      let out = '';
+      let para = [];      // gepufferte Absatz-Zeilen
+      let quote = [];     // gepufferte Blockquote-Zeilen
+      let inList = false;
+      const flushPara = () => { if (para.length) { out += `<p>${inline(para.join(' '))}</p>`; para = []; } };
+      const flushQuote = () => { if (quote.length) { out += `<blockquote>${inline(quote.join(' '))}</blockquote>`; quote = []; } };
+      const closeList = () => { if (inList) { out += '</ul>'; inList = false; } };
+      const flushAll = () => { flushPara(); flushQuote(); closeList(); };
+      for (const raw of lines) {
+        const line = raw.replace(/\s+$/, '');
+        let m;
+        if (!line.trim()) { flushAll(); continue; }
+        if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+          flushAll();
+          const lvl = Math.min(m[1].length, 2);
+          out += `<h${lvl}>${inline(m[2])}</h${lvl}>`;
+        } else if ((m = line.match(/^>\s?(.*)$/))) {
+          flushPara(); closeList(); quote.push(m[1]);
+        } else if ((m = line.match(/^[-*]\s+(.*)$/))) {
+          flushPara(); flushQuote();
+          if (!inList) { out += '<ul>'; inList = true; }
+          out += `<li>${inline(m[1])}</li>`;
+        } else {
+          flushQuote(); closeList(); para.push(line);
+        }
+      }
+      flushAll();
+      return out;
+    }
+
+    // c) Lauf-Status — liest die additive Diag-Zusammenfassung aus report.json.
+    async function openLaufStatus() {
+      closeMenu();
+      openInfo('Lauf-Status', '<p class="info-lead">lädt …</p>');
+      let r;
+      try { r = await loadReport(); }
+      catch (e) {
+        if (_infoOpen) document.getElementById('info-body').innerHTML =
+          `<p class="info-lead err">Report konnte nicht geladen werden: ${esc(e.message)}</p>`;
+        return;
+      }
+      const ts = r.run_timestamp_utc || null;
+      const dur = r.generated_in_seconds;
+      const RLABEL = {
+        fetch_error: 'Fetch-Fehler', empty_data: 'leere Daten',
+        too_few_pivots: 'zu wenig Pivots', no_valid_count: 'kein reg. Setup',
+        short_setup_excluded: 'Short verworfen',
+      };
+      const ageH = ts ? (Date.now() - new Date(ts).getTime()) / 3.6e6 : null;
+      const stale = (ageH != null && ageH > STALENESS_HOURS)
+        ? `<div class="info-stale show">⚠️ Daten sind ${Math.round(ageH)} h alt (&gt; ${STALENESS_HOURS} h) — Update ausstehend.</div>` : '';
+
+      const FLAGS = { US: '🇺🇸', DE: '🇩🇪' };
+      let markets = '';
+      let anyDiag = false;
+      for (const key of ['US', 'DE']) {
+        const m = (r.markets && r.markets[key]) || null;
+        if (!m) continue;
+        const d = m.diag;
+        let inner;
+        if (!d || typeof d !== 'object') {
+          inner = '<div class="legend-v">Noch keine Diagnose-Daten (älterer Lauf).</div>';
+        } else {
+          anyDiag = true;
+          const rc = d.reason_counts || {};
+          const chips = Object.keys(RLABEL).map(k => {
+            const val = rc[k] ?? 0;
+            return `<span class="status-chip ${val > 0 ? 'nz' : ''}">${RLABEL[k]}: ${val}</span>`;
+          }).join('');
+          inner =
+            `<div class="status-kv">
+               <span class="k">Kandidaten</span><span class="v">${m.candidates_found ?? '–'} / ${m.universe_size ?? '–'} Universum</span>
+               <span class="k">Übersprungen</span><span class="v">${m.skipped ?? '–'}</span>
+               <span class="k">Großer Grad</span><span class="v">${d.higher_degree_count ?? 0} / ${d.top_count ?? 0} mit Wochen-Count</span>
+             </div>
+             <div class="status-skips">${chips}</div>`;
+        }
+        markets += `<div class="status-market">
+            <div class="status-market-h">${FLAGS[key] || ''} ${esc((m.label || key))}</div>${inner}
+          </div>`;
+      }
+
+      const head =
+        `<p class="info-lead">Was der letzte Pipeline-Lauf getan hat — je Markt
+           gefundene Kandidaten, Übersprungene nach Grund und die Wochen-Count-Quote.</p>
+         <div class="score-formula" style="margin-bottom:14px">
+           <b>Stand:</b> ${esc(ts || '?')}${dur != null ? ` · Dauer ${esc(String(dur))} s` : ''}
+           · Schema v${esc(String(r.schema_version ?? '?'))}
+         </div>`;
+      const footNote = anyDiag ? '' :
+        '<p class="info-lead" style="margin-top:8px">Die Diagnose-Felder erscheinen nach dem nächsten Lauf (additiv in report.json).</p>';
+      if (_infoOpen) document.getElementById('info-body').innerHTML = stale + head + markets + footNote;
+    }
+
     let toastTimer = null;
     function showToast(msg, type) {
       const t = document.getElementById('toast');
@@ -1331,12 +1604,15 @@
 
     document.getElementById('reload').addEventListener('click', () => refresh({ announce: true }));
 
-    // Hamburger öffnet ein kleines Menü (Backtesting + Recalculate).
+    // Hamburger öffnet ein kleines Menü (5 Punkte).
     document.getElementById('menu-btn').addEventListener('click', toggleMenu);
     document.getElementById('menu-overlay').addEventListener('click', closeMenu);
     document.getElementById('mi-backtesting').addEventListener('click', () => {
       closeMenu(); openBacktesting();
     });
+    document.getElementById('mi-methodik').addEventListener('click', openMethodik);
+    document.getElementById('mi-validierung').addEventListener('click', openValidierung);
+    document.getElementById('mi-laufstatus').addEventListener('click', openLaufStatus);
     document.getElementById('mi-recalc').addEventListener('click', triggerRecalc);
 
     // Backtesting-Zurück: aus dem Detail zurück zur Liste, aus der Liste schließen.
@@ -1345,6 +1621,8 @@
         .startsWith('Validierung');
       if (inDetail) renderEpisodeListView(); else closeBacktesting();
     });
+    // Info-Overlay-Zurück (Methodik/Validierung/Lauf-Status).
+    document.getElementById('info-back').addEventListener('click', closeInfo);
 
     // Token-Modal-Verdrahtung (kein Inline-onclick — CSP-freundlich).
     document.getElementById('tok-modal-overlay').addEventListener('click', _closeTokModals);
@@ -1359,9 +1637,10 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
-      // Priorität: Token-Modal > Menü > Backtesting-Overlay.
+      // Priorität: Token-Modal > Menü > Info-Overlay > Backtesting-Overlay.
       if (!document.getElementById('tok-modal-overlay').hidden) { _closeTokModals(); return; }
       if (_menuOpen) { closeMenu(); return; }
+      if (_infoOpen) { closeInfo(); return; }
       if (_btOpen) {
         const inDetail = !document.getElementById('bt-title').textContent
           .startsWith('Validierung');

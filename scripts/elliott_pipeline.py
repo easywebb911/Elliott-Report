@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import traceback
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -669,6 +670,13 @@ def build_market(
         "skipped": skipped,
         "candidates_found": len(candidates),
         "candidates": top,
+        # Additive Diagnose-Zusammenfassung (die Zahlen stehen bereits im Log).
+        # Rein für die „Lauf-Status"-Ansicht; Score/Ranking/Schema unberührt.
+        "diag": {
+            "reason_counts": dict(reason_counts),
+            "higher_degree_count": higher_count,
+            "top_count": len(top),
+        },
     }
 
 
@@ -750,7 +758,11 @@ def main() -> int:
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     price_sink: Dict[str, Tuple[List[str], List[float]]] = {}
+    _t0 = time.monotonic()
     report = build_report(fetcher, ts, get_weekly_fetcher(), price_sink)
+    # Lauf-Dauer additiv (nur in main gesetzt -> build_report bleibt
+    # deterministisch/testbar). Rein informativ für die „Lauf-Status"-Ansicht.
+    report["generated_in_seconds"] = round(time.monotonic() - _t0, 1)
     written = write_report(report)
 
     us = report["markets"]["US"]

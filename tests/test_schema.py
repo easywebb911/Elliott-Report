@@ -304,3 +304,43 @@ def test_count_wave_labels_map_last_k_pivots():
             assert [x["index"] for x in cwl] == list(range(ncp - k, ncp))
             # letzter Index ist der aktuelle Pivot
             assert cwl[-1]["index"] == ncp - 1
+
+
+# --- Diag-Zusammenfassung (Lauf-Status-Ansicht) ---
+def test_market_diag_present_and_shaped():
+    # Jeder Markt trägt eine additive diag-Zusammenfassung mit allen Skip-Gründen.
+    report = _build()
+    for m in report["markets"].values():
+        d = m["diag"]
+        assert set(d) == {"reason_counts", "higher_degree_count", "top_count"}
+        assert set(d["reason_counts"]) == set(pipe.SKIP_REASONS)
+        assert all(isinstance(v, int) for v in d["reason_counts"].values())
+        assert isinstance(d["higher_degree_count"], int)
+        assert d["top_count"] == len(m["candidates"])
+        # großer Grad kann höchstens so viele wie Top-Kandidaten sein.
+        assert 0 <= d["higher_degree_count"] <= d["top_count"]
+
+
+def test_diag_counts_match_skipped_total():
+    # Die Summe der Skip-Gründe entspricht dem 'skipped'-Aggregat des Markts.
+    report = _build()
+    for m in report["markets"].values():
+        assert sum(m["diag"]["reason_counts"].values()) == m["skipped"]
+
+
+def test_diag_is_deterministic():
+    # diag ist deterministisch (Teil von build_report) — gleicher Input, gleich.
+    a = json.dumps(_build()["markets"]["US"]["diag"], sort_keys=True)
+    b = json.dumps(_build()["markets"]["US"]["diag"], sort_keys=True)
+    assert a == b
+
+
+def test_diag_is_score_ranking_neutral():
+    # BEWEIS Additivität: entfernt man diag, bleibt Reihenfolge/Score je Markt
+    # identisch — diag ist reine Anzeige, kein Ranking-Einfluss.
+    report = _build()
+    for m in report["markets"].values():
+        before = [(c["ticker"], c["score_heuristic"]) for c in m["candidates"]]
+        m2 = {k: v for k, v in m.items() if k != "diag"}
+        after = [(c["ticker"], c["score_heuristic"]) for c in m2["candidates"]]
+        assert before == after
