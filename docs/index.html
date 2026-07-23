@@ -216,6 +216,93 @@
     footer { color:var(--txt-dim); font-size:11px; text-align:center;
              padding:24px 16px; border-top:1px solid var(--brd); margin-top:24px; }
     .err { color:var(--red); }
+
+    /* ── Hamburger + Backtesting-Overlay ─────────────────────────────────── */
+    .hamburger {
+      flex:0 0 auto; -webkit-appearance:none; appearance:none; cursor:pointer;
+      background:var(--bg-met); color:var(--txt); border:1px solid var(--brd);
+      border-radius:10px; width:40px; height:40px; font-size:18px; line-height:1;
+      display:flex; align-items:center; justify-content:center;
+      touch-action:manipulation;
+    }
+    .hamburger:active { background:var(--bg-hdr); }
+    .head-left { display:flex; align-items:center; gap:12px; }
+
+    .bt-overlay {
+      position:fixed; inset:0; z-index:30; background:var(--bg);
+      display:flex; flex-direction:column;
+      overflow-y:auto; -webkit-overflow-scrolling:touch;
+    }
+    .bt-overlay[hidden] { display:none; }
+    .bt-head {
+      position:sticky; top:0; z-index:2; background:var(--bg-hdr);
+      border-bottom:1px solid var(--brd);
+      padding:16px; padding-top:max(16px, env(safe-area-inset-top));
+      display:flex; align-items:center; gap:12px;
+    }
+    .bt-back {
+      -webkit-appearance:none; appearance:none; cursor:pointer;
+      background:var(--bg-met); color:var(--txt); border:1px solid var(--brd);
+      border-radius:10px; min-height:40px; padding:8px 14px; font-size:14px;
+      font-weight:600; touch-action:manipulation;
+    }
+    .bt-back:active { background:var(--bg-hdr); }
+    .bt-title { font-size:17px; font-weight:800; letter-spacing:.02em; }
+    .bt-body { max-width:900px; width:100%; margin:0 auto; padding:16px;
+               padding-bottom:max(24px, env(safe-area-inset-bottom)); }
+    .bt-counts {
+      font-size:12px; color:var(--txt-sub); margin:0 0 14px;
+      font-variant-numeric:tabular-nums;
+    }
+    .bt-counts b { color:var(--txt); font-weight:700; }
+
+    .ep-list { display:flex; flex-direction:column; gap:8px; }
+    .ep-row {
+      -webkit-appearance:none; appearance:none; cursor:pointer; text-align:left;
+      width:100%; background:var(--bg-card); border:1px solid var(--brd);
+      border-radius:12px; padding:11px 13px; color:var(--txt);
+      display:grid; grid-template-columns:1fr auto; gap:4px 10px; align-items:center;
+      touch-action:manipulation;
+    }
+    .ep-row:active { background:var(--bg-met); }
+    .ep-main { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .ep-tk { font-family:var(--mono); font-weight:700; font-size:14px; }
+    .ep-flag { font-size:13px; }
+    .ep-date { font-size:11px; color:var(--txt-dim); font-variant-numeric:tabular-nums; }
+    .ep-score { font-size:12px; color:var(--txt-sub); font-variant-numeric:tabular-nums; }
+    .ep-status {
+      justify-self:end; font-size:11px; font-weight:700; padding:2px 8px;
+      border-radius:999px; border:1px solid var(--brd); white-space:nowrap;
+    }
+    .st-open { color:var(--txt-sub); }
+    .st-target { color:var(--grn); border-color:rgba(34,197,94,.4); background:rgba(34,197,94,.10); }
+    .st-ext    { color:var(--grn); border-color:rgba(34,197,94,.55); background:rgba(34,197,94,.16); }
+    .st-inval  { color:var(--red); border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.10); }
+    .st-neutral{ color:var(--txt-dim); }
+
+    /* Detail-Ansicht */
+    .ep-detail-meta {
+      display:flex; flex-wrap:wrap; gap:6px 18px; margin:2px 0 14px;
+      font-size:12px; color:var(--txt-sub); font-variant-numeric:tabular-nums;
+    }
+    .ep-detail-meta b { color:var(--txt); font-weight:700; }
+    .ep-chart {
+      background:var(--bg-card); border:1px solid var(--brd); border-radius:12px;
+      padding:12px 10px 8px; margin-bottom:14px;
+    }
+    .ep-chart svg { width:100%; display:block; overflow:visible; }
+    .ep-chart-empty { color:var(--txt-sub); font-style:italic; padding:28px 8px; text-align:center; }
+    .ep-legend {
+      display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px;
+      font-size:10.5px; color:var(--txt-dim);
+    }
+    .ep-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .ep-legend i { width:14px; height:0; border-top-width:2px; border-top-style:solid; display:inline-block; }
+    .ep-kv-grid { display:grid; grid-template-columns:auto 1fr; gap:5px 14px; font-size:13px; }
+    .ep-kv-grid .k { color:var(--txt-dim); }
+    .ep-kv-grid .v { color:var(--txt); font-variant-numeric:tabular-nums; }
+    .wave-num { fill:var(--txt); font-size:9px; font-weight:700; font-family:var(--mono); }
+
     .toast {
       position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
       background:var(--bg-card); color:var(--txt); border:1px solid var(--grn);
@@ -228,9 +315,13 @@
 <body>
   <header>
     <div class="head-row">
-      <div>
-        <h1>Elliott-Report</h1>
-        <div class="sub" id="meta">lädt …</div>
+      <div class="head-left">
+        <button class="hamburger" id="menu-btn" type="button"
+                aria-label="Menü öffnen" aria-haspopup="dialog">☰</button>
+        <div>
+          <h1>Elliott-Report</h1>
+          <div class="sub" id="meta">lädt …</div>
+        </div>
       </div>
       <button class="reload" id="reload" type="button" aria-label="Neu laden">↻ Neu laden</button>
     </div>
@@ -248,6 +339,16 @@
   <footer>
     Heuristische Elliott-Wellen-Auszählung · unvalidiert · keine Anlageberatung.
   </footer>
+  <!-- Backtesting-/Validierungs-Ansicht (Overlay, kein Routing-Framework) -->
+  <div class="bt-overlay" id="bt-overlay" hidden role="dialog"
+       aria-modal="true" aria-label="Validierung / Backtesting">
+    <div class="bt-head">
+      <button class="bt-back" id="bt-back" type="button">‹ Zurück</button>
+      <span class="bt-title" id="bt-title">Validierung / Backtesting</span>
+    </div>
+    <div class="bt-body" id="bt-body"></div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script>
@@ -301,6 +402,212 @@
       document.getElementById('val-note').textContent =
         `Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert`;
       sec.hidden = false;
+    }
+
+    // ── Backtesting-/Validierungs-Ansicht ────────────────────────────────
+    // Reines Anzeige-Feature über forward_collection.json. Kein Aggregat
+    // (Trefferquote o. Ä.) solange gereift < EVAL_MIN_N (Registry-Sperre) —
+    // stattdessen dieselben Zähler wie das Panel. Detail-Chart aus den
+    // point-in-time eingefrorenen Pivots + price_path als Fortsetzung.
+    const FLAG = { US: '🇺🇸', DE: '🇩🇪' };
+    let _btOpen = false;
+
+    function episodeStatus(r) {
+      // Dezente Status-Ableitung, keine Erfolgs-Rhetorik.
+      if (r.invalidated === 1) return { label: 'invalidiert ✗', cls: 'st-inval' };
+      if (r.ext_hit === 1)     return { label: 'Extension ✓✓', cls: 'st-ext' };
+      if (r.target_hit === 1)  return { label: 'Ziel ✓', cls: 'st-target' };
+      if (r.matured)           return { label: 'gereift · neutral', cls: 'st-neutral' };
+      return { label: 'offen', cls: 'st-open' };
+    }
+
+    function openBacktesting() {
+      _btOpen = true;
+      const ov = document.getElementById('bt-overlay');
+      ov.hidden = false;
+      document.body.style.overflow = 'hidden';
+      renderEpisodeListView();
+    }
+    function closeBacktesting() {
+      _btOpen = false;
+      document.getElementById('bt-overlay').hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    async function renderEpisodeListView() {
+      document.getElementById('bt-title').textContent = 'Validierung / Backtesting';
+      const body = document.getElementById('bt-body');
+      body.innerHTML = '<div class="ep-list-loading">lädt …</div>';
+      const coll = await loadCollection();
+      if (!coll || !Array.isArray(coll.records)) {
+        body.innerHTML = '<p class="empty">Noch keine gesammelten Episoden.</p>';
+        return;
+      }
+      const recs = coll.records.slice();
+      const n = recs.length;
+      const matured = recs.filter(r => r && r.matured).length;
+      // Neueste zuerst (nach Einstiegsdatum, dann Score).
+      recs.sort((a, b) => (b.first_seen_date || '').localeCompare(a.first_seen_date || '')
+                          || (b.score_heuristic || 0) - (a.score_heuristic || 0));
+
+      // Registry-Sperre: KEIN Aggregat < n=100 — nur die Zähler.
+      const counts =
+        `<b>${n}</b> gesammelt · <b>${matured}</b> gereift · `
+        + `Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert`;
+
+      let rows = '';
+      recs.forEach((r, i) => {
+        const st = episodeStatus(r);
+        rows +=
+          `<button class="ep-row" data-idx="${i}" type="button">
+             <div class="ep-main">
+               <span class="ep-tk">${esc(r.ticker || '?')}</span>
+               <span class="ep-flag">${FLAG[r.market] || ''}</span>
+               <span class="ep-date">${esc(r.first_seen_date || '')}</span>
+               <span class="ep-score">Score ${fmt(r.score_heuristic)}</span>
+             </div>
+             <span class="ep-status ${st.cls}">${esc(st.label)}</span>
+           </button>`;
+      });
+      body.innerHTML =
+        `<p class="bt-counts">${counts}</p>`
+        + (n ? `<div class="ep-list">${rows}</div>`
+             : '<p class="empty">Noch keine gesammelten Episoden.</p>');
+
+      // Sortierte Liste an die Buttons koppeln.
+      body.querySelectorAll('.ep-row').forEach(btn => {
+        btn.addEventListener('click', () => showEpisodeDetail(recs[+btn.dataset.idx]));
+      });
+    }
+
+    function showEpisodeDetail(r) {
+      document.getElementById('bt-title').textContent =
+        `${r.ticker || '?'} ${FLAG[r.market] || ''} · ${r.first_seen_date || ''}`;
+      const st = episodeStatus(r);
+      const body = document.getElementById('bt-body');
+      const tz = r.target_zone || {}, ez = r.target_zone_extended || {};
+      body.innerHTML =
+        `<div class="ep-detail-meta">
+           <span>Score <b>${fmt(r.score_heuristic)}</b></span>
+           <span>Regime <b>${esc(r.regime || '–')}</b></span>
+           <span>Status <b>${esc(st.label)}</b></span>
+         </div>
+         <div class="ep-chart" id="ep-chart"></div>
+         <div class="ep-kv-grid">
+           <span class="k">Auszählung</span><span class="v">${esc(r.count_label || '–')}</span>
+           <span class="k">Einstiegskurs</span><span class="v">${fmt(r.entry_close)}</span>
+           <span class="k">Zielzone</span><span class="v">${fmt(tz.low)}–${fmt(tz.high)}</span>
+           <span class="k">Extension</span><span class="v">${fmt(ez.low)}–${fmt(ez.high)}</span>
+           <span class="k">Invalidierung</span><span class="v">${fmt(r.invalidation_price)}</span>
+           <span class="k">max. Gewinn 10T</span><span class="v">${r.max_gain_10d == null ? '–' : fmt(r.max_gain_10d) + ' %'}</span>
+           <span class="k">max. Rückgang 10T</span><span class="v">${r.max_drawdown_10d == null ? '–' : fmt(r.max_drawdown_10d) + ' %'}</span>
+           <span class="k">R-Vielfaches</span><span class="v">${r.r_multiple == null ? '–' : fmt(r.r_multiple)}</span>
+           <span class="k">Handelstage</span><span class="v">${r.bars_elapsed ?? 0} / 10${r.matured ? ' · gereift' : ''}</span>
+         </div>`;
+      drawEpisodeChart(document.getElementById('ep-chart'), r);
+    }
+
+    // Detail-Chart: eingefrorene Pivots (Zählung) + Zonen-Bänder +
+    // Invalidierungs-Linie + price_path als andersfarbige Fortsetzung ab dem
+    // Einstiegspunkt (= letzter gezählter Pivot). Gleiche Technik wie die
+    // Karten-Sparkline, nur größer und mit Preis-Bändern.
+    function drawEpisodeChart(el, r) {
+      const cps = Array.isArray(r.chart_points) ? r.chart_points : [];
+      if (cps.length < 2) {
+        el.innerHTML = '<div class="ep-chart-empty">Kein Chart für diese Episode '
+          + '(Alt-Record ohne eingefrorene Pivots) — nur Kennzahlen.</div>';
+        return;
+      }
+      const pivotYs = cps.map(p => Number(p.price));
+      const path = Array.isArray(r.price_path) ? r.price_path : [];
+      const fwdYs = path.map(p => Number(p.close));
+      const m = pivotYs.length;
+      const series = pivotYs.concat(fwdYs);
+      const N = series.length;
+
+      const tz = r.target_zone || {}, ez = r.target_zone_extended || {};
+      const inval = (r.invalidation_price == null) ? null : Number(r.invalidation_price);
+      // y-Domäne umfasst Kurse + Zonen + Invalidierung, damit alles sichtbar ist.
+      const domain = series.slice();
+      [tz.low, tz.high, ez.low, ez.high, inval].forEach(v => {
+        if (v != null && !isNaN(v)) domain.push(Number(v));
+      });
+      const min = Math.min(...domain), max = Math.max(...domain), span = (max - min) || 1;
+
+      const W = Math.max(el.clientWidth || 320, 200), H = 220, PX = 8, PYt = 12, PYb = 16;
+      const xOf = i => PX + (N > 1 ? (i / (N - 1)) : 0.5) * (W - 2 * PX);
+      const yOf = v => H - PYb - ((v - min) / span) * (H - PYt - PYb);
+
+      const waves = Array.isArray(r.count_wave_labels) ? r.count_wave_labels : [];
+      const waveByIdx = new Map(waves.map(w => [w.index, w.wave]));
+      const countStart = waves.length ? Math.min(...waves.map(w => w.index)) : 0;
+      const entryIdx = m - 1;  // letzter gezählter Pivot = Einstieg
+
+      const lineFrom = (a, b) => {
+        let d = `M${xOf(a).toFixed(1)},${yOf(series[a]).toFixed(1)}`;
+        for (let i = a + 1; i <= b; i++) d += `L${xOf(i).toFixed(1)},${yOf(series[i]).toFixed(1)}`;
+        return d;
+      };
+
+      // Zonen-Bänder (nur wenn Werte da).
+      const band = (lo, hi, fill) => {
+        if (lo == null || hi == null || isNaN(lo) || isNaN(hi)) return '';
+        const y1 = yOf(Math.max(lo, hi)), y2 = yOf(Math.min(lo, hi));
+        return `<rect x="0" y="${y1.toFixed(1)}" width="${W}" height="${Math.max(0, y2 - y1).toFixed(1)}" fill="${fill}"/>`;
+      };
+      const extBand = band(ez.low, ez.high, 'rgba(34,197,94,0.07)');
+      const tgtBand = band(tz.low, tz.high, 'rgba(34,197,94,0.15)');
+
+      let invLine = '';
+      if (inval != null && !isNaN(inval)) {
+        const iy = yOf(inval).toFixed(1);
+        invLine = `<line x1="0" y1="${iy}" x2="${W}" y2="${iy}" stroke="var(--red)" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.75"/>`;
+      }
+      // Einstiegs-Markierung (senkrecht, dezent).
+      const ex = xOf(entryIdx).toFixed(1);
+      const entryMark = `<line x1="${ex}" y1="${PYt}" x2="${ex}" y2="${H - PYb}" stroke="var(--txt-dim)" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>`;
+
+      // Pivot-Linie: Vorlauf (dim) + gezählte Struktur (kräftig).
+      const preLine = countStart > 0
+        ? `<path d="${lineFrom(0, countStart)}" fill="none" stroke="var(--spark)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="0.6"/>` : '';
+      const cntLine = `<path d="${lineFrom(countStart, entryIdx)}" fill="none" stroke="var(--spark-end)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+      // price_path: andersfarbige Fortsetzung ab dem Einstieg.
+      const fwdLine = (fwdYs.length)
+        ? `<path d="${lineFrom(entryIdx, N - 1)}" fill="none" stroke="var(--ora)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>` : '';
+
+      // Punkte + Wellen-Ziffern auf den Pivots; Punkte auf dem price_path.
+      let dots = '', labels = '', lastLabelX = -999;
+      for (let i = 0; i < m; i++) {
+        const x = xOf(i), y = yOf(pivotYs[i]);
+        if (i >= countStart) {
+          dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.5"/>`;
+          if (waveByIdx.has(i) && (x - lastLabelX) >= 12) {
+            const ly = (y < 18) ? (y + 13) : (y - 8);
+            labels += `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" class="wave-num" text-anchor="middle">${waveByIdx.get(i)}</text>`;
+            lastLabelX = x;
+          }
+        } else {
+          dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="var(--spark)" opacity="0.5"/>`;
+        }
+      }
+      for (let i = m; i < N; i++) {
+        const x = xOf(i), y = yOf(series[i]);
+        const r2 = (i === N - 1) ? 3.4 : 2.2;
+        dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r2}" fill="var(--ora)" stroke="var(--bg-card)" stroke-width="1.5"/>`;
+      }
+
+      el.innerHTML =
+        `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+           ${extBand}${tgtBand}${invLine}${entryMark}
+           ${preLine}${cntLine}${fwdLine}
+           ${dots}${labels}
+         </svg>
+         <div class="ep-legend">
+           <span><i style="border-color:var(--spark-end)"></i>Zählung (0–${Math.max(0, waves.length - 1)})</span>
+           <span><i style="border-color:var(--ora)"></i>Verlauf nach Einstieg</span>
+           <span><i style="border-color:var(--grn)"></i>Zielzone</span>
+           <span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>
+         </div>`;
     }
 
     function fmt(n) {
@@ -671,6 +978,23 @@
     }
 
     document.getElementById('reload').addEventListener('click', () => refresh({ announce: true }));
+
+    // Hamburger-Menü → Backtesting-Overlay. Zurück-Button: aus dem Detail zurück
+    // zur Liste, aus der Liste schließt das Overlay. iOS-Safari-tauglich.
+    document.getElementById('menu-btn').addEventListener('click', openBacktesting);
+    document.getElementById('bt-back').addEventListener('click', () => {
+      const inDetail = !document.getElementById('bt-title').textContent
+        .startsWith('Validierung');
+      if (inDetail) renderEpisodeListView(); else closeBacktesting();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && _btOpen) {
+        const inDetail = !document.getElementById('bt-title').textContent
+          .startsWith('Validierung');
+        if (inDetail) renderEpisodeListView(); else closeBacktesting();
+      }
+    });
+
     refresh();
   </script>
 </body>

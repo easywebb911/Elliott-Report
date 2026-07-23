@@ -267,3 +267,108 @@ def test_collection_does_not_mutate_report():
     fc.update_forward_collection(coll, report, price, {"US": "risk_on"},
                                  "2026-07-01", NOW)
     assert json.dumps(report, sort_keys=True) == snapshot  # Report unverändert
+
+
+# ---------------------------------------------------------------------------
+# Backtesting-Felder: eingefrorene Pivots (point-in-time) + price_path
+# ---------------------------------------------------------------------------
+def _entry_with_pivots(ticker, **kw):
+    e = _entry(ticker, **kw)
+    e["count_label"] = "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)"
+    e["chart_points"] = [
+        {"index": 0, "date": "2026-06-01", "price": 100.0, "kind": "L"},
+        {"index": 1, "date": "2026-06-10", "price": 130.0, "kind": "H"},
+        {"index": 2, "date": "2026-06-20", "price": 112.0, "kind": "L"},
+    ]
+    e["count_wave_labels"] = [{"index": 0, "wave": 0}, {"index": 1, "wave": 1},
+                              {"index": 2, "wave": 2}]
+    return e
+
+
+def test_new_record_freezes_pivots_and_label():
+    rec = fc._new_record(_entry_with_pivots("AAPL"), "US", "2026-06-20",
+                         "risk_on", "2026-06-20", NOW)
+    assert rec["count_label"].startswith("Impuls")
+    assert [p["price"] for p in rec["chart_points"]] == [100.0, 130.0, 112.0]
+    assert rec["count_wave_labels"] == [{"index": 0, "wave": 0},
+                                        {"index": 1, "wave": 1},
+                                        {"index": 2, "wave": 2}]
+    assert rec["price_path"] == []  # noch nicht gereift
+
+
+def test_frozen_pivots_are_point_in_time_across_runs():
+    # Belegt Point-in-time: die eingefrorene Zählung ändert sich bei späteren
+    # Läufen NICHT, selbst wenn der Kandidat am Folgetag eine andere Struktur hat.
+    coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}
+    regimes = {"US": "risk_on"}
+    price = {"AAPL": _series("day1", [113, 114])}
+
+    # Lauf 1: Episode mit Original-Pivots anlegen.
+    fc.update_forward_collection(coll, _report(_entry_with_pivots("AAPL")),
+                                 price, regimes, "2026-07-01", NOW)
+    frozen = json.dumps(coll["records"][0]["chart_points"], sort_keys=True)
+
+    # Lauf 2: derselbe Ticker weiter Top-5, aber mit KOMPLETT anderer Struktur.
+    changed = _entry_with_pivots("AAPL")
+    changed["chart_points"] = [{"index": 0, "date": "x", "price": 999.0, "kind": "H"}]
+    changed["count_wave_labels"] = [{"index": 0, "wave": 0}]
+    fc.update_forward_collection(coll, _report(changed), price, regimes,
+                                 "2026-07-02", NOW)
+
+    assert len(coll["records"]) == 1  # gleiche Episode
+    assert json.dumps(coll["records"][0]["chart_points"], sort_keys=True) == frozen
+
+
+def test_price_path_fills_on_maturation():
+    rec = fc._new_record(_entry_with_pivots("AAPL", inval=108.0), "US", "T0",
+                         "risk_on", "2026-07-01", NOW)
+    dates = ["a", "T0", "n1", "n2", "n3"]
+    closes = [110.0, 112.0, 114.0, 118.0, 125.0]
+    fc.mature_record(rec, dates, closes, NOW)
+    assert rec["price_path"] == [
+        {"date": "n1", "close": 114.0},
+        {"date": "n2", "close": 118.0},
+        {"date": "n3", "close": 125.0},
+    ]
+    assert rec["bars_elapsed"] == 3
+
+
+def test_price_path_capped_at_horizon():
+    rec = fc._new_record(_entry_with_pivots("AAPL"), "US", "T0",
+                         "risk_on", "2026-07-01", NOW)
+    fwd = list(range(200, 200 + 15))  # 15 Folgetage > HORIZON
+    dates, closes = _series("T0", fwd, entry_close=112.0)
+    fc.mature_record(rec, dates, closes, NOW)
+    assert len(rec["price_path"]) == fc.HORIZON_DAYS  # max 10
+
+
+def test_old_record_without_pivots_does_not_crash():
+    # Alt-Record (vor dem Feature) ohne chart_points/count_wave_labels/price_path:
+    # Reifung darf nicht crashen; die Felder werden fail-soft nachgezogen.
+    old = {
+        "ticker": "OLD", "first_seen_date": "T0", "entry_close": 100.0,
+        "invalidation_price": 90.0, "target_zone": {"low": 120.0, "high": 130.0},
+        "target_zone_extended": {"low": 140.0, "high": 150.0}, "matured": False,
+        "target_hit": None, "ext_hit": None, "invalidated": None,
+    }
+    dates, closes = _series("T0", [102, 105, 108])
+    fc.mature_record(old, dates, closes, NOW)  # kein KeyError / Crash
+    assert old["price_path"] == [{"date": "d0", "close": 102.0},
+                                 {"date": "d1", "close": 105.0},
+                                 {"date": "d2", "close": 108.0}]
+
+
+def test_purge_removes_backtesting_fields(tmp_path):
+    # Revert-Weg räumt die neuen Felder mit weg (sie liegen in derselben Datei).
+    import importlib
+    purge = importlib.import_module("purge_forward_collection")
+    (tmp_path / "data").mkdir()
+    (tmp_path / "docs" / "data").mkdir(parents=True)
+    payload = {"records": [{"ticker": "AAPL", "chart_points": [{"price": 1}],
+                            "price_path": [{"close": 2}]}]}
+    for rel in ("data/forward_collection.json", "docs/data/forward_collection.json"):
+        (tmp_path / rel).write_text(json.dumps(payload), encoding="utf-8")
+    rc = purge.main(["--path", str(tmp_path), "--reset", "--live"])
+    assert rc == 0
+    back = json.loads((tmp_path / "data/forward_collection.json").read_text())
+    assert back["records"] == []  # inkl. chart_points/price_path entfernt

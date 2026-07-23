@@ -49,3 +49,18 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
 - Gesammelt wird in `data/forward_collection.json` (separat von
   `report.json`, additiv, revertierbar via `scripts/purge_forward_collection.py`).
 - Fail-soft: ein Sammel-Fehler darf den Report nie brechen.
+
+## Zusätzlich mitprotokollierte Felder (nur Anzeige/Backtesting)
+
+Rein für die Review-Ansicht (Hamburger-Menü → „Validierung / Backtesting"),
+**ohne** Einfluss auf die obige Erfolgs-Definition oder auf Score/Ranking:
+
+- **`count_label`, `chart_points`, `count_wave_labels`** — die Auszählung zum
+  **Anlage-Zeitpunkt** (Pivots Datum/Kurs/Art + Wellen-Ziffern). **Point-in-time
+  eingefroren:** werden bei späteren Läufen nie geändert, damit die damalige
+  Zählung exakt verortbar bleibt.
+- **`price_path`** — die Folgetags-Schlusskurse (max. `HORIZON_DAYS`), je Lauf
+  deterministisch aus der vollen Historie neu aufgebaut.
+
+Diese Felder sind reine Anzeige-Daten; die Auswertungs-Sperre (kein Aggregat vor
+n ≥ 100) gilt unverändert.

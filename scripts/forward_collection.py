@@ -117,8 +117,13 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     except ValueError:
         return  # Einstiegstag (noch) nicht in den Daten -> diesen Lauf überspringen
     fwd = list(closes)[idx + 1: idx + 1 + HORIZON_DAYS]
+    fwd_dates = list(dates)[idx + 1: idx + 1 + HORIZON_DAYS]
     rec["last_update_utc"] = now_iso
     rec["bars_elapsed"] = len(fwd)
+    # Kursverlauf NACH dem Einstieg (max HORIZON_DAYS Werte). Wird je Lauf aus
+    # der vollen Historie neu aufgebaut -> deterministisch/idempotent.
+    rec["price_path"] = [{"date": d, "close": round(float(c), 4)}
+                         for d, c in zip(fwd_dates, fwd)]
     if not fwd:
         rec["matured"] = False
         return
@@ -173,11 +178,20 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "first_seen_date": first_seen,
         "entry_close": entry["close"],
         "score_heuristic": entry["score_heuristic"],
+        "count_label": entry.get("count_label", ""),
         "target_zone": entry["target_zone"],
         "target_zone_extended": entry["target_zone_extended"],
         "invalidation_price": entry["invalidation_price"],
         "direction": entry.get("direction", "long"),
         "regime": regime,
+        # Point-in-time eingefrorene Zählung: die Pivots (Datum/Kurs/Art) und die
+        # Wellen-Ziffern-Zuordnung des Setups zum Anlage-Zeitpunkt. Werden bei
+        # späteren (Reifungs-)Läufen NIE geändert -> die damalige Auszählung
+        # bleibt exakt verortbar. Fail-soft: fehlen sie im Kandidaten, leere Liste.
+        "chart_points": entry.get("chart_points", []),
+        "count_wave_labels": entry.get("count_wave_labels", []),
+        # Wird bei der Reifung mit den Folgetags-Schlusskursen gefüllt (max 10).
+        "price_path": [],
         "last_seen_top5_date": run_date,
         "created_utc": now_iso,
         "bars_elapsed": 0,
