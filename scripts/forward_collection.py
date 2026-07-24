@@ -206,6 +206,11 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         # bleibt exakt verortbar. Fail-soft: fehlen sie im Kandidaten, leere Liste.
         "chart_points": entry.get("chart_points", []),
         "count_wave_labels": entry.get("count_wave_labels", []),
+        # Konfluenz-Marken zum ANLAGE-Zeitpunkt point-in-time eingefroren (wie die
+        # Pivots) — damit die spätere n>=EVAL_MIN_N-Auswertung testen kann, ob
+        # Konfluenz-Zonen öfter treffen. Werden bei Reifungs-Läufen NIE geändert.
+        # Reines Mess-Feld, additiv, kein Score/Ranking. Siehe validation_registry.
+        "confluence": entry.get("confluence", {"target": [], "invalidation": []}),
         # Wird bei der Reifung mit den Folgetags-Schlusskursen gefüllt (max 10).
         "price_path": [],
         "last_seen_top5_date": run_date,

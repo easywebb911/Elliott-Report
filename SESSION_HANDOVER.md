@@ -2,10 +2,10 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #28 (dieser PR: **Filter `target_exceeded`**, offen). Alle Zahlen/
+nach PR #29 (dieser PR: **Konfluenz-Marker**, offen). Alle Zahlen/
 Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #28-Merge `b1a20bd`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #29-Merge `3e59b4e`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -35,7 +35,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-HISTORIE #1–#28
+## 2. PR-HISTORIE #1–#29
 
 Format: `#N` · Feature-Commit-Hash (auf `main`) · Kern · Merge-Klasse.
 Merge-Klassen: **manual** = Easy merged; **+G** = Guardian-Zweitblick vorab;
@@ -72,7 +72,8 @@ durchgängig ab #13.
 | #26 | `5fb1188` | **Multi-Timeframe-Analyse Watchlist** (PR B): je Watchlist-Titel drei Zählungen `timeframes`{day,week,month}; Monatsgrad (`1mo`, `MIN_BARS_MONTHLY=60`) additiv; Analyse-Panel + Watchlist nach oben; Markt-Top-5 unberührt | +G manual +Bild |
 | #27 | `a2d23bb` | **Token-Session-Remember** (Frontend): einmal Master-PW → 28 Tage still (`TOKEN_SESSION_DAYS=28`); IndexedDB-Wrap mit **non-extractable** Session-Key; „Sperren" im ☰; kein Klartext-Token persistiert | +G manual +Bild |
 | #28 | `2bed684` | **Validierungs-Integrität (PRU-Guard)**: `mature_record`-Guard sperrt `target_hit`/`ext_hit`, wenn Kurs schon bei Anlage ≥ Zone (`pre_reached_*`); 3 Alt-Records `pre_guard_contaminated` ausgewiesen; Registry-Ausschluss datiert; Badge „Zielzone erreicht/überschritten". Kein Filter/Score-Eingriff, Ranking byte-identisch | +G manual +Bild |
-| #(dieser) | `(offen)` | **Filter `target_exceeded`** (Produkt): Setups mit `close ≥ target_zone.low` fliegen VOR dem Ranking aus den Markt-Top-5 (Skip-Grund + Diag-Zähler, Rang 6+ rückt nach); Watchlist zeigt weiter alles (Badge). Populations-Änderung datiert; #28-Guard bleibt als zweites Netz | +G manual +Bild |
+| #29 | `3e59b4e` | **Filter `target_exceeded`** (Produkt): Setups mit `close ≥ target_zone.low` fliegen VOR dem Ranking aus den Markt-Top-5 (Skip-Grund + Diag-Zähler, Rang 6+ rückt nach); Watchlist zeigt weiter alles (Badge). Populations-Änderung datiert; #28-Guard bleibt als zweites Netz — **live: US 15 / DE 6 gefiltert** | +G manual +Bild |
+| #(dieser) | `(offen)` | **Konfluenz-Marker** (Lit-Check a): je Kandidat `confluence`{target,invalidation} — 52W-Hoch / 200d-Linie / runde Zahl innerhalb ±1 % der Zielzone/Invalidierung; Chips (Markt + Watchlist), point-in-time in der Sammlung eingefroren. **Reine Anzeige/Messung, kein Score/Ranking** | +G manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -245,11 +246,19 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 - **KI-Agent** — Easy 23.07.: **weglassen**. Zuschnitts-Optionen für später
   notieren: (a) reiner Kommentator je Karte, (b) Research-Digest-Lauf, (c)
   Chat-Q&A über den Report. Keine Score-Beeinflussung.
-- **Konfluenz-Marker** — Easy 23.07. (Lit-Check): Anzeige, wenn eine Zielzone
-  oder die Invalidierung mit einer **Crowd-Marke** zusammenfällt (Vorjahreshoch/
-  -tief, runde Zahl, 200-Tage-Linie). **Erst reine Anzeige/Messung** (additives
-  Anzeige-Feld, wie `higher_degree`/`timeframes`) — **Score-Wirkung ausschließlich
-  nach Validierungsbefund**. Kein Populations-/Ranking-Eingriff vor Beleg.
+- **✅ Konfluenz-Marker — erledigt (dieser PR, Lit-Check-Punkt a):** je Kandidat
+  additives Feld `confluence`{`target`,`invalidation`} aus `compute_confluence`
+  (`elliott_pipeline.py`, aus den bereits geladenen Tagesschlusskursen — KEINE
+  neuen Fetches): **52-Wochen-Hoch**, **200-Tage-Linie** (Einzelwerte → Band-
+  Mitgliedschaft ±1 %), **nächste runde Zahl** (dicht → nur an den Kanten geprüft,
+  Stufen `CONFLUENCE_ROUND_STEPS` 1/5/10/50 je Preisklasse). Toleranz
+  `CONFLUENCE_TOLERANCE_PCT=1.0`. **Chips** an Zielzone/Invalidierung (Markt +
+  Watchlist, dezent, kein Alarm), Methodik +3 Sätze. **Point-in-time in der
+  Sammlung eingefroren** (`_new_record`) → spätere n≥100-Auswertung kann Konfluenz
+  als eigene Dimension testen; Registry datiert (23.07., reines Mess-Feld).
+  **Beweisbar kein Score/Ranking/Filter-Eingriff** (Test: erzwungene Konfluenz
+  ändert Score/Reihenfolge nicht), SCHEMA_VERSION bleibt 1. Revert = Feld +
+  `compute_confluence` + Chips + Konstanten entfernen (rein additiv).
 - **W5→A-Nachprüfung** — Easy 23.07. (Lit-Check): spätere **Anreicherung der
   Forward-Sammlung** — nachhalten, ob nach einem erwarteten W5 eine A-Korrektur
   folgt (Struktur-Nachprüfung des Counts). **Erst Messung/Erfassung** in den
@@ -307,7 +316,16 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **`watchlist`** {entries, diag}. Kandidat trägt u. a. `count_label`,
   `invalidation_price`, `target_zone(_extended)`, `score_heuristic`,
   `chart_points`, `count_wave_labels`, `higher_degree`, `appearance_count`
-  (in `main` gesetzt), `status="heuristisch · unvalidiert"`.
+  (in `main` gesetzt), **`confluence`**{target,invalidation}, `status="heuristisch
+  · unvalidiert"`.
+- **Konfluenz (Markt + Watchlist, dieser PR):** `compute_confluence(closes,
+  target_zone, invalidation)` in `build_candidate` (NACH dem Score) — Crowd-Marken
+  `52w_high`/`200d`/`round` vs. Zielzone/Invalidierung innerhalb
+  `CONFLUENCE_TOLERANCE_PCT=1 %`. 52w/200d = Band-Mitgliedschaft; `round` nur an
+  den Kanten (dicht), Stufen `CONFLUENCE_ROUND_STEPS`. Aus den geladenen `closes`
+  (keine neuen Fetches). **Kein Score/Ranking** (nach `score_setup`). In der
+  Sammlung point-in-time eingefroren (`_new_record` → `confluence`); reines
+  Mess-Feld (Registry 23.07.).
 - **Multi-Timeframe (NUR Watchlist-Einträge, #PR-B):** additives Feld
   `timeframes`{`day`,`week`,`month`}, jede Ebene `null` **oder** {`count_label`,
   `invalidation_price`, `target_zone`, `target_zone_extended`}. Aufbau in

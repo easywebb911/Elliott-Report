@@ -178,6 +178,26 @@ TARGET_EXTENSIONS = {
 }
 
 # ---------------------------------------------------------------------------
+# KONFLUENZ-MARKEN (Lit-Check-Punkt a) — REINE ANZEIGE + MESSUNG.
+# ---------------------------------------------------------------------------
+# Hintergrund: breit beachtete „Crowd-Marken" wirken über Beachtung, nicht über
+# Ratio-Magie (Self-fulfilling). Fällt eine solche Marke mit unserer Zielzone
+# oder Invalidierung zusammen, ist das ein Hinweis — aber KEIN Score-/Ranking-
+# Faktor (Registry-Vorbehalt: Score-Wirkung erst nach Validierungsbefund). Alle
+# Marken werden aus den BEREITS geladenen Tagesschlusskursen berechnet (KEINE
+# neuen Fetches).
+CONFLUENCE_TOLERANCE_PCT = 1.0     # Marke gilt als konfluent innerhalb ±1 %
+CONFLUENCE_52W_LOOKBACK = 252      # Handelstage ~ 52 Wochen (52-Wochen-Hoch)
+CONFLUENCE_SMA_WINDOW = 200        # 200-Tage-Linie (breit beachtet)
+# Runde-Zahl-Stufen je Preisklasse: (Preis-Obergrenze exkl., Schrittweite).
+# Begründung — Trader beziffern runde Marken größenabhängig: bei Penny-/Cent-
+# Titeln zählen ganze Einheiten (1er), im zweistelligen Bereich die „5er/0er",
+# dreistellig die Zehner, bei sehr teuren Titeln die 50er. So bleibt die Marke
+# gleich „grob" wie die menschliche Wahrnehmung (≈ eine Stufe je Größenordnung).
+CONFLUENCE_ROUND_STEPS = [(20.0, 1.0), (100.0, 5.0), (500.0, 10.0)]
+CONFLUENCE_ROUND_STEP_LARGE = 50.0  # ab 500
+
+# ---------------------------------------------------------------------------
 # OUTPUT
 # ---------------------------------------------------------------------------
 TOP_N = 5                       # Top-N Kandidaten je Markt
