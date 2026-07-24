@@ -104,9 +104,16 @@ Rein für die Review-Ansicht (Hamburger-Menü → „Validierung / Backtesting")
   Zählung exakt verortbar bleibt.
 - **`price_path`** — die Folgetags-Schlusskurse (max. `HORIZON_DAYS`), je Lauf
   deterministisch aus der vollen Historie neu aufgebaut.
+- **`confluence`** (ab 23.07.2026 gesammelt) — **reines Mess-Feld**: welche breit
+  beachteten Crowd-Marken (52-Wochen-Hoch, 200-Tage-Linie, nächste runde Zahl)
+  innerhalb ±1 % mit Zielzone bzw. Invalidierung zusammenfallen (`{target, invalidation}`).
+  **Point-in-time zum Anlage-Zeitpunkt eingefroren** (nie nachträglich geändert).
+  **KEINE Score-/Ranking-Wirkung** (Registry-Vorbehalt). Zweck: die spätere
+  n ≥ 100-Auswertung kann als **eigene Dimension** testen, ob Konfluenz-Zonen öfter
+  treffen — eine etwaige Score-Wirkung käme **erst nach** einem Validierungsbefund.
 
-Diese Felder sind reine Anzeige-Daten; die Auswertungs-Sperre (kein Aggregat vor
-n ≥ 100) gilt unverändert.
+Diese Felder sind reine Anzeige-/Mess-Daten; die Auswertungs-Sperre (kein Aggregat
+vor n ≥ 100) gilt unverändert.
 
 ## Änderungs-Log der Population
 

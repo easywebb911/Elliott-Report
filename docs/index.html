@@ -205,6 +205,18 @@
     }
     .zone-badge::before { content:"◎ "; opacity:.75; }
     .zone-badge-over { color:var(--ora); border-color:rgba(245,158,11,.35); }
+    /* fix (#28-Folge): .zone-badge{display:inline-block} überstimmt sonst das
+       hidden-Attribut (Author- vor UA-Style) -> leeres ◎-Kästchen auf Karten
+       UNTER der Zone. Seit dem #29-Filter sind das ALLE Markt-Top-5. */
+    .zone-badge[hidden] { display:none; }
+    /* Konfluenz-Chips: dezent, KEIN Alarm-Stil. Nur Anzeige/Messung, kein Score. */
+    .conf-block { margin:-4px 12px 12px; display:flex; flex-direction:column; gap:4px; }
+    .conf-row { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
+    .conf-lbl { font-size:.55rem; text-transform:uppercase; letter-spacing:.06em;
+      color:var(--txt-dim); }
+    .conf-chip { font-size:.6rem; font-weight:700; padding:2px 7px; border-radius:999px;
+      color:var(--txt-sub); background:var(--bg-met); border:1px solid var(--brd);
+      white-space:nowrap; }
     /* Zweite Zählung (großer Grad / Wochen): dezent abgesetzter Block unter den
        Kacheln. Erscheint nur, wenn higher_degree existiert. */
     .hd-block { margin:0 12px 12px; padding:8px 10px; border:1px solid var(--brd);
@@ -1178,6 +1190,22 @@
     // (Obermenge). Ehrlich: fehlt eine Ebene, zeigt die Zeile "kein valider
     // Long-Count" statt zu verschweigen (Watchlist-Lesson aus #17). 390px-fest:
     // Tag-Tag fix, Rest flexibel, Zahlen tabellarisch, umbruchsicher.
+    // Konfluenz-Chips (Lit-Check a): breit beachtete Crowd-Marken, die mit der
+    // Zielzone bzw. Invalidierung zusammenfallen. REINE Anzeige — kein Score/
+    // Ranking. Erscheint nur, wenn Marken vorhanden sind. 390px: umbruchsicher.
+    const _CONF_LABEL = { '52w_high': '52W-Hoch', '200d': '200d-Linie', 'round': 'runde Zahl' };
+    function confluenceChips(c) {
+      const conf = c.confluence;
+      if (!conf) return '';
+      const row = (marks, where) => {
+        if (!Array.isArray(marks) || !marks.length) return '';
+        const chips = marks.map(m => `<span class="conf-chip">${esc(_CONF_LABEL[m] || m)}</span>`).join('');
+        return `<div class="conf-row"><span class="conf-lbl">Konfluenz ${where}</span>${chips}</div>`;
+      };
+      const inner = row(conf.target, 'Zielzone') + row(conf.invalidation, 'Invalidierung');
+      return inner ? `<div class="conf-block">${inner}</div>` : '';
+    }
+
     function tfPanel(tf) {
       if (!tf) return '';
       const zoneStr = z => z ? `${fmt(z.low)}–${fmt(z.high)}` : '–';
@@ -1272,6 +1300,7 @@
         </div>
         ${extLine}
         ${zoneBadge}
+        ${confluenceChips(c)}
         ${c.timeframes ? tfPanel(c.timeframes) : hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">
@@ -1929,6 +1958,7 @@
         ['Extension', 'Ambitionierteres Ziel (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt.'],
         ['Donut / Farbe', 'Der Score als Ring. Schwellen: <code>≥ 60</code> grün, <code>≥ 30</code> orange, <code>≥ 15</code> rot, darunter/ohne Wert grau.'],
         ['Großer Grad', 'Zweite, unabhängige Zählung auf <b>Wochen</b>-Basis für die Top-5 (höherer Wellengrad). Zweitblick zur Einordnung — fließt nicht in den Score ein.'],
+        ['Konfluenz', 'Chips an Zielzone/Invalidierung, wenn eine breit beachtete <b>Crowd-Marke</b> (52W-Hoch, 200-Tage-Linie, nächste runde Zahl) innerhalb ±1&nbsp;% zusammenfällt. Reine Anzeige/Messung — <b>kein Score-Einfluss</b>.'],
         ['Live-Punkt', 'Kurs-Aktualität im Kartenkopf: grün pulsierend = Live-Quote aktiv, grau = Quelle nicht erreichbar/veraltet, gedimmt = Tab inaktiv (Polling pausiert).'],
       ].map(([k, v]) => `<div class="legend-row"><span class="legend-k">${k}</span><span class="legend-v">${v}</span></div>`).join('');
 
@@ -1954,6 +1984,18 @@
            Wahrscheinlichkeit</b>.
            <div class="disc-line">heuristisch · unvalidiert — siehe „Validierung"
              für das, woran sich der Score erst noch messen muss.</div>
+         </div>
+         <div class="info-section-h">Konfluenz-Marken</div>
+         <div class="score-formula">
+           Konfluenz heißt: eine breit beachtete <b>Crowd-Marke</b> — 52-Wochen-Hoch,
+           200-Tage-Linie oder die nächste runde Zahl — fällt innerhalb ±1&nbsp;% mit
+           unserer Zielzone oder Invalidierung zusammen. Solche Level wirken über die
+           <b>Beachtung vieler</b> (self-fulfilling), nicht über Ratio-Magie — deshalb
+           ist es ein Hinweis, wo sich Aufmerksamkeit bündelt. Bewusst <b>ohne
+           Score-/Ranking-Wirkung</b>: die Marken werden nur angezeigt und (ab Anlage
+           eingefroren) mitgemessen, damit die spätere Validierung testen kann, ob
+           Konfluenz-Zonen öfter treffen — eine Score-Wirkung käme erst nach einem
+           Befund.
          </div>`;
       openInfo('Methodik', html);
     }

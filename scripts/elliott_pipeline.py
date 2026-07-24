@@ -515,6 +515,76 @@ def score_setup(setup: Dict) -> float:
 
 
 # ---------------------------------------------------------------------------
+# KONFLUENZ-MARKEN (additiv, REINE ANZEIGE/MESSUNG — kein Score/Ranking)
+# ---------------------------------------------------------------------------
+def _round_step(price: float) -> float:
+    """Runde-Zahl-Schrittweite je Preisklasse (config.CONFLUENCE_ROUND_STEPS)."""
+    for upper, step in config.CONFLUENCE_ROUND_STEPS:
+        if price < upper:
+            return step
+    return config.CONFLUENCE_ROUND_STEP_LARGE
+
+
+def _nearest_round(price: float) -> float:
+    step = _round_step(price)
+    return round(price / step) * step
+
+
+def compute_confluence(closes: Sequence[float], target_zone: Dict[str, float],
+                       invalidation: float) -> Dict[str, List[str]]:
+    """Crowd-Marken vs. Zielzone/Invalidierung — REINE ANZEIGE/MESSUNG, KEINE
+    Score-/Ranking-Wirkung. Aus den BEREITS geladenen Tagesschlusskursen (keine
+    neuen Fetches). Drei Marken: 52-Wochen-Hoch, 200-Tage-Linie, nächste runde
+    Zahl.
+
+    Rückgabe {"target": [...], "invalidation": [...]} mit Marken-Keys
+    (``"52w_high"``, ``"200d"``, ``"round"``) in fester Reihenfolge (deterministisch).
+
+    - 52w-Hoch / 200d sind EINZELwerte -> „konfluent mit der Zielzone", wenn der
+      Wert im Band [low, high] (± Toleranz) liegt; „mit Invalidierung", wenn er
+      innerhalb ±Toleranz der Invalidierung liegt.
+    - Runde Zahlen sind DICHT -> hier nur an den KANTEN geprüft (Zonen-Low/-High
+      bzw. Invalidierung): sitzt die aktionable Marke direkt auf einer runden Zahl?
+      (Band-Mitgliedschaft wäre bei dichten Rundzahlen nichtssagend.)
+    """
+    out: Dict[str, List[str]] = {"target": [], "invalidation": []}
+    if not closes or not target_zone:
+        return out
+    tol = config.CONFLUENCE_TOLERANCE_PCT / 100.0
+    low = target_zone.get("low")
+    high = target_zone.get("high")
+    if low is None or high is None:
+        return out
+
+    def _near(value: float, ref: float) -> bool:
+        return ref not in (None, 0) and abs(value - ref) <= tol * abs(ref)
+
+    def _in_band(value: float) -> bool:
+        return low * (1 - tol) <= value <= high * (1 + tol)
+
+    # 1) Einzelwert-Marken in fester Reihenfolge.
+    single: List[Tuple[str, float]] = []
+    lookback = list(closes)[-config.CONFLUENCE_52W_LOOKBACK:]
+    if lookback:
+        single.append(("52w_high", max(lookback)))
+    if len(closes) >= config.CONFLUENCE_SMA_WINDOW:
+        window = list(closes)[-config.CONFLUENCE_SMA_WINDOW:]
+        single.append(("200d", sum(window) / config.CONFLUENCE_SMA_WINDOW))
+    for name, value in single:
+        if _in_band(value):
+            out["target"].append(name)
+        if _near(value, invalidation):
+            out["invalidation"].append(name)
+
+    # 2) Runde Zahl NUR an den Kanten (dicht -> Band nichtssagend).
+    if _near(_nearest_round(low), low) or _near(_nearest_round(high), high):
+        out["target"].append("round")
+    if invalidation and _near(_nearest_round(invalidation), invalidation):
+        out["invalidation"].append("round")
+    return out
+
+
+# ---------------------------------------------------------------------------
 # 5/6) REPORT-AUFBAU
 # ---------------------------------------------------------------------------
 def _company_name(ticker: str) -> str:
@@ -683,6 +753,11 @@ def build_candidate(
         "score_heuristic": score_setup(setup),
         "chart_points": chart_points,
         "count_wave_labels": count_wave_labels,
+        # Konfluenz-Marken (additiv, REINE Anzeige/Messung — NACH dem Score, kein
+        # Einfluss auf score_heuristic/Ranking). Aus denselben `closes` (keine
+        # neuen Fetches). Gilt für Markt-Top-5 UND Watchlist.
+        "confluence": compute_confluence(closes, setup["target_zone"],
+                                         setup["invalidation_price"]),
         "status": config.CARD_STATUS,
     }
     return entry, None, ""
