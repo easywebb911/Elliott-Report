@@ -2,11 +2,11 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **24.07.2026**,
-nach PR #31 (**W5→A-Nachprüfung**, gemerged; dieser PR: **☰-Menü an Squeeze
-angeglichen**, offen — reines Frontend). Alle Zahlen/Hashes sind gegen `git log`
+nach PR #32 (**☰-Menü an Squeeze angeglichen**, gemerged; dieser PR: **Watchlist im
+Kompakt-Grid**, offen — reines Frontend). Alle Zahlen/Hashes sind gegen `git log`
 und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #31-Merge `d5ec975`, Feature-Commit `3ad9473`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #32-Merge `8a13f3c`, Feature-Commit `8d2ac29`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -76,7 +76,8 @@ durchgängig ab #13.
 | #29 | `3e59b4e` | **Filter `target_exceeded`** (Produkt): Setups mit `close ≥ target_zone.low` fliegen VOR dem Ranking aus den Markt-Top-5 (Skip-Grund + Diag-Zähler, Rang 6+ rückt nach); Watchlist zeigt weiter alles (Badge). Populations-Änderung datiert; #28-Guard bleibt als zweites Netz — **live: US 15 / DE 6 gefiltert** | +G manual +Bild |
 | #30 | `e9727d6` | **Konfluenz-Marker** (Lit-Check a): je Kandidat `confluence`{target,invalidation} — 52W-Hoch / 200d-Linie / runde Zahl innerhalb ±1 % der Zielzone/Invalidierung; Chips (Markt + Watchlist), point-in-time in der Sammlung eingefroren. **Reine Anzeige/Messung, kein Score/Ranking** | +G manual +Bild |
 | #31 | `3ad9473` | **W5→A-Nachprüfung** (Lit-Check b): gereifte Ende-W4-Treffer bekommen `a_correction_observed`/`a_retrace_pct`/`a_observe_until` — setzt nach dem Episoden-Hoch die theorie-gemäße Korrektur (≥ 38,2 % Rücklauf der W5-Strecke) binnen `A_OBSERVE_DAYS=10` ein? **Angehängtes** Beobachtungsfenster, bestehende Reifung byte-identisch; `pre_reached`/`pre_guard` ungemessen. **Reines Mess-Feld, kein Score/Ranking/Filter** | +G manual +Bild |
-| #(dieser) | `(offen)` | **☰-Menü an Squeeze angeglichen**: Struktur/Design des ☰-Panels ans Schwester-Repo angeglichen (abgerundete Icon-Kacheln + Label, großzügige Zeilen, Fuß-Trennung), **eigene Farbwelt** (Sparkline-Grün `--grn` statt Squeeze-Blau). Reihenfolge Squeeze-analog, aber NUR echte Funktionen: **Reload NEU im Menü** (Header-Button „↻ Neu laden" entfällt, gleiche `refresh()`-Funktion + Cache-Buster), Recalculate, Backtesting, Methodik, Validierung, Lauf-Status, Sperren (abgesetzt). Einheitliche inline-SVG-Icons (keine externe Bibliothek). Reines Frontend | self (CI grün) +Bild |
+| #32 | `8d2ac29` | **☰-Menü an Squeeze angeglichen**: Struktur/Design des ☰-Panels ans Schwester-Repo angeglichen (abgerundete Icon-Kacheln + Label, großzügige Zeilen, Fuß-Trennung), **eigene Farbwelt** (Sparkline-Grün `--grn` statt Squeeze-Blau). Reihenfolge Squeeze-analog, aber NUR echte Funktionen: **Reload NEU im Menü** (Header-Button „↻ Neu laden" entfällt, gleiche `refresh()`-Funktion + Cache-Buster), Recalculate, Backtesting, Methodik, Validierung, Lauf-Status, Sperren (abgesetzt). Einheitliche inline-SVG-Icons (keine externe Bibliothek). Reines Frontend | self (CI grün) +Bild |
+| #(dieser) | `(offen)` | **Watchlist im Kompakt-Grid** (Squeeze-Vorbild, Elliott-Grün): Watchlist-Karten als kompaktes Grid (~3/Reihe @390px) — je Kachel Mini-Score-Donut (oder „—" ohne validen Count), Mono-Ticker, Trend-Punkt, ×, ▾. **Standard EINGEKLAPPT**; die volle Elliott-Karte (Live-Kurs, Setup, Analyse·Zeitebenen, Pivot-Verlauf, Badges) erscheint erst beim Aufklappen, pro Kachel, Zustand pro Gerät gemerkt (localStorage). Sofortkarte (#25) bleibt: neuer Ticker startet aufgeklappt mit Live-Kurs. Reines Frontend | self (CI grün) +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -237,7 +238,7 @@ Revert = `exclude_target_reached`-Zweig + Konstante `TARGET_EXCEEDED` entfernen
 (rein subtraktiver Filter, keine Datenreste). Nach Merge: `daily.yml` dispatchen,
 `target_exceeded`-Zähler + neue Top-5-Besetzung + Nachrücker-Scores nachtragen.
 
-**✅ ☰-Menü an Squeeze angeglichen — erledigt (dieser PR, `docs/index.html`):**
+**✅ ☰-Menü an Squeeze angeglichen — erledigt (#32, `docs/index.html`):**
 Easy 24.07.: Struktur + Design des ☰-Panels ans Schwester-Repo (Aktien-Update,
 `app.html`) angleichen — abgerundete Icon-Kacheln + Label, großzügige Zeilen,
 Fuß-Trennung — aber **eigene Farbwelt** (das Karten-/Sparkline-Grün `--grn` statt
@@ -253,6 +254,26 @@ Einträge headless durchgeklickt (Reload → Toast + frischer Stand; Recalc → 
 Modal; Backtesting/Methodik/Validierung/Lauf-Status → Overlay; Sperren → kein Crash);
 Konsole nur mit erwarteten externen Quote-Netzfehlern (Sandbox). Revert = reiner
 Frontend-Diff-Revert (Header-Button + alte Emoji-Einträge zurück).
+
+**✅ Watchlist im Kompakt-Grid — erledigt (dieser PR, `docs/index.html`):** Easy 24.07.
+(Bild-Freigabe-Runde zu #32): die Watchlist-Karten im Squeeze-Kompakt-Stil. Grid
+`repeat(auto-fill, minmax(112px,1fr))` (~3 Kacheln/Reihe @390px); je Kachel ein
+**Mini-Score-Donut** (`wlMiniDonut`, 32px, `scoreColor`-Skala) **oder dezentes „—"**
+ohne validen Count (kein Fake-Score), **Mono-Ticker**, **Trend-Punkt** (grün/rot aus
+`chart_points`-Richtung), **×** (entfernen), **▾** (aufklappen). **Standard
+EINGEKLAPPT** — die volle Elliott-Karte (via bestehende `watchlistCard`/`card`/
+`_wlInstantCard`, unverändert) erscheint erst beim Aufklappen im `.wl-tbody`, die
+Kachel spannt dann eine ganze Grid-Reihe (`[data-open]`), mit „▴ Einklappen"-Leiste.
+**Zustand pro Gerät** in `localStorage['elliott_wl_expanded']` (Set von Tickern);
+`_wlToggle` schaltet den DOM direkt (kein Re-Render → Live-Quotes/Scroll bleiben),
+zeichnet beim Aufklappen die Sparkline neu. **Sofortkarte (#25) bleibt:** neuer
+Ticker wird beim Hinzufügen auto-aufgeklappt → Live-Kurs sofort sichtbar. Farbe
+Elliott-eigen (`--grn`, grün getönte Kachel-Ränder). Poller unberührt — die
+`.card[data-ticker]`-Einheit lebt weiter im `.wl-tbody`, das Tile-Wrapper trägt nur
+`data-tile`. Verifiziert headless (390px): 3 Kacheln eingeklappt, Donut vs. „—",
+Auf-/Zuklappen, Persistenz über Reload, Add→auto-offen (pending), Remove über ×;
+keine Konsolen-Fehler (außer externem Quote-Netz). Revert = reiner Frontend-Diff-
+Revert (Kacheln zurück zu vollen `.card`s, `wl-grid`→`grid`).
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
@@ -445,6 +466,18 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 - **Watchlist:** `localStorage['elliott_watchlist']`; Repo-Datei
   `watchlist_personal.json` via Contents-API (GET sha → PUT base64+sha, 409-Retry);
   Token zusätzlich **Contents: write**.
+- **Watchlist-Kompakt-Grid (Squeeze-Vorbild, seit dieser PR):** `#wl-cards` ist ein
+  `.wl-grid` aus `.wl-tile`-Kacheln (`wlTile`). Jede Kachel: `.wl-thead` (Mini-Donut
+  `wlMiniDonut`/„—", Ticker, Trend-Punkt) + `.wl-tbody` mit der **vollen** Karte
+  (`watchlistCard`/`_wlInstantCard`, unverändert). **Default eingeklappt**; Aufklappen
+  setzt `[data-open]` (Kachel spannt die Reihe, kompakter Kopf ausgeblendet, „▴
+  Einklappen"-Leiste). Zustand in `localStorage['elliott_wl_expanded']` (Ticker-Set);
+  `_wlToggle` schaltet den DOM direkt (kein Re-Render) und ruft beim Öffnen
+  `drawAllSparklines`. **Poll-Einheit bleibt `.card[data-ticker]`** (im Body) — der
+  Tile-Wrapper trägt nur `data-tile`, also kein Doppel-Poll; der Trend-Punkt im Kopf
+  ist statisch (nicht live). Neuer Ticker startet aufgeklappt (Sofortkarte #25).
+  Kein-valider-Count → Kopf zeigt „—" (kein Fake-Score). Toggle/Remove via Delegation
+  auf `#wl-cards` (`data-wl-toggle`/`data-wl-remove`).
 - **Menü (☰, 7 Punkte, Squeeze-analog seit dieser PR):** Reihenfolge `mi-reload`
   (**NEU**, primär hervorgehoben) · `mi-recalc` · `mi-backtesting` · `mi-methodik`
   · `mi-validierung` · `mi-laufstatus` · Trenner · `mi-lock` („Sperren", abgesetzt
