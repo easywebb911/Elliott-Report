@@ -935,8 +935,24 @@
            <span class="k">max. Rückgang 10T</span><span class="v">${r.max_drawdown_10d == null ? '–' : fmt(r.max_drawdown_10d) + ' %'}</span>
            <span class="k">R-Vielfaches</span><span class="v">${r.r_multiple == null ? '–' : fmt(r.r_multiple)}</span>
            <span class="k">Handelstage</span><span class="v">${r.bars_elapsed ?? 0} / 10${r.matured ? ' · gereift' : ''}</span>
+           ${w5aDetailLine(r)}
          </div>`;
       drawEpisodeChart(document.getElementById('ep-chart'), r);
+    }
+
+    // W5→A-Nachprüfung (reines Mess-Feld): NUR für gereifte Ende-W4-Treffer mit
+    // Messung. „beobachtet / nicht / offen" — kein Erfolgs-Signal, keine Wertung.
+    function w5aDetailLine(r) {
+      const isW4 = (r.count_wave_labels || []).some(l => l && l.wave === 4);
+      const eligible = isW4 && r.matured && r.target_hit === 1 && !_recExcluded(r);
+      if (!eligible) return '';                 // andere Setups: keine Zeile
+      const obs = r.a_correction_observed;
+      const pct = (r.a_retrace_pct == null) ? '' : ` · ${fmt(r.a_retrace_pct)} % Rücklauf`;
+      let txt;
+      if (obs === true)       txt = `beobachtet ✓${pct}`;
+      else if (obs === false) txt = `nicht beobachtet${pct}`;
+      else                    txt = `offen${pct}`;   // null: Fenster noch offen
+      return `<span class="k">Korrektur nach W5</span><span class="v">${esc(txt)}</span>`;
     }
 
     // Detail-Chart: eingefrorene Pivots (Zählung) + Zonen-Bänder +

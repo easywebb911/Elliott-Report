@@ -111,6 +111,20 @@ Rein für die Review-Ansicht (Hamburger-Menü → „Validierung / Backtesting")
   **KEINE Score-/Ranking-Wirkung** (Registry-Vorbehalt). Zweck: die spätere
   n ≥ 100-Auswertung kann als **eigene Dimension** testen, ob Konfluenz-Zonen öfter
   treffen — eine etwaige Score-Wirkung käme **erst nach** einem Validierungsbefund.
+- **`a_correction_observed`, `a_retrace_pct`, `a_observe_until`** (W5→A-Nachprüfung,
+  **ab 24.07.2026 gemessen**) — **reines Mess-Feld**: folgt nach einem erfüllten
+  **Ende-W4-Treffer** (`target_hit`, gereift, **nicht** PRU-ausgeschlossen) die
+  theorie-gemäße Korrektur A? Nach dem Episoden-Hoch werden **`A_OBSERVE_DAYS = 10`**
+  weitere Handelstage beobachtet; `a_correction_observed = true`, sobald der Kurs
+  **≥ `A_RETRACE_MIN = 38,2 %`** (Fibonacci-Minimum) der W5-Strecke (P4→Hoch)
+  zurückläuft, `false` bei vollem Fenster ohne Rücklauf, `null` solange das Fenster
+  offen ist bzw. keine Messung greift. **Angehängtes Beobachtungsfenster** — es
+  **verlängert oder ändert die bestehende Reifung nicht** (separater Durchgang,
+  Reifungs-Zahlen byte-identisch). **Guard-Konsistenz:** `pre_reached`/`pre_guard`-
+  Records bekommen **keine** Messung (ihr „Hoch" ist nicht interpretierbar → `null`).
+  **KEINE Score-/Ranking-/Filter-Wirkung** (Registry-Vorbehalt); **Auswertung
+  gemeinsam mit der n ≥ 100-Population**, dann als eigene Dimension „stimmt auch das
+  Nachspiel?".
 
 Diese Felder sind reine Anzeige-/Mess-Daten; die Auswertungs-Sperre (kein Aggregat
 vor n ≥ 100) gilt unverändert.
@@ -155,3 +169,13 @@ vor n ≥ 100) gilt unverändert.
   Schwelle **identisch** zur Guard-/Entry-Regel (`target_zone.low`). Score/Ranking-
   Formel **unverändert**; nur die Kandidaten-Grundgesamtheit ändert sich (transparent
   zu halten, wenn ausgewertet wird — der Score-Test misst weiter den Score).
+- **24.07.2026 — W5→A-Nachprüfung (Lit-Check b) als Mess-Feld ergänzt.** Für gereifte
+  **Ende-W4-Treffer** wird ab jetzt mitprotokolliert, ob nach dem Episoden-Hoch die
+  theorie-gemäße Korrektur A einsetzt (`a_correction_observed`/`a_retrace_pct`/
+  `a_observe_until`, s. Feld-Beschreibung oben; benannte Konstanten
+  `A_OBSERVE_DAYS = 10`, `A_RETRACE_MIN = 0.382` in `scripts/forward_collection.py`).
+  **Reines Mess-Feld, angehängtes Beobachtungsfenster** — die bestehende Reifung
+  bleibt **byte-identisch** (separater Durchgang), `pre_reached`/`pre_guard`-Records
+  werden **nicht** gemessen. **Bewusst NICHT geändert:** Score, Ranking, Filterung,
+  `report.json`-Markt-Payload, Erfolgs-Definition. **Auswertung erst gemeinsam mit
+  der n ≥ 100-Population** (dann als eigene Dimension). Revertierbar (additive Felder).
