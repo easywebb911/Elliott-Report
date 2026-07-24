@@ -2,12 +2,12 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #26 (dieser PR: **Token-Session-Remember**, offen). Alle Zahlen/
+nach PR #27 (dieser PR: **Validierungs-Integrität / PRU-Guard**, offen). Alle Zahlen/
 Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #25-Merge `96a69d8`) abgezweigt —
-> kein Rebase nötig. Die stehende Regel „Rebase vor Ready-for-Review" (Abschnitt 8)
-> wird vor dem Ready-Setzen erneut geprüft.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #27-Merge `495d9a1`) abgezweigt.
+> Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
+> Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
 > selben PR** aktualisiert — mindestens Abschnitte **2 (PR-Historie)**, **3
@@ -35,7 +35,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-HISTORIE #1–#26
+## 2. PR-HISTORIE #1–#27
 
 Format: `#N` · Feature-Commit-Hash (auf `main`) · Kern · Merge-Klasse.
 Merge-Klassen: **manual** = Easy merged; **+G** = Guardian-Zweitblick vorab;
@@ -70,7 +70,8 @@ durchgängig ab #13.
 | #24 | `d217d61` | **Score-Alert >90** (Flanke, nicht Zustand): EINMALIGER Push je Episode beim Neu-Überschreiten, gebündelt (1 Push/Lauf), an die vorhandene Episoden-Logik gekoppelt · `SCORE_ALERT_THRESHOLD=90` · Watchlist ausgenommen · fail-soft | +G manual |
 | #25 | `408abe4` | **Watchlist-Sofortkarte** (Frontend): neu hinzugefügter Ticker zeigt sofort Live-Kurs-Karte statt leer/nur Chip; volle Elliott-Analyse weiter aus dem Lauf | manual |
 | #26 | `5fb1188` | **Multi-Timeframe-Analyse Watchlist** (PR B): je Watchlist-Titel drei Zählungen `timeframes`{day,week,month}; Monatsgrad (`1mo`, `MIN_BARS_MONTHLY=60`) additiv; Analyse-Panel + Watchlist nach oben; Markt-Top-5 unberührt | +G manual +Bild |
-| #(dieser) | `(offen)` | **Token-Session-Remember** (Frontend): einmal Master-PW → 28 Tage still (`TOKEN_SESSION_DAYS=28`); IndexedDB-Wrap mit **non-extractable** Session-Key; „Sperren" im ☰; kein Klartext-Token persistiert | +G manual +Bild |
+| #27 | `a2d23bb` | **Token-Session-Remember** (Frontend): einmal Master-PW → 28 Tage still (`TOKEN_SESSION_DAYS=28`); IndexedDB-Wrap mit **non-extractable** Session-Key; „Sperren" im ☰; kein Klartext-Token persistiert | +G manual +Bild |
+| #(dieser) | `(offen)` | **Validierungs-Integrität (PRU-Guard)**: `mature_record`-Guard sperrt `target_hit`/`ext_hit`, wenn Kurs schon bei Anlage ≥ Zone (`pre_reached_*`); 3 Alt-Records `pre_guard_contaminated` ausgewiesen; Registry-Ausschluss datiert; Badge „Zielzone erreicht/überschritten". Kein Filter/Score-Eingriff, Ranking byte-identisch | +G manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -198,6 +199,28 @@ beendet sofort. Klartext-Token nie persistiert. **Herkunft: Option 1 (Session-
 Entsperrung) nach Risiko-Abwägung, Easy 23.07.** — bei PR #15 bewusst weggelassen,
 jetzt portiert. Verifiziert: 14/15-Playwright-Zyklus (der eine „Fail" = externe
 Quote-Worker-Netzfehler, nicht der Code). Revert = reiner Frontend-Diff-Revert.
+
+**✅ Validierungs-Integrität / PRU-Guard — erledigt (dieser PR):** Grundlage =
+Read-only-Diagnose 23.07. (PRU stand mit Kurs 117,4 **über** Zielzone 112,4–116,2,
+rankte auf Platz 3, Score 84; die Reifung zählte solche Fälle als `target_hit` an
+**Tag 1** — Treffer-Aufblähung der Validierung; 3 Records MET/D/PRU real betroffen).
+Easy 23.07.: **Stufe 1 = Guard + Ausweisung + Badge** (Filter separat/später,
+Score-Malus verworfen). Gebaut: (1) **Guard** in `mature_record` — `target_hit`/
+`ext_hit` nur wenn `entry_close < Zonen-Low`, sonst gesperrt (0) + `pre_reached_*`;
+Invalidierung/Kennzahlen bleiben voll gültig. (2) **Pre-guard-Ausweisung**
+(forward-only, nichts gelöscht): MET/D/PRU mit `pre_guard_contaminated: true` im
+Datenbestand markiert; `is_excluded`/`eval_counts` (auswertbar = gereift ohne
+Ausschluss); Registry datiert (23.07.). (3) **Badge** „Zielzone erreicht"
+(≥ low) / „überschritten" (≥ high), dezent, kein Alarm-Rot, Live-Quote aktualisiert
+(`_setZoneBadge` in `quotePatch`); Panel zeigt „…· N auswertbar" + Tooltip.
+**Grenzen:** kein Filter, kein Score-/Ranking-Eingriff (report.json byte-identisch,
+belegt), SCHEMA_VERSION bleibt 1. Revert = Guard-Zeilen/Feld/Badge entfernen; die
+`pre_guard_contaminated`-Marker sind rein additiv.
+
+**OFFEN (Produkt, NICHT Bug) — Filter `target_exceeded`:** verbrauchte Setups gar
+nicht erst ranken (Skip-Grund analog Shorts, Schwelle `.low` vs `.high`). Heute
+**~30–40 % Board-Churn** (Diagnose: 3/10 über high, 4/10 über low) → **datierte
+Populations-Änderung**, Easys Produktentscheidung. Score-Malus **verworfen**.
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
@@ -369,7 +392,12 @@ gleiche relative Ziel-/Stop-Distanzen) **Holm-korrigiert signifikant**, UND (2) 
 **Bootstrap-CI-Untergrenze der AUC** (Score vs. `target_hit`) liegt **> 0,5**.
 
 **Regeln (nicht verhandelbar):**
-- Auswertung **erst ab n ≥ 100** gereiften Setups (`EVAL_MIN_N`).
+- Auswertung **erst ab n ≥ 100 AUSWERTBAREN** Setups (`EVAL_MIN_N`, `eval_counts`):
+  gereift **und nicht** vom PRU-Guard ausgeschlossen.
+- **Entry-Regel (PRU-Guard, 23.07.):** ein Record zählt in Trefferquote/AUC nur,
+  wenn `entry_close < target_zone.low` (Ziel erst NACH Anlage); analog `ext_hit`
+  mit `extension.low`. `pre_reached_*` / `pre_guard_contaminated` → ausgeschlossen
+  (nie gelöscht). Invalidierung/Kennzahlen bleiben gültig.
 - Marktregime je Record (SPY/DAX über/unter 200-Tage-Linie).
 - Forward-Daten **nie** mit Backfill gepoolt.
 - **Populations-Schutz (baulich):** **Watchlist**-, per-`appearance_count`-,
@@ -395,6 +423,13 @@ Beleg = Abschnitt 3.)
 
 ## 7. LESSONS (teuer gelernt)
 
+- **Look-ahead in der Reifung (PRU, 23.07., → PR-Guard):** ein Setup, dessen Kurs
+  schon BEI ANLAGE über der Zielzone stand, zählte als `target_hit` an Tag 1 — ein
+  Look-ahead-Artefakt, das die Validierungs-Trefferquote aufbläht. Regel: Hits nur
+  zählen, wenn das Ziel NACH der Anlage erreicht wird (`entry_close < Zonen-Low`),
+  und schon-erreichte Fälle aus der Population ausschließen (nie löschen —
+  ausweisen). Der Score „belohnt" das Davonlaufen zusätzlich (inval_bonus wächst
+  mit dem Abstand zum K.o. bis zum Cap) — dort wurde bewusst NICHT eingegriffen.
 - **yfinance-MultiIndex:** `download` liefert MultiIndex-Spalten; Test-Mocks
   müssen diese Form spiegeln (`get_level_values(0)`), sonst grüne Tests + 99/99-Skip
   live (PR #3). Guardian prüft: „Spiegeln die Mocks die echte Form?"
@@ -438,6 +473,13 @@ Beleg = Abschnitt 3.)
   `origin/main` fetchen und **rebasen, wenn `main` sich seit Branch-Erstellung
   bewegt hat** — Handover-Konflikte **proaktiv auflösen** statt sie im PR-UI
   auflaufen zu lassen. Der Guardian prüft das künftig mit.
+- **Realdaten-Review nach Strukturänderung (stehende Regel):** Nach jedem Eingriff,
+  der **Population oder Datenlage** ändert (Universum, neue Wellengrade, neue
+  Sammel-/Anzeige-Felder), folgt **binnen eines Laufs** ein bewusster Diagnose-Blick
+  auf **ECHTE** Ergebnisse mit der Leitfrage **„Was ist hier absurd?"** —
+  konstruierte Testfälle genügen NICHT. **Lesson:** der PRU-/`target_exceeded`-Fall
+  blieb in allen Mocks unsichtbar, weil niemand den Fall konstruiert hatte; erst
+  der Blick auf den echten Lauf (Kurs über Zielzone) deckte ihn auf.
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
 

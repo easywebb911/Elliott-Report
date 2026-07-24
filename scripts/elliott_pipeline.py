@@ -1116,9 +1116,10 @@ def main() -> int:
                                     config.SCORE_ALERT_THRESHOLD)
             _log(f"[elliott] Score-Alert (>{config.SCORE_ALERT_THRESHOLD}): "
                  f"{len(edges)} neu — {', '.join(e['ticker'] for e in edges)}")
-        n, matured = fc.counts(coll)
-        _log(f"[elliott] Forward-Sammlung: {n} gesammelt · {matured} gereift "
-             f"(Auswertung ab n>={fc.EVAL_MIN_N}) · Regime {regimes}")
+        n, matured, evaluable = fc.eval_counts(coll)
+        _log(f"[elliott] Forward-Sammlung: {n} gesammelt · {matured} gereift · "
+             f"{evaluable} auswertbar (Auswertung ab n>={fc.EVAL_MIN_N}, PRU-Guard) "
+             f"· Regime {regimes}")
     except Exception as exc:  # noqa: BLE001 — Sammlung darf Report nie brechen
         _log(f"[elliott] Forward-Sammlung übersprungen (fail-soft): "
              f"{type(exc).__name__}: {exc}")
