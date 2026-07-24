@@ -1,11 +1,12 @@
 # SESSION_HANDOVER — Elliott-Report
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
-allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #29 (dieser PR: **Konfluenz-Marker**, offen). Alle Zahlen/
-Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
+allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **24.07.2026**,
+nach PR #30 (**Konfluenz-Marker**, gemerged; dieser PR: **W5→A-Nachprüfung**,
+offen). Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus
+dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #29-Merge `3e59b4e`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #30-Merge, Feature-Commit `e9727d6`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -73,7 +74,8 @@ durchgängig ab #13.
 | #27 | `a2d23bb` | **Token-Session-Remember** (Frontend): einmal Master-PW → 28 Tage still (`TOKEN_SESSION_DAYS=28`); IndexedDB-Wrap mit **non-extractable** Session-Key; „Sperren" im ☰; kein Klartext-Token persistiert | +G manual +Bild |
 | #28 | `2bed684` | **Validierungs-Integrität (PRU-Guard)**: `mature_record`-Guard sperrt `target_hit`/`ext_hit`, wenn Kurs schon bei Anlage ≥ Zone (`pre_reached_*`); 3 Alt-Records `pre_guard_contaminated` ausgewiesen; Registry-Ausschluss datiert; Badge „Zielzone erreicht/überschritten". Kein Filter/Score-Eingriff, Ranking byte-identisch | +G manual +Bild |
 | #29 | `3e59b4e` | **Filter `target_exceeded`** (Produkt): Setups mit `close ≥ target_zone.low` fliegen VOR dem Ranking aus den Markt-Top-5 (Skip-Grund + Diag-Zähler, Rang 6+ rückt nach); Watchlist zeigt weiter alles (Badge). Populations-Änderung datiert; #28-Guard bleibt als zweites Netz — **live: US 15 / DE 6 gefiltert** | +G manual +Bild |
-| #(dieser) | `(offen)` | **Konfluenz-Marker** (Lit-Check a): je Kandidat `confluence`{target,invalidation} — 52W-Hoch / 200d-Linie / runde Zahl innerhalb ±1 % der Zielzone/Invalidierung; Chips (Markt + Watchlist), point-in-time in der Sammlung eingefroren. **Reine Anzeige/Messung, kein Score/Ranking** | +G manual +Bild |
+| #30 | `e9727d6` | **Konfluenz-Marker** (Lit-Check a): je Kandidat `confluence`{target,invalidation} — 52W-Hoch / 200d-Linie / runde Zahl innerhalb ±1 % der Zielzone/Invalidierung; Chips (Markt + Watchlist), point-in-time in der Sammlung eingefroren. **Reine Anzeige/Messung, kein Score/Ranking** | +G manual +Bild |
+| #(dieser) | `(offen)` | **W5→A-Nachprüfung** (Lit-Check b): gereifte Ende-W4-Treffer bekommen `a_correction_observed`/`a_retrace_pct`/`a_observe_until` — setzt nach dem Episoden-Hoch die theorie-gemäße Korrektur (≥ 38,2 % Rücklauf der W5-Strecke) binnen `A_OBSERVE_DAYS=10` ein? **Angehängtes** Beobachtungsfenster, bestehende Reifung byte-identisch; `pre_reached`/`pre_guard` ungemessen. **Reines Mess-Feld, kein Score/Ranking/Filter** | +G manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -243,10 +245,15 @@ Watchlist), dann irgendwann die KI-Entscheidung.
 bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich will.
 
 **GEPARKT (mit Datum):**
+
+> **Lit-Check-Liste damit LEER.** Beide aus dem Literatur-Abgleich geparkten Punkte
+> sind gebaut: **Punkt a (Konfluenz-Marker)** = #30, **Punkt b (W5→A-Nachprüfung)** =
+> dieser PR. Kein offener Lit-Check-Punkt mehr.
+
 - **KI-Agent** — Easy 23.07.: **weglassen**. Zuschnitts-Optionen für später
   notieren: (a) reiner Kommentator je Karte, (b) Research-Digest-Lauf, (c)
   Chat-Q&A über den Report. Keine Score-Beeinflussung.
-- **✅ Konfluenz-Marker — erledigt (dieser PR, Lit-Check-Punkt a):** je Kandidat
+- **✅ Konfluenz-Marker — erledigt (#30, Lit-Check-Punkt a):** je Kandidat
   additives Feld `confluence`{`target`,`invalidation`} aus `compute_confluence`
   (`elliott_pipeline.py`, aus den bereits geladenen Tagesschlusskursen — KEINE
   neuen Fetches): **52-Wochen-Hoch**, **200-Tage-Linie** (Einzelwerte → Band-
@@ -259,12 +266,22 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **Beweisbar kein Score/Ranking/Filter-Eingriff** (Test: erzwungene Konfluenz
   ändert Score/Reihenfolge nicht), SCHEMA_VERSION bleibt 1. Revert = Feld +
   `compute_confluence` + Chips + Konstanten entfernen (rein additiv).
-- **W5→A-Nachprüfung** — Easy 23.07. (Lit-Check): spätere **Anreicherung der
-  Forward-Sammlung** — nachhalten, ob nach einem erwarteten W5 eine A-Korrektur
-  folgt (Struktur-Nachprüfung des Counts). **Erst Messung/Erfassung** in den
-  Episoden-Records (additiv, forward-only, Population unberührt) — **Score-/
-  Erfolgs-Wirkung erst nach Validierungsbefund**. Kein Rückwirken auf `target_hit`
-  o. Ä. vor Beleg.
+- **✅ W5→A-Nachprüfung — erledigt (dieser PR, Lit-Check-Punkt b):** die Forward-
+  Sammlung hält jetzt nach, ob nach einem erfüllten **Ende-W4-Treffer** die theorie-
+  gemäße Korrektur A folgt. `observe_a_correction` (`forward_collection.py`,
+  **separater 3. Durchgang** nach der Reifung) misst für gereifte, nicht PRU-
+  ausgeschlossene end_of_w4-`target_hit`-Records: nach dem Episoden-Hoch werden
+  `A_OBSERVE_DAYS=10` Tage beobachtet; `a_correction_observed=true`, sobald der Kurs
+  **≥ `A_RETRACE_MIN=38,2 %`** (Fib-Minimum) der W5-Strecke (P4→Hoch) zurückläuft
+  (`false` bei vollem Fenster ohne Rücklauf, `null` = offen/keine Messung). Felder
+  `a_correction_observed`/`a_retrace_pct`/`a_observe_until` **rein additiv**;
+  **angehängtes Fenster — bestehende Reifung byte-identisch** (Test), berührt NUR
+  `a_*`. **Guard-Konsistenz:** `pre_reached`/`pre_guard` bleiben ungemessen (null).
+  Backtesting-Detail-Zeile „Korrektur nach W5: beobachtet/nicht/offen" (nur eligible
+  end_of_w4). **Beweisbar kein Score/Ranking/Filter/report.json-Eingriff**
+  (`observe_a_correction` nur in `update_forward_collection`, nie in `build_report`),
+  SCHEMA_VERSION bleibt 1. Registry datiert (24.07.). Revert = Felder +
+  `observe_a_correction`/3. Loop + Konstanten + Detail-Zeile entfernen (rein additiv).
 - **Universum-Option B (Screener)** — nur mit **`source`-Markierung** UND
   **Populations-Ausschluss** (wie Watchlist: Screener-Ticker dürfen nie in die
   n ≥ 100-Population).
@@ -326,6 +343,19 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   (keine neuen Fetches). **Kein Score/Ranking** (nach `score_setup`). In der
   Sammlung point-in-time eingefroren (`_new_record` → `confluence`); reines
   Mess-Feld (Registry 23.07.).
+- **W5→A-Nachprüfung (NUR Forward-Sammlung, dieser PR):** `observe_a_correction(rec,
+  dates, closes, now_iso)` in `forward_collection.py`, aufgerufen im **separaten 3.
+  Durchgang** von `update_forward_collection` (nach der Reifungs-Schleife, damit die
+  Reifung byte-identisch bleibt). Misst NUR für gereifte, nicht `is_excluded`-
+  end_of_w4-`target_hit`-Records: Episoden-Hoch = `max` der Reifungs-10 (`fwd`);
+  W5-Strecke = Hoch − `_p4_price` (chart_point mit `count_wave_labels.wave==4`);
+  A-Fenster = die `A_OBSERVE_DAYS=10` Schlusskurse NACH dem Hoch; `a_correction_
+  observed=true`, sobald `min(A-Fenster) ≤ Hoch − A_RETRACE_MIN·W5-Strecke`
+  (`A_RETRACE_MIN=0.382`), `false` bei vollem Fenster ohne Trigger, `null` = offen.
+  Schreibt **ausschließlich** `a_correction_observed`/`a_retrace_pct`/`a_observe_until`
+  (Test `test_only_a_fields_touched`), deterministisch/idempotent. Braucht Kurse
+  ÜBER `HORIZON_DAYS` hinaus, die über die Läufe akkumulieren (`price_sink` hält alle
+  Universum-Closes). **Nie in `build_report`** → report.json/Score/Ranking unberührt.
 - **Multi-Timeframe (NUR Watchlist-Einträge, #PR-B):** additives Feld
   `timeframes`{`day`,`week`,`month`}, jede Ebene `null` **oder** {`count_label`,
   `invalidation_price`, `target_zone`, `target_zone_extended`}. Aufbau in

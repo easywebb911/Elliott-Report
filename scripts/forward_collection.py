@@ -28,6 +28,15 @@ HORIZON_DAYS = 10          # Reifungs-Horizont in Handelstagen
 EVAL_MIN_N = 100           # Auswertung erst ab so vielen gereiften Setups
 SCHEMA_VERSION = 1
 
+# W5->A-Nachprüfung (Lit-Check-Punkt b, ElliottAgents): eine Zählung ist erst
+# gestützt, wenn auch das NACHSPIEL stimmt — auf W5 folgt Korrektur A. REINES
+# Mess-Feld (kein Score/Ranking/Filter). NUR für gereifte end_of_w4-Episoden mit
+# target_hit; angehängtes Beobachtungsfenster, das die bestehende Reifung NICHT
+# verlängert oder verändert.
+A_OBSERVE_DAYS = 10        # Handelstage NACH dem Episoden-Hoch beobachten
+A_RETRACE_MIN = 0.382      # Fib-Minimum: Korrektur gilt ab 38,2 % Rücklauf der
+                           # W5-Strecke (P4 -> Episoden-Hoch)
+
 # Regime-Index je Markt (200-Tage-Linie).
 REGIME_INDEX = {"US": "SPY", "DE": "^GDAXI"}
 
@@ -183,6 +192,76 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
 
 
 # ---------------------------------------------------------------------------
+# W5->A-Nachprüfung (Lit-Check b) — ANGEHÄNGTES Beobachtungsfenster, ändert die
+# bestehende Reifung NICHT. Reines Mess-Feld.
+# ---------------------------------------------------------------------------
+def _is_end_of_w4(rec: Dict) -> bool:
+    """end_of_w4 hat Wellen-Ziffern 0..4 (Welle 4 vorhanden); end_of_w2 nur 0..2."""
+    return any(l.get("wave") == 4 for l in (rec.get("count_wave_labels") or []))
+
+
+def _p4_price(rec: Dict) -> Optional[float]:
+    """P4-Kurs (Start der W5) aus den eingefrorenen Pivots: der chart_point, dessen
+    Wellen-Ziffer 4 ist. None, wenn nicht ableitbar (fail-soft)."""
+    cps = rec.get("chart_points") or []
+    for lab in (rec.get("count_wave_labels") or []):
+        if lab.get("wave") == 4:
+            i = lab.get("index")
+            if isinstance(i, int) and 0 <= i < len(cps):
+                return cps[i].get("price")
+    return None
+
+
+def observe_a_correction(rec: Dict, dates: Sequence[str], closes: Sequence[float],
+                         now_iso: str) -> None:
+    """W5->A: setzt bei gereiften end_of_w4-Treffern, ob nach dem Episoden-Hoch die
+    theorie-gemäße Korrektur (>= A_RETRACE_MIN der W5-Strecke P4->Hoch) innerhalb
+    A_OBSERVE_DAYS einsetzt. Deterministisch/idempotent (je Lauf aus voller
+    Historie neu). Berührt WEDER target_hit/matured NOCH andere Reifungs-Zahlen —
+    schreibt ausschließlich a_correction_observed / a_retrace_pct / a_observe_until.
+
+    Guard-Konsistenz: pre_reached/pre_guard-Records (is_excluded) bekommen KEINE
+    Messung — ihr „Hoch" ist nicht interpretierbar (Feld bleibt None).
+    """
+    # NUR gereifte end_of_w4-Treffer, nicht ausgeschlossen.
+    if not rec.get("matured") or rec.get("target_hit") != 1:
+        return
+    if not _is_end_of_w4(rec) or is_excluded(rec):
+        return
+    p4 = _p4_price(rec)
+    if p4 is None:
+        return
+    try:
+        idx = list(dates).index(rec["first_seen_date"])
+    except ValueError:
+        return
+    fwd = list(closes)[idx + 1: idx + 1 + HORIZON_DAYS]
+    if len(fwd) < HORIZON_DAYS:
+        return  # sollte durch matured impliziert sein; defensiv
+    high = max(fwd)
+    high_pos = fwd.index(high)                 # erstes Auftreten des Hochs
+    w5_len = high - p4
+    if w5_len <= 0:
+        return  # W5-Strecke nicht interpretierbar (degeneriert) -> keine Messung
+    trigger = high - A_RETRACE_MIN * w5_len    # 38,2 %-Rücklauf-Schwelle
+    # A-Fenster: die Schlusskurse NACH dem Episoden-Hoch (bis A_OBSERVE_DAYS).
+    a_start = idx + 1 + high_pos + 1
+    a_win = list(closes)[a_start: a_start + A_OBSERVE_DAYS]
+    end_idx = a_start + A_OBSERVE_DAYS - 1
+    rec["a_observe_until"] = dates[end_idx] if end_idx < len(dates) else None
+    if a_win:
+        minc = min(a_win)
+        rec["a_retrace_pct"] = round((high - minc) / w5_len * 100.0, 4)
+        if minc <= trigger:
+            rec["a_correction_observed"] = True
+            return
+    else:
+        rec["a_retrace_pct"] = 0.0
+    # Kein Trigger: False wenn das Fenster voll beobachtet ist, sonst offen (None).
+    rec["a_correction_observed"] = False if len(a_win) >= A_OBSERVE_DAYS else None
+
+
+# ---------------------------------------------------------------------------
 # Episoden-Anlage + Reifung (pure)
 # ---------------------------------------------------------------------------
 def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
@@ -232,6 +311,12 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "max_gain_10d": None,
         "max_drawdown_10d": None,
         "r_multiple": None,
+        # W5->A-Nachprüfung (nur end_of_w4 + target_hit, s. observe_a_correction).
+        # None = keine Messung / Fenster offen; True/False = Korrektur (nicht)
+        # beobachtet. Rein additiv, kein Score/Ranking/Reifung.
+        "a_correction_observed": None,
+        "a_retrace_pct": None,
+        "a_observe_until": None,
         "last_update_utc": now_iso,
     }
 
@@ -281,6 +366,17 @@ def update_forward_collection(
         pdata = price_data.get(r["ticker"])
         if pdata:
             mature_record(r, pdata[0], pdata[1], now_iso)
+
+    # 3) W5->A-Nachprüfung (Lit-Check b) — SEPARATER Durchgang, damit die Reifung
+    #    (Schritt 2) byte-identisch bleibt. Angehängtes Beobachtungsfenster für
+    #    gereifte end_of_w4-Treffer; braucht Kurse ÜBER den Reifungs-Horizont
+    #    hinaus, die über die Läufe akkumulieren (offen -> True/False).
+    for r in records:
+        if not r.get("matured"):
+            continue
+        pdata = price_data.get(r["ticker"])
+        if pdata:
+            observe_a_correction(r, pdata[0], pdata[1], now_iso)
 
     coll["schema_version"] = SCHEMA_VERSION
     coll["last_run_date"] = run_date
