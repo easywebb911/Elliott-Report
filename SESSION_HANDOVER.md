@@ -294,11 +294,18 @@ Toast wie beim Reload. **Grenzen:** Timeout `RECALC_TIMEOUT_MS=10 min` (Squeeze-
 Warten (der Lauf schreibt nichts); **visibilitychange-Pause** (im inaktiven Tab kein
 Fetch), beim Zurückkehren sofort-Check. **Getrennte Timer** vom Quote-Poller
 (`_rcPollTimer`/`_rcTick` vs. `quotePollers`) — kein Konflikt. Fail-soft, gedeckelt,
-kein Request-Sturm. Verifiziert (Playwright, 390px): laufen/fertig/Timeout/Feiertag,
-Mock-Report altert → Poll rendert frisch; Konsole sauber; Tests grün (187). **Endbeweis
-= echter Recalculate durch Easy** (Abschnitt 3). Revert = reiner Frontend-Diff-Revert
-(Banner + `_startRecalcWatch`/`_rcPoll` + Konstanten; `_renderReport`-Extraktion kann
-bleiben, ist rein strukturell).
+kein Request-Sturm. **Bugfix (live von Easy gesehen, 24.07.): Baseline-Falle** — das
+Banner verschwand sofort, weil als Vergleich der im Browser **geladene** (evtl.
+CDN-gecachte/ältere) Stand diente; war der Server beim Dispatch schon neuer, meldete
+der erste Poll fälschlich „fertig". Fix: Baseline **frisch vom Server** holen
+(`_rcBaselineMs`) und „fertig" nur bei **STRIKT neuerem** Report (`Date.parse(ts) >
+_rcBaselineMs`, Server-Zeitstempel → kein Client-Uhr-Bezug); `_renderReport` im
+Done-Pfad gekapselt, „fertig" bleibt ~6 s sichtbar. Verifiziert (Playwright, 390px):
+laufen (≥ 35 s ohne Sofort-fertig trotz vor-gealtertem Server-Stand) / fertig (erst
+strikt neuerer Report) / Timeout / Feiertag; Mock-Report altert → Poll rendert frisch;
+Konsole sauber; Tests grün (187). **Endbeweis = echter Recalculate durch Easy**
+(Abschnitt 3). Revert = reiner Frontend-Diff-Revert (Banner + `_startRecalcWatch`/
+`_rcPoll` + Konstanten; `_renderReport`-Extraktion kann bleiben, ist rein strukturell).
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen

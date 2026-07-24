@@ -2152,7 +2152,7 @@
     // Reload). Eigene Timer, getrennt vom Quote-Poller. Fail-soft, gedeckelt.
     const RECALC_POLL_MS = 10000;        // 10 s zwischen Report-Stand-Checks (kein Sturm)
     const RECALC_TIMEOUT_MS = 600000;    // 10 min Obergrenze (Squeeze-Wert TIMEOUT_MS)
-    let _rcStart = null, _rcBaselineTs = null, _rcPollTimer = null, _rcTick = null, _rcActive = false;
+    let _rcStart = null, _rcBaselineMs = 0, _rcPollTimer = null, _rcTick = null, _rcActive = false;
 
     function _rcElapsed() {
       const s = Math.floor((Date.now() - _rcStart) / 1000);
@@ -2170,10 +2170,15 @@
       el.innerHTML = html;
       el.hidden = false;
     }
-    function _startRecalcWatch() {
+    async function _startRecalcWatch() {
       _rcActive = true;
       _rcStart = Date.now();
-      _rcBaselineTs = _lastReportTs;     // Report-Stand im Moment des Dispatch
+      // BASELINE-FALLE vermeiden: NICHT den im Browser geladenen (evtl. CDN-
+      // gecachten/älteren) Stand als Vergleich nehmen — sonst wertet der erste
+      // Poll ihn als „neuer" und meldet sofort „fertig", obwohl der Lauf noch
+      // läuft. Baseline daher FRISCH vom Server holen; „fertig" gilt nur bei
+      // einem STRIKT NEUEREN Report (Server-Zeitstempel, kein Client-Uhr-Bezug).
+      _rcBaselineMs = Date.parse(_lastReportTs || '') || 0;   // Sofort-Fallback
       _rcBanner('rc-running',
         '<span class="rc-dot rc-dot-run"></span>Neuberechnung läuft … <span id="rc-elapsed">0 s</span>');
       _rcStopTimers();
@@ -2181,7 +2186,12 @@
         const sp = document.getElementById('rc-elapsed');
         if (sp) sp.textContent = _rcElapsed();
       }, 1000);
-      _rcPollTimer = setTimeout(_rcPoll, RECALC_POLL_MS);
+      try {
+        const base = await loadReport();     // echter Server-Stand JETZT (Cache-Buster)
+        const bMs = Date.parse(base && base.run_timestamp_utc || '');
+        if (bMs) _rcBaselineMs = bMs;
+      } catch (_) { /* Fallback bleibt der geladene Stand */ }
+      if (_rcActive && !_rcPollTimer) _rcPollTimer = setTimeout(_rcPoll, RECALC_POLL_MS);
     }
     async function _rcPoll() {
       if (!_rcActive) return;
@@ -2194,23 +2204,26 @@
       }
       try {
         const rep = await loadReport();  // Cache-Buster + no-store
-        const ts = rep && rep.run_timestamp_utc;
-        if (ts && ts !== _rcBaselineTs) { _recalcDone(rep); return; }
+        const tMs = Date.parse(rep && rep.run_timestamp_utc || '');
+        // Nur ein STRIKT NEUERER Report zählt als fertig — ein (CDN-)älterer oder
+        // gleicher Stand triggert nichts (schützt gegen Sofort-„fertig").
+        if (tMs && tMs > _rcBaselineMs) { _recalcDone(rep); return; }
       } catch (_) { /* fail-soft: weiter pollen bis Timeout */ }
       if (_rcActive) _rcPollTimer = setTimeout(_rcPoll, RECALC_POLL_MS);
     }
     function _recalcDone(rep) {
       _rcActive = false; _rcStopTimers();
-      _renderReport(rep);                // frische Daten in-place (kein Page-Reload)
+      // Render darf den „fertig"-Zustand NICHT verhindern → gekapselt.
+      try { _renderReport(rep); } catch (_) { /* Banner/Toast trotzdem zeigen */ }
       _rcBanner('rc-done',
         `<span class="rc-dot rc-dot-done"></span>Neuberechnung fertig · Stand <b>${esc(rep.run_timestamp_utc || '?')}</b>`);
       showToast(`Aktualisiert · Stand ${rep.run_timestamp_utc || '?'}`);
       _setRecalcBtn('Recalculate', false);
-      // Erfolgsbanner nach kurzer Zeit dezent ausblenden.
+      // Erfolgsbanner sichtbar lassen, dann dezent ausblenden.
       setTimeout(() => {
         const el = document.getElementById('recalc-banner');
         if (el && el.classList.contains('rc-done')) el.hidden = true;
-      }, 8000);
+      }, 6000);
     }
     function _recalcTimeout() {
       _rcActive = false; _rcStopTimers();
