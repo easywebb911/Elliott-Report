@@ -569,6 +569,75 @@
     }
     .wl-note.wl-note-err { color:var(--red); border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.08); }
 
+    /* ── Watchlist im Kompakt-Grid (Squeeze-Vorbild, Elliott-Grün) ────────────
+       Kacheln standardmäßig EINGEKLAPPT: nur Mini-Donut (oder „—"), Ticker,
+       Trend-Punkt, ×, ▾. Beim Aufklappen zeigt die Kachel die volle Elliott-
+       Karte und spannt eine ganze Grid-Reihe. Farbe = Sparkline-Grün (--grn),
+       nicht das Squeeze-Grün/Blau. */
+    .wl-grid { display:grid; gap:8px; grid-template-columns:repeat(auto-fill, minmax(112px, 1fr)); }
+    .wl-grid:empty { display:none; }
+    .wl-tile {
+      position:relative; background:linear-gradient(180deg,rgba(34,197,94,.05) 0%,rgba(0,0,0,.10) 100%) var(--bg-card);
+      border:1px solid rgba(34,197,94,.28); border-radius:12px; overflow:hidden;
+      transition:box-shadow .15s;
+    }
+    .wl-tile:hover { box-shadow:0 2px 8px rgba(0,0,0,.28); }
+    .wl-tile.wl-tile-pending { border-color:rgba(245,158,11,.5); border-style:dashed; }
+    .wl-tile.wl-tile-error { border-color:rgba(239,68,68,.5); opacity:.92; }
+    /* Kompakter Kopf (Klick-Handle). */
+    .wl-thead {
+      display:flex; align-items:center; gap:7px; cursor:pointer;
+      padding:8px 18px 8px 8px; min-height:56px; touch-action:manipulation;
+    }
+    .wl-mini { flex:0 0 auto; width:32px; height:32px; display:block; }
+    .wl-mini-bg { fill:none; stroke:var(--brd); stroke-width:3; }
+    .wl-mini-fg { fill:none; stroke-width:3; stroke-linecap:round;
+      transform:rotate(-90deg); transform-origin:50% 50%; }
+    .wl-mini-num { font-size:11px; font-weight:700; fill:var(--txt);
+      text-anchor:middle; dominant-baseline:central; font-family:var(--mono); }
+    .wl-mini-dash { font-size:14px; font-weight:600; fill:var(--txt-dim);
+      text-anchor:middle; dominant-baseline:central; }
+    .wl-meta { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+    .wl-tk { font-family:var(--mono); font-weight:700; font-size:12.5px; color:var(--txt);
+      letter-spacing:-.02em;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+    .wl-trend { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--txt-dim); }
+    .wl-trenddot { width:7px; height:7px; border-radius:50%; background:var(--txt-dim); flex:0 0 auto; }
+    .wl-trenddot.up { background:var(--grn); }
+    .wl-trenddot.down { background:var(--red); }
+    /* × entfernen — oben rechts. */
+    .wl-x {
+      position:absolute; top:3px; right:4px; -webkit-appearance:none; appearance:none;
+      background:none; border:0; color:var(--txt-dim); cursor:pointer;
+      font-size:15px; line-height:1; width:20px; height:20px; border-radius:6px;
+      display:inline-flex; align-items:center; justify-content:center; z-index:2;
+    }
+    .wl-x:active { color:var(--red); background:var(--bg-met); }
+    /* ▾ Aufklapp-Pfeil — unten rechts, dreht bei [data-open]. */
+    .wl-caret {
+      position:absolute; bottom:3px; right:5px; color:var(--txt-dim);
+      font-size:11px; line-height:1; pointer-events:none; transition:transform .18s;
+    }
+    .wl-tile[data-open] .wl-caret { transform:rotate(180deg); }
+    /* Aufgeklappt: kompakten Kopf verstecken, volle Karte zeigen, ganze Reihe. */
+    .wl-tbody[hidden] { display:none; }
+    .wl-tile[data-open] { grid-column:1 / -1; border-color:var(--brd);
+      background:var(--bg-card); }
+    .wl-tile[data-open] .wl-thead { display:none; }
+    .wl-tile[data-open] .wl-x, .wl-tile[data-open] .wl-caret { display:none; }
+    .wl-tbody > .card { border:0; border-radius:0; box-shadow:none; }
+    .wl-collapse-bar {
+      display:flex; justify-content:flex-end; padding:6px 10px;
+      border-bottom:1px solid var(--brd); background:var(--bg-hdr);
+    }
+    .wl-collapse {
+      -webkit-appearance:none; appearance:none; cursor:pointer;
+      background:var(--bg-met); color:var(--txt-sub); border:1px solid var(--brd);
+      border-radius:8px; padding:4px 10px; font-size:12px; font-weight:600;
+      display:inline-flex; align-items:center; gap:5px; touch-action:manipulation;
+    }
+    .wl-collapse:active { background:var(--bg-hdr); color:var(--txt); }
+
     .toast {
       position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
       background:var(--bg-card); color:var(--txt); border:1px solid var(--grn);
@@ -628,7 +697,7 @@
           <button id="wl-save-btn" class="wl-save-btn" type="button">☁ Für die Pipeline speichern</button>
         </div>
       </div>
-      <div class="grid" id="wl-cards"></div>
+      <div class="wl-grid" id="wl-cards"></div>
     </section>
     <section id="US"></section>
     <section id="DE"></section>
@@ -1226,6 +1295,26 @@
       </div>`;
     }
 
+    // Mini-Score-Ring für die Watchlist-Kompaktkachel (34×34, r=14). Ohne
+    // validen Score dezentes „—" (kein Fake-Score) — gleiche scoreColor-Skala.
+    function wlMiniDonut(score) {
+      const valid = (typeof score === 'number' && isFinite(score));
+      if (!valid) {
+        return `<svg class="wl-mini" viewBox="0 0 34 34" aria-hidden="true">
+          <circle class="wl-mini-bg" cx="17" cy="17" r="14"/>
+          <text class="wl-mini-dash" x="17" y="17">—</text></svg>`;
+      }
+      const s = Math.max(0, Math.min(100, score));
+      const col = scoreColor(score);
+      const C = 2 * Math.PI * 14;            // Umfang r=14
+      const off = C * (1 - s / 100);
+      return `<svg class="wl-mini" viewBox="0 0 34 34" aria-hidden="true">
+        <circle class="wl-mini-bg" cx="17" cy="17" r="14"/>
+        <circle class="wl-mini-fg" cx="17" cy="17" r="14" stroke="${col}"
+                stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>
+        <text class="wl-mini-num" x="17" y="17" style="fill:${col}">${Math.round(score)}</text></svg>`;
+    }
+
     // Multi-Timeframe-Panel (NUR Watchlist-Karten; via entry.timeframes). Drei
     // Zeilen Tag/Woche/Monat. Bei Watchlist ersetzt es den reinen Wochen-Block
     // (Obermenge). Ehrlich: fehlt eine Ebene, zeigt die Zeile "kein valider
@@ -1475,6 +1564,48 @@
       </article>`;
     }
 
+    // Aufklapp-Zustand je Kachel, pro Gerät gemerkt (localStorage). Standard:
+    // EINGEKLAPPT (Set leer). Frisch hinzugefügte Ticker werden aufgeklappt
+    // markiert, damit die Sofort-Karte (#25) sofort den Live-Kurs zeigt.
+    const WL_EXP_KEY = 'elliott_wl_expanded';
+    function _wlExpandedSet() {
+      try { const a = JSON.parse(localStorage.getItem(WL_EXP_KEY) || '[]');
+            return new Set(Array.isArray(a) ? a : []); }
+      catch (_) { return new Set(); }
+    }
+    function _wlPersistExpanded(set) {
+      try { localStorage.setItem(WL_EXP_KEY, JSON.stringify([...set])); } catch (_) {}
+    }
+
+    // Kompakt-Kachel: Kopf (Mini-Donut/„—", Ticker, Trend-Punkt, ×, ▾) +
+    // eingeklappter Body mit der vollen Elliott-Karte (innerHtml). Squeeze-
+    // Aufbau, Elliott-Grün. Aufgeklappt spannt die Kachel eine ganze Reihe.
+    function wlTile(ticker, innerHtml, e, open) {
+      const isSetup = e && e.wl_status === 'setup';
+      const score = (isSetup && typeof e.score_heuristic === 'number') ? e.score_heuristic : null;
+      const ys = (e && Array.isArray(e.chart_points)) ? e.chart_points.map(p => p.price) : [];
+      const trend = ys.length >= 2 ? (ys[ys.length - 1] >= ys[0] ? 'up' : 'down') : '';
+      const trendTxt = trend === 'up' ? 'aufwärts' : trend === 'down' ? 'abwärts' : 'neutral';
+      const status = e ? e.wl_status : 'pending';
+      const cls = status === 'error' ? ' wl-tile-error'
+                : (status === 'pending' || !e) ? ' wl-tile-pending' : '';
+      return `<article class="wl-tile${cls}" data-tile="${esc(ticker)}"${open ? ' data-open' : ''}>
+        <div class="wl-thead" data-wl-toggle="${esc(ticker)}" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}">
+          ${wlMiniDonut(score)}
+          <div class="wl-meta">
+            <span class="wl-tk">${esc(ticker)}</span>
+            <span class="wl-trend"><span class="wl-trenddot ${trend}"></span>${trendTxt}</span>
+          </div>
+        </div>
+        <button class="wl-x" type="button" data-wl-remove="${esc(ticker)}" aria-label="${esc(ticker)} entfernen">×</button>
+        <span class="wl-caret" aria-hidden="true">▾</span>
+        <div class="wl-tbody"${open ? '' : ' hidden'}>
+          <div class="wl-collapse-bar"><button class="wl-collapse" type="button" data-wl-toggle="${esc(ticker)}">▴ Einklappen</button></div>
+          ${innerHtml}
+        </div>
+      </article>`;
+    }
+
     function renderWatchlistCards(report) {
       const el = document.getElementById('wl-cards');
       const wl = report && report.watchlist;
@@ -1485,10 +1616,30 @@
       // (_wlArr === null, vor dem Seeden) — ein bewusst geleertes Array [] bleibt
       // leer (sonst tauchten nach „alle entfernen" alte Analyse-Karten wieder auf).
       const list = Array.isArray(_wlArr) ? _wlArr : entries.map(e => e.ticker);
+      const openSet = _wlExpandedSet();
       el.innerHTML = list.map(t => {
         const e = byTicker.get(t);
-        return e ? watchlistCard(e) : _wlInstantCard(t);
+        const inner = e ? watchlistCard(e) : _wlInstantCard(t);
+        return wlTile(t, inner, e, openSet.has(t));
       }).join('');
+    }
+
+    // Auf-/Zuklappen einer Kachel — DOM direkt schalten (kein Re-Render, damit
+    // Live-Quotes/Scroll erhalten bleiben). Beim Aufklappen Sparkline neu
+    // zeichnen (im eingeklappten Body hatte sie keine echte Breite).
+    function _wlToggle(t) {
+      const set = _wlExpandedSet();
+      const open = !set.has(t);
+      if (open) set.add(t); else set.delete(t);
+      _wlPersistExpanded(set);
+      const tile = document.querySelector(`.wl-tile[data-tile="${t}"]`);
+      if (!tile) return;
+      const body = tile.querySelector('.wl-tbody');
+      const head = tile.querySelector('.wl-thead');
+      if (open) { tile.setAttribute('data-open', ''); if (body) body.hidden = false; }
+      else { tile.removeAttribute('data-open'); if (body) body.hidden = true; }
+      if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open && typeof drawAllSparklines === 'function') drawAllSparklines();
     }
 
     function renderWatchlist(report) {
@@ -1509,6 +1660,7 @@
     // damit die Sofort-Karte umgehend erscheint und einen Live-Kurs zieht.
     function _wlRerenderCards() {
       renderWatchlistCards(_wlLastReport);
+      if (typeof drawAllSparklines === 'function') drawAllSparklines();
       if (typeof startQuotePolls === 'function') startQuotePolls();
     }
 
@@ -1528,6 +1680,9 @@
       if (_wlArr.length >= WL_MAX) { _wlErr(`Maximal ${WL_MAX} Ticker.`); return; }
       _wlArr.push(v.ticker);
       _wlPersistLocal();
+      // Neuer Ticker startet AUFGEKLAPPT — so ist die Sofort-Karte mit Live-Kurs
+      // (#25) direkt sichtbar; alle übrigen Kacheln bleiben eingeklappt.
+      const exp = _wlExpandedSet(); exp.add(v.ticker); _wlPersistExpanded(exp);
       inp.value = ''; _wlErr('');
       renderWatchlistChips(); _wlRerenderCards(); _wlMarkDirty();
       _wlWarn('Karte da (Live-Kurs sofort). Volle Elliott-Analyse: „Für die Pipeline speichern" + nächster Lauf.');
@@ -1535,6 +1690,7 @@
     function removeWatchlistTicker(t) {
       _wlArr = _wlArr.filter(x => x !== t);
       _wlPersistLocal();
+      const exp = _wlExpandedSet(); if (exp.delete(t)) _wlPersistExpanded(exp);
       renderWatchlistChips(); _wlRerenderCards(); _wlMarkDirty();
       _wlWarn('Lokal geändert — „Für die Pipeline speichern" nicht vergessen.');
     }
@@ -2362,6 +2518,24 @@
     });
     document.getElementById('wl-input').addEventListener('input', () => _wlErr(''));
     document.getElementById('wl-save-btn').addEventListener('click', saveWatchlistToPipeline);
+
+    // Kompakt-Kacheln: Klick auf × entfernt, Klick auf Kopf/„Einklappen" toggelt
+    // (Delegation — überlebt Re-Render). × wird VOR dem Toggle geprüft.
+    (function wireWatchlistTiles() {
+      const host = document.getElementById('wl-cards');
+      if (!host) return;
+      host.addEventListener('click', (ev) => {
+        const rm = ev.target.closest('[data-wl-remove]');
+        if (rm) { ev.preventDefault(); removeWatchlistTicker(rm.getAttribute('data-wl-remove')); return; }
+        const tg = ev.target.closest('[data-wl-toggle]');
+        if (tg) { _wlToggle(tg.getAttribute('data-wl-toggle')); }
+      });
+      host.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        const tg = ev.target.closest('.wl-thead[data-wl-toggle]');
+        if (tg) { ev.preventDefault(); _wlToggle(tg.getAttribute('data-wl-toggle')); }
+      });
+    })();
 
     // Token-Modal-Verdrahtung (kein Inline-onclick — CSP-freundlich).
     document.getElementById('tok-modal-overlay').addEventListener('click', _closeTokModals);
