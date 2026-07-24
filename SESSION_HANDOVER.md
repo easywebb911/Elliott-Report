@@ -2,10 +2,10 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **23.07.2026**,
-nach PR #27 (dieser PR: **Validierungs-Integrität / PRU-Guard**, offen). Alle Zahlen/
+nach PR #28 (dieser PR: **Filter `target_exceeded`**, offen). Alle Zahlen/
 Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #27-Merge `495d9a1`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #28-Merge `b1a20bd`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -35,7 +35,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-HISTORIE #1–#27
+## 2. PR-HISTORIE #1–#28
 
 Format: `#N` · Feature-Commit-Hash (auf `main`) · Kern · Merge-Klasse.
 Merge-Klassen: **manual** = Easy merged; **+G** = Guardian-Zweitblick vorab;
@@ -71,7 +71,8 @@ durchgängig ab #13.
 | #25 | `408abe4` | **Watchlist-Sofortkarte** (Frontend): neu hinzugefügter Ticker zeigt sofort Live-Kurs-Karte statt leer/nur Chip; volle Elliott-Analyse weiter aus dem Lauf | manual |
 | #26 | `5fb1188` | **Multi-Timeframe-Analyse Watchlist** (PR B): je Watchlist-Titel drei Zählungen `timeframes`{day,week,month}; Monatsgrad (`1mo`, `MIN_BARS_MONTHLY=60`) additiv; Analyse-Panel + Watchlist nach oben; Markt-Top-5 unberührt | +G manual +Bild |
 | #27 | `a2d23bb` | **Token-Session-Remember** (Frontend): einmal Master-PW → 28 Tage still (`TOKEN_SESSION_DAYS=28`); IndexedDB-Wrap mit **non-extractable** Session-Key; „Sperren" im ☰; kein Klartext-Token persistiert | +G manual +Bild |
-| #(dieser) | `(offen)` | **Validierungs-Integrität (PRU-Guard)**: `mature_record`-Guard sperrt `target_hit`/`ext_hit`, wenn Kurs schon bei Anlage ≥ Zone (`pre_reached_*`); 3 Alt-Records `pre_guard_contaminated` ausgewiesen; Registry-Ausschluss datiert; Badge „Zielzone erreicht/überschritten". Kein Filter/Score-Eingriff, Ranking byte-identisch | +G manual +Bild |
+| #28 | `2bed684` | **Validierungs-Integrität (PRU-Guard)**: `mature_record`-Guard sperrt `target_hit`/`ext_hit`, wenn Kurs schon bei Anlage ≥ Zone (`pre_reached_*`); 3 Alt-Records `pre_guard_contaminated` ausgewiesen; Registry-Ausschluss datiert; Badge „Zielzone erreicht/überschritten". Kein Filter/Score-Eingriff, Ranking byte-identisch | +G manual +Bild |
+| #(dieser) | `(offen)` | **Filter `target_exceeded`** (Produkt): Setups mit `close ≥ target_zone.low` fliegen VOR dem Ranking aus den Markt-Top-5 (Skip-Grund + Diag-Zähler, Rang 6+ rückt nach); Watchlist zeigt weiter alles (Badge). Populations-Änderung datiert; #28-Guard bleibt als zweites Netz | +G manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -217,10 +218,20 @@ Ausschluss); Registry datiert (23.07.). (3) **Badge** „Zielzone erreicht"
 belegt), SCHEMA_VERSION bleibt 1. Revert = Guard-Zeilen/Feld/Badge entfernen; die
 `pre_guard_contaminated`-Marker sind rein additiv.
 
-**OFFEN (Produkt, NICHT Bug) — Filter `target_exceeded`:** verbrauchte Setups gar
-nicht erst ranken (Skip-Grund analog Shorts, Schwelle `.low` vs `.high`). Heute
-**~30–40 % Board-Churn** (Diagnose: 3/10 über high, 4/10 über low) → **datierte
-Populations-Änderung**, Easys Produktentscheidung. Score-Malus **verworfen**.
+**✅ ENTSCHIEDEN & gebaut (dieser PR) — Filter `target_exceeded`:** Easys Produkt-
+entscheidung (23.07., PRU-Diagnose). Setup mit Lauf-Schlusskurs **`≥ target_zone.low`**
+(„Zielzone erreicht" = nicht mehr handelbar) wird in `build_candidate` VOR dem
+Ranking verworfen (Skip-Grund `target_exceeded`, eigener Diag-Zähler, Lauf-Status-
+Chip); Rang 6+ rückt nach. **NUR Markt-Top-5** — die Watchlist ruft
+`build_candidate(..., exclude_target_reached=False)` und zeigt weiter alles (#28-
+Badge markiert den Zustand). Schwelle **identisch** zur #28-Guard-/Entry-Regel.
+**Verteidigung in der Tiefe:** Filter verhindert Neuanlagen über Zone, der
+#28-Guard bleibt als zweites Netz (schützt die Messung, falls doch je einer
+durchkommt). Registry: Populations-Änderung **datiert** (23.07.). Score/Ranking-
+Formel unverändert; nur die Grundgesamtheit verengt sich auf handelbare Setups.
+Revert = `exclude_target_reached`-Zweig + Konstante `TARGET_EXCEEDED` entfernen
+(rein subtraktiver Filter, keine Datenreste). Nach Merge: `daily.yml` dispatchen,
+`target_exceeded`-Zähler + neue Top-5-Besetzung + Nachrücker-Scores nachtragen.
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
@@ -280,6 +291,11 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   W3-Ext = P2 + [1,618–2,618]×W1 · W5-Ext = P4 + [0,382–0,618]×|P3−P0|.
 - **Invalidierung:** W2-Setup → P0; W4-Setup → P1.
 - **Long-only:** Short-Setups (direction < 0) VOR dem Ranking verworfen.
+- **`target_exceeded`-Filter (#28-Folge, dieser PR):** in `build_candidate`
+  (Param `exclude_target_reached`, Default True für Markt-Top-5, False für
+  Watchlist) verwirft Setups mit `close ≥ target_zone.low` VOR dem Ranking —
+  Skip-Grund `target_exceeded` (in `SKIP_REASONS`, Diag-Zähler + Lauf-Status-Chip
+  „Zielzone erreicht"). Rang 6+ rückt nach. Schwelle = Guard-/Entry-Regel-Schwelle.
 - **Universum (`config.py`, statisch):** **US 239** (S&P-Breite) · **DE 122**
   (DAX/MDAX/SDAX, `.DE`) = **361**. Dual-Class nur einmal (GOOGL/FOXA/NWSA,
   BRK-B). Ticker-Meta `data/ticker_meta.json` (Name+Sektor, 361/361 = 100 %,
