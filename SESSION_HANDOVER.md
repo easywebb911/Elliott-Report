@@ -2,9 +2,9 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **24.07.2026**,
-nach PR #32 (**☰-Menü an Squeeze angeglichen**, gemerged; dieser PR: **Watchlist im
-Kompakt-Grid**, offen — reines Frontend). Alle Zahlen/Hashes sind gegen `git log`
-und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #33 (**Watchlist-Kompakt-Grid**, gemerged; dieser PR: **Recalculate-Status
+mit Zeitzähler**, offen — reines Frontend, auf den neuen `main` rebased). Alle
+Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
 > **BRANCH-BASIS:** frisch von `main` (HEAD = #32-Merge `8a13f3c`, Feature-Commit `8d2ac29`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
@@ -77,7 +77,8 @@ durchgängig ab #13.
 | #30 | `e9727d6` | **Konfluenz-Marker** (Lit-Check a): je Kandidat `confluence`{target,invalidation} — 52W-Hoch / 200d-Linie / runde Zahl innerhalb ±1 % der Zielzone/Invalidierung; Chips (Markt + Watchlist), point-in-time in der Sammlung eingefroren. **Reine Anzeige/Messung, kein Score/Ranking** | +G manual +Bild |
 | #31 | `3ad9473` | **W5→A-Nachprüfung** (Lit-Check b): gereifte Ende-W4-Treffer bekommen `a_correction_observed`/`a_retrace_pct`/`a_observe_until` — setzt nach dem Episoden-Hoch die theorie-gemäße Korrektur (≥ 38,2 % Rücklauf der W5-Strecke) binnen `A_OBSERVE_DAYS=10` ein? **Angehängtes** Beobachtungsfenster, bestehende Reifung byte-identisch; `pre_reached`/`pre_guard` ungemessen. **Reines Mess-Feld, kein Score/Ranking/Filter** | +G manual +Bild |
 | #32 | `8d2ac29` | **☰-Menü an Squeeze angeglichen**: Struktur/Design des ☰-Panels ans Schwester-Repo angeglichen (abgerundete Icon-Kacheln + Label, großzügige Zeilen, Fuß-Trennung), **eigene Farbwelt** (Sparkline-Grün `--grn` statt Squeeze-Blau). Reihenfolge Squeeze-analog, aber NUR echte Funktionen: **Reload NEU im Menü** (Header-Button „↻ Neu laden" entfällt, gleiche `refresh()`-Funktion + Cache-Buster), Recalculate, Backtesting, Methodik, Validierung, Lauf-Status, Sperren (abgesetzt). Einheitliche inline-SVG-Icons (keine externe Bibliothek). Reines Frontend | self (CI grün) +Bild |
-| #(dieser) | `(offen)` | **Watchlist im Kompakt-Grid** (Squeeze-Vorbild, Elliott-Grün): Watchlist-Karten als kompaktes Grid (~3/Reihe @390px) — je Kachel Mini-Score-Donut (oder „—" ohne validen Count), Mono-Ticker, Trend-Punkt, ×, ▾. **Standard EINGEKLAPPT**; die volle Elliott-Karte (Live-Kurs, Setup, Analyse·Zeitebenen, Pivot-Verlauf, Badges) erscheint erst beim Aufklappen, pro Kachel, Zustand pro Gerät gemerkt (localStorage). Sofortkarte (#25) bleibt: neuer Ticker startet aufgeklappt mit Live-Kurs. Reines Frontend | self (CI grün) +Bild |
+| #33 | `d6bfa1f` | **Watchlist-Kompakt-Grid**: Watchlist-Karten als kompaktes Grid (~3/Reihe @390px), Kacheln standardmäßig eingeklappt (Mini-Donut/„—", Ticker, Trend-Punkt, ×, ▾), volle Karte beim Aufklappen; Zustand pro Gerät (localStorage). Sofortkarte (#25) bleibt. Reines Frontend | self (CI grün) +Bild |
+| #(dieser) | `(offen)` | **Recalculate-Status mit Zeitzähler** (Squeeze-Muster): nach 204-Dispatch ein Header-Banner „Neuberechnung läuft … N s" (Sekunden live); pollt den **Report-Stand** (`run_timestamp_utc` neuer als beim Start, Cache-Buster+no-store, `RECALC_POLL_MS=10s`) → bei Erfolg **automatisch in-place rendern** (kein Reload) + grünes „fertig" + Toast; Timeout `RECALC_TIMEOUT_MS=10min` → neutraler Hinweis; Feiertag (`MARKET_FULL_CLOSURE`) → sofort-Hinweis statt Warten; visibilitychange-Pause, getrennte Timer vom Quote-Poller. Reines Frontend | self (CI grün) +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -99,9 +100,13 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 - **OFFEN — `.DE`-Live-Quote:** der Worker `quote-proxy.easywebb.workers.dev`
   erlaubt nur Origin `easywebb911.github.io`; ein echter `SAP.DE`-Quote-Check steht
   aus (localhost trifft nur den Fail-soft-Pfad = grauer Punkt).
-- **OFFEN — Recalculate-Live-Test:** Token hinterlegen (Fine-grained, **Actions:
-  write**) → Recalculate → in *Actions* muss ein Lauf erscheinen. Real-POST in der
-  Sandbox CORS-geblockt.
+- **OFFEN — Recalculate-Live-Test (inkl. Status-Banner dieser PR):** Token hinterlegen
+  (Fine-grained, **Actions: write**) → Recalculate → in *Actions* muss ein Lauf
+  erscheinen, UND das neue **Status-Banner** „Neuberechnung läuft … N s" muss laufen,
+  bei fertigem Lauf automatisch die frischen Daten rendern (grünes „fertig" + Toast,
+  kein manueller Reload). Real-POST + Report-Stand-Polling in der Sandbox CORS-/Netz-
+  geblockt; **offline voll durchgespielt** (Playwright: läuft/fertig/Timeout/Feiertag,
+  Mock-Report altert → Poll erkennt). **Endbeweis = echter Recalculate durch Easy.**
 - **OFFEN — Token-Session am echten iPhone (#26/dieser PR):** einmal Master-PW →
   danach Recalculate/Watchlist-Speichern **ohne** erneutes PW (28 Tage) → „Sperren"
   fragt sofort wieder. Offline vollständig durchgespielt (Playwright 14/15, secure
@@ -255,7 +260,7 @@ Modal; Backtesting/Methodik/Validierung/Lauf-Status → Overlay; Sperren → kei
 Konsole nur mit erwarteten externen Quote-Netzfehlern (Sandbox). Revert = reiner
 Frontend-Diff-Revert (Header-Button + alte Emoji-Einträge zurück).
 
-**✅ Watchlist im Kompakt-Grid — erledigt (dieser PR, `docs/index.html`):** Easy 24.07.
+**✅ Watchlist im Kompakt-Grid — erledigt (#33, `docs/index.html`):** Easy 24.07.
 (Bild-Freigabe-Runde zu #32): die Watchlist-Karten im Squeeze-Kompakt-Stil. Grid
 `repeat(auto-fill, minmax(112px,1fr))` (~3 Kacheln/Reihe @390px); je Kachel ein
 **Mini-Score-Donut** (`wlMiniDonut`, 32px, `scoreColor`-Skala) **oder dezentes „—"**
@@ -274,6 +279,33 @@ Elliott-eigen (`--grn`, grün getönte Kachel-Ränder). Poller unberührt — di
 Auf-/Zuklappen, Persistenz über Reload, Add→auto-offen (pending), Remove über ×;
 keine Konsolen-Fehler (außer externem Quote-Netz). Revert = reiner Frontend-Diff-
 Revert (Kacheln zurück zu vollen `.card`s, `wl-grid`→`grid`).
+
+**✅ Recalculate-Status mit Zeitzähler — erledigt (dieser PR, `docs/index.html`):**
+Easy 24.07.: nach dem Recalculate nicht mehr nur „Lauf gestartet · ~2–3 Min" +
+manueller Reload, sondern ein **live laufendes Status-Banner** (Squeeze-Muster). Nach
+204-Dispatch: Header-Banner „Neuberechnung läuft … N s" (Sekunden live, Elliott-Grün);
+`_startRecalcWatch` pollt den **Report-Stand** (`loadReport()`, Cache-Buster+no-store)
+alle `RECALC_POLL_MS=10 s` — sobald `run_timestamp_utc` **neuer** als der Stand beim
+Start ist, gilt der Lauf als fertig → **`_renderReport(r)` in-place** (kein Page-
+Reload, gemeinsame Render-Funktion mit `refresh()`) + grünes „fertig · Stand …" +
+Toast wie beim Reload. **Grenzen:** Timeout `RECALC_TIMEOUT_MS=10 min` (Squeeze-Wert)
+→ neutraler (nicht-roter) Hinweis „dauert länger — später ☰ → Reload"; **Feiertag**
+(`MARKET_FULL_CLOSURE` — die #23-Gate-Tage) → **sofort** ehrlicher Hinweis statt
+Warten (der Lauf schreibt nichts); **visibilitychange-Pause** (im inaktiven Tab kein
+Fetch), beim Zurückkehren sofort-Check. **Getrennte Timer** vom Quote-Poller
+(`_rcPollTimer`/`_rcTick` vs. `quotePollers`) — kein Konflikt. Fail-soft, gedeckelt,
+kein Request-Sturm. **Bugfix (live von Easy gesehen, 24.07.): Baseline-Falle** — das
+Banner verschwand sofort, weil als Vergleich der im Browser **geladene** (evtl.
+CDN-gecachte/ältere) Stand diente; war der Server beim Dispatch schon neuer, meldete
+der erste Poll fälschlich „fertig". Fix: Baseline **frisch vom Server** holen
+(`_rcBaselineMs`) und „fertig" nur bei **STRIKT neuerem** Report (`Date.parse(ts) >
+_rcBaselineMs`, Server-Zeitstempel → kein Client-Uhr-Bezug); `_renderReport` im
+Done-Pfad gekapselt, „fertig" bleibt ~6 s sichtbar. Verifiziert (Playwright, 390px):
+laufen (≥ 35 s ohne Sofort-fertig trotz vor-gealtertem Server-Stand) / fertig (erst
+strikt neuerer Report) / Timeout / Feiertag; Mock-Report altert → Poll rendert frisch;
+Konsole sauber; Tests grün (187). **Endbeweis = echter Recalculate durch Easy**
+(Abschnitt 3). Revert = reiner Frontend-Diff-Revert (Banner + `_startRecalcWatch`/
+`_rcPoll` + Konstanten; `_renderReport`-Extraktion kann bleiben, ist rein strukturell).
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
@@ -488,6 +520,14 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   optionalen `#reload`-Button-Block fail-soft). `_setRecalcBtn` ändert nur noch das
   `.mi-label` (Kachel bleibt). Escape-Priorität: Token-Modal > Menü > Info-Overlay
   > Backtesting.
+- **Recalculate-Status-Banner (`#recalc-banner`, seit dieser PR):** nach 204 startet
+  `_startRecalcWatch` einen **eigenen** Poll-/Tick-Timer (`_rcPollTimer`/`_rcTick`,
+  getrennt von `quotePollers`). Fertig-Erkennung über den **Report-Stand**
+  (`run_timestamp_utc` ≠ Baseline `_lastReportTs`), nicht die Actions-API (tokenlos).
+  Konstanten `RECALC_POLL_MS=10000` / `RECALC_TIMEOUT_MS=600000`. Erfolg →
+  `_renderReport(r)` (dieselbe In-place-Render-Funktion wie `refresh()`, gesetzt auch
+  `_lastReportTs`). Feiertags-Kurzschluss über `MARKET_FULL_CLOSURE`;
+  visibilitychange-Pause; alles fail-soft.
 - **Konstanten:** `EVAL_MIN_N = 100`, `COLLECTION_START = '22.07.2026'` (N×-Tooltip,
   an die Präregistrierung gebunden), `STALENESS_HOURS`-Banner bei > 30 h.
 - **Disclaimer (#23):** dezenter, einklappbarer Banner oben; Merker

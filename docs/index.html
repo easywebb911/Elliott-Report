@@ -44,6 +44,29 @@
     }
     .banner.show { display:block; }
 
+    /* Recalculate-Status-Banner (Squeeze-Muster, Elliott-Grün): läuft mit
+       Sekundenzähler, wird grün „fertig" oder neutral bei Zeitüberschreitung. */
+    .recalc-banner {
+      margin:12px 0; padding:10px 13px; border-radius:9px; font-size:13px;
+      line-height:1.5; display:flex; align-items:center; gap:9px;
+    }
+    .recalc-banner[hidden] { display:none; }
+    .recalc-banner.rc-running {
+      background:rgba(34,197,94,.10); border:1px solid rgba(34,197,94,.40); color:var(--grn);
+    }
+    .recalc-banner.rc-done {
+      background:rgba(34,197,94,.14); border:1px solid rgba(34,197,94,.55); color:var(--grn);
+    }
+    .recalc-banner.rc-timeout {
+      background:var(--bg-met); border:1px solid var(--brd); color:var(--txt-sub);
+    }
+    .recalc-banner b { color:var(--txt); font-weight:700; font-variant-numeric:tabular-nums; }
+    .rc-dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+    .rc-dot-run { background:var(--grn); box-shadow:0 0 6px rgba(34,197,94,.6);
+      animation:rcPulse 1.2s ease-in-out infinite; }
+    .rc-dot-done { background:var(--grn); }
+    @keyframes rcPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
     /* Disclaimer — dezent, dunkel, einklappbar. Auf 390px unaufdringlich. */
     .disclaimer {
       display:flex; align-items:flex-start; gap:8px; margin:0 0 14px;
@@ -673,6 +696,8 @@
     </div>
     <button class="disc-reopen" id="disc-reopen" type="button" hidden>ⓘ Hinweis</button>
     <div class="banner" id="staleness"></div>
+    <!-- Recalculate-Status mit Zeitzähler (läuft / fertig / Timeout). -->
+    <div class="recalc-banner" id="recalc-banner" hidden></div>
     <!-- Persönliche Watchlist (eigene Ticker, volle Analyse, außer Konkurrenz).
          GANZ OBEN über den Markt-Top-5 (Easys gezielte Studienobjekte zuerst). -->
     <section id="watchlist-sec">
@@ -2090,7 +2115,18 @@
         );
         if (r.status === 204) {
           _setRecalcBtn('Lauf gestartet', true);
-          showToast('Lauf gestartet · ~2–3 Min · danach ☰ → Reload tippen');
+          // Feiertags-Gate (#23): an Börsen-Voll-Schließtagen schreibt der Lauf
+          // KEINEN neuen Report → nicht ewig pollen, sofort ehrlicher Hinweis.
+          const today = new Date().toISOString().slice(0, 10);
+          if (MARKET_FULL_CLOSURE.has(today)) {
+            showToast('Lauf gestartet — heute ist aber Börsen-Feiertag.');
+            _rcBanner('rc-timeout', 'Heute ist ein Börsen-Feiertag — der Lauf schreibt '
+              + 'keinen neuen Report (Gate). Kein automatisches Neu-Laden.');
+            _setRecalcBtn('Recalculate', false);
+          } else {
+            showToast('Lauf gestartet · läuft — Fortschritt oben im Banner');
+            _startRecalcWatch();
+          }
         } else if (r.status === 401 || r.status === 403) {
           showToast(`Token-Auth fehlgeschlagen (HTTP ${r.status}). Master-Passwort neu `
             + `eingeben; bleibt es dabei, Token neu hinterlegen (Actions: write).`, 'error');
@@ -2108,6 +2144,101 @@
         _recalcBusy = false;
       }
     }
+
+    // ── Recalculate-Status mit Zeitzähler (Squeeze-Muster) ──────────────────
+    // Nach erfolgreichem Dispatch pollt der Client den REPORT-STAND (nicht die
+    // Actions-API, also tokenlos): sobald `run_timestamp_utc` NEUER ist als beim
+    // Start, sind frische Daten da → automatisch in-place rendern (kein manueller
+    // Reload). Eigene Timer, getrennt vom Quote-Poller. Fail-soft, gedeckelt.
+    const RECALC_POLL_MS = 10000;        // 10 s zwischen Report-Stand-Checks (kein Sturm)
+    const RECALC_TIMEOUT_MS = 600000;    // 10 min Obergrenze (Squeeze-Wert TIMEOUT_MS)
+    let _rcStart = null, _rcBaselineMs = 0, _rcPollTimer = null, _rcTick = null, _rcActive = false;
+
+    function _rcElapsed() {
+      const s = Math.floor((Date.now() - _rcStart) / 1000);
+      const m = Math.floor(s / 60), r = s % 60;
+      return m > 0 ? `${m}:${String(r).padStart(2, '0')} min` : `${s} s`;
+    }
+    function _rcStopTimers() {
+      if (_rcPollTimer) { clearTimeout(_rcPollTimer); _rcPollTimer = null; }
+      if (_rcTick) { clearInterval(_rcTick); _rcTick = null; }
+    }
+    function _rcBanner(state, html) {
+      const el = document.getElementById('recalc-banner');
+      if (!el) return;
+      el.className = 'recalc-banner ' + state;
+      el.innerHTML = html;
+      el.hidden = false;
+    }
+    async function _startRecalcWatch() {
+      _rcActive = true;
+      _rcStart = Date.now();
+      // BASELINE-FALLE vermeiden: NICHT den im Browser geladenen (evtl. CDN-
+      // gecachten/älteren) Stand als Vergleich nehmen — sonst wertet der erste
+      // Poll ihn als „neuer" und meldet sofort „fertig", obwohl der Lauf noch
+      // läuft. Baseline daher FRISCH vom Server holen; „fertig" gilt nur bei
+      // einem STRIKT NEUEREN Report (Server-Zeitstempel, kein Client-Uhr-Bezug).
+      _rcBaselineMs = Date.parse(_lastReportTs || '') || 0;   // Sofort-Fallback
+      _rcBanner('rc-running',
+        '<span class="rc-dot rc-dot-run"></span>Neuberechnung läuft … <span id="rc-elapsed">0 s</span>');
+      _rcStopTimers();
+      _rcTick = setInterval(() => {
+        const sp = document.getElementById('rc-elapsed');
+        if (sp) sp.textContent = _rcElapsed();
+      }, 1000);
+      try {
+        const base = await loadReport();     // echter Server-Stand JETZT (Cache-Buster)
+        const bMs = Date.parse(base && base.run_timestamp_utc || '');
+        if (bMs) _rcBaselineMs = bMs;
+      } catch (_) { /* Fallback bleibt der geladene Stand */ }
+      if (_rcActive && !_rcPollTimer) _rcPollTimer = setTimeout(_rcPoll, RECALC_POLL_MS);
+    }
+    async function _rcPoll() {
+      if (!_rcActive) return;
+      if (Date.now() - _rcStart > RECALC_TIMEOUT_MS) { _recalcTimeout(); return; }
+      // visibilitychange-Pause (wie Quote-Poller): im inaktiven Tab NICHT fetchen,
+      // nur neu terminieren. Der Sekundenzähler/Timeout läuft über die Wall-Clock.
+      if (document.visibilityState === 'hidden') {
+        _rcPollTimer = setTimeout(_rcPoll, RECALC_POLL_MS);
+        return;
+      }
+      try {
+        const rep = await loadReport();  // Cache-Buster + no-store
+        const tMs = Date.parse(rep && rep.run_timestamp_utc || '');
+        // Nur ein STRIKT NEUERER Report zählt als fertig — ein (CDN-)älterer oder
+        // gleicher Stand triggert nichts (schützt gegen Sofort-„fertig").
+        if (tMs && tMs > _rcBaselineMs) { _recalcDone(rep); return; }
+      } catch (_) { /* fail-soft: weiter pollen bis Timeout */ }
+      if (_rcActive) _rcPollTimer = setTimeout(_rcPoll, RECALC_POLL_MS);
+    }
+    function _recalcDone(rep) {
+      _rcActive = false; _rcStopTimers();
+      // Render darf den „fertig"-Zustand NICHT verhindern → gekapselt.
+      try { _renderReport(rep); } catch (_) { /* Banner/Toast trotzdem zeigen */ }
+      _rcBanner('rc-done',
+        `<span class="rc-dot rc-dot-done"></span>Neuberechnung fertig · Stand <b>${esc(rep.run_timestamp_utc || '?')}</b>`);
+      showToast(`Aktualisiert · Stand ${rep.run_timestamp_utc || '?'}`);
+      _setRecalcBtn('Recalculate', false);
+      // Erfolgsbanner sichtbar lassen, dann dezent ausblenden.
+      setTimeout(() => {
+        const el = document.getElementById('recalc-banner');
+        if (el && el.classList.contains('rc-done')) el.hidden = true;
+      }, 6000);
+    }
+    function _recalcTimeout() {
+      _rcActive = false; _rcStopTimers();
+      _rcBanner('rc-timeout',
+        'Neuberechnung dauert länger als erwartet — evtl. Wochenende/Feiertag '
+        + '(dann schreibt der Lauf nichts). Später ☰ → Reload versuchen.');
+      _setRecalcBtn('Recalculate', false);
+    }
+    // Beim Zurückkehren in den Tab sofort einmal prüfen (statt bis zu 10 s warten).
+    document.addEventListener('visibilitychange', () => {
+      if (_rcActive && document.visibilityState === 'visible') {
+        if (_rcPollTimer) { clearTimeout(_rcPollTimer); _rcPollTimer = null; }
+        _rcPoll();
+      }
+    });
 
     // ── Hamburger-Menü (Dropdown mit zwei Einträgen) ──────────────────────
     let _menuOpen = false;
@@ -2354,17 +2485,7 @@
       if (btn) { btn.disabled = true; prev = btn.textContent; btn.textContent = '… lädt'; }
       try {
         const r = await loadReport();
-        document.getElementById('meta').textContent =
-          `Stand: ${r.run_timestamp_utc || '?'} · Schema v${r.schema_version ?? '?'}`;
-        document.getElementById('staleness').classList.remove('show');
-        checkStaleness(r.run_timestamp_utc);
-        renderMarket('US', r.markets.US);
-        renderMarket('DE', r.markets.DE);
-        renderWatchlist(r);  // Watchlist-Sektion (fail-soft, außer Konkurrenz)
-        drawAllSparklines();
-        startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
-        // Validierungs-Panel unabhängig laden — darf den Report NIE brechen.
-        loadCollection().then(renderValidation).catch(() => {});
+        _renderReport(r);
         if (announce) showToast(`Aktualisiert · Stand ${r.run_timestamp_utc || '?'}`);
       } catch (e) {
         document.getElementById('meta').innerHTML =
@@ -2373,6 +2494,24 @@
       } finally {
         if (btn) { btn.textContent = prev; btn.disabled = false; }
       }
+    }
+
+    // Report in-place rendern (aus refresh() UND aus dem Recalculate-Watch, ohne
+    // Page-Reload). Setzt den Baseline-Stand _lastReportTs für den Recalc-Poller.
+    let _lastReportTs = null;
+    function _renderReport(r) {
+      _lastReportTs = r.run_timestamp_utc || null;
+      document.getElementById('meta').textContent =
+        `Stand: ${r.run_timestamp_utc || '?'} · Schema v${r.schema_version ?? '?'}`;
+      document.getElementById('staleness').classList.remove('show');
+      checkStaleness(r.run_timestamp_utc);
+      renderMarket('US', r.markets.US);
+      renderMarket('DE', r.markets.DE);
+      renderWatchlist(r);  // Watchlist-Sektion (fail-soft, außer Konkurrenz)
+      drawAllSparklines();
+      startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
+      // Validierungs-Panel unabhängig laden — darf den Report NIE brechen.
+      loadCollection().then(renderValidation).catch(() => {});
     }
 
     // Sparklines bei Größenänderung neu zeichnen (Marker bleiben rund).
