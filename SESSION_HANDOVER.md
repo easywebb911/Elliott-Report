@@ -2,11 +2,11 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **24.07.2026**,
-nach PR #30 (**Konfluenz-Marker**, gemerged; dieser PR: **W5→A-Nachprüfung**,
-offen). Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus
-dem Gedächtnis.
+nach PR #31 (**W5→A-Nachprüfung**, gemerged; dieser PR: **☰-Menü an Squeeze
+angeglichen**, offen — reines Frontend). Alle Zahlen/Hashes sind gegen `git log`
+und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #30-Merge, Feature-Commit `e9727d6`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #31-Merge `d5ec975`, Feature-Commit `3ad9473`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -75,7 +75,8 @@ durchgängig ab #13.
 | #28 | `2bed684` | **Validierungs-Integrität (PRU-Guard)**: `mature_record`-Guard sperrt `target_hit`/`ext_hit`, wenn Kurs schon bei Anlage ≥ Zone (`pre_reached_*`); 3 Alt-Records `pre_guard_contaminated` ausgewiesen; Registry-Ausschluss datiert; Badge „Zielzone erreicht/überschritten". Kein Filter/Score-Eingriff, Ranking byte-identisch | +G manual +Bild |
 | #29 | `3e59b4e` | **Filter `target_exceeded`** (Produkt): Setups mit `close ≥ target_zone.low` fliegen VOR dem Ranking aus den Markt-Top-5 (Skip-Grund + Diag-Zähler, Rang 6+ rückt nach); Watchlist zeigt weiter alles (Badge). Populations-Änderung datiert; #28-Guard bleibt als zweites Netz — **live: US 15 / DE 6 gefiltert** | +G manual +Bild |
 | #30 | `e9727d6` | **Konfluenz-Marker** (Lit-Check a): je Kandidat `confluence`{target,invalidation} — 52W-Hoch / 200d-Linie / runde Zahl innerhalb ±1 % der Zielzone/Invalidierung; Chips (Markt + Watchlist), point-in-time in der Sammlung eingefroren. **Reine Anzeige/Messung, kein Score/Ranking** | +G manual +Bild |
-| #(dieser) | `(offen)` | **W5→A-Nachprüfung** (Lit-Check b): gereifte Ende-W4-Treffer bekommen `a_correction_observed`/`a_retrace_pct`/`a_observe_until` — setzt nach dem Episoden-Hoch die theorie-gemäße Korrektur (≥ 38,2 % Rücklauf der W5-Strecke) binnen `A_OBSERVE_DAYS=10` ein? **Angehängtes** Beobachtungsfenster, bestehende Reifung byte-identisch; `pre_reached`/`pre_guard` ungemessen. **Reines Mess-Feld, kein Score/Ranking/Filter** | +G manual +Bild |
+| #31 | `3ad9473` | **W5→A-Nachprüfung** (Lit-Check b): gereifte Ende-W4-Treffer bekommen `a_correction_observed`/`a_retrace_pct`/`a_observe_until` — setzt nach dem Episoden-Hoch die theorie-gemäße Korrektur (≥ 38,2 % Rücklauf der W5-Strecke) binnen `A_OBSERVE_DAYS=10` ein? **Angehängtes** Beobachtungsfenster, bestehende Reifung byte-identisch; `pre_reached`/`pre_guard` ungemessen. **Reines Mess-Feld, kein Score/Ranking/Filter** | +G manual +Bild |
+| #(dieser) | `(offen)` | **☰-Menü an Squeeze angeglichen**: Struktur/Design des ☰-Panels ans Schwester-Repo angeglichen (abgerundete Icon-Kacheln + Label, großzügige Zeilen, Fuß-Trennung), **eigene Farbwelt** (Sparkline-Grün `--grn` statt Squeeze-Blau). Reihenfolge Squeeze-analog, aber NUR echte Funktionen: **Reload NEU im Menü** (Header-Button „↻ Neu laden" entfällt, gleiche `refresh()`-Funktion + Cache-Buster), Recalculate, Backtesting, Methodik, Validierung, Lauf-Status, Sperren (abgesetzt). Einheitliche inline-SVG-Icons (keine externe Bibliothek). Reines Frontend | self (CI grün) +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -235,6 +236,23 @@ Formel unverändert; nur die Grundgesamtheit verengt sich auf handelbare Setups.
 Revert = `exclude_target_reached`-Zweig + Konstante `TARGET_EXCEEDED` entfernen
 (rein subtraktiver Filter, keine Datenreste). Nach Merge: `daily.yml` dispatchen,
 `target_exceeded`-Zähler + neue Top-5-Besetzung + Nachrücker-Scores nachtragen.
+
+**✅ ☰-Menü an Squeeze angeglichen — erledigt (dieser PR, `docs/index.html`):**
+Easy 24.07.: Struktur + Design des ☰-Panels ans Schwester-Repo (Aktien-Update,
+`app.html`) angleichen — abgerundete Icon-Kacheln + Label, großzügige Zeilen,
+Fuß-Trennung — aber **eigene Farbwelt** (das Karten-/Sparkline-Grün `--grn` statt
+Squeeze-Blau) und **nur real vorhandene** Elliott-Funktionen (keine Platzhalter).
+Neue Reihenfolge: **Reload** (neu im Menü, primär hervorgehoben — der Header-Button
+„↻ Neu laden" entfällt, gleiche `refresh()`+Cache-Buster) · Recalculate · Backtesting
+· Methodik · Validierung · Lauf-Status · Trenner · Sperren. Einheitliche inline-SVGs
+(lucide-Vorbild, **keine** externe Lib). Panel-Verhalten (öffnen/schließen, Overlay-
+Navigation) unverändert; Live-Poller/`data-quote`-Anker unberührt. **Bewusst NICHT
+gebaut** (Squeeze-Funktionen ohne Elliott-Pendant): Agent Run, Trade-Journal,
+Push-Historie, Score-Sortierung, Chat, Schrift-/Theme-Buttons. Verifiziert: alle 7
+Einträge headless durchgeklickt (Reload → Toast + frischer Stand; Recalc → Token-
+Modal; Backtesting/Methodik/Validierung/Lauf-Status → Overlay; Sperren → kein Crash);
+Konsole nur mit erwarteten externen Quote-Netzfehlern (Sandbox). Revert = reiner
+Frontend-Diff-Revert (Header-Button + alte Emoji-Einträge zurück).
 
 **→ WARTESCHLANGE LEER.** Alle Bau-Punkte durch. Nächste Schritte brauchen einen
 ausdrücklichen Startschuss von Easy (siehe GEPARKT). Naheliegend: Live-Verifikationen
@@ -427,9 +445,16 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 - **Watchlist:** `localStorage['elliott_watchlist']`; Repo-Datei
   `watchlist_personal.json` via Contents-API (GET sha → PUT base64+sha, 409-Retry);
   Token zusätzlich **Contents: write**.
-- **Menü (☰, 6 Punkte):** `mi-backtesting`, `mi-methodik`, `mi-validierung`,
-  `mi-laufstatus`, `mi-recalc`, `mi-lock` („Sperren" — Session sofort beenden,
-  #26/dieser PR). Escape-Priorität: Token-Modal > Menü > Info-Overlay > Backtesting.
+- **Menü (☰, 7 Punkte, Squeeze-analog seit dieser PR):** Reihenfolge `mi-reload`
+  (**NEU**, primär hervorgehoben) · `mi-recalc` · `mi-backtesting` · `mi-methodik`
+  · `mi-validierung` · `mi-laufstatus` · Trenner · `mi-lock` („Sperren", abgesetzt
+  am Fuß). Jeder Eintrag = abgerundete **Icon-Kachel** (`.mi-tile`, Sparkline-Grün
+  `--grn`) + `.mi-label`; Icons als **inline-SVG** (lucide-Vorbild, keine externe
+  Lib). **`mi-reload`** ruft `refresh({announce:true})` (Cache-Buster/no-store) —
+  der frühere Header-Button „↻ Neu laden" ist **entfallen** (`refresh` hält den
+  optionalen `#reload`-Button-Block fail-soft). `_setRecalcBtn` ändert nur noch das
+  `.mi-label` (Kachel bleibt). Escape-Priorität: Token-Modal > Menü > Info-Overlay
+  > Backtesting.
 - **Konstanten:** `EVAL_MIN_N = 100`, `COLLECTION_START = '22.07.2026'` (N×-Tooltip,
   an die Präregistrierung gebunden), `STALENESS_HOURS`-Banner bei > 30 h.
 - **Disclaimer (#23):** dezenter, einklappbarer Banner oben; Merker
