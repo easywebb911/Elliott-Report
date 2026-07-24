@@ -57,8 +57,17 @@ NO_VALID_COUNT = "no_valid_count"  # kein regelkonformes Setup gefunden
 # verworfen. Eigener Grund, damit im Diag-Log sichtbar bleibt, wie viele
 # Shorts aussortiert wurden. Die Richtungs-ERKENNUNG ist unverändert.
 SHORT_SETUP_EXCLUDED = "short_setup_excluded"
+# Produktentscheidung (23.07., PRU-Diagnose): ein Setup, dessen Lauf-Schlusskurs
+# die Zielzone bereits erreicht hat (close >= target_zone.low), ist nicht mehr
+# handelbar — es fliegt VOR dem Ranking aus den Markt-Top-5 (Rang 6+ rückt nach).
+# NUR Markt-Pipeline; die Watchlist zeigt weiter alles (Badge markiert dort den
+# Zustand). Zusammenspiel mit dem #28-Guard = Verteidigung in der Tiefe: der Filter
+# verhindert die Neuanlage über Zone, der Guard schützt die Messung, falls doch je
+# einer durchkommt.
+TARGET_EXCEEDED = "target_exceeded"
 SKIP_REASONS = (
     FETCH_ERROR, EMPTY_DATA, TOO_FEW_PIVOTS, NO_VALID_COUNT, SHORT_SETUP_EXCLUDED,
+    TARGET_EXCEEDED,
 )
 
 
@@ -590,7 +599,8 @@ def higher_degree_for(ticker: str, weekly_fetcher: Optional[Fetcher]) -> Optiona
 
 
 def build_candidate(
-    ticker: str, dates: List[str], closes: List[float]
+    ticker: str, dates: List[str], closes: List[float],
+    exclude_target_reached: bool = True,
 ) -> Tuple[Optional[Dict], Optional[str], str]:
     """Baut einen Kandidaten-Eintrag.
 
@@ -599,6 +609,11 @@ def build_candidate(
       - Skip   -> (None, reason, detail-fürs-Log)
     Die Entscheidungslogik ist unverändert; es wird nur der Grund + ein
     Detail fürs Log ergänzt.
+
+    exclude_target_reached: Markt-Pipeline (Default True) verwirft Setups, deren
+    Kurs die Zielzone bereits erreicht hat (close >= target_zone.low) VOR dem
+    Ranking (Skip target_exceeded). Die Watchlist ruft mit False auf — dort bleibt
+    das Setup sichtbar (Badge aus #28 markiert den Zustand).
     """
     pivots = zigzag(closes, config.ZIGZAG_WINDOW, dates)
     if len(pivots) < 3:
@@ -622,6 +637,19 @@ def build_candidate(
             SHORT_SETUP_EXCLUDED,
             f"{setup['setup']} short (direction={setup['direction']}): "
             f"{setup['count_label']}",
+        )
+
+    # Zielzone erreicht = nicht mehr handelbar -> VOR dem Ranking verwerfen
+    # (Rang 6+ rückt nach). NUR Markt-Pipeline (exclude_target_reached=True); die
+    # Watchlist ruft mit False auf und zeigt das Setup weiter (Badge markiert es).
+    # Schwelle = target_zone.low (identisch zur #28-Guard-/Entry-Regel-Schwelle).
+    tlow = setup["target_zone"]["low"]
+    if exclude_target_reached and close >= tlow:
+        return (
+            None,
+            TARGET_EXCEEDED,
+            f"{setup['setup']} close={round(close, 4)} >= target_zone.low={tlow} "
+            f"(Zielzone erreicht, nicht mehr handelbar)",
         )
 
     chart_points = [p.as_dict() for p in pivots[-12:]]
@@ -764,7 +792,8 @@ def build_market(
         f"empty_data={reason_counts[EMPTY_DATA]}, "
         f"too_few_pivots={reason_counts[TOO_FEW_PIVOTS]}, "
         f"no_valid_count={reason_counts[NO_VALID_COUNT]}, "
-        f"short_setup_excluded={reason_counts[SHORT_SETUP_EXCLUDED]}"
+        f"short_setup_excluded={reason_counts[SHORT_SETUP_EXCLUDED]}, "
+        f"target_exceeded={reason_counts[TARGET_EXCEEDED]}"
     )
     _log(f"[elliott][diag] {market_key} großer Grad: "
          f"{higher_count}/{len(top)} Top-Kandidaten mit Wochen-Count")
@@ -930,7 +959,10 @@ def build_watchlist_entry(
         "month": _count_from_fetch(ticker, monthly_fetcher),
     }
 
-    entry, reason, detail = build_candidate(ticker, dates, closes)
+    # Watchlist zeigt ALLES — auch Setups mit erreichter Zielzone (Badge markiert
+    # sie); daher target_exceeded-Filter hier AUS (nur die Markt-Top-5 filtern).
+    entry, reason, detail = build_candidate(ticker, dates, closes,
+                                            exclude_target_reached=False)
     if entry is not None:
         # Long-Setup vorhanden -> volle Karte inkl. großem Grad (Wochen).
         entry["higher_degree"] = week_count          # == vorher (higher_degree_for)

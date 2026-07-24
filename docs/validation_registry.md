@@ -133,3 +133,18 @@ n ≥ 100) gilt unverändert.
   Ranking, Filterung der Kandidaten. Ein **Filter** (verbrauchte Setups gar nicht
   erst ranken, Skip-Grund `target_exceeded`) ist eine **separate, spätere Produkt-
   Entscheidung** (offen), kein Teil dieses Registry-Eintrags. Score-Malus verworfen.
+- **23.07.2026 — Filter `target_exceeded` aktiv (Populations-Änderung).** Easys
+  Produktentscheidung auf Basis der PRU-Diagnose: ein Setup, dessen Lauf-
+  Schlusskurs die Zielzone bereits erreicht hat (**`close ≥ target_zone.low`** =
+  „Zielzone erreicht" = nicht mehr handelbar), wird **VOR dem Ranking** aus den
+  **Markt-Top-5** verworfen (Skip-Grund `target_exceeded`, eigener Diag-Zähler);
+  Rang 6+ rückt nach. **Wirkung auf die Population:** ab jetzt entstehen forward-
+  Episoden **nur noch für handelbare** (nicht-verbrauchte) Top-5 — die Grundgesamt-
+  heit verengt sich bewusst auf einsteigbare Setups. Die **Watchlist** ist
+  ausgenommen (zeigt alles, Badge markiert den Zustand) und war ohnehin nie Teil
+  der Population. **Verteidigung in der Tiefe:** der Filter verhindert die Neuanlage
+  über Zone, der **#28-Guard bleibt** als zweites Netz (schützt die Messung, falls
+  doch je eine Episode über Zone durchkommt — `pre_reached_*`/Ausschluss).
+  Schwelle **identisch** zur Guard-/Entry-Regel (`target_zone.low`). Score/Ranking-
+  Formel **unverändert**; nur die Kandidaten-Grundgesamtheit ändert sich (transparent
+  zu halten, wenn ausgewertet wird — der Score-Test misst weiter den Score).
