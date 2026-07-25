@@ -2,12 +2,12 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #38 (**3D-Karten-Look + blaue Watchlist-Tönung**, gemerged; dieser PR:
-**Header-Layout: Disclaimer ans Seitenende, ☰ nach oben rechts**, offen — reines
-CSS/Markup). Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus
-dem Gedächtnis.
+nach PR #39 (**Header-Layout: Disclaimer ans Seitenende, ☰ oben rechts**, gemerged;
+dieser PR: **„Ziel erreicht/überschritten"-Hinweis je Zeitebenen-Zeile**, offen —
+reines Frontend). Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht
+aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #38-Merge `3a32abb`, Feature-Commit `e5b04c1`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #39-Merge `7946dad`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -84,7 +84,8 @@ durchgängig ab #13.
 | #36 | `a06f200` | **Struktur-Marke präzisiert + A-Orientierung** (Read-only-Diagnose PANW): additives `mark_label` sagt WAS die Marke ist (`Impuls-Start`/`W1-Hoch`/`W1-Start`); bei `impulse_complete` zusätzlich `orientation_price` = **W4-Extrem** als nahe **A-Ziel-Region**. Reine Watchlist-Anzeige, additiv | +G +Bild manual |
 | #37 | `b891efa` | **Watchlist-Auto-Sync**: der manuelle „Für die Pipeline speichern"-Button (#17) entfällt — jede add/remove synct automatisch nach `watchlist_personal.json` (PUT), **Debounce `WL_SYNC_DEBOUNCE_MS=3000`** (EIN Commit), idempotent, gesperrte Session → Dialog + „noch nicht gesynct"-Chip, 409 → sha frisch + 1× Retry. Reines Frontend | +G self (CI grün) +Bild |
 | #38 | `e5b04c1` | **3D-Karten-Look + blaue Watchlist-Tönung** (Squeeze „Variante 1B" portiert): Markt-Karten, Watchlist-Kacheln UND aufgeklappte Karten bekommen die einheitliche Tiefen-Sprache (2-Stop-Gradient + Drop-Schatten + **Inset-Kanten-Highlight** + 1px-Licht-Grat, Hover-Lift auf Kacheln); aufgeklappte Watchlist-Karten zusätzlich **dezent blaustichig** (Akzent-Blau). Reines CSS, Kontrast belegt | self (CI grün) +Bild |
-| #(dieser) | `(offen)` | **Header-Layout**: Disclaimer-Banner aus dem Kopf entfernt → dezenter statischer **Footer-Disclaimer** am Seitenende (kein Einklappen mehr, `elliott_disc_collapsed`+JS entfallen); **☰ von oben links nach oben RECHTS** (Squeeze-Position, Panel öffnet rechtsbündig `right:12px`), Titel/Stand-Zeile links. Alle Menü-Funktionen unverändert. Reines Frontend | self (CI grün) +Bild |
+| #39 | `7946dad` | **Header-Layout**: Disclaimer-Banner aus dem Kopf entfernt → dezenter statischer **Footer-Disclaimer** am Seitenende (kein Einklappen mehr, `elliott_disc_collapsed`+JS entfallen); **☰ von oben links nach oben RECHTS** (Squeeze-Position, Panel öffnet rechtsbündig `right:12px`), Titel/Stand-Zeile links. Alle Menü-Funktionen unverändert. Reines Frontend | self (CI grün) +Bild |
+| #(dieser) | `(offen)` | **„Ziel erreicht/überschritten" je Zeitebenen-Zeile**: jede Tag/Woche/Monat-Zeile mit Zielzone (Markt + Watchlist) bekommt einen kompakten `.tf-hint`-Chip — Kurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` → „Ziel überschritten" (**Schwellen identisch zum #28-Badge**, `_setTfHint` = Zwilling von `_setZoneBadge`, live via `quotePatch`). Macht sichtbar, dass ältere Zählungen auf großen Zeitebenen (Monats-Pivot-Trägheit) längst gelaufene Ziele zeigen (Live-Fall AMAT: Monat Ziel 296–391 bei Kurs 536). Methodik ergänzt. Reines Frontend | self (CI grün) +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -311,7 +312,24 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ Header-Layout: Disclaimer ans Seitenende, ☰ oben rechts — erledigt (dieser PR,
+**✅ „Ziel erreicht/überschritten" je Zeitebenen-Zeile — erledigt (dieser PR,
+`docs/index.html`, reines Frontend):** Live-Befund AMAT (25.07.): Monats-Zeile zeigte
+„Ende W2 · Ziel 296–391" bei Kurs **536** — die Projektion war längst gelaufen (Monats-
+Pivot-Trägheit), die Zeile sagte es nicht; das #28-Badge existierte nur an der Haupt-
+Zielzonen-Kachel, nicht je Zeitebene. Jetzt trägt **jede** Zeitebenen-Zeile mit `target_zone`
+einen kompakten `.tf-hint`-Chip (Markt- UND Watchlist-Karten, da `tfPanel` der einzige
+Render-Pfad ist). **Schwellen identisch zu #28** (`_setTfHint` = Zwilling von `_setZoneBadge`):
+Kurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` → „Ziel überschritten", sonst versteckt.
+Bezugskurs: Karten-Kurs `c.close` (3. Arg an `tfPanel`) als Anfangszustand, **live** über
+`quotePatch` → `card.querySelectorAll('[data-tf-hint]')` aktualisiert (wie das Haupt-Badge).
+EXT ohne eigenen Chip (`ext.high ≥ ziel.high` → „überschritten" deckt es ab). Methodik-
+Legende um die Pivot-Trägheits-Erklärung ergänzt. Verifiziert (390px, Playwright, AMAT-
+Realfall): **Monat „Ziel überschritten", Tag ohne Hinweis** (Ziel 593–617 > Kurs 536),
+Schwellen-Gegenprobe `_setTfHint` (reached/over/below), Zeile bricht nicht um, Konsole
+sauber, Tests grün (202). Revert = `.tf-hint`-CSS + Chip-Zweig in `tfPanel` + `_setTfHint`
++ die eine `quotePatch`-Zeile raus. Reine Anzeige — keine Pipeline/Score/Population berührt.
+
+**✅ Header-Layout: Disclaimer ans Seitenende, ☰ oben rechts — erledigt (#39,
 `docs/index.html`, reines Frontend):** Zwei Squeeze-nahe Umbauten. (1) **Disclaimer:**
 das einklappbare Banner **oben im Kopf** ist komplett entfernt (inkl. `.disclaimer`/
 `.disc-*`-CSS und der Einklapp-JS: `DISC_KEY`/`_applyDisc`/localStorage-Merker entfielen).
@@ -551,6 +569,20 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   NICHT (Top-5 bleiben Tag+Woche, `timeframes` fehlt dort bewusst). Frontend
   `tfPanel()` rendert das Panel NUR bei vorhandenem `c.timeframes` (Markt-Karten
   behalten den reinen Wochen-`hd-block`).
+- **„Ziel erreicht/überschritten" je Zeitebene (dieser PR, reines Frontend):**
+  jede Zeitebenen-Zeile mit `target_zone` trägt einen kompakten `.tf-hint`-Chip
+  (`data-tf-hint`, `data-zl`/`data-zh`). Schwellen **identisch** zum #28-Zonen-Badge
+  (`_setZoneBadge`): Bezugskurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` →
+  „Ziel überschritten", sonst `hidden`. `tfPanel(tf, structure, cardClose)` bekommt
+  den Karten-Kurs als 3. Arg (Anfangszustand = Lauf-Schlusskurs `c.close`); `quotePatch`
+  aktualisiert live via `card.querySelectorAll('[data-tf-hint]')` → `_setTfHint`
+  (Zwilling von `_setZoneBadge`). EXT braucht **keinen** eigenen Chip: `ext.high ≥
+  ziel.high`, ein Kurs ≥ `ext.high` zeigt also ohnehin „Ziel überschritten". Motiv:
+  Pivot-Bestätigungs-Trägheit (Monatskerzen ±5 Balken) → alte Zählung zeigt „W3
+  erwartet", obwohl der Kurs die Projektion längst durchlaufen hat (Live-Fall AMAT
+  25.07.: Monat Ziel 296–391 bei Kurs 536). Methodik-Legende um genau diese
+  Erklärung ergänzt. Revert = `.tf-hint`-CSS + Chip-Zweig in `tfPanel` + `_setTfHint`
+  + die eine `quotePatch`-Zeile raus, `cardClose`-Arg entfällt.
 - **Struktur-Befund (NUR Watchlist, #35):** additives Feld `structure`
   {`day`,`week`,`month`}, je Ebene `null` **oder** {`state`,`label`,
   `invalidation_price`,`mark_label`,`orientation_price`,`direction`}.
