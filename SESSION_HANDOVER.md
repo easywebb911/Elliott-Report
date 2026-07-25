@@ -500,7 +500,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   `tfPanel(tf, structure)` zeigt bei null-Count den Struktur-Befund statt „kein Count".
 - **Marke präzisiert + A-Orientierung (dieser PR):** `invalidation_price` = struktureller
   **Zählungs-Ungültigkeitspunkt**; `mark_label` sagt WELCHER Pivot das ist
-  (`Impuls-Start` = P0 bei complete/W2, `W1-Hoch` = P1 bei W4, `W1-Start` = P0 bei W2)
+  (`Impuls-Start` = P0 bei complete, `W1-Hoch` = P1 bei W4, `W1-Start` = P0 bei W2)
   — die nackte Zahl allein (z. B. PANW 155,73, > 50 % unter Kurs) wirkte sonst wie eine
   nahe Orientierung. Bei **`impulse_complete`** zusätzlich `orientation_price` = **W4-
   Extrem** (P4) als nahe **A-Ziel-Region** (typisches erstes Ziel der erwarteten

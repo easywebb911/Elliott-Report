@@ -74,10 +74,14 @@ def test_short_structure_down_w2():
 
 
 def test_short_structure_down_complete():
-    # Kompletter Abwärts-Impuls (6 Pivots).
+    # Kompletter Abwärts-Impuls (6 Pivots). Symmetrisch zu impulse_complete:
+    # Marke = Impuls-Start (P0), A-Orientierung = W4-Extrem (P4).
     r = pipe._classify_structure([200.0, 180.0, 190.0, 160.0, 170.0, 140.0], 145.0)
     assert r["state"] == "short_structure"
     assert "komplett" in r["label"]
+    assert r["mark_label"] == "Impuls-Start"
+    assert r["invalidation_price"] == 200.0       # P0
+    assert r["orientation_price"] == 170.0        # P4 = W4-Extrem
 
 
 def test_no_structure():
