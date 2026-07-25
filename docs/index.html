@@ -68,29 +68,6 @@
     @keyframes rcPulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
     /* Disclaimer — dezent, dunkel, einklappbar. Auf 390px unaufdringlich. */
-    .disclaimer {
-      display:flex; align-items:flex-start; gap:8px; margin:0 0 14px;
-      padding:9px 11px; border-radius:8px; font-size:12px; line-height:1.5;
-      background:rgba(202,138,4,.09); border:1px solid rgba(202,138,4,.35);
-      color:var(--txt-sub);
-    }
-    .disclaimer[hidden] { display:none; }
-    .disc-ico { color:var(--disc); flex:0 0 auto; }
-    .disc-text { flex:1; min-width:0; }
-    .disc-text strong { color:var(--txt); font-weight:700; }
-    .disc-close {
-      flex:0 0 auto; -webkit-appearance:none; appearance:none; cursor:pointer;
-      background:transparent; border:0; color:var(--txt-dim); font-size:18px;
-      line-height:1; padding:0 2px; margin:-2px -2px 0 0; touch-action:manipulation;
-    }
-    .disc-close:active { color:var(--txt); }
-    .disc-reopen {
-      -webkit-appearance:none; appearance:none; cursor:pointer; margin:0 0 14px;
-      background:var(--bg-met); color:var(--txt-dim); border:1px solid var(--brd);
-      border-radius:999px; padding:4px 10px; font-size:11px; touch-action:manipulation;
-    }
-    .disc-reopen[hidden] { display:none; }
-    .disc-reopen:active { background:var(--bg-hdr); }
 
     h2 {
       font-size:17px; text-transform:uppercase; letter-spacing:.08em;
@@ -342,8 +319,10 @@
     .validation .val-counts { color:var(--txt-sub); font-variant-numeric:tabular-nums; }
     .validation .val-note { color:var(--txt-dim); }
 
-    footer { color:var(--txt-dim); font-size:11px; text-align:center;
-             padding:24px 16px; border-top:1px solid var(--brd); margin-top:24px; }
+    footer { color:var(--txt-dim); font-size:11px; line-height:1.6; text-align:center;
+             padding:22px 20px max(24px, env(safe-area-inset-bottom)); border-top:1px solid var(--brd);
+             margin-top:24px; }
+    footer strong { color:var(--txt-sub); font-weight:700; }
     .err { color:var(--red); }
 
     /* ── Hamburger + Backtesting-Overlay ─────────────────────────────────── */
@@ -355,7 +334,7 @@
       touch-action:manipulation;
     }
     .hamburger:active { background:var(--bg-hdr); }
-    .head-left { display:flex; align-items:center; gap:12px; }
+    .head-titles { min-width:0; }   /* links; ☰ rechts (space-between in .head-row) */
 
     .bt-overlay {
       position:fixed; inset:0; z-index:30; background:var(--bg);
@@ -440,7 +419,7 @@
     .menu-overlay { position:fixed; inset:0; z-index:34; background:transparent; }
     .menu-overlay[hidden] { display:none; }
     .menu-panel {
-      position:fixed; top:64px; left:12px; z-index:35;
+      position:fixed; top:64px; right:12px; z-index:35;
       background:var(--bg-card); border:1px solid var(--brd); border-radius:14px;
       box-shadow:var(--shadow); min-width:236px; max-width:90vw; overflow:hidden;
       padding:8px;
@@ -736,27 +715,17 @@
 </head>
 <body>
   <header>
+    <!-- Titel + Stand-Zeile links, ☰ rechts (Squeeze-Position). -->
     <div class="head-row">
-      <div class="head-left">
-        <button class="hamburger" id="menu-btn" type="button"
-                aria-label="Menü öffnen" aria-haspopup="dialog">☰</button>
-        <div>
-          <h1>Elliott-Report</h1>
-          <div class="sub" id="meta">lädt …</div>
-        </div>
+      <div class="head-titles">
+        <h1>Elliott-Report</h1>
+        <div class="sub" id="meta">lädt …</div>
       </div>
+      <button class="hamburger" id="menu-btn" type="button"
+              aria-label="Menü öffnen" aria-haspopup="dialog">☰</button>
     </div>
   </header>
   <main>
-    <!-- Disclaimer (dezent, einmal einklappbar; Merker in localStorage). -->
-    <div class="disclaimer" id="disclaimer">
-      <span class="disc-ico" aria-hidden="true">⚠</span>
-      <span class="disc-text"><strong>Hinweis:</strong> Nur zu Informationszwecken —
-        <strong>keine Anlageberatung</strong>, keine Kauf- oder Verkaufsempfehlung.
-        Die Scores sind <strong>heuristisch · unvalidiert</strong> (siehe ☰ → Methodik / Validierung).</span>
-      <button class="disc-close" id="disc-close" type="button" aria-label="Hinweis ausblenden">×</button>
-    </div>
-    <button class="disc-reopen" id="disc-reopen" type="button" hidden>ⓘ Hinweis</button>
     <div class="banner" id="staleness"></div>
     <!-- Recalculate-Status mit Zeitzähler (läuft / fertig / Timeout). -->
     <div class="recalc-banner" id="recalc-banner" hidden></div>
@@ -785,8 +754,11 @@
     <span class="val-counts" id="val-counts">–</span>
     <span class="val-note" id="val-note"></span>
   </section>
+  <!-- Disclaimer als dezenter Footer am Seitenende (statisch, kein Einklappen). -->
   <footer>
-    Heuristische Elliott-Wellen-Auszählung · unvalidiert · keine Anlageberatung.
+    Nur zu Informationszwecken — <strong>keine Anlageberatung</strong>, keine Kauf- oder
+    Verkaufsempfehlung. Die Scores sind <strong>heuristisch · unvalidiert</strong>
+    (siehe ☰ → Methodik / Validierung).
   </footer>
   <!-- Backtesting-/Validierungs-Ansicht (Overlay, kein Routing-Framework) -->
   <div class="bt-overlay" id="bt-overlay" hidden role="dialog"
@@ -2853,24 +2825,6 @@
         if (inDetail) renderEpisodeListView(); else closeBacktesting();
       }
     });
-
-    // Disclaimer einklappen/aufklappen (Merker in localStorage, fail-soft).
-    const DISC_KEY = 'elliott_disc_collapsed';
-    function _applyDisc() {
-      let collapsed = false;
-      try { collapsed = localStorage.getItem(DISC_KEY) === '1'; } catch (_) {}
-      document.getElementById('disclaimer').hidden = collapsed;
-      document.getElementById('disc-reopen').hidden = !collapsed;
-    }
-    document.getElementById('disc-close').addEventListener('click', () => {
-      try { localStorage.setItem(DISC_KEY, '1'); } catch (_) {}
-      _applyDisc();
-    });
-    document.getElementById('disc-reopen').addEventListener('click', () => {
-      try { localStorage.removeItem(DISC_KEY); } catch (_) {}
-      _applyDisc();
-    });
-    _applyDisc();
 
     refresh();
   </script>

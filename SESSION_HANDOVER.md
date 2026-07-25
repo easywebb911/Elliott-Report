@@ -2,11 +2,12 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #37 (**Watchlist-Auto-Sync**, gemerged; dieser PR: **3D-Karten-Look + blaue
-Watchlist-Tönung**, offen — reines CSS). Alle Zahlen/Hashes sind gegen `git log` und
-den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #38 (**3D-Karten-Look + blaue Watchlist-Tönung**, gemerged; dieser PR:
+**Header-Layout: Disclaimer ans Seitenende, ☰ nach oben rechts**, offen — reines
+CSS/Markup). Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus
+dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #37-Merge `bcac52e`, Feature-Commit `b891efa`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #38-Merge `3a32abb`, Feature-Commit `e5b04c1`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -82,7 +83,8 @@ durchgängig ab #13.
 | #35 | `ff411c7` | **Watchlist-Mehrwert**: (A) **Top-5-Historie** je Kachel aus `forward_collection` (Datum · Markt · Zählung · Anlage-Kurs · Zielzone · Status, max 3, neueste zuerst; Klick öffnet die bestehende Backtesting-Detail-Ansicht); (B) **Struktur-Befund** je Zeitebene statt binärem „kein Count" — additives Feld `structure` (5 Kategorien), reine Watchlist-Diagnostik, **Markt/Score/Ranking/Sammlung beweisbar unberührt** | +G +Bild manual |
 | #36 | `a06f200` | **Struktur-Marke präzisiert + A-Orientierung** (Read-only-Diagnose PANW): additives `mark_label` sagt WAS die Marke ist (`Impuls-Start`/`W1-Hoch`/`W1-Start`); bei `impulse_complete` zusätzlich `orientation_price` = **W4-Extrem** als nahe **A-Ziel-Region**. Reine Watchlist-Anzeige, additiv | +G +Bild manual |
 | #37 | `b891efa` | **Watchlist-Auto-Sync**: der manuelle „Für die Pipeline speichern"-Button (#17) entfällt — jede add/remove synct automatisch nach `watchlist_personal.json` (PUT), **Debounce `WL_SYNC_DEBOUNCE_MS=3000`** (EIN Commit), idempotent, gesperrte Session → Dialog + „noch nicht gesynct"-Chip, 409 → sha frisch + 1× Retry. Reines Frontend | +G self (CI grün) +Bild |
-| #(dieser) | `(offen)` | **3D-Karten-Look + blaue Watchlist-Tönung** (Squeeze „Variante 1B" portiert): Markt-Karten, Watchlist-Kacheln UND aufgeklappte Karten bekommen die einheitliche Tiefen-Sprache (2-Stop-Gradient + Drop-Schatten + **Inset-Kanten-Highlight**, Hover-Lift auf Kacheln); aufgeklappte Watchlist-Karten zusätzlich **dezent blaustichig** (Akzent-Blau) → auf einen Blick von den neutralen Markt-Karten unterscheidbar. Reines CSS, `prefers-reduced-motion` respektiert, Kontrast belegt | self (CI grün) +Bild |
+| #38 | `e5b04c1` | **3D-Karten-Look + blaue Watchlist-Tönung** (Squeeze „Variante 1B" portiert): Markt-Karten, Watchlist-Kacheln UND aufgeklappte Karten bekommen die einheitliche Tiefen-Sprache (2-Stop-Gradient + Drop-Schatten + **Inset-Kanten-Highlight** + 1px-Licht-Grat, Hover-Lift auf Kacheln); aufgeklappte Watchlist-Karten zusätzlich **dezent blaustichig** (Akzent-Blau). Reines CSS, Kontrast belegt | self (CI grün) +Bild |
+| #(dieser) | `(offen)` | **Header-Layout**: Disclaimer-Banner aus dem Kopf entfernt → dezenter statischer **Footer-Disclaimer** am Seitenende (kein Einklappen mehr, `elliott_disc_collapsed`+JS entfallen); **☰ von oben links nach oben RECHTS** (Squeeze-Position, Panel öffnet rechtsbündig `right:12px`), Titel/Stand-Zeile links. Alle Menü-Funktionen unverändert. Reines Frontend | self (CI grün) +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -308,6 +310,23 @@ Caret-Transition aus). Keine Dauer-Animation auf Schatten, iOS-Safari-tauglich (
 box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
+
+**✅ Header-Layout: Disclaimer ans Seitenende, ☰ oben rechts — erledigt (dieser PR,
+`docs/index.html`, reines Frontend):** Zwei Squeeze-nahe Umbauten. (1) **Disclaimer:**
+das einklappbare Banner **oben im Kopf** ist komplett entfernt (inkl. `.disclaimer`/
+`.disc-*`-CSS und der Einklapp-JS: `DISC_KEY`/`_applyDisc`/localStorage-Merker entfielen).
+Stattdessen dezenter **statischer `<footer>` am echten Seitenende** (unter dem letzten
+Panel): „Nur zu Informationszwecken — **keine Anlageberatung** … Scores **heuristisch ·
+unvalidiert** (siehe ☰ → Methodik / Validierung)"; klein (11px), `--txt-dim`, zentriert,
+`border-top`, kein Einklapp-Mechanismus mehr. (2) **Hamburger:** `☰`-Button von oben
+links nach **oben rechts** (Squeeze-Squeeze-Position); Kopf jetzt `.head-row` (Titel +
+Stand-Zeile links, `☰` rechts), `.menu-panel` öffnet **rechtsbündig** (`right:12px`).
+Alle 7 Menü-Funktionen unverändert; Recalculate-Banner, Toasts, Watchlist, 3D-Look (#38)
+und `prefers-reduced-motion` unberührt. Verifiziert (390px, Playwright): Kopf ohne
+Disclaimer (`h1.x`≈16 / `☰.x`≈334 rechts), Panel rechtsbündig (`right_gap`≈12px), alle
+7 Einträge geöffnet/geschlossen, Footer am Scroll-Ende mit „keine Anlageberatung /
+heuristisch", Konsole sauber, Tests grün (202). Revert = reiner Frontend-Diff-Revert
+(Header-Markup + `.menu-panel`-Position zurück, Footer raus, Disclaimer-Block wieder rein).
 
 **✅ Watchlist-Auto-Sync — erledigt (#37, `docs/index.html`):** Seit #27 ist das
 Token 28 Tage entsperrt → der manuelle „Für die Pipeline speichern"-Schritt (#17) war
@@ -640,10 +659,12 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   bestehende `showEpisodeDetail`; „…N weitere" → `openBacktesting`. Kein Karten-Re-
   Render (Quotes/Expand bleiben); fail-soft ohne Episoden. `tfPanel(tf, structure)`
   zeigt bei null-Count den Struktur-Befund (Part B) statt „kein valider Long-Count".
-- **Menü (☰, 7 Punkte, Squeeze-analog seit dieser PR):** Reihenfolge `mi-reload`
-  (**NEU**, primär hervorgehoben) · `mi-recalc` · `mi-backtesting` · `mi-methodik`
-  · `mi-validierung` · `mi-laufstatus` · Trenner · `mi-lock` („Sperren", abgesetzt
-  am Fuß). Jeder Eintrag = abgerundete **Icon-Kachel** (`.mi-tile`, Sparkline-Grün
+- **Menü (☰, 7 Punkte, Squeeze-analog):** `☰`-Button sitzt **oben rechts**
+  (Squeeze-Position) neben Titel/Stand-Zeile (`.head-row` flex), das `.menu-panel`
+  öffnet **rechtsbündig** (`position:fixed; top:64px; right:12px`). Reihenfolge
+  `mi-reload` (**NEU**, primär hervorgehoben) · `mi-recalc` · `mi-backtesting` ·
+  `mi-methodik` · `mi-validierung` · `mi-laufstatus` · Trenner · `mi-lock`
+  („Sperren", abgesetzt am Fuß). Jeder Eintrag = abgerundete **Icon-Kachel** (`.mi-tile`, Sparkline-Grün
   `--grn`) + `.mi-label`; Icons als **inline-SVG** (lucide-Vorbild, keine externe
   Lib). **`mi-reload`** ruft `refresh({announce:true})` (Cache-Buster/no-store) —
   der frühere Header-Button „↻ Neu laden" ist **entfallen** (`refresh` hält den
@@ -660,8 +681,11 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   visibilitychange-Pause; alles fail-soft.
 - **Konstanten:** `EVAL_MIN_N = 100`, `COLLECTION_START = '22.07.2026'` (N×-Tooltip,
   an die Präregistrierung gebunden), `STALENESS_HOURS`-Banner bei > 30 h.
-- **Disclaimer (#23):** dezenter, einklappbarer Banner oben; Merker
-  `localStorage['elliott_disc_collapsed']` ('1' = eingeklappt).
+- **Disclaimer (seit dieser PR):** kein Banner oben mehr — **statischer Footer-Text
+  am Seitenende** (`<footer>`, gedämpft, zentriert): Informationszwecke · keine
+  Anlageberatung · Scores heuristisch·unvalidiert. Kein Einklapp-Mechanismus,
+  `elliott_disc_collapsed`/`.disclaimer`/`.disc-*` + JS entfallen. (Vorher #23:
+  einklappbarer Kopf-Banner.)
 - **Chart-Link:** `chartUrl` — US `/stocks/{lower}/`, DE `/quote/etr/{ohne .DE}/`
   (Best-Guess, unverifiziert).
 
