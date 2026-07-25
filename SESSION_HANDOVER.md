@@ -2,13 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #42 (**P2-Audit: Messfelder v1**, gemerged); dieser PR: **P3-Audit —
-Ambiguitäts-Ausweis v1** (`valid_count_total`/`alt_count`/`ambiguity_n`, reine
-Messung, Primär byte-identisch), offen. Alle Zahlen/Hashes sind gegen `git log`
-und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #43 (**P3-Audit: Ambiguitäts-Ausweis v1**, gemerged); dieser PR:
+**Textgrößen-Steuerung** (− / + im ☰-Menü-Fuß, Squeeze-Vorbild; reines Frontend),
+offen. Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
+Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`e9101d3` = täglicher Commit nach dem
-> #42-Merge) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`c41658f` = täglicher Commit nach dem
+> #43-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -89,7 +89,8 @@ durchgängig ab #13.
 | #40 | `c5b14ca` | **„Ziel erreicht/überschritten" je Zeitebenen-Zeile**: jede Tag/Woche/Monat-Zeile mit Zielzone (Markt + Watchlist) bekommt einen kompakten `.tf-hint`-Chip — Kurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` → „Ziel überschritten" (**Schwellen identisch zum #28-Badge**, `_setTfHint` = Zwilling von `_setZoneBadge`, live via `quotePatch`). Macht sichtbar, dass ältere Zählungen auf großen Zeitebenen (Monats-Pivot-Trägheit) längst gelaufene Ziele zeigen (Live-Fall AMAT: Monat Ziel 296–391 bei Kurs 536). Methodik ergänzt. Reines Frontend | self (CI grün) +Bild |
 | #41 | `2320157` | **P1-Audit: A11y-Kontrast + Universum-Hygiene**. (2) Mikro-/Uppercase-Labels von ~3,1–3,7:1 auf **WCAG AA ≥ 4,5:1** gehoben — ein Token `--txt-dim` `#64748b`→`#8b97a8` (4,97–5,90:1 auf allen Flächen inkl. blauer WL-Tönung), bleibt < `--txt-sub` (Hierarchie). (3) **8 tote Ticker** (`empty_data`: US `MMC`/`FI`/`HES`, DE `1COV.DE`/`CTS.DE`/`UN01.DE`/`SHA.DE`/`COP.DE`) aus `config.py` + `ticker_meta.json` entfernt (**361→353**), Registry-Log ergänzt. Folge-Lauf belegt `empty_data → 0`. Audit-Punkt 1 via #40 schon auf main → übersprungen | Guardian + manual +Bild |
 | #42 | `e9101d3` | **P2-Audit: Messfelder v1** (Volumen-Profil, Alternation, W5-Momentum-Divergenz) — drei literaturgestützte MESS-Felder point-in-time in die Forward-Sammlung eingefroren. **Reine Messung: Score/Ranking/Filter/Population/Reifung byte-identisch** (Report-Diff nur additive `vol_*`-Keys). Volumen aus DEMSELBEN yfinance-Download (`FetchOutcome.volumes`, kein Extra-Call). Einziges UI: Chip „W3-Volumen schwach". 17 neue Tests | Guardian + manual, keine Screenshots |
-| #(dieser) | `(offen)` | **P3-Audit: Ambiguitäts-Ausweis v1** — je Zählung `valid_count_total` (1..2, Long-Counts unter den 2 festen Fenstern Ende-W4/Ende-W2) + `alt_count` (zweitbeste nach `score_setup`); `ambiguity_n` bei Anlage eingefroren. `classify_setup` in 2 Fenster-Helfer refaktoriert (**Primär byte-identisch**, first-fit-Befund). **Score/Ranking/Filter/Reifung byte-identisch** (Report-Diff rekursiv nur additive Keys), `SCHEMA_VERSION`=1. UI: „Zählung 1 von N" (max „1 von 2") + aufklappbare Alternative, nur bei N≥2. Registry „Ambiguität v1" (nie umdefinieren → v2). 8 neue Tests, Laufzeit O(1)/Count | Guardian + manual, keine Screenshots |
+| #43 | `c41658f` | **P3-Audit: Ambiguitäts-Ausweis v1** — je Zählung `valid_count_total` (1..2, Long-Counts unter den 2 festen Fenstern Ende-W4/Ende-W2) + `alt_count` (zweitbeste nach `score_setup`); `ambiguity_n` bei Anlage eingefroren. `classify_setup` in 2 Fenster-Helfer refaktoriert (**Primär byte-identisch**). **Score/Ranking/Filter/Reifung byte-identisch**, `SCHEMA_VERSION`=1. UI: „Zählung 1 von N" (max „1 von 2") + aufklappbare Alternative. Registry „Ambiguität v1". Live: US 2×N2 / DE 1×N2. 8 Tests | Guardian + manual |
+| #(dieser) | `(offen)` | **Textgrößen-Steuerung** (Squeeze-Vorbild `app.html:3511`): − / + im ☰-Menü-Fuß skalieren die **ganze rem-basierte UI** über `--app-fs` (Root-Fontsize). 5 Stufen `_FS_SIZES=[14,16,18,20,22]`px (Default idx 1 = 16px = **unveränderte Optik**), Persistenz `localStorage['elliott_fs']`, sofort beim Laden angewandt, Grenzen deaktivieren −/+ am Ende. **Alle CSS-`font-size:px` → `rem` konvertiert** (exakt /16 → default byte-identisch), NUR die 4 **SVG-Text**-Klassen (`.wave-num`×2, `.wl-mini-num`, `.wl-mini-dash`) bleiben px → Sparkline/Donut skalieren nicht mit. Layout 390px @min/std/max geprüft (kein Overflow). Reines Frontend | self (CI grün), keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -316,7 +317,29 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ P3-Audit: Ambiguitäts-Ausweis v1 — erledigt (dieser PR, `scripts/` +
+**✅ Textgrößen-Steuerung (− / + im ☰-Menü-Fuß) — erledigt (dieser PR,
+`docs/index.html`, reines Frontend):** Squeeze-Vorbild (`Aktien-Update/app.html`)
+**belegt** portiert: `--base-font-size:15px`+`html{font-size:var(...)}` (app.html:25/27),
+`_FS_SIZES=[13,15,17,19,21]`, key `squeeze_fs`, Clamp+Persist+Disable-an-den-Enden,
+`.menu-footer` mit − / + (app.html:3511–3531, 1565). **NUR − und +** übernommen (kein
+Settings-Zahnrad/Theme-Mond — Funktionen, die Elliott nicht hat). Elliott-Umsetzung:
+`html{font-size:var(--app-fs,16px)}`; die **ganze UI ist rem** → Root-Fontsize skaliert
+Karten/Menü/Overlays. Dafür **alle CSS-`font-size:px` → `rem`** konvertiert (exakt /16,
+Default 16px = **byte-identische Optik**: h1 20px→1.25rem, `.setup` blieb .78rem etc.);
+`body`-Fallback `15px`→`0.9375rem`. **Ausgenommen (bleiben px):** die 4 **SVG-Text**-
+Klassen `.wave-num` (8/9px), `.wl-mini-num` (11px), `.wl-mini-dash` (14px) — SVG-User-
+Units, sonst würden Sparkline/Donut-Ziffern aus dem fixen viewBox laufen (genau so löst
+Squeeze „fixe Elemente"). `_FS_SIZES=[14,16,18,20,22]` (Squeeze-Proportion @16px-Basis),
+Default idx 1, key `elliott_fs`, `changeFontSize(±1)` an `#fs-down`/`#fs-up`, sofort
+beim Laden angewandt (kein Flash), fail-soft. **Verifiziert (390px, Playwright):** Default
+`--app-fs`=16px + h1=20px (byte-identisch), Max 22px `#fs-up` disabled, Min 14px
+`#fs-down` disabled, Persistenz über Reload, **kein Overflow/H-Scroll** bei min/std/max
+(auch mit Watchlist+tf+alt+Metric-Boxen), Konsole sauber, Tests grün (227). Merge:
+reines Frontend → **self-merge** bei grünem CI (keine Screenshots). Revert = `html`-Regel
++ `.menu-fs`-CSS + `.menu-fs`-Markup + FS-JS-Block raus; die px→rem-Konvertierung ist
+default-neutral und kann bleiben (oder mit-reverten).
+
+**✅ P3-Audit: Ambiguitäts-Ausweis v1 — erledigt (#43, `scripts/` +
 `docs/index.html`):** Multi-Count sichtbar+messbar machen. **Read-only-Befund
 (mit Datei:Zeile):** `classify_setup` (`elliott_pipeline.py`) ist **first-fit** über
 genau **zwei feste End-Fenster** (`_eval_end_of_w4` auf letzte 5, `_eval_end_of_w2`
