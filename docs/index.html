@@ -264,6 +264,39 @@
     .tf-v { font-size:.66rem; color:var(--txt); font-variant-numeric:tabular-nums; white-space:nowrap; }
     .tf-empty { font-size:.68rem; color:var(--txt-dim); font-style:italic; padding-top:2px; }
     .tf-null .tf-tag { color:var(--txt-dim); }
+    /* Struktur-Befund (kein Long-Count, aber ehrliche Einordnung). Dezent
+       eingefärbt je Kategorie — keine Erfolgs-/Wahrscheinlichkeits-Sprache. */
+    .tf-struct .tf-label { color:var(--txt); font-weight:600; }
+    .tf-struct-impulse_running .tf-tag,
+    .tf-struct-impulse_running .tf-label { color:var(--grn); }
+    .tf-struct-impulse_complete .tf-tag,
+    .tf-struct-impulse_complete .tf-label { color:var(--ora); }
+    .tf-struct-short_structure .tf-tag,
+    .tf-struct-short_structure .tf-label { color:var(--red); }
+
+    /* Top-5-Historie in der Watchlist-Kachel (Part A). */
+    .wl-hist:empty { display:none; }
+    .wl-hist-inner { margin:0 12px 12px; padding:8px 10px; border:1px solid var(--brd);
+      border-radius:10px; background:rgba(34,197,94,.05); }
+    .wl-hist-title { font-size:.58rem; text-transform:uppercase; letter-spacing:.09em;
+      color:var(--grn); font-weight:800; margin-bottom:4px; }
+    .wl-hist-row { display:flex; flex-direction:column; gap:2px; width:100%;
+      -webkit-appearance:none; appearance:none; text-align:left; cursor:pointer;
+      background:transparent; border:0; border-top:1px solid rgba(148,163,184,.12);
+      padding:6px 0 5px; color:var(--txt); touch-action:manipulation; }
+    .wl-hist-row:first-of-type { border-top:0; }
+    .wl-hist-row:active { background:var(--bg-met); }
+    .wl-hist-line1 { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+    .wl-hist-date { font-size:.66rem; font-weight:700; font-variant-numeric:tabular-nums; color:var(--txt-sub); }
+    .wl-hist-flag { font-size:.72rem; }
+    .wl-hist-st { font-size:.56rem; padding:1px 6px; }
+    .wl-hist-label { font-size:.68rem; color:var(--txt-sub); line-height:1.25; }
+    .wl-hist-line2 { font-size:.64rem; color:var(--txt); font-variant-numeric:tabular-nums; }
+    .wl-hist-k { font-size:.52rem; text-transform:uppercase; letter-spacing:.04em; color:var(--txt-dim); }
+    .wl-hist-more { -webkit-appearance:none; appearance:none; cursor:pointer;
+      background:transparent; border:0; color:var(--accent); font-size:.64rem; font-weight:600;
+      padding:6px 0 0; text-align:left; width:100%; touch-action:manipulation; }
+    .wl-hist-more:active { color:var(--txt); }
     .spark-wrap { padding:8px 12px 6px; border-top:1px solid var(--brd); }
     .spark-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
     .spark-title { font-size:.6rem; text-transform:uppercase; letter-spacing:.08em; color:var(--txt-dim); font-weight:700; }
@@ -1361,23 +1394,32 @@
       return inner ? `<div class="conf-block">${inner}</div>` : '';
     }
 
-    function tfPanel(tf) {
+    function tfPanel(tf, structure) {
       if (!tf) return '';
+      const st = structure || {};
       const zoneStr = z => z ? `${fmt(z.low)}–${fmt(z.high)}` : '–';
+      const pair = (kk, vv) => `<span class="tf-pair"><span class="tf-k">${kk}</span><span class="tf-v">${vv}</span></span>`;
       const rows = [['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat']].map(([k, lbl]) => {
         const c = tf[k];
-        if (!c) {
-          return `<div class="tf-row tf-null"><span class="tf-tag">${lbl}</span>`
-            + `<span class="tf-empty">kein valider Long-Count</span></div>`;
+        if (c) {  // valider Long-Count -> volle Anzeige (= long_setup)
+          return `<div class="tf-row"><span class="tf-tag">${lbl}</span>`
+            + `<div class="tf-body"><div class="tf-label">${esc(c.count_label || '')}</div>`
+            + `<div class="tf-meta">`
+            + pair('Inval', fmt(c.invalidation_price))
+            + pair('Ziel', zoneStr(c.target_zone))
+            + pair('Ext', zoneStr(c.target_zone_extended))
+            + `</div></div></div>`;
         }
-        const pair = (kk, vv) => `<span class="tf-pair"><span class="tf-k">${kk}</span><span class="tf-v">${vv}</span></span>`;
-        return `<div class="tf-row"><span class="tf-tag">${lbl}</span>`
-          + `<div class="tf-body"><div class="tf-label">${esc(c.count_label || '')}</div>`
-          + `<div class="tf-meta">`
-          + pair('Inval', fmt(c.invalidation_price))
-          + pair('Ziel', zoneStr(c.target_zone))
-          + pair('Ext', zoneStr(c.target_zone_extended))
-          + `</div></div></div>`;
+        // Kein Long-Count -> ehrlicher Struktur-Befund statt bloßem „kein Count".
+        const s = st[k];
+        if (s && s.state && s.state !== 'no_structure') {
+          const orient = (s.invalidation_price != null)
+            ? `<div class="tf-meta">${pair('Marke', fmt(s.invalidation_price))}</div>` : '';
+          return `<div class="tf-row tf-struct tf-struct-${esc(s.state)}"><span class="tf-tag">${lbl}</span>`
+            + `<div class="tf-body"><div class="tf-label">${esc(s.label || '')}</div>${orient}</div></div>`;
+        }
+        return `<div class="tf-row tf-null"><span class="tf-tag">${lbl}</span>`
+          + `<span class="tf-empty">keine regelkonforme Zählung</span></div>`;
       }).join('');
       return `<div class="tf-block"><div class="tf-title">Analyse · Zeitebenen</div>${rows}</div>`;
     }
@@ -1456,7 +1498,7 @@
         ${extLine}
         ${zoneBadge}
         ${confluenceChips(c)}
-        ${c.timeframes ? tfPanel(c.timeframes) : hdBlock}
+        ${c.timeframes ? tfPanel(c.timeframes, c.structure) : hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">
             <span class="spark-title">Pivot-Verlauf</span>
@@ -1547,7 +1589,7 @@
           <div class="card-right">${right}</div>
         </div>
         <div class="wl-note${isErr ? ' wl-note-err' : ''}">${esc(c.note || '')}${c.reason ? ` <span style="opacity:.7">(${esc(c.reason)})</span>` : ''}</div>
-        ${tfPanel(c.timeframes)}
+        ${tfPanel(c.timeframes, c.structure)}
         ${spark}
       </article>`;
     }
@@ -1627,6 +1669,7 @@
         <div class="wl-tbody"${open ? '' : ' hidden'}>
           <div class="wl-collapse-bar"><button class="wl-collapse" type="button" data-wl-toggle="${esc(ticker)}">▴ Einklappen</button></div>
           ${innerHtml}
+          <div class="wl-hist" data-hist="${esc(ticker)}"></div>
         </div>
       </article>`;
     }
@@ -1647,6 +1690,63 @@
         const inner = e ? watchlistCard(e) : _wlInstantCard(t);
         return wlTile(t, inner, e, openSet.has(t));
       }).join('');
+    }
+
+    // ── Top-5-Historie je Watchlist-Kachel (Part A) ──────────────────────────
+    // Reines Frontend: liest die schon geladene forward_collection und zeigt je
+    // Episode des Tickers eine kompakte Zeile (Datum · Markt · Zählung · Anlage-
+    // Kurs · Zielzone · Status). Antippen öffnet die bestehende Backtesting-
+    // Detail-Ansicht (Wiederverwendung). Fail-soft ohne Episoden.
+    let _wlColl = null;   // gecachte forward_collection-Records
+
+    function _wlEpisodesFor(ticker) {
+      if (!Array.isArray(_wlColl)) return [];
+      return _wlColl
+        .map((r, i) => ({ r, i }))                    // Original-Index fürs Detail merken
+        .filter(x => x.r && x.r.ticker === ticker)
+        .sort((a, b) => (b.r.first_seen_date || '').localeCompare(a.r.first_seen_date || ''));
+    }
+
+    function _wlHistRow(r, idx) {
+      const st = episodeStatus(r);
+      const tz = r.target_zone ? `${fmt(r.target_zone.low)}–${fmt(r.target_zone.high)}` : '–';
+      return `<button class="wl-hist-row" type="button" data-ep-i="${idx}">
+          <span class="wl-hist-line1">
+            <span class="wl-hist-date">${esc(r.first_seen_date || '?')}</span>
+            <span class="wl-hist-flag">${FLAG[r.market] || ''}</span>
+            <span class="ep-status ${st.cls} wl-hist-st">${esc(st.label)}</span>
+          </span>
+          <span class="wl-hist-label">${esc(r.count_label || '–')}</span>
+          <span class="wl-hist-line2"><span class="wl-hist-k">Anlage</span> ${fmt(r.entry_close)}`
+        + ` · <span class="wl-hist-k">Ziel</span> ${tz}</span>
+        </button>`;
+    }
+
+    function _wlHistoryHtml(ticker) {
+      const eps = _wlEpisodesFor(ticker);
+      if (!eps.length) return '';                     // fail-soft: keine Episoden
+      const shown = eps.slice(0, 3);                  // neueste zuerst, max 3
+      const rest = eps.length - shown.length;
+      const rows = shown.map(x => _wlHistRow(x.r, x.i)).join('');
+      const more = rest > 0
+        ? `<button class="wl-hist-more" type="button" data-hist-more="1">…${rest} weitere im Backtesting</button>` : '';
+      return `<div class="wl-hist-inner"><div class="wl-hist-title">Top-5-Historie</div>${rows}${more}</div>`;
+    }
+
+    function _wlInjectHistory() {
+      document.querySelectorAll('.wl-hist[data-hist]').forEach(el => {
+        el.innerHTML = _wlHistoryHtml(el.getAttribute('data-hist'));
+      });
+    }
+
+    // Öffnet die bestehende Backtesting-Detail-Ansicht direkt für eine Episode.
+    function openEpisodeFromWatchlist(rec) {
+      if (!rec) return;
+      _btOpen = true;
+      const ov = document.getElementById('bt-overlay');
+      ov.hidden = false;
+      document.body.style.overflow = 'hidden';
+      showEpisodeDetail(rec);
     }
 
     // Auf-/Zuklappen einer Kachel — DOM direkt schalten (kein Re-Render, damit
@@ -1687,6 +1787,7 @@
       renderWatchlistCards(_wlLastReport);
       if (typeof drawAllSparklines === 'function') drawAllSparklines();
       if (typeof startQuotePolls === 'function') startQuotePolls();
+      _wlInjectHistory();   // Historie nach Neuaufbau der Kacheln erneut einspielen
     }
 
     function _wlMarkDirty() {
@@ -2511,7 +2612,11 @@
       drawAllSparklines();
       startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
       // Validierungs-Panel unabhängig laden — darf den Report NIE brechen.
-      loadCollection().then(renderValidation).catch(() => {});
+      loadCollection().then(coll => {
+        renderValidation(coll);
+        _wlColl = (coll && Array.isArray(coll.records)) ? coll.records : null;
+        _wlInjectHistory();   // Top-5-Historie in die Watchlist-Kacheln einspielen
+      }).catch(() => {});
     }
 
     // Sparklines bei Größenänderung neu zeichnen (Marker bleiben rund).
@@ -2666,6 +2771,11 @@
       host.addEventListener('click', (ev) => {
         const rm = ev.target.closest('[data-wl-remove]');
         if (rm) { ev.preventDefault(); removeWatchlistTicker(rm.getAttribute('data-wl-remove')); return; }
+        // Historie-Zeile -> bestehende Backtesting-Detail-Ansicht der Episode.
+        const ep = ev.target.closest('[data-ep-i]');
+        if (ep) { ev.preventDefault(); openEpisodeFromWatchlist(_wlColl && _wlColl[+ep.getAttribute('data-ep-i')]); return; }
+        const more = ev.target.closest('[data-hist-more]');
+        if (more) { ev.preventDefault(); openBacktesting(); return; }
         const tg = ev.target.closest('[data-wl-toggle]');
         if (tg) { _wlToggle(tg.getAttribute('data-wl-toggle')); }
       });

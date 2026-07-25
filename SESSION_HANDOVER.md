@@ -2,11 +2,11 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **24.07.2026**,
-nach PR #33 (**Watchlist-Kompakt-Grid**, gemerged; dieser PR: **Recalculate-Status
-mit Zeitzähler**, offen — reines Frontend, auf den neuen `main` rebased). Alle
-Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #34 (**Recalculate-Status mit Zeitzähler**, gemerged; dieser PR: **Watchlist-
+Mehrwert — Top-5-Historie + Struktur-Befund**, offen). Alle Zahlen/Hashes sind gegen
+`git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #32-Merge `8a13f3c`, Feature-Commit `8d2ac29`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #34-Merge `bf251df`, Feature-Commit `d543303`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -78,7 +78,8 @@ durchgängig ab #13.
 | #31 | `3ad9473` | **W5→A-Nachprüfung** (Lit-Check b): gereifte Ende-W4-Treffer bekommen `a_correction_observed`/`a_retrace_pct`/`a_observe_until` — setzt nach dem Episoden-Hoch die theorie-gemäße Korrektur (≥ 38,2 % Rücklauf der W5-Strecke) binnen `A_OBSERVE_DAYS=10` ein? **Angehängtes** Beobachtungsfenster, bestehende Reifung byte-identisch; `pre_reached`/`pre_guard` ungemessen. **Reines Mess-Feld, kein Score/Ranking/Filter** | +G manual +Bild |
 | #32 | `8d2ac29` | **☰-Menü an Squeeze angeglichen**: Struktur/Design des ☰-Panels ans Schwester-Repo angeglichen (abgerundete Icon-Kacheln + Label, großzügige Zeilen, Fuß-Trennung), **eigene Farbwelt** (Sparkline-Grün `--grn` statt Squeeze-Blau). Reihenfolge Squeeze-analog, aber NUR echte Funktionen: **Reload NEU im Menü** (Header-Button „↻ Neu laden" entfällt, gleiche `refresh()`-Funktion + Cache-Buster), Recalculate, Backtesting, Methodik, Validierung, Lauf-Status, Sperren (abgesetzt). Einheitliche inline-SVG-Icons (keine externe Bibliothek). Reines Frontend | self (CI grün) +Bild |
 | #33 | `d6bfa1f` | **Watchlist-Kompakt-Grid**: Watchlist-Karten als kompaktes Grid (~3/Reihe @390px), Kacheln standardmäßig eingeklappt (Mini-Donut/„—", Ticker, Trend-Punkt, ×, ▾), volle Karte beim Aufklappen; Zustand pro Gerät (localStorage). Sofortkarte (#25) bleibt. Reines Frontend | self (CI grün) +Bild |
-| #(dieser) | `(offen)` | **Recalculate-Status mit Zeitzähler** (Squeeze-Muster): nach 204-Dispatch ein Header-Banner „Neuberechnung läuft … N s" (Sekunden live); pollt den **Report-Stand** (`run_timestamp_utc` neuer als beim Start, Cache-Buster+no-store, `RECALC_POLL_MS=10s`) → bei Erfolg **automatisch in-place rendern** (kein Reload) + grünes „fertig" + Toast; Timeout `RECALC_TIMEOUT_MS=10min` → neutraler Hinweis; Feiertag (`MARKET_FULL_CLOSURE`) → sofort-Hinweis statt Warten; visibilitychange-Pause, getrennte Timer vom Quote-Poller. Reines Frontend | self (CI grün) +Bild |
+| #34 | `d543303` | **Recalculate-Status mit Zeitzähler** (Squeeze-Muster): nach 204-Dispatch ein Header-Banner „Neuberechnung läuft … N s" (Sekunden live); pollt den **Report-Stand** (frische Baseline vom Server, „fertig" nur bei **strikt neuerem** `run_timestamp_utc`, `RECALC_POLL_MS=10s`) → bei Erfolg **automatisch in-place rendern** (kein Reload) + grünes „fertig" + Toast; Timeout `RECALC_TIMEOUT_MS=10min` → neutraler Hinweis; Feiertag (`MARKET_FULL_CLOSURE`) → sofort-Hinweis; visibilitychange-Pause, getrennte Timer. **Bugfix Baseline-Falle** (`0f14d9a`). Reines Frontend | self (CI grün) +Bild |
+| #(dieser) | `(offen)` | **Watchlist-Mehrwert**: (A) **Top-5-Historie** je Kachel aus `forward_collection` (Datum · Markt · Zählung · Anlage-Kurs · Zielzone · Status, max 3, neueste zuerst; Klick öffnet die bestehende Backtesting-Detail-Ansicht); (B) **Struktur-Befund** je Zeitebene statt binärem „kein Count" — additives Feld `structure` (5 Kategorien: long_setup / impulse_running / impulse_complete / short_structure / no_structure), reine Watchlist-Diagnostik, **Markt/Score/Ranking/Sammlung beweisbar unberührt** | +G +Bild manual |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -280,7 +281,38 @@ Auf-/Zuklappen, Persistenz über Reload, Add→auto-offen (pending), Remove übe
 keine Konsolen-Fehler (außer externem Quote-Netz). Revert = reiner Frontend-Diff-
 Revert (Kacheln zurück zu vollen `.card`s, `wl-grid`→`grid`).
 
-**✅ Recalculate-Status mit Zeitzähler — erledigt (dieser PR, `docs/index.html`):**
+**✅ Watchlist-Mehrwert — erledigt (dieser PR):** Easys Befund: eine Ex-Top-5-Karte
+(PANW) zeigte auf der Watchlist nur „kein regelkonformes Long-Setup", ihr Kontext
+war unsichtbar; Nicht-Setup-Ticker (IONQ) sagten nicht, WO sie in der Struktur stehen.
+- **(A) Top-5-Historie (reines Frontend, `docs/index.html`):** die aufgeklappte
+  Watchlist-Kachel liest die (schon geladene) `forward_collection` und zeigt je
+  Episode eine kompakte Zeile — **Datum · Markt · `count_label` · Anlage-Kurs ·
+  Zielzone · Status** (Symbole via `episodeStatus`: offen / Ziel ✓ / Extension ✓✓ /
+  invalidiert ✗ / ausgeschlossen). Neueste zuerst, **max 3**, Rest „…N weitere im
+  Backtesting". Klick öffnet die **bestehende** `showEpisodeDetail`-Ansicht
+  (`openEpisodeFromWatchlist`, kein Neubau). Records werden nach Collection-Load in
+  `_wlColl` gecacht und per `_wlInjectHistory` in die `.wl-hist[data-hist]`-Platzhalter
+  gespielt (kein Karten-Re-Render → Live-Quotes/Expand bleiben). Fail-soft ohne Episoden.
+- **(B) Struktur-Befund (Pipeline, NUR Watchlist-Zweig):** additives Feld `structure`
+  {day,week,month}, je Ebene `_classify_structure` → **5 Kategorien** (`long_setup`,
+  `impulse_running` „vermutlich W3/W5", `impulse_complete` „5 komplett · Korrektur A
+  erwartet" = W5→A-Perspektive, `short_structure`, `no_structure`). Operationalisierung:
+  Priorität kompletter Impuls (6 Pivots, `validate_impulse`) → Teil-Impuls bis W4 (5,
+  `validate_partial_to_w4`) → Ende W2 (3); Long/Short aus P0→P1; „läuft" vs. „Setup"
+  über Schlusskurs vs. zuletzt bestätigte Impulsspitze (W1-/W3-Hoch gebrochen → Folge-
+  Welle läuft). Ein Fetch je Ebene liefert Count UND Struktur (`_analyze_from_fetch`,
+  kein Doppelabruf). Frontend: `tfPanel(tf, structure)` zeigt bei null-Count den
+  Struktur-Befund + Orientierungsmarke statt „kein valider Long-Count". **Ehrlichkeit,
+  keine Wahrscheinlichkeit, kein Score.** **Markt-Pipeline/Score/Ranking/Filter/
+  forward_collection-Population byte-identisch** (Tests: `structure` nie auf
+  `markets[].candidates`, Märkte identisch mit/ohne). Verifiziert: 15 Struktur-Tests
+  (alle 5 Kategorien + Grenzfall W5 komplett), Real-Check an PANW-Pivots
+  (→ long_setup, Inval 300,48 = P1), Playwright (PANW-Historie klickbar, IONQ-Struktur
+  je Ebene). **Live-Verify:** IONQ am echten Lauf (Sandbox-Watchlist leer). Revert =
+  Feld + `_classify_structure`/`_structure_from_series`/`_analyze_from_fetch` +
+  Historie-Block/`tfPanel`-Struktur-Zweig entfernen (rein additiv).
+
+**✅ Recalculate-Status mit Zeitzähler — erledigt (#34, `docs/index.html`):**
 Easy 24.07.: nach dem Recalculate nicht mehr nur „Lauf gestartet · ~2–3 Min" +
 manueller Reload, sondern ein **live laufendes Status-Banner** (Squeeze-Muster). Nach
 204-Dispatch: Header-Banner „Neuberechnung läuft … N s" (Sekunden live, Elliott-Grün);
@@ -439,6 +471,17 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   NICHT (Top-5 bleiben Tag+Woche, `timeframes` fehlt dort bewusst). Frontend
   `tfPanel()` rendert das Panel NUR bei vorhandenem `c.timeframes` (Markt-Karten
   behalten den reinen Wochen-`hd-block`).
+- **Struktur-Befund (NUR Watchlist, dieser PR):** additives Feld `structure`
+  {`day`,`week`,`month`}, je Ebene `null` **oder** {`state`,`label`,
+  `invalidation_price`,`direction`}. `_classify_structure(prices, close)` (reine
+  Logik, direkt testbar) → 5 `state`: `long_setup` / `impulse_running` /
+  `impulse_complete` / `short_structure` / `no_structure`. Priorität kompletter
+  Impuls (letzte 6 Pivots, `validate_impulse`) → Teil-Impuls bis W4 (5,
+  `validate_partial_to_w4`) → Ende W2 (3). `_analyze_from_fetch` holt je Ebene EINEN
+  Fetch und liefert (Long-Count, Struktur) — **kein** Doppelabruf zu `timeframes`.
+  Gesetzt **nur** in `build_watchlist_entry` (+ Default in `_wl_base_entry`) →
+  `build_market`/Score/Ranking/Sammlung unberührt (Tests). Frontend:
+  `tfPanel(tf, structure)` zeigt bei null-Count den Struktur-Befund statt „kein Count".
 - **Workflow:** `.github/workflows/daily.yml` — Cron **`45 21 * * 1-5`** (Werktage,
   #23) + `workflow_dispatch: {}`, `timeout-minutes: 30`, `concurrency:
   daily-elliott`, committet **report + collection** (#21) sowie den einmaligen
@@ -510,6 +553,13 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   ist statisch (nicht live). Neuer Ticker startet aufgeklappt (Sofortkarte #25).
   Kein-valider-Count → Kopf zeigt „—" (kein Fake-Score). Toggle/Remove via Delegation
   auf `#wl-cards` (`data-wl-toggle`/`data-wl-remove`).
+- **Top-5-Historie in der Kachel (dieser PR):** `.wl-hist[data-hist]`-Platzhalter im
+  Tile-Body; nach Collection-Load werden die Records in `_wlColl` gecacht und via
+  `_wlInjectHistory` gefüllt (`_wlEpisodesFor` → neueste zuerst, max 3, `_wlHistRow`
+  mit `episodeStatus`-Symbolen). Klick (`data-ep-i`) → `openEpisodeFromWatchlist` →
+  bestehende `showEpisodeDetail`; „…N weitere" → `openBacktesting`. Kein Karten-Re-
+  Render (Quotes/Expand bleiben); fail-soft ohne Episoden. `tfPanel(tf, structure)`
+  zeigt bei null-Count den Struktur-Befund (Part B) statt „kein valider Long-Count".
 - **Menü (☰, 7 Punkte, Squeeze-analog seit dieser PR):** Reihenfolge `mi-reload`
   (**NEU**, primär hervorgehoben) · `mi-recalc` · `mi-backtesting` · `mi-methodik`
   · `mi-validierung` · `mi-laufstatus` · Trenner · `mi-lock` („Sperren", abgesetzt
