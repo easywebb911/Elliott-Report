@@ -23,9 +23,14 @@
       --mono:'SF Mono','SFMono-Regular',ui-monospace,'Courier New',monospace;
     }
     * { box-sizing: border-box; }
+    /* Textgrößen-Steuerung (Squeeze-Vorbild app.html:25/27): die gesamte UI ist
+       rem-basiert; das Skalieren der Root-Fontsize skaliert die ganze App (Karten,
+       Menü, Overlays). Default 16px = unveränderte Optik. SVG-Text (.wave-num/
+       .wl-mini-*) bleibt bewusst px → Sparkline/Donut skalieren NICHT mit. */
+    html { font-size: var(--app-fs, 16px); }
     body {
       margin:0; background:var(--bg); color:var(--txt);
-      font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      font:0.9375rem/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
       -webkit-text-size-adjust:100%;
     }
     header {
@@ -33,21 +38,21 @@
       position:sticky; top:0; background:var(--bg-hdr); z-index:10;
     }
     .head-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-    h1 { margin:0; font-size:20px; font-weight:800; letter-spacing:.3px; }
-    .sub { color:var(--txt-sub); font-size:12px; margin-top:4px; font-variant-numeric:tabular-nums; }
+    h1 { margin:0; font-size:1.25rem; font-weight:800; letter-spacing:.3px; }
+    .sub { color:var(--txt-sub); font-size:0.75rem; margin-top:4px; font-variant-numeric:tabular-nums; }
 
     main { max-width:900px; margin:0 auto; padding:16px; }
     .banner {
       display:none; margin:12px 0; padding:10px 12px; border-radius:8px;
       background:rgba(245,158,11,.12); border:1px solid var(--ora);
-      color:var(--ora); font-size:13px;
+      color:var(--ora); font-size:0.8125rem;
     }
     .banner.show { display:block; }
 
     /* Recalculate-Status-Banner (Squeeze-Muster, Elliott-Grün): läuft mit
        Sekundenzähler, wird grün „fertig" oder neutral bei Zeitüberschreitung. */
     .recalc-banner {
-      margin:12px 0; padding:10px 13px; border-radius:9px; font-size:13px;
+      margin:12px 0; padding:10px 13px; border-radius:9px; font-size:0.8125rem;
       line-height:1.5; display:flex; align-items:center; gap:9px;
     }
     .recalc-banner[hidden] { display:none; }
@@ -70,11 +75,11 @@
     /* Disclaimer — dezent, dunkel, einklappbar. Auf 390px unaufdringlich. */
 
     h2 {
-      font-size:17px; text-transform:uppercase; letter-spacing:.08em;
+      font-size:1.0625rem; text-transform:uppercase; letter-spacing:.08em;
       color:var(--txt); font-weight:800; margin:26px 0 12px;
       display:flex; align-items:center; gap:8px;
     }
-    h2 .flag { font-size:19px; }
+    h2 .flag { font-size:1.1875rem; }
     h2::after { content:""; flex:1; height:1px; background:linear-gradient(90deg,var(--brd),transparent); }
 
     .grid { display:grid; gap:10px; grid-template-columns:1fr; }
@@ -321,7 +326,7 @@
     .spark-wrap { padding:8px 12px 6px; border-top:1px solid var(--brd); }
     .spark-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:3px; }
     .spark-title { font-size:.6rem; text-transform:uppercase; letter-spacing:.08em; color:var(--txt-dim); font-weight:700; }
-    .spark-trend { font-size:12px; font-weight:700; }
+    .spark-trend { font-size:0.75rem; font-weight:700; }
     .spark-svg { width:100%; height:56px; }
     .spark-svg svg { width:100%; height:56px; display:block; overflow:visible; }
     /* Wellen-Ziffern in der Sparkline: kleiner, mit BG-Halo (paint-order) für
@@ -347,17 +352,17 @@
     .validation {
       max-width:1100px; margin:20px auto 0; padding:10px 16px;
       display:flex; flex-wrap:wrap; align-items:baseline; gap:8px 12px;
-      font-size:12px; color:var(--txt-dim);
+      font-size:0.75rem; color:var(--txt-dim);
       border-top:1px dashed var(--brd);
     }
     .validation .val-label {
       text-transform:uppercase; letter-spacing:.06em; font-weight:700;
-      font-size:10px; color:var(--txt-sub);
+      font-size:0.625rem; color:var(--txt-sub);
     }
     .validation .val-counts { color:var(--txt-sub); font-variant-numeric:tabular-nums; }
     .validation .val-note { color:var(--txt-dim); }
 
-    footer { color:var(--txt-dim); font-size:11px; line-height:1.6; text-align:center;
+    footer { color:var(--txt-dim); font-size:0.6875rem; line-height:1.6; text-align:center;
              padding:22px 20px max(24px, env(safe-area-inset-bottom)); border-top:1px solid var(--brd);
              margin-top:24px; }
     footer strong { color:var(--txt-sub); font-weight:700; }
@@ -367,7 +372,7 @@
     .hamburger {
       flex:0 0 auto; -webkit-appearance:none; appearance:none; cursor:pointer;
       background:var(--bg-met); color:var(--txt); border:1px solid var(--brd);
-      border-radius:10px; width:40px; height:40px; font-size:18px; line-height:1;
+      border-radius:10px; width:40px; height:40px; font-size:1.125rem; line-height:1;
       display:flex; align-items:center; justify-content:center;
       touch-action:manipulation;
     }
@@ -389,15 +394,15 @@
     .bt-back {
       -webkit-appearance:none; appearance:none; cursor:pointer;
       background:var(--bg-met); color:var(--txt); border:1px solid var(--brd);
-      border-radius:10px; min-height:40px; padding:8px 14px; font-size:14px;
+      border-radius:10px; min-height:40px; padding:8px 14px; font-size:0.875rem;
       font-weight:600; touch-action:manipulation;
     }
     .bt-back:active { background:var(--bg-hdr); }
-    .bt-title { font-size:17px; font-weight:800; letter-spacing:.02em; }
+    .bt-title { font-size:1.0625rem; font-weight:800; letter-spacing:.02em; }
     .bt-body { max-width:900px; width:100%; margin:0 auto; padding:16px;
                padding-bottom:max(24px, env(safe-area-inset-bottom)); }
     .bt-counts {
-      font-size:12px; color:var(--txt-sub); margin:0 0 14px;
+      font-size:0.75rem; color:var(--txt-sub); margin:0 0 14px;
       font-variant-numeric:tabular-nums;
     }
     .bt-counts b { color:var(--txt); font-weight:700; }
@@ -412,12 +417,12 @@
     }
     .ep-row:active { background:var(--bg-met); }
     .ep-main { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-    .ep-tk { font-family:var(--mono); font-weight:700; font-size:14px; }
-    .ep-flag { font-size:13px; }
-    .ep-date { font-size:11px; color:var(--txt-dim); font-variant-numeric:tabular-nums; }
-    .ep-score { font-size:12px; color:var(--txt-sub); font-variant-numeric:tabular-nums; }
+    .ep-tk { font-family:var(--mono); font-weight:700; font-size:0.875rem; }
+    .ep-flag { font-size:0.8125rem; }
+    .ep-date { font-size:0.6875rem; color:var(--txt-dim); font-variant-numeric:tabular-nums; }
+    .ep-score { font-size:0.75rem; color:var(--txt-sub); font-variant-numeric:tabular-nums; }
     .ep-status {
-      justify-self:end; font-size:11px; font-weight:700; padding:2px 8px;
+      justify-self:end; font-size:0.6875rem; font-weight:700; padding:2px 8px;
       border-radius:999px; border:1px solid var(--brd); white-space:nowrap;
     }
     .st-open { color:var(--txt-sub); }
@@ -430,7 +435,7 @@
     /* Detail-Ansicht */
     .ep-detail-meta {
       display:flex; flex-wrap:wrap; gap:6px 18px; margin:2px 0 14px;
-      font-size:12px; color:var(--txt-sub); font-variant-numeric:tabular-nums;
+      font-size:0.75rem; color:var(--txt-sub); font-variant-numeric:tabular-nums;
     }
     .ep-detail-meta b { color:var(--txt); font-weight:700; }
     .ep-chart {
@@ -441,11 +446,11 @@
     .ep-chart-empty { color:var(--txt-sub); font-style:italic; padding:28px 8px; text-align:center; }
     .ep-legend {
       display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px;
-      font-size:10.5px; color:var(--txt-dim);
+      font-size:0.65625rem; color:var(--txt-dim);
     }
     .ep-legend span { display:inline-flex; align-items:center; gap:5px; }
     .ep-legend i { width:14px; height:0; border-top-width:2px; border-top-style:solid; display:inline-block; }
-    .ep-kv-grid { display:grid; grid-template-columns:auto 1fr; gap:5px 14px; font-size:13px; }
+    .ep-kv-grid { display:grid; grid-template-columns:auto 1fr; gap:5px 14px; font-size:0.8125rem; }
     .ep-kv-grid .k { color:var(--txt-dim); }
     .ep-kv-grid .v { color:var(--txt); font-variant-numeric:tabular-nums; }
     .wave-num { fill:var(--txt); font-size:9px; font-weight:700; font-family:var(--mono); }
@@ -466,7 +471,7 @@
     .menu-item {
       -webkit-appearance:none; appearance:none; cursor:pointer; width:100%;
       text-align:left; background:transparent; color:var(--txt); border:0;
-      border-radius:10px; padding:9px 11px; font-size:14px; font-weight:600;
+      border-radius:10px; padding:9px 11px; font-size:0.875rem; font-weight:600;
       font-family:inherit; display:flex; align-items:center; gap:12px;
       min-height:44px; touch-action:manipulation;
     }
@@ -488,6 +493,19 @@
     .menu-item-primary .mi-tile { background:rgba(34,197,94,.22); color:var(--grn); }
     /* „Sperren" dezent am Panel-Fuß abgesetzt. */
     .menu-sep { border-top:1px solid var(--brd); margin:6px 4px 4px; }
+    /* Textgrößen-Reihe am Panel-Fuß (Squeeze-Vorbild: .menu-footer, nur − / +).
+       Zwei Kacheln im bestehenden Icon-Kachel-Stil (Elliott-Grün). */
+    .menu-fs { display:flex; gap:6px; padding:8px 4px 2px; margin-top:6px;
+      border-top:1px solid var(--brd); }
+    .menu-fs-btn {
+      flex:1; -webkit-appearance:none; appearance:none; cursor:pointer;
+      background:transparent; border:0; border-radius:10px; padding:6px; min-height:44px;
+      display:flex; align-items:center; justify-content:center; touch-action:manipulation;
+    }
+    .menu-fs-btn:hover, .menu-fs-btn:focus-visible { background:var(--bg-met); outline:none; }
+    .menu-fs-btn:active { background:var(--brd); }
+    .menu-fs-btn:disabled { opacity:.4; cursor:default; }
+    .menu-fs-btn:disabled:hover { background:transparent; }
 
     /* ── Token-Modals (Master-Passwort-Krypto, portiert aus Aktien-Update) ── */
     .tok-modal-overlay {
@@ -500,42 +518,42 @@
       border-radius:16px; box-shadow:var(--shadow); padding:18px 18px 16px;
     }
     .tok-modal[hidden] { display:none; }
-    .tok-modal h3 { margin:0 0 8px; font-size:16px; font-weight:800; }
-    .tok-modal-hint { margin:0 0 14px; font-size:12px; color:var(--txt-sub); line-height:1.5; }
+    .tok-modal h3 { margin:0 0 8px; font-size:1rem; font-weight:800; }
+    .tok-modal-hint { margin:0 0 14px; font-size:0.75rem; color:var(--txt-sub); line-height:1.5; }
     .tok-modal-hint code {
-      font-family:var(--mono); font-size:11px; background:var(--bg-met);
+      font-family:var(--mono); font-size:0.6875rem; background:var(--bg-met);
       padding:1px 5px; border-radius:5px; color:var(--txt);
     }
-    .tok-modal-lbl { display:block; font-size:12px; color:var(--txt-sub); margin:0 0 10px; }
+    .tok-modal-lbl { display:block; font-size:0.75rem; color:var(--txt-sub); margin:0 0 10px; }
     .tok-modal-inp {
       -webkit-appearance:none; appearance:none; width:100%; margin-top:5px;
       background:var(--bg-met); color:var(--txt); border:1px solid var(--brd);
-      border-radius:10px; padding:10px 12px; font-size:15px; min-height:42px;
+      border-radius:10px; padding:10px 12px; font-size:0.9375rem; min-height:42px;
       font-family:var(--mono);
     }
     .tok-modal-inp:focus { outline:none; border-color:var(--accent); }
     .tok-modal-err {
-      color:var(--red); font-size:12px; margin:0 0 10px; font-weight:600;
+      color:var(--red); font-size:0.75rem; margin:0 0 10px; font-weight:600;
     }
     .tok-modal-err[hidden] { display:none; }
     .tok-modal-btns { display:flex; align-items:center; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
     .tok-btn {
       -webkit-appearance:none; appearance:none; cursor:pointer; min-height:42px;
-      border-radius:10px; padding:9px 15px; font-size:14px; font-weight:700;
+      border-radius:10px; padding:9px 15px; font-size:0.875rem; font-weight:700;
       touch-action:manipulation; border:1px solid var(--brd);
     }
     .tok-btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
     .tok-btn-cancel { background:var(--bg-met); color:var(--txt); }
     .tok-btn:active { transform:scale(.97); }
     .tok-link {
-      font-size:12px; color:var(--txt-sub); cursor:pointer; text-decoration:underline;
+      font-size:0.75rem; color:var(--txt-sub); cursor:pointer; text-decoration:underline;
       margin-right:auto;
     }
 
     /* ── Info-Ansichten (Methodik / Validierung / Lauf-Status) ───────────── */
-    .info-lead { color:var(--txt-sub); font-size:13px; line-height:1.6; margin:0 0 16px; }
+    .info-lead { color:var(--txt-sub); font-size:0.8125rem; line-height:1.6; margin:0 0 16px; }
     .info-section-h {
-      font-size:12px; text-transform:uppercase; letter-spacing:.07em; font-weight:800;
+      font-size:0.75rem; text-transform:uppercase; letter-spacing:.07em; font-weight:800;
       color:var(--txt-sub); margin:20px 0 10px;
     }
     .legend { display:flex; flex-direction:column; gap:10px; }
@@ -543,23 +561,23 @@
       display:grid; grid-template-columns:96px 1fr; gap:4px 12px; align-items:start;
       background:var(--bg-card); border:1px solid var(--brd); border-radius:10px; padding:10px 12px;
     }
-    .legend-k { font-weight:700; font-size:13px; color:var(--txt); }
-    .legend-v { font-size:12.5px; color:var(--txt-sub); line-height:1.5; }
+    .legend-k { font-weight:700; font-size:0.8125rem; color:var(--txt); }
+    .legend-v { font-size:0.78125rem; color:var(--txt-sub); line-height:1.5; }
     .legend-v code, .md-body code {
-      font-family:var(--mono); font-size:11px; background:var(--bg-met);
+      font-family:var(--mono); font-size:0.6875rem; background:var(--bg-met);
       padding:1px 5px; border-radius:5px; color:var(--txt);
     }
     .score-formula {
       background:var(--bg-card); border:1px solid var(--brd); border-radius:10px;
-      padding:12px 14px; font-size:13px; color:var(--txt-sub); line-height:1.65;
+      padding:12px 14px; font-size:0.8125rem; color:var(--txt-sub); line-height:1.65;
     }
     .score-formula b { color:var(--txt); }
-    .disc-line { color:var(--disc); font-size:12px; margin-top:12px; font-weight:600; }
+    .disc-line { color:var(--disc); font-size:0.75rem; margin-top:12px; font-weight:600; }
 
     /* Markdown-Rendering (Validierungs-Register) */
-    .md-body { font-size:13.5px; line-height:1.65; color:var(--txt-sub); }
-    .md-body h1 { font-size:18px; color:var(--txt); margin:4px 0 12px; }
-    .md-body h2 { font-size:15px; color:var(--txt); margin:20px 0 8px; }
+    .md-body { font-size:0.84375rem; line-height:1.65; color:var(--txt-sub); }
+    .md-body h1 { font-size:1.125rem; color:var(--txt); margin:4px 0 12px; }
+    .md-body h2 { font-size:0.9375rem; color:var(--txt); margin:20px 0 8px; }
     .md-body strong { color:var(--txt); }
     .md-body ul { margin:8px 0; padding-left:20px; }
     .md-body li { margin:4px 0; }
@@ -574,25 +592,25 @@
       background:var(--bg-card); border:1px solid var(--brd); border-radius:12px;
       padding:12px 14px; margin-bottom:12px;
     }
-    .status-market-h { font-size:15px; font-weight:800; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
-    .status-kv { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px; }
+    .status-market-h { font-size:0.9375rem; font-weight:800; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
+    .status-kv { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:0.8125rem; }
     .status-kv .k { color:var(--txt-dim); }
     .status-kv .v { color:var(--txt); font-variant-numeric:tabular-nums; }
     .status-skips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .status-chip {
-      font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--brd);
+      font-size:0.6875rem; padding:2px 8px; border-radius:999px; border:1px solid var(--brd);
       color:var(--txt-sub); font-variant-numeric:tabular-nums;
     }
     .status-chip.nz { color:var(--txt); border-color:var(--accent); }
     .info-stale {
       display:none; margin:0 0 14px; padding:10px 12px; border-radius:8px;
-      background:rgba(245,158,11,.12); border:1px solid var(--ora); color:var(--ora); font-size:13px;
+      background:rgba(245,158,11,.12); border:1px solid var(--ora); color:var(--ora); font-size:0.8125rem;
     }
     .info-stale.show { display:block; }
 
     /* ── Persönliche Watchlist ───────────────────────────────────────────── */
     #watchlist-sec .wl-count {
-      font-size:12px; color:var(--txt-dim); background:var(--bg-met);
+      font-size:0.75rem; color:var(--txt-dim); background:var(--bg-met);
       padding:1px 8px; border-radius:10px; font-variant-numeric:tabular-nums;
     }
     .wl-controls { margin:4px 0 14px; }
@@ -600,29 +618,29 @@
     .wl-input {
       flex:1; min-width:0; -webkit-appearance:none; appearance:none;
       background:var(--bg-card); color:var(--txt); border:1px solid var(--brd);
-      border-radius:10px; padding:10px 12px; font-size:15px; min-height:42px;
+      border-radius:10px; padding:10px 12px; font-size:0.9375rem; min-height:42px;
       font-family:var(--mono); text-transform:uppercase;
     }
     .wl-input:focus { outline:none; border-color:var(--accent); }
     .wl-add-btn {
       -webkit-appearance:none; appearance:none; cursor:pointer; min-height:42px;
-      border-radius:10px; padding:9px 14px; font-size:14px; font-weight:700;
+      border-radius:10px; padding:9px 14px; font-size:0.875rem; font-weight:700;
       touch-action:manipulation; border:1px solid var(--grn); white-space:nowrap;
       background:var(--grn); color:#04120a;
     }
     .wl-add-btn:active { transform:scale(.97); }
-    .wl-err { color:var(--red); font-size:12.5px; font-weight:600; margin:8px 0 0; }
+    .wl-err { color:var(--red); font-size:0.78125rem; font-weight:600; margin:8px 0 0; }
     .wl-err[hidden] { display:none; }
     .wl-chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0; }
     .wl-chip {
       display:inline-flex; align-items:center; gap:6px; font-family:var(--mono);
-      font-size:12.5px; font-weight:700; color:var(--txt);
+      font-size:0.78125rem; font-weight:700; color:var(--txt);
       background:var(--bg-met); border:1px solid var(--brd);
       border-radius:999px; padding:4px 6px 4px 11px;
     }
     .wl-chip button {
       -webkit-appearance:none; appearance:none; cursor:pointer; border:0;
-      background:transparent; color:var(--txt-dim); font-size:15px; line-height:1;
+      background:transparent; color:var(--txt-dim); font-size:0.9375rem; line-height:1;
       padding:0 3px; touch-action:manipulation;
     }
     .wl-chip button:active { color:var(--red); }
@@ -631,12 +649,12 @@
        ungesynct ist (Erfolg meldet ein kurzer Toast, kein Dauertext). */
     .wl-sync {
       display:inline-flex; align-items:center; gap:6px; margin:10px 0 0;
-      font-size:11.5px; font-weight:600; color:var(--ora);
+      font-size:0.71875rem; font-weight:600; color:var(--ora);
       background:rgba(245,158,11,.10); border:1px solid rgba(245,158,11,.4);
       border-radius:999px; padding:3px 10px;
     }
     .wl-sync[hidden] { display:none; }
-    .wl-sync::before { content:"●"; font-size:8px; line-height:1; }
+    .wl-sync::before { content:"●"; font-size:0.5rem; line-height:1; }
     #wl-cards:empty { display:none; }
 
     /* Watchlist-Karten ohne/ mit Fehler — dezent abgesetzt, gleiche Grundoptik. */
@@ -647,7 +665,7 @@
     .card.wl-card-pending { border-style:dashed; border-color:var(--ora); }
     .wl-note.wl-note-pending { color:var(--ora); border-color:rgba(245,158,11,.4); background:rgba(245,158,11,.08); }
     .wl-note {
-      margin:2px 12px 12px; padding:8px 11px; border-radius:8px; font-size:12.5px;
+      margin:2px 12px 12px; padding:8px 11px; border-radius:8px; font-size:0.78125rem;
       background:var(--bg-met); color:var(--txt-sub); border:1px solid var(--brd);
     }
     .wl-note.wl-note-err { color:var(--red); border-color:rgba(239,68,68,.4); background:rgba(239,68,68,.08); }
@@ -688,10 +706,10 @@
     .wl-mini-dash { font-size:14px; font-weight:600; fill:var(--txt-dim);
       text-anchor:middle; dominant-baseline:central; }
     .wl-meta { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
-    .wl-tk { font-family:var(--mono); font-weight:700; font-size:12.5px; color:var(--txt);
+    .wl-tk { font-family:var(--mono); font-weight:700; font-size:0.78125rem; color:var(--txt);
       letter-spacing:-.02em;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
-    .wl-trend { display:inline-flex; align-items:center; gap:4px; font-size:10px; color:var(--txt-dim); }
+    .wl-trend { display:inline-flex; align-items:center; gap:4px; font-size:0.625rem; color:var(--txt-dim); }
     .wl-trenddot { width:7px; height:7px; border-radius:50%; background:var(--txt-dim); flex:0 0 auto; }
     .wl-trenddot.up { background:var(--grn); }
     .wl-trenddot.down { background:var(--red); }
@@ -699,14 +717,14 @@
     .wl-x {
       position:absolute; top:3px; right:4px; -webkit-appearance:none; appearance:none;
       background:none; border:0; color:var(--txt-dim); cursor:pointer;
-      font-size:15px; line-height:1; width:20px; height:20px; border-radius:6px;
+      font-size:0.9375rem; line-height:1; width:20px; height:20px; border-radius:6px;
       display:inline-flex; align-items:center; justify-content:center; z-index:2;
     }
     .wl-x:active { color:var(--red); background:var(--bg-met); }
     /* ▾ Aufklapp-Pfeil — unten rechts, dreht bei [data-open]. */
     .wl-caret {
       position:absolute; bottom:3px; right:5px; color:var(--txt-dim);
-      font-size:11px; line-height:1; pointer-events:none; transition:transform .18s;
+      font-size:0.6875rem; line-height:1; pointer-events:none; transition:transform .18s;
     }
     .wl-tile[data-open] .wl-caret { transform:rotate(180deg); }
     /* Aufgeklappt: kompakten Kopf verstecken, volle Karte zeigen, ganze Reihe. */
@@ -735,7 +753,7 @@
     .wl-collapse {
       -webkit-appearance:none; appearance:none; cursor:pointer;
       background:var(--bg-met); color:var(--txt-sub); border:1px solid var(--brd);
-      border-radius:8px; padding:4px 10px; font-size:12px; font-weight:600;
+      border-radius:8px; padding:4px 10px; font-size:0.75rem; font-weight:600;
       display:inline-flex; align-items:center; gap:5px; touch-action:manipulation;
     }
     .wl-collapse:active { background:var(--bg-hdr); color:var(--txt); }
@@ -743,7 +761,7 @@
     .toast {
       position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
       background:var(--bg-card); color:var(--txt); border:1px solid var(--grn);
-      border-radius:999px; padding:8px 16px; font-size:13px;
+      border-radius:999px; padding:8px 16px; font-size:0.8125rem;
       opacity:0; pointer-events:none; transition:opacity .25s ease; z-index:45; max-width:90vw;
       text-align:center;
     }
@@ -853,6 +871,16 @@
       <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
       <span class="mi-label">Sperren</span>
     </button>
+    <!-- Textgröße (Squeeze-Vorbild: Menü-Fuß − / +). NUR diese zwei Buttons —
+         kein Settings-Zahnrad, kein Theme-Mond (Funktionen, die Elliott nicht hat). -->
+    <div class="menu-fs" role="group" aria-label="Textgröße einstellen">
+      <button class="menu-fs-btn" id="fs-down" type="button" aria-label="Text kleiner" title="Text kleiner">
+        <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span>
+      </button>
+      <button class="menu-fs-btn" id="fs-up" type="button" aria-label="Text größer" title="Text größer">
+        <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+      </button>
+    </div>
   </nav>
 
   <!-- Token-Krypto-Dialoge (Master-Passwort → AES-GCM, kein Klartext-Secret) -->
@@ -922,6 +950,37 @@
     // Live-Seite als auch lokale Vorschau (Server im Repo-Root) funktionieren.
     const CANDIDATE_PATHS = ['data/report.json', '../data/report.json'];
     const STALENESS_HOURS = 30;
+
+    // ── Textgröße (Squeeze-Vorbild app.html:3511–3531) ────────────────────────
+    // Die gesamte UI ist rem-basiert → Skalieren der Root-Fontsize (--app-fs)
+    // skaliert Karten, Menü UND Overlays. Fünf Stufen; Default idx 1 = 16px =
+    // unveränderte Optik. Squeeze-Muster: [13,15,17,19,21]@15px → hier @16px-Basis.
+    // Zustand in localStorage, sofort beim Laden angewandt; Grenzen deaktivieren
+    // − bzw. + am Ende (kein Endlos-Wachsen). SVG-Text bleibt px → Sparkline/Donut
+    // skalieren nicht mit.
+    const _FS_SIZES = [14, 16, 18, 20, 22];
+    const _FS_KEY = 'elliott_fs';
+    function _fsClampIdx() {
+      let i = parseInt(localStorage.getItem(_FS_KEY) ?? '1', 10);
+      if (Number.isNaN(i)) i = 1;
+      return Math.min(Math.max(i, 0), _FS_SIZES.length - 1);
+    }
+    function _fsApply(idx) {
+      document.documentElement.style.setProperty('--app-fs', _FS_SIZES[idx] + 'px');
+      const d = document.getElementById('fs-down'), u = document.getElementById('fs-up');
+      if (d) d.disabled = (idx === 0);
+      if (u) u.disabled = (idx === _FS_SIZES.length - 1);
+    }
+    function changeFontSize(dir) {
+      const next = Math.max(0, Math.min(_FS_SIZES.length - 1, _fsClampIdx() + dir));
+      localStorage.setItem(_FS_KEY, String(next));
+      _fsApply(next);
+    }
+    _fsApply(_fsClampIdx());  // sofort anwenden (kein Flash) + Button-Zustand
+    try {
+      document.getElementById('fs-down').addEventListener('click', () => changeFontSize(-1));
+      document.getElementById('fs-up').addEventListener('click', () => changeFontSize(1));
+    } catch (_) { /* fail-soft: Buttons fehlen -> Feature inaktiv, App unberührt */ }
 
     // Handelskalender — Spiegel von scripts/market_calendar.py (gemeinsame
     // NYSE∩Xetra-Voll-Schließtage). BEI ÄNDERUNG BEIDE STELLEN PFLEGEN. Zweck:
@@ -1687,7 +1746,7 @@
       const wrap = document.getElementById('wl-chips');
       const cnt = document.getElementById('wl-count');
       if (cnt) cnt.textContent = _wlArr.length ? String(_wlArr.length) : '';
-      if (!_wlArr.length) { wrap.innerHTML = '<span class="empty" style="font-size:12px">Noch keine eigenen Ticker.</span>'; return; }
+      if (!_wlArr.length) { wrap.innerHTML = '<span class="empty" style="font-size:0.75rem">Noch keine eigenen Ticker.</span>'; return; }
       wrap.innerHTML = _wlArr.map(t => {
         // „dirty" = seit dem letzten Lauf hinzugekommen (erscheint erst nach Run).
         const dirty = _wlLastRunSet && !_wlLastRunSet.has(t) ? ' dirty' : '';
