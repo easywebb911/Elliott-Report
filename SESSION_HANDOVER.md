@@ -2,12 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #39 (**Header-Layout: Disclaimer ans Seitenende, ☰ oben rechts**, gemerged;
-dieser PR: **„Ziel erreicht/überschritten"-Hinweis je Zeitebenen-Zeile**, offen —
-reines Frontend). Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht
-aus dem Gedächtnis.
+nach PR #40 (**„Ziel erreicht/überschritten"-Hinweis je Zeitebenen-Zeile**, gemerged;
+dieser PR: **P1-Audit — A11y-Kontrast (Mikro-Labels WCAG AA) + Universum-Hygiene (8 tote
+Ticker)**, offen; Audit-Punkt 1 „Zeitebenen-Hinweis" war bereits via #40 auf main →
+in diesem Sammel-PR übersprungen). Alle Zahlen/Hashes sind gegen `git log` und den Code
+geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #39-Merge `7946dad`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #40-Merge `c5b14ca`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -85,7 +86,8 @@ durchgängig ab #13.
 | #37 | `b891efa` | **Watchlist-Auto-Sync**: der manuelle „Für die Pipeline speichern"-Button (#17) entfällt — jede add/remove synct automatisch nach `watchlist_personal.json` (PUT), **Debounce `WL_SYNC_DEBOUNCE_MS=3000`** (EIN Commit), idempotent, gesperrte Session → Dialog + „noch nicht gesynct"-Chip, 409 → sha frisch + 1× Retry. Reines Frontend | +G self (CI grün) +Bild |
 | #38 | `e5b04c1` | **3D-Karten-Look + blaue Watchlist-Tönung** (Squeeze „Variante 1B" portiert): Markt-Karten, Watchlist-Kacheln UND aufgeklappte Karten bekommen die einheitliche Tiefen-Sprache (2-Stop-Gradient + Drop-Schatten + **Inset-Kanten-Highlight** + 1px-Licht-Grat, Hover-Lift auf Kacheln); aufgeklappte Watchlist-Karten zusätzlich **dezent blaustichig** (Akzent-Blau). Reines CSS, Kontrast belegt | self (CI grün) +Bild |
 | #39 | `7946dad` | **Header-Layout**: Disclaimer-Banner aus dem Kopf entfernt → dezenter statischer **Footer-Disclaimer** am Seitenende (kein Einklappen mehr, `elliott_disc_collapsed`+JS entfallen); **☰ von oben links nach oben RECHTS** (Squeeze-Position, Panel öffnet rechtsbündig `right:12px`), Titel/Stand-Zeile links. Alle Menü-Funktionen unverändert. Reines Frontend | self (CI grün) +Bild |
-| #(dieser) | `(offen)` | **„Ziel erreicht/überschritten" je Zeitebenen-Zeile**: jede Tag/Woche/Monat-Zeile mit Zielzone (Markt + Watchlist) bekommt einen kompakten `.tf-hint`-Chip — Kurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` → „Ziel überschritten" (**Schwellen identisch zum #28-Badge**, `_setTfHint` = Zwilling von `_setZoneBadge`, live via `quotePatch`). Macht sichtbar, dass ältere Zählungen auf großen Zeitebenen (Monats-Pivot-Trägheit) längst gelaufene Ziele zeigen (Live-Fall AMAT: Monat Ziel 296–391 bei Kurs 536). Methodik ergänzt. Reines Frontend | self (CI grün) +Bild |
+| #40 | `c5b14ca` | **„Ziel erreicht/überschritten" je Zeitebenen-Zeile**: jede Tag/Woche/Monat-Zeile mit Zielzone (Markt + Watchlist) bekommt einen kompakten `.tf-hint`-Chip — Kurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` → „Ziel überschritten" (**Schwellen identisch zum #28-Badge**, `_setTfHint` = Zwilling von `_setZoneBadge`, live via `quotePatch`). Macht sichtbar, dass ältere Zählungen auf großen Zeitebenen (Monats-Pivot-Trägheit) längst gelaufene Ziele zeigen (Live-Fall AMAT: Monat Ziel 296–391 bei Kurs 536). Methodik ergänzt. Reines Frontend | self (CI grün) +Bild |
+| #(dieser) | `(offen)` | **P1-Audit: A11y-Kontrast + Universum-Hygiene**. (2) Mikro-/Uppercase-Labels von ~3,1–3,7:1 auf **WCAG AA ≥ 4,5:1** gehoben — ein Token `--txt-dim` `#64748b`→`#8b97a8` (4,97–5,90:1 auf allen Flächen inkl. blauer WL-Tönung), bleibt < `--txt-sub` (Hierarchie). (3) **8 tote Ticker** (`empty_data` aus `report.json`-Diag: US `MMC`/`FI`/`HES`, DE `1COV.DE`/`CTS.DE`/`UN01.DE`/`SHA.DE`/`COP.DE`) aus `config.py` + `ticker_meta.json` entfernt (361→353), Registry-Log ergänzt, keine Ersatz erfunden. Audit-Punkt 1 (Zeitebenen-Hinweis) via #40 schon auf main → übersprungen. Frontend + Universum | Guardian + manual +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -312,7 +314,33 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ „Ziel erreicht/überschritten" je Zeitebenen-Zeile — erledigt (dieser PR,
+**✅ P1-Audit: A11y-Kontrast (Mikro-Labels WCAG AA) — erledigt (dieser PR,
+`docs/index.html`, reines Frontend):** Audit-Befund: alle Mikro-/Uppercase-Labels
+(MONAT/WOCHE/TAG, INVAL/ZIEL/EXT, INVALIDIERUNG/ZIELZONE, Mark-Labels, Kachel-Labels)
+lagen mit `--txt-dim` `#64748b` bei nur **3,1–3,7:1** (gemessen, WCAG-Blend über die
+realen Flächen) — unter AA (4,5:1 für kleinen Text). **Ein-Token-Fix** (eine Wahrheit):
+`--txt-dim` → **`#8b97a8`**. Gemessen nachher (Python-WCAG-Rechner, sRGB-Linearisierung):
+Karte 5,90 · Karte-oben 5,25 · Metric-Box 5,58 · tf/hd-Block 5,52 · **blaue WL-Kachel
+4,97** — **AA auf allen fünf Flächen** (inkl. der `.05`-über-`.06`-Blau-Stapelung).
+Hierarchie **erhalten:** neues `--txt-dim` bleibt auf jeder Fläche **< `--txt-sub`**
+(5,74–6,82:1) und weit unter den `--txt`-Werten — Helligkeit angehoben, **Größe/Gewicht
+unverändert**. Verifiziert: Vorher/Nachher-Screenshots (390px) neutraler tf-Block **und**
+blaue WL-Kachel, `getComputedStyle` bestätigt `#8b97a8`. Revert = ein Zeichenketten-Wert
+im `:root`. Reine Anzeige.
+
+**✅ P1-Audit: Universum-Hygiene (8 tote Ticker) — erledigt (dieser PR, `config.py`
++ `data/ticker_meta.json` + Registry):** Grundlage = `market.diag.dead_tickers` aus dem
+committeten `report.json` (Lauf 25.07. 13:35Z), alle Grund `empty_data`. Entfernt: **US
+(3)** `MMC`, `FI`, `HES`; **DE (5)** `1COV.DE`, `CTS.DE`, `UN01.DE`, `SHA.DE`, `COP.DE`.
+Aus `config.py`-Listen (US 239→236, DE 122→117; gesamt **361→353**) **und**
+`ticker_meta.json` (361→353 Einträge, reine Löschungen). **Keine Ersatz erfunden**
+(ehrlicher als geratene). Deckt sich exakt mit den `empty_data`-Zählern (DE 5 / US 3);
+gesunde Namensvettern erhalten (`COP`≠`COP.DE`, `FI`≠`FIS`, `NEM`/`NEM.DE`). Registry-
+Log „Universum-Hygiene 25.07." ergänzt. **Zählweise/Score/Ranking/Filter unverändert**,
+Tests grün (202). Erwartung Folge-Lauf: `empty_data → 0` je Markt (im PR nachzutragen).
+Revert = die 8 Symbole wieder eintragen. Universums-Berührung → **Guardian + Manual-Merge**.
+
+**✅ „Ziel erreicht/überschritten" je Zeitebenen-Zeile — erledigt (#40,
 `docs/index.html`, reines Frontend):** Live-Befund AMAT (25.07.): Monats-Zeile zeigte
 „Ende W2 · Ziel 296–391" bei Kurs **536** — die Projektion war längst gelaufen (Monats-
 Pivot-Trägheit), die Zeile sagte es nicht; das #28-Badge existierte nur an der Haupt-
@@ -523,9 +551,10 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Watchlist) verwirft Setups mit `close ≥ target_zone.low` VOR dem Ranking —
   Skip-Grund `target_exceeded` (in `SKIP_REASONS`, Diag-Zähler + Lauf-Status-Chip
   „Zielzone erreicht"). Rang 6+ rückt nach. Schwelle = Guard-/Entry-Regel-Schwelle.
-- **Universum (`config.py`, statisch):** **US 239** (S&P-Breite) · **DE 122**
-  (DAX/MDAX/SDAX, `.DE`) = **361**. Dual-Class nur einmal (GOOGL/FOXA/NWSA,
-  BRK-B). Ticker-Meta `data/ticker_meta.json` (Name+Sektor, 361/361 = 100 %,
+- **Universum (`config.py`, statisch):** **US 236** (S&P-Breite) · **DE 117**
+  (DAX/MDAX/SDAX, `.DE`) = **353** (Stand 25.07., nach Hygiene-PR: 8 tote `empty_data`-
+  Symbole entfernt, vorher 361). Dual-Class nur einmal (GOOGL/FOXA/NWSA,
+  BRK-B). Ticker-Meta `data/ticker_meta.json` (Name+Sektor, 353/353 = 100 %,
   fail-soft).
 - **Ranking:** `sort key = (-score_heuristic, ticker)`, dann `[:TOP_N]` (`TOP_N=5`).
 - **Report-Felder:** `schema_version` (**=1**, additiv), `run_timestamp_utc`,
