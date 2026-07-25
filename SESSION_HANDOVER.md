@@ -2,11 +2,11 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #35 (**Watchlist-Mehrwert**, gemerged; dieser PR: **Struktur-Marke präzisiert
-+ A-Orientierung**, offen). Alle Zahlen/Hashes sind gegen `git log` und den Code
-geprüft, nicht aus dem Gedächtnis.
+nach PR #36 (**Struktur-Marke präzisiert + A-Orientierung**, gemerged; dieser PR:
+**Watchlist-Auto-Sync**, offen — Speichern-Button entfällt). Alle Zahlen/Hashes sind
+gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #35-Merge `1d3f236`, Feature-Commit `ff411c7`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #36-Merge `3aa7739`, Feature-Commit `a06f200`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -80,7 +80,8 @@ durchgängig ab #13.
 | #33 | `d6bfa1f` | **Watchlist-Kompakt-Grid**: Watchlist-Karten als kompaktes Grid (~3/Reihe @390px), Kacheln standardmäßig eingeklappt (Mini-Donut/„—", Ticker, Trend-Punkt, ×, ▾), volle Karte beim Aufklappen; Zustand pro Gerät (localStorage). Sofortkarte (#25) bleibt. Reines Frontend | self (CI grün) +Bild |
 | #34 | `d543303` | **Recalculate-Status mit Zeitzähler** (Squeeze-Muster): nach 204-Dispatch ein Header-Banner „Neuberechnung läuft … N s" (Sekunden live); pollt den **Report-Stand** (frische Baseline vom Server, „fertig" nur bei **strikt neuerem** `run_timestamp_utc`, `RECALC_POLL_MS=10s`) → bei Erfolg **automatisch in-place rendern** (kein Reload) + grünes „fertig" + Toast; Timeout `RECALC_TIMEOUT_MS=10min` → neutraler Hinweis; Feiertag (`MARKET_FULL_CLOSURE`) → sofort-Hinweis; visibilitychange-Pause, getrennte Timer. **Bugfix Baseline-Falle** (`0f14d9a`). Reines Frontend | self (CI grün) +Bild |
 | #35 | `ff411c7` | **Watchlist-Mehrwert**: (A) **Top-5-Historie** je Kachel aus `forward_collection` (Datum · Markt · Zählung · Anlage-Kurs · Zielzone · Status, max 3, neueste zuerst; Klick öffnet die bestehende Backtesting-Detail-Ansicht); (B) **Struktur-Befund** je Zeitebene statt binärem „kein Count" — additives Feld `structure` (5 Kategorien), reine Watchlist-Diagnostik, **Markt/Score/Ranking/Sammlung beweisbar unberührt** | +G +Bild manual |
-| #(dieser) | `(offen)` | **Struktur-Marke präzisiert + A-Orientierung** (Read-only-Diagnose PANW): die „Marke" beim Struktur-Befund war unbeschriftet (nackte Zahl wirkte wie nahe Orientierung, war aber der Zählungs-Ungültigkeitspunkt). Jetzt: additives `mark_label` sagt WAS die Marke ist (`Impuls-Start`/`W1-Hoch`/`W1-Start`); bei `impulse_complete` zusätzlich `orientation_price` = **W4-Extrem** als nahe **A-Ziel-Region** (typisches erstes Korrektur-Ziel). Reine Watchlist-Anzeige, additiv | +G +Bild manual |
+| #36 | `a06f200` | **Struktur-Marke präzisiert + A-Orientierung** (Read-only-Diagnose PANW): additives `mark_label` sagt WAS die Marke ist (`Impuls-Start`/`W1-Hoch`/`W1-Start`); bei `impulse_complete` zusätzlich `orientation_price` = **W4-Extrem** als nahe **A-Ziel-Region**. Reine Watchlist-Anzeige, additiv | +G +Bild manual |
+| #(dieser) | `(offen)` | **Watchlist-Auto-Sync**: der manuelle „Für die Pipeline speichern"-Button (#17) entfällt — jede add/remove synct automatisch nach `watchlist_personal.json` (PUT), **Debounce `WL_SYNC_DEBOUNCE_MS=3000`** (mehrere schnelle Änderungen = EIN Commit), idempotent (kein PUT ohne Änderung). Session gesperrt → normaler Passwort-Dialog (wie Recalculate), Änderung bleibt lokal + „noch nicht gesynct"-Chip, synct beim nächsten Gelingen. 409 → sha frisch + 1× Retry. Erklär-Absatz entfernt (Hinweise situativ). Reines Frontend | +G self (CI grün) +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -115,9 +116,11 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
   context http://localhost); die **iOS-ITP-Realität** (räumt Safari nach ~7 Tagen
   Inaktivität die Website-Daten, ist die Session früher weg → PW-Dialog) ist nur
   am echten Gerät beobachtbar.
-- **OFFEN — Watchlist-Live-Test:** Ticker → „Für die Pipeline speichern" (Token
-  zusätzlich **Contents: write**) → PUT auf `watchlist_personal.json` → nach Lauf
-  erscheint die **volle** (analysierte) Karte. **Teil-Entschärft (dieser PR,
+- **OFFEN — Watchlist-Live-Test:** Ticker add/remove → **Auto-Sync** (seit diesem PR,
+  Token zusätzlich **Contents: write**) → nach ~3 s Debounce PUT auf
+  `watchlist_personal.json` (Toast „✓ Watchlist gesynct") → nach Lauf erscheint die
+  **volle** (analysierte) Karte. Live zu prüfen: echter PUT am Gerät, gesperrte-Session-
+  Dialog, „noch nicht gesynct"-Chip bei Offline. **Teil-Entschärft (dieser PR,
   „Sofort-Karte"):** ein neu hinzugefügter Ticker zeigt ab sofort eine Karte mit
   **Live-Kurs** (client-seitig, Quote-Worker) statt leer/nur Chip — die
   Elliott-Analyse (Setup/Score/Wellen) folgt weiterhin erst aus dem Lauf. Die
@@ -282,7 +285,25 @@ Auf-/Zuklappen, Persistenz über Reload, Add→auto-offen (pending), Remove übe
 keine Konsolen-Fehler (außer externem Quote-Netz). Revert = reiner Frontend-Diff-
 Revert (Kacheln zurück zu vollen `.card`s, `wl-grid`→`grid`).
 
-**✅ Struktur-Marke präzisiert + A-Orientierung — erledigt (dieser PR):** Read-only-
+**✅ Watchlist-Auto-Sync — erledigt (dieser PR, `docs/index.html`):** Seit #27 ist das
+Token 28 Tage entsperrt → der manuelle „Für die Pipeline speichern"-Schritt (#17) war
+überholt. Easy: Ticker add/remove = fertig. Gebaut: jede Änderung persistiert lokal
+und triggert `_wlScheduleSync` (**Debounce `WL_SYNC_DEBOUNCE_MS=3000`** → mehrere
+schnelle Änderungen = **EIN** PUT/Commit). `_wlSyncNow` **idempotent** (kein PUT ohne
+echte Änderung, `_wlSyncedJson`-Marker); `_ensureToken(_wlDoPut)` → bei entsperrter
+Session stiller PUT, sonst Passwort-/Setup-Dialog (wie Recalculate) und die Änderung
+bleibt lokal + **`#wl-sync`-Chip „noch nicht gesynct"** bis zum nächsten Gelingen.
+`_wlDoPut` snapshot-basiert, 409/422 → sha frisch + **genau 1× Retry** (Squeeze-Muster),
+`_wlSyncedJson` erst bei `r.ok` gesetzt; Erfolg = kurzer Toast „✓ Watchlist gesynct",
+PUT-Fehler/offline → Chip bleibt, **kein Datenverlust, kein Retry-Sturm**. **Button +
+Erklär-Absatz entfernt** (Hinweise situativ; Sofortkarte trägt den „volle Analyse beim
+nächsten Lauf"-Hinweis). Verifiziert (Playwright): 3 Adds → 1 PUT, Idempotenz (no-op →
+0 PUT), 409 → 1 Retry, gesperrt → Dialog + Chip (0 PUT) → nach Unlock nachgesynct;
+Konsole sauber (außer dem bewusst injizierten 409-Status). Guardian: erwartet. Revert =
+Button/`.wl-hint` zurück, `saveWatchlistToPipeline` statt `_wlSyncNow`/`_wlDoPut`, Sync-
+Aufrufe aus add/remove entfernen.
+
+**✅ Struktur-Marke präzisiert + A-Orientierung — erledigt (#36):** Read-only-
 Diagnose (PANW, Lauf 25.07.): die „Marke" beim Struktur-Befund war eine **nackte,
 unbeschriftete Zahl** — bei `impulse_complete` der Impuls-Start (PANW 155,73, > 50 %
 unter Kurs), was wie eine nahe Orientierung wirkte, aber der Zählungs-Ungültigkeitspunkt
@@ -566,6 +587,16 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 - **Watchlist:** `localStorage['elliott_watchlist']`; Repo-Datei
   `watchlist_personal.json` via Contents-API (GET sha → PUT base64+sha, 409-Retry);
   Token zusätzlich **Contents: write**.
+- **Watchlist-Auto-Sync (dieser PR, ersetzt den #17-Button):** add/remove → lokal +
+  `_wlScheduleSync` (Debounce `WL_SYNC_DEBOUNCE_MS=3000` → EIN Commit). `_wlSyncNow`
+  ist **idempotent** (`JSON.stringify(_wlArr) === _wlSyncedJson` → kein PUT) und ruft
+  `_ensureToken(_wlDoPut)`; gesperrte Session → Passwort-/Setup-Dialog (wie Recalculate),
+  Änderung bleibt lokal + `#wl-sync`-Chip „noch nicht gesynct", synct beim nächsten
+  Gelingen. `_wlDoPut` snapshot-basiert (PUT genau die erfasste Liste; 409/422 → sha
+  frisch + **1× Retry**), setzt `_wlSyncedJson` erst bei `r.ok`; Erfolg = kurzer Toast
+  „✓ Watchlist gesynct", Fehler → Chip bleibt, kein Retry-Sturm, kein Datenverlust.
+  Baseline `_wlSyncedJson` = letzter Lauf (kein Auto-PUT beim Laden). Kein Button,
+  kein Erklär-Absatz mehr (Hinweise situativ; Sofortkarte erklärt „nächster Lauf").
 - **Watchlist-Kompakt-Grid (Squeeze-Vorbild, seit dieser PR):** `#wl-cards` ist ein
   `.wl-grid` aus `.wl-tile`-Kacheln (`wlTile`). Jede Kachel: `.wl-thead` (Mini-Donut
   `wlMiniDonut`/„—", Ticker, Trend-Punkt) + `.wl-tbody` mit der **vollen** Karte

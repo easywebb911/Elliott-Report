@@ -581,13 +581,13 @@
       font-family:var(--mono); text-transform:uppercase;
     }
     .wl-input:focus { outline:none; border-color:var(--accent); }
-    .wl-add-btn, .wl-save-btn {
+    .wl-add-btn {
       -webkit-appearance:none; appearance:none; cursor:pointer; min-height:42px;
       border-radius:10px; padding:9px 14px; font-size:14px; font-weight:700;
-      touch-action:manipulation; border:1px solid var(--brd); white-space:nowrap;
+      touch-action:manipulation; border:1px solid var(--grn); white-space:nowrap;
+      background:var(--grn); color:#04120a;
     }
-    .wl-add-btn { background:var(--grn); color:#04120a; border-color:var(--grn); }
-    .wl-add-btn:active, .wl-save-btn:active { transform:scale(.97); }
+    .wl-add-btn:active { transform:scale(.97); }
     .wl-err { color:var(--red); font-size:12.5px; font-weight:600; margin:8px 0 0; }
     .wl-err[hidden] { display:none; }
     .wl-chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0; }
@@ -604,12 +604,16 @@
     }
     .wl-chip button:active { color:var(--red); }
     .wl-chip.dirty { border-color:var(--ora); }
-    .wl-hint { font-size:11.5px; color:var(--txt-dim); line-height:1.5; margin:10px 0 0; }
-    .wl-hint code { font-family:var(--mono); font-size:10.5px; background:var(--bg-met); padding:1px 4px; border-radius:4px; }
-    .wl-warn { display:block; margin-top:5px; color:var(--ora); font-weight:600; }
-    .wl-actions { margin-top:10px; }
-    .wl-save-btn { background:var(--bg-met); color:var(--txt); }
-    .wl-save-btn.dirty { border-color:var(--ora); color:var(--ora); }
+    /* Situativer Sync-Status: „noch nicht gesynct"-Chip NUR wenn wirklich etwas
+       ungesynct ist (Erfolg meldet ein kurzer Toast, kein Dauertext). */
+    .wl-sync {
+      display:inline-flex; align-items:center; gap:6px; margin:10px 0 0;
+      font-size:11.5px; font-weight:600; color:var(--ora);
+      background:rgba(245,158,11,.10); border:1px solid rgba(245,158,11,.4);
+      border-radius:999px; padding:3px 10px;
+    }
+    .wl-sync[hidden] { display:none; }
+    .wl-sync::before { content:"●"; font-size:8px; line-height:1; }
     #wl-cards:empty { display:none; }
 
     /* Watchlist-Karten ohne/ mit Fehler — dezent abgesetzt, gleiche Grundoptik. */
@@ -744,16 +748,7 @@
         </div>
         <div class="wl-err" id="wl-err" hidden></div>
         <div class="wl-chips" id="wl-chips"></div>
-        <div class="wl-hint">
-          Lokal gespeichert. <b>Für die Pipeline speichern</b> überträgt die Liste
-          ins Repo (braucht den GitHub-Token aus „Recalculate", zusätzlich
-          <code>Contents: write</code>); neue Ticker erscheinen dann beim
-          <b>nächsten Lauf</b> (↻ Recalculate).
-          <span class="wl-warn" id="wl-warn"></span>
-        </div>
-        <div class="wl-actions">
-          <button id="wl-save-btn" class="wl-save-btn" type="button">☁ Für die Pipeline speichern</button>
-        </div>
+        <div class="wl-sync" id="wl-sync" hidden>noch nicht gesynct</div>
       </div>
       <div class="wl-grid" id="wl-cards"></div>
     </section>
@@ -1536,10 +1531,14 @@
     const WL_KEY = 'elliott_watchlist';
     const WL_GH_PATH = 'watchlist_personal.json';
     const WL_MAX = 30;
+    const WL_SYNC_DEBOUNCE_MS = 3000;   // mehrere schnelle Änderungen -> EIN Commit
     let _wlArr = null;          // aktuelle (lokale) Ticker-Liste
     let _wlLastRunSet = null;   // Ticker, die der letzte Lauf kannte (aus report)
     let _wlLastReport = null;   // letzter geladener Report (für Karten-Re-Render bei add/remove)
     let _wlGhSha = null;        // sha der Repo-Datei (für PUT)
+    let _wlSyncedJson = null;   // JSON der zuletzt ins Repo gesyncten Liste (Idempotenz)
+    let _wlSyncTimer = null;    // Debounce-Timer
+    let _wlSyncing = false;     // ein PUT läuft gerade
 
     function _wlLocal() {
       try { const a = JSON.parse(localStorage.getItem(WL_KEY) || 'null'); return Array.isArray(a) ? a : null; }
@@ -1556,9 +1555,12 @@
       if (!/^[A-Z0-9]{1,6}(\.[A-Z]{1,3})?$/.test(t)) return { err: `„${t}" sieht nicht wie ein Ticker aus.` };
       return { ticker: t };
     }
-    function _wlWarn(msg) {
-      const w = document.getElementById('wl-warn');
-      if (w) w.textContent = msg || '';
+    // „noch nicht gesynct"-Chip NUR wenn lokal ≠ Repo (situativ, sonst versteckt).
+    function _wlUpdateSyncChip() {
+      const c = document.getElementById('wl-sync');
+      if (!c) return;
+      const dirty = Array.isArray(_wlArr) && JSON.stringify(_wlArr) !== _wlSyncedJson;
+      c.hidden = !dirty;
     }
     function _wlErr(msg) {
       const e = document.getElementById('wl-err');
@@ -1633,7 +1635,7 @@
             <div class="live-row"><span class="live-dot" data-quote="dot" title="Live-Quote wird geladen …"></span><span class="live-time" data-quote="time"></span></div>
           </div>
         </div>
-        <div class="wl-note wl-note-pending">Live-Kurs sofort · volle Elliott-Analyse nach dem nächsten Lauf (☁ „Für die Pipeline speichern")</div>
+        <div class="wl-note wl-note-pending">Live-Kurs sofort · volle Elliott-Analyse beim nächsten Lauf (Watchlist synct automatisch)</div>
       </article>`;
     }
 
@@ -1782,9 +1784,13 @@
       _wlLastRunSet = new Set(lastRun);
       _wlLastReport = report;
       if (_wlArr === null) _wlArr = _wlLocal() || lastRun.slice();
+      // Sync-Baseline: der letzte Lauf spiegelt den Repo-Stand von
+      // watchlist_personal.json. Beim ersten Aufbau setzen -> „noch nicht gesynct"
+      // erscheint nur, wenn lokal WIRKLICH davon abweicht (kein Auto-PUT beim Laden).
+      if (_wlSyncedJson === null) _wlSyncedJson = JSON.stringify(lastRun.slice());
       renderWatchlistChips();
       renderWatchlistCards(report);
-      _wlMarkDirty();
+      _wlUpdateSyncChip();
     }
 
     // Karten + Live-Quotes nach lokaler Änderung (add/remove) sofort neu aufsetzen,
@@ -1796,12 +1802,11 @@
       _wlInjectHistory();   // Historie nach Neuaufbau der Kacheln erneut einspielen
     }
 
-    function _wlMarkDirty() {
-      // „Für die Pipeline speichern" hervorheben, wenn lokal ≠ letzter Lauf.
-      const btn = document.getElementById('wl-save-btn');
-      if (!btn || !_wlLastRunSet) return;
-      const same = _wlArr.length === _wlLastRunSet.size && _wlArr.every(t => _wlLastRunSet.has(t));
-      btn.classList.toggle('dirty', !same);
+    // Debounce: mehrere schnelle Änderungen -> EIN Sync (ein Commit).
+    function _wlScheduleSync() {
+      _wlUpdateSyncChip();
+      if (_wlSyncTimer) clearTimeout(_wlSyncTimer);
+      _wlSyncTimer = setTimeout(() => { _wlSyncTimer = null; _wlSyncNow(); }, WL_SYNC_DEBOUNCE_MS);
     }
 
     function addWatchlistTicker() {
@@ -1816,62 +1821,71 @@
       // (#25) direkt sichtbar; alle übrigen Kacheln bleiben eingeklappt.
       const exp = _wlExpandedSet(); exp.add(v.ticker); _wlPersistExpanded(exp);
       inp.value = ''; _wlErr('');
-      renderWatchlistChips(); _wlRerenderCards(); _wlMarkDirty();
-      _wlWarn('Karte da (Live-Kurs sofort). Volle Elliott-Analyse: „Für die Pipeline speichern" + nächster Lauf.');
+      renderWatchlistChips(); _wlRerenderCards(); _wlScheduleSync();
     }
     function removeWatchlistTicker(t) {
       _wlArr = _wlArr.filter(x => x !== t);
       _wlPersistLocal();
       const exp = _wlExpandedSet(); if (exp.delete(t)) _wlPersistExpanded(exp);
-      renderWatchlistChips(); _wlRerenderCards(); _wlMarkDirty();
-      _wlWarn('Lokal geändert — „Für die Pipeline speichern" nicht vergessen.');
+      renderWatchlistChips(); _wlRerenderCards(); _wlScheduleSync();
     }
 
-    // Übergabe an die Pipeline: watchlist_personal.json via Contents-API PUT
-    // (Token aus PR #15, zusätzlich Contents:write). Portiert aus
-    // aktien-update/app.html (wlSave, Z. 7660–7710).
-    function saveWatchlistToPipeline() {
-      _ensureToken(async (token) => {
-        _wlWarn('Synchronisiere mit GitHub …');
-        try {
-          // aktuelle sha holen (falls Datei existiert)
-          const getR = await fetch(
-            `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
+    // Auto-Sync (seit #27 28-Tage-Token-Session -> kein manueller Speichern-Schritt
+    // mehr, #17). Idempotent: KEIN PUT ohne echte Änderung. Session gesperrt/fehlt
+    // -> normaler Passwort-/Setup-Dialog (wie Recalculate); die Änderung bleibt
+    // lokal (Chip „noch nicht gesynct") und wird beim nächsten Gelingen mitgesynct.
+    function _wlSyncNow() {
+      if (!Array.isArray(_wlArr)) return;
+      if (JSON.stringify(_wlArr) === _wlSyncedJson) { _wlUpdateSyncChip(); return; }  // nichts zu tun
+      if (_wlSyncing) { _wlScheduleSync(); return; }   // ein PUT läuft -> danach erneut
+      _ensureToken((token) => { _wlDoPut(token); });   // gesperrt -> Dialog (fail-soft)
+    }
+
+    // Der eigentliche PUT (Contents-API), Snapshot-basiert. Portiert aus
+    // aktien-update/app.html (wlSave). 409/422 -> sha frisch holen, 1× retry.
+    async function _wlDoPut(token) {
+      const snapshot = JSON.stringify(_wlArr);        // exakt DAS wird gesynct
+      _wlSyncing = true;
+      try {
+        // aktuelle sha holen (falls Datei existiert)
+        const getR = await fetch(
+          `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
+          { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
+        if (getR.ok) { _wlGhSha = (await getR.json()).sha; }
+        else if (getR.status === 404) { _wlGhSha = null; }
+        const _put = (sha) => {
+          const body = { message: 'Update watchlist_personal.json', branch: GH_BRANCH,
+            content: btoa(unescape(encodeURIComponent(snapshot))) };
+          if (sha) body.sha = sha;
+          return fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}`,
+            { method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        };
+        let r = await _put(_wlGhSha);
+        if ((r.status === 409 || r.status === 422)) {
+          // sha-Konflikt -> sha neu holen, GENAU 1× retry (Squeeze-Muster, kein Sturm)
+          const rf = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
             { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
-          if (getR.ok) { _wlGhSha = (await getR.json()).sha; }
-          else if (getR.status === 404) { _wlGhSha = null; }
-          const _put = (sha) => {
-            const body = { message: 'Update watchlist_personal.json', branch: GH_BRANCH,
-              content: btoa(unescape(encodeURIComponent(JSON.stringify(_wlArr, null, 0)))) };
-            if (sha) body.sha = sha;
-            return fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}`,
-              { method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json',
-                'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-          };
-          let r = await _put(_wlGhSha);
-          if ((r.status === 409 || r.status === 422)) {
-            // sha-Konflikt -> sha neu holen, 1× retry (Squeeze-Muster)
-            const rf = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
-              { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
-            if (rf.ok) { _wlGhSha = (await rf.json()).sha; r = await _put(_wlGhSha); }
-          }
-          if (r.ok) {
-            _wlGhSha = (await r.json()).content?.sha || null;
-            _wlWarn('');
-            showToast('Watchlist gespeichert · erscheint beim nächsten Lauf (↻ Recalculate)');
-          } else if (r.status === 401 || r.status === 403) {
-            _wlWarn(`Token ohne Contents:write oder abgelaufen (HTTP ${r.status}) — nur lokal gespeichert.`);
-            showToast(`Speichern fehlgeschlagen (HTTP ${r.status}) — Token braucht „Contents: write".`, 'error');
-          } else {
-            let bd = ''; try { bd = (await r.text()).slice(0, 140); } catch (_) {}
-            _wlWarn(`GitHub-Fehler HTTP ${r.status} — nur lokal gespeichert.`);
-            showToast(`Speichern fehlgeschlagen HTTP ${r.status}${bd ? ': ' + bd : ''}`, 'error');
-          }
-        } catch (e) {
-          _wlWarn('Netzwerkfehler — nur lokal gespeichert.');
-          showToast('Netzwerkfehler beim Speichern: ' + e.message, 'error');
+          if (rf.ok) { _wlGhSha = (await rf.json()).sha; r = await _put(_wlGhSha); }
         }
-      });
+        if (r.ok) {
+          _wlGhSha = (await r.json()).content?.sha || null;
+          _wlSyncedJson = snapshot;                   // Idempotenz-Marker
+          showToast('✓ Watchlist gesynct');           // dezenter Mini-Erfolg
+        } else if (r.status === 401 || r.status === 403) {
+          showToast(`Nicht gesynct (HTTP ${r.status}) — Token braucht „Contents: write". Bleibt lokal.`, 'error');
+        } else {
+          let bd = ''; try { bd = (await r.text()).slice(0, 140); } catch (_) {}
+          showToast(`Nicht gesynct (HTTP ${r.status})${bd ? ': ' + bd : ''} — bleibt lokal.`, 'error');
+        }
+      } catch (e) {
+        showToast('Offline — noch nicht gesynct, bleibt lokal.', 'error');
+      } finally {
+        _wlSyncing = false;
+        _wlUpdateSyncChip();      // Chip bleibt bei Fehler stehen; nächste Änderung synct erneut
+        // Während des PUT könnte sich _wlArr geändert haben -> nachsyncen.
+        if (JSON.stringify(_wlArr) !== _wlSyncedJson) _wlScheduleSync();
+      }
     }
 
     function checkStaleness(tsUtc) {
@@ -2767,7 +2781,6 @@
       if (e.key === 'Enter') { e.preventDefault(); addWatchlistTicker(); }
     });
     document.getElementById('wl-input').addEventListener('input', () => _wlErr(''));
-    document.getElementById('wl-save-btn').addEventListener('click', saveWatchlistToPipeline);
 
     // Kompakt-Kacheln: Klick auf × entfernt, Klick auf Kopf/„Einklappen" toggelt
     // (Delegation — überlebt Re-Render). × wird VOR dem Toggle geprüft.
