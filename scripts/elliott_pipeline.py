@@ -82,6 +82,11 @@ class FetchOutcome:
     data: Optional[Tuple[List[str], List[float]]] = None
     reason: Optional[str] = None
     detail: str = ""
+    # Additiv (Messfelder v1): Tagesvolumen, gleich ausgerichtet/gekürzt wie
+    # data[1] (closes). Steckt im SELBEN yfinance-Download — KEIN Extra-Call.
+    # Fail-soft None, wenn keine Volume-Spalte vorliegt. Berührt data NICHT
+    # (bestehende `dates, closes = outcome.data`-Unpacks bleiben byte-identisch).
+    volumes: Optional[List[float]] = None
 
 
 # Ein Fetcher liefert ein FetchOutcome (Daten ODER Skip-Grund + Detail).
@@ -231,7 +236,27 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
                 f"shape={df.shape}, columns={list(df.columns)}"
             ),
         )
-    return FetchOutcome(data=(dates, closes))
+    # Additiv (Messfelder v1): Tagesvolumen aus DEMSELBEN Download mitnehmen —
+    # gleich gekürzt wie `dates` (auf len(closes)), damit Pivot-Indizes (die auf
+    # `closes` zeigen) 1:1 auf das Volumen passen. Fail-soft: keine Volume-Spalte
+    # ODER Parse-Problem -> None (Volumen-Profil wird dann null, kein Absturz).
+    volumes = _extract_volumes(df, len(closes))
+    return FetchOutcome(data=(dates, closes), volumes=volumes)
+
+
+def _extract_volumes(df, n: int) -> Optional[List[float]]:
+    """Tagesvolumen als Liste (Länge n, auf `closes` ausgerichtet). NaN/fehlend
+    -> 0.0 (Division-Guards im Profil fangen 0 ab). Kein Volume/Fehler -> None."""
+    if "Volume" not in getattr(df, "columns", []):
+        return None
+    try:
+        out: List[float] = []
+        for x in df["Volume"].tolist()[:n]:
+            v = float(x)
+            out.append(0.0 if v != v else v)  # v != v -> NaN
+        return out
+    except Exception:  # noqa: BLE001 — fail-soft, Volumen ist rein additiv
+        return None
 
 
 def fetch_synthetic(ticker: str) -> FetchOutcome:
@@ -263,15 +288,23 @@ def fetch_synthetic(ticker: str) -> FetchOutcome:
         (a2, a3_partial, w + 2),  # Beginn W3 (bestätigt P2)
     ]
 
+    # Deterministisches Volumen je Segment (Guideline-Form: W1 trägt mehr als W2)
+    # — rein additiv für den Offline-/Dev-Pfad, gleiche Segment-/Schritt-Logik wie
+    # `closes`, damit beide exakt gleich lang und ausgerichtet sind.
+    vol_base = 1_000_000.0 + (seed % 50) * 10_000.0
+    seg_vol_mult = [0.7, 1.6, 0.9, 1.1]  # Abstieg P0 · W1 (hoch) · W2 (niedriger) · Beginn W3
+
     closes: List[float] = []
-    for start, end, n in seg:
+    volumes: List[float] = []
+    for (start, end, n), vmult in zip(seg, seg_vol_mult):
         # n Schritte, exklusive Startpunkt (außer beim allerersten Segment).
         rng = range(n + 1) if not closes else range(1, n + 1)
         for k in rng:
             closes.append(start + (end - start) * (k / n))
+            volumes.append(round(vol_base * vmult * (1.0 + 0.01 * (k % 5)), 1))
 
     dates = _synthetic_dates(len(closes))
-    return FetchOutcome(data=(dates, closes))
+    return FetchOutcome(data=(dates, closes), volumes=volumes)
 
 
 def _synthetic_dates(n: int) -> List[str]:
@@ -781,9 +814,56 @@ def higher_degree_for(ticker: str, weekly_fetcher: Optional[Fetcher]) -> Optiona
     return _count_from_fetch(ticker, weekly_fetcher)
 
 
+def _volume_profile(wave_pivots, setup_name: str,
+                    volumes: Optional[Sequence[float]]) -> Dict:
+    """Ø-Tagesvolumen je Welle (Pivot-Index bis Pivot-Index, inklusive) + die in der
+    Literatur beachteten Verhältnisse. Messfeld v1, bei Anlage eingefroren — REINE
+    Messung, kein Score/Ranking. `wave_pivots` = die GEZÄHLTEN Pivots (end_of_w4:
+    P0..P4; end_of_w2: P0..P2); `.index` zeigt auf `volumes` (== `closes`-Index).
+    Fail-soft: kein/0-Volumen im Segment -> betroffenes Feld null (Division-Guards)."""
+    out = {"vol_mean": {}, "vol_ratio_w3_w1": None, "vol_ratio_w4_w3": None,
+           "vol_ratio_w2_w1": None}
+    if not volumes:
+        return out
+    n = len(volumes)
+
+    def seg_mean(pa, pb) -> Optional[float]:
+        i0, i1 = getattr(pa, "index", None), getattr(pb, "index", None)
+        if not (isinstance(i0, int) and isinstance(i1, int)):
+            return None
+        lo, hi = min(i0, i1), max(i0, i1)
+        if lo < 0 or hi >= n:
+            return None
+        seg = volumes[lo:hi + 1]
+        s = sum(seg)
+        if not seg or s <= 0:
+            return None
+        return round(s / len(seg), 2)
+
+    # Wellen W1=P0->P1, W2=P1->P2, (W3=P2->P3, W4=P3->P4). Max 4 Wellen (end_of_w4).
+    waves = min(len(wave_pivots) - 1, 4)
+    vm = {f"w{m}": seg_mean(wave_pivots[m - 1], wave_pivots[m])
+          for m in range(1, waves + 1)}
+    out["vol_mean"] = vm
+
+    def ratio(a: str, b: str) -> Optional[float]:
+        va, vb = vm.get(a), vm.get(b)
+        if va is None or vb is None or vb <= 0:
+            return None
+        return round(va / vb, 4)
+
+    if setup_name == "end_of_w4":
+        out["vol_ratio_w3_w1"] = ratio("w3", "w1")
+        out["vol_ratio_w4_w3"] = ratio("w4", "w3")
+    else:  # end_of_w2
+        out["vol_ratio_w2_w1"] = ratio("w2", "w1")
+    return out
+
+
 def build_candidate(
     ticker: str, dates: List[str], closes: List[float],
     exclude_target_reached: bool = True,
+    volumes: Optional[Sequence[float]] = None,
 ) -> Tuple[Optional[Dict], Optional[str], str]:
     """Baut einen Kandidaten-Eintrag.
 
@@ -873,12 +953,21 @@ def build_candidate(
                                          setup["invalidation_price"]),
         "status": config.CARD_STATUS,
     }
+    # Volumen-Profil (Messfeld v1, additiv, NACH dem Score — kein Einfluss auf
+    # score_heuristic/Ranking). Aus DEMSELBEN Download (volumes), kein Extra-Call.
+    # Die gezählten Pivots sind die letzten k (== chart_points-Zählstruktur).
+    _vp = _volume_profile(pivots[-k:], setup["setup"], volumes)
+    entry["vol_profile"] = _vp["vol_mean"]
+    entry["vol_ratio_w3_w1"] = _vp["vol_ratio_w3_w1"]
+    entry["vol_ratio_w4_w3"] = _vp["vol_ratio_w4_w3"]
+    entry["vol_ratio_w2_w1"] = _vp["vol_ratio_w2_w1"]
     return entry, None, ""
 
 
 def _scan_market(
     universe: Sequence[str], fetcher: Fetcher,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
+    volume_sink: Optional[Dict[str, List[float]]] = None,
 ) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]], List[Tuple[str, str]]]:
     """Verarbeitet ein Universum (fail-soft je Ticker) — ohne I/O/Logging.
 
@@ -928,7 +1017,11 @@ def _scan_market(
         # ausreifen können.
         if price_sink is not None:
             price_sink[ticker] = (dates, closes)
-        entry, reason, detail = build_candidate(ticker, dates, closes)
+        # Volumen (Messfeld v1) parallel mitnehmen — additiv, kein Re-Fetch.
+        if volume_sink is not None and outcome.volumes is not None:
+            volume_sink[ticker] = outcome.volumes
+        entry, reason, detail = build_candidate(ticker, dates, closes,
+                                                volumes=outcome.volumes)
         if entry is None:
             _record_skip(ticker, reason or NO_VALID_COUNT, detail)
             continue
@@ -940,6 +1033,7 @@ def _scan_market(
 def build_market(
     market_key: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
+    volume_sink: Optional[Dict[str, List[float]]] = None,
 ) -> Dict:
     """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
 
@@ -956,7 +1050,7 @@ def build_market(
     universe = cfg["universe"]
 
     candidates, reason_counts, first_samples, dead_tickers = _scan_market(
-        universe, fetcher, price_sink)
+        universe, fetcher, price_sink, volume_sink)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
@@ -1120,6 +1214,7 @@ def build_watchlist_entry(
     ticker: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
     monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
+    volume_sink: Optional[Dict[str, List[float]]] = None,
 ) -> Dict:
     """Volle Analyse EINES Watchlist-Tickers. Wiederverwendet bereits geladene
     Kurse aus price_sink; sonst frischer Fetch. Immer eine Karte (fail-soft).
@@ -1130,6 +1225,9 @@ def build_watchlist_entry(
     NUR im Watchlist-Zweig). Der Wochen-Count wird EINMAL geholt und dient sowohl
     higher_degree (unverändert) als auch timeframes.week (kein Doppel-Fetch)."""
     data = price_sink.get(ticker) if price_sink else None
+    # Volumen (Messfeld v1) aus dem Sink wiederverwenden (kein Re-Fetch); bei
+    # frischem Abruf unten aus dem Outcome. Fehlt es -> None (Profil wird null).
+    volumes = volume_sink.get(ticker) if volume_sink else None
     if data is None:
         outcome = fetcher(ticker)
         if outcome.reason is not None or outcome.data is None:
@@ -1138,8 +1236,11 @@ def build_watchlist_entry(
             # bereits — kein Grund, zwei weitere Fehl-Fetches zu erzwingen).
             return _wl_error_entry(ticker, outcome.reason, outcome.detail)
         dates, closes = outcome.data
+        volumes = outcome.volumes
         if price_sink is not None:
             price_sink[ticker] = (dates, closes)
+        if volume_sink is not None and outcome.volumes is not None:
+            volume_sink[ticker] = outcome.volumes
     else:
         dates, closes = data
 
@@ -1161,7 +1262,8 @@ def build_watchlist_entry(
     # Watchlist zeigt ALLES — auch Setups mit erreichter Zielzone (Badge markiert
     # sie); daher target_exceeded-Filter hier AUS (nur die Markt-Top-5 filtern).
     entry, reason, detail = build_candidate(ticker, dates, closes,
-                                            exclude_target_reached=False)
+                                            exclude_target_reached=False,
+                                            volumes=volumes)
     if entry is not None:
         # Long-Setup vorhanden -> volle Karte inkl. großem Grad (Wochen).
         entry["higher_degree"] = week_count          # == vorher (higher_degree_for)
@@ -1183,6 +1285,7 @@ def build_watchlist(
     monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     tickers: Optional[Sequence[str]] = None,
+    volume_sink: Optional[Dict[str, List[float]]] = None,
 ) -> Dict:
     """Baut die Watchlist-Sektion (separat von den Märkten, ranking-neutral)."""
     tks = list(tickers) if tickers is not None else load_watchlist()
@@ -1190,7 +1293,7 @@ def build_watchlist(
     counts = {"setup": 0, "no_setup": 0, "error": 0}
     for tk in tks:
         e = build_watchlist_entry(tk, fetcher, weekly_fetcher, monthly_fetcher,
-                                  price_sink)
+                                  price_sink, volume_sink)
         counts[e["wl_status"]] = counts.get(e["wl_status"], 0) + 1
         entries.append(e)
     _log(f"[elliott][diag] Watchlist: {len(entries)} Ticker "
@@ -1203,21 +1306,26 @@ def build_report(
     fetcher: Fetcher, run_timestamp_utc: str, weekly_fetcher: Optional[Fetcher] = None,
     monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
+    volume_sink: Optional[Dict[str, List[float]]] = None,
 ) -> Dict:
     """Baut das komplette Report-Objekt (deterministisch bei festem Input).
 
     price_sink (optional): wird mit {ticker: (dates, closes)} aller erfolgreich
     geladenen Ticker gefüllt — für die Forward-Sammlung, ohne Re-Fetch.
+    volume_sink (optional): analog {ticker: volumes} (Messfeld v1), ebenfalls
+    ohne Re-Fetch — nur für die Anzeige/Messung, NICHT für die Sammlung nötig.
 
     monthly_fetcher (optional): NUR für die Watchlist (Monatsgrad). Die
     Markt-Pipeline (Top-5) bekommt ihn NICHT — sie bleibt Tag+Woche.
     """
     markets: Dict[str, Dict] = {}
     for key in config.MARKETS:
-        markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink)
+        markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink,
+                                    volume_sink)
     # Watchlist NACH den Märkten und in EIGENEM Feld -> Ranking unberührt, und
     # die Forward-Sammlung (liest nur markets[].candidates) sieht sie nie.
-    watchlist = build_watchlist(fetcher, weekly_fetcher, monthly_fetcher, price_sink)
+    watchlist = build_watchlist(fetcher, weekly_fetcher, monthly_fetcher,
+                                price_sink, volume_sink=volume_sink)
     return {
         "schema_version": config.SCHEMA_VERSION,
         "run_timestamp_utc": run_timestamp_utc,
@@ -1299,9 +1407,10 @@ def main() -> int:
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     price_sink: Dict[str, Tuple[List[str], List[float]]] = {}
+    volume_sink: Dict[str, List[float]] = {}  # Messfeld v1 (Volumen), kein Re-Fetch
     _t0 = time.monotonic()
     report = build_report(fetcher, ts, get_weekly_fetcher(),
-                          get_monthly_fetcher(), price_sink)
+                          get_monthly_fetcher(), price_sink, volume_sink)
     # Lauf-Dauer additiv (nur in main gesetzt -> build_report bleibt
     # deterministisch/testbar). Rein informativ für die „Lauf-Status"-Ansicht.
     report["generated_in_seconds"] = round(time.monotonic() - _t0, 1)

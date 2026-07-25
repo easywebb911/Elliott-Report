@@ -191,3 +191,37 @@ vor n ≥ 100) gilt unverändert.
   schrumpft um tote Symbole, die ohnehin nie Kandidaten wurden — **Zählweise, Score,
   Ranking, Filter unverändert**. Erwartung Folge-Lauf: `empty_data → 0` je Markt.
   Revert = die 8 Symbole in `config.py` + `ticker_meta.json` wieder eintragen.
+- **25.07.2026 — Messfelder v1 (Lit-Check P2): drei literaturgestützte MESS-Felder
+  point-in-time eingefroren.** REINE MESSUNG — **Score, Ranking, Filter, Population
+  und die bestehende Reifung bleiben byte-identisch** (belegt: Report-Diff nur
+  additive `vol_*`-Keys, gleiche Kandidaten/Reihenfolge/Scores; Reifungs-Test grün).
+  Volumen steckt im **selben** yfinance-Download (kein Extra-Call), additiv aus
+  `parse_download_df` als `FetchOutcome.volumes`. **STEHENDE REGEL (nicht
+  verhandelbar):** eine Definition wird **nie umdefiniert** — eine Änderung erzeugt
+  neue, datierte Felder (`…_v2`), damit die n≥100-Auswertung stabile Zeitreihen hat.
+  Definitionen v1 (Konstanten in `scripts/forward_collection.py`):
+  - **(A) Volumen-Profil** (bei Anlage, `build_candidate`): `vol_profile` = Ø-Tages­
+    volumen je Welle über das Pivot-Segment **inklusive** beider Pivot-Bars
+    (`end_of_w2`: W1,W2 · `end_of_w4`: W1–W4). Abgeleitet: `vol_ratio_w3_w1`,
+    `vol_ratio_w4_w3` (end_of_w4) bzw. `vol_ratio_w2_w1` (end_of_w2). Division-
+    Guards: fehlendes/0-Volumen → betroffenes Feld `null`. **Guideline:** Volumen
+    trägt in W1/3/5, **W3 am höchsten** — `vol_ratio_w3_w1 < 1` ist der
+    Zählfehler-Verdacht (einziges sichtbares Element: dezenter Chip „W3-Volumen
+    schwach", kein Score-Einfluss).
+  - **(B) Alternation** (bei Anlage, **nur `end_of_w4`**; `end_of_w2` → alle `null`):
+    Rohwerte `w2_retrace_pct` (von W1), `w4_retrace_pct` (von W3), `w2_bars`,
+    `w4_bars` aus den eingefrorenen Pivots. Flag `alternation_observed` =
+    `|w2_retrace − w4_retrace| ≥ ALTERNATION_MIN_DIFF_PP (20 pp)` **ODER**
+    Dauer-Verhältnis `max/min ≥ ALTERNATION_DURATION_RATIO (2×)`. Die **Rohwerte**
+    machen die Auswertung definitions-unabhängig (das Flag ist nur eine mögliche
+    Operationalisierung).
+  - **(C) W5-Momentum-Divergenz** (bei **Reifung**, **nur `end_of_w4` + `target_hit`**,
+    nicht ausgeschlossen): Momentum-Proxy = `MOMENTUM_ROC_BARS`-Tage-Rate-of-Change
+    der Schlusskurse (reines Python, keine Dependency). `w5_momentum_divergence` =
+    Episoden-Hoch **> W3-Hoch** **und** ROC am Episoden-Hoch **<** ROC am W3-Hoch
+    (W3-Hoch per **Datum** aus den Pivots gesucht — 2-J-Fenster wandert). Roh-
+    Momentum `w5_mom_w3`/`w5_mom_high` mit eingefroren. Nicht bestimmbar (zu wenig
+    Bars / `pre_reached` / kein P3) → `null`. **Angehängter** Schritt wie die
+    W5→A-Nachprüfung — die Reifung (Schritt 2) bleibt byte-identisch.
+  Alt-Records unberührt (Felder fehlen = `null`, forward-only, **kein Backfill**).
+  Revert = die additiven Felder + `volumes`-Pfad + der eine Frontend-Chip raus.
