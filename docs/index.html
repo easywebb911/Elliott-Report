@@ -215,6 +215,13 @@
     .conf-chip { font-size:.6rem; font-weight:700; padding:2px 7px; border-radius:999px;
       color:var(--txt-sub); background:var(--bg-met); border:1px solid var(--brd);
       white-space:nowrap; }
+    /* Messfeld v1 (E): „W3-Volumen schwach" — NEUTRAL, kein Alarm-Rot. Dezenter
+       Hinweis auf den Literatur-Zählfehler-Verdacht (W3 < W1 Volumen). */
+    .vol-note-row { margin:-4px 12px 12px; }
+    .vol-note { display:inline-block; font-size:.6rem; font-weight:700; letter-spacing:.02em;
+      padding:2px 8px; border-radius:999px; color:var(--txt-sub);
+      background:var(--bg-met); border:1px solid var(--brd); white-space:nowrap; cursor:help; }
+    .vol-note::before { content:"◇ "; opacity:.7; }
     /* Zweite Zählung (großer Grad / Wochen): dezent abgesetzter Block unter den
        Kacheln. Erscheint nur, wenn higher_degree existiert. */
     .hd-block { margin:0 12px 12px; padding:8px 10px; border:1px solid var(--brd);
@@ -1395,6 +1402,15 @@
       return inner ? `<div class="conf-block">${inner}</div>` : '';
     }
 
+    // Messfeld v1 (E): dezenter Hinweis, wenn das W3-Volumen unter dem W1-Volumen
+    // liegt (vol_ratio_w3_w1 < 1) — der Literatur-Zählfehler-Verdacht (W3 sollte
+    // das höchste Volumen tragen). NEUTRAL, kein Alarm-Stil, KEIN Score-Einfluss.
+    function w3VolChip(c) {
+      const r = c && c.vol_ratio_w3_w1;
+      if (typeof r !== 'number' || !isFinite(r) || r >= 1) return '';
+      return `<div class="vol-note-row"><span class="vol-note" title="Ø-Volumen der Welle 3 unter dem der Welle 1 (${fmt(r)}×). In der Elliott-Literatur trägt W3 typisch das höchste Volumen — schwaches W3-Volumen ist ein Zählfehler-Verdacht. Reine Messung, kein Score-Einfluss.">W3-Volumen schwach</span></div>`;
+    }
+
     function tfPanel(tf, structure, cardClose) {
       if (!tf) return '';
       const st = structure || {};
@@ -1516,6 +1532,7 @@
         ${extLine}
         ${zoneBadge}
         ${confluenceChips(c)}
+        ${w3VolChip(c)}
         ${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close) : hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">

@@ -2,13 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #40 (**„Ziel erreicht/überschritten"-Hinweis je Zeitebenen-Zeile**, gemerged;
-dieser PR: **P1-Audit — A11y-Kontrast (Mikro-Labels WCAG AA) + Universum-Hygiene (8 tote
-Ticker)**, offen; Audit-Punkt 1 „Zeitebenen-Hinweis" war bereits via #40 auf main →
-in diesem Sammel-PR übersprungen). Alle Zahlen/Hashes sind gegen `git log` und den Code
-geprüft, nicht aus dem Gedächtnis.
+nach PR #41 (**P1-Audit: A11y-Kontrast + Universum-Hygiene**, gemerged; Universum jetzt
+**353**); dieser PR: **P2-Audit — Messfelder v1** (Volumen-Profil, Alternation,
+W5-Momentum-Divergenz; reine Messung), offen. Alle Zahlen/Hashes sind gegen `git log`
+und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #40-Merge `c5b14ca`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`969d27f` = täglicher Commit nach dem
+> #41-Merge `2320157`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -87,7 +87,8 @@ durchgängig ab #13.
 | #38 | `e5b04c1` | **3D-Karten-Look + blaue Watchlist-Tönung** (Squeeze „Variante 1B" portiert): Markt-Karten, Watchlist-Kacheln UND aufgeklappte Karten bekommen die einheitliche Tiefen-Sprache (2-Stop-Gradient + Drop-Schatten + **Inset-Kanten-Highlight** + 1px-Licht-Grat, Hover-Lift auf Kacheln); aufgeklappte Watchlist-Karten zusätzlich **dezent blaustichig** (Akzent-Blau). Reines CSS, Kontrast belegt | self (CI grün) +Bild |
 | #39 | `7946dad` | **Header-Layout**: Disclaimer-Banner aus dem Kopf entfernt → dezenter statischer **Footer-Disclaimer** am Seitenende (kein Einklappen mehr, `elliott_disc_collapsed`+JS entfallen); **☰ von oben links nach oben RECHTS** (Squeeze-Position, Panel öffnet rechtsbündig `right:12px`), Titel/Stand-Zeile links. Alle Menü-Funktionen unverändert. Reines Frontend | self (CI grün) +Bild |
 | #40 | `c5b14ca` | **„Ziel erreicht/überschritten" je Zeitebenen-Zeile**: jede Tag/Woche/Monat-Zeile mit Zielzone (Markt + Watchlist) bekommt einen kompakten `.tf-hint`-Chip — Kurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` → „Ziel überschritten" (**Schwellen identisch zum #28-Badge**, `_setTfHint` = Zwilling von `_setZoneBadge`, live via `quotePatch`). Macht sichtbar, dass ältere Zählungen auf großen Zeitebenen (Monats-Pivot-Trägheit) längst gelaufene Ziele zeigen (Live-Fall AMAT: Monat Ziel 296–391 bei Kurs 536). Methodik ergänzt. Reines Frontend | self (CI grün) +Bild |
-| #(dieser) | `(offen)` | **P1-Audit: A11y-Kontrast + Universum-Hygiene**. (2) Mikro-/Uppercase-Labels von ~3,1–3,7:1 auf **WCAG AA ≥ 4,5:1** gehoben — ein Token `--txt-dim` `#64748b`→`#8b97a8` (4,97–5,90:1 auf allen Flächen inkl. blauer WL-Tönung), bleibt < `--txt-sub` (Hierarchie). (3) **8 tote Ticker** (`empty_data` aus `report.json`-Diag: US `MMC`/`FI`/`HES`, DE `1COV.DE`/`CTS.DE`/`UN01.DE`/`SHA.DE`/`COP.DE`) aus `config.py` + `ticker_meta.json` entfernt (361→353), Registry-Log ergänzt, keine Ersatz erfunden. Audit-Punkt 1 (Zeitebenen-Hinweis) via #40 schon auf main → übersprungen. Frontend + Universum | Guardian + manual +Bild |
+| #41 | `2320157` | **P1-Audit: A11y-Kontrast + Universum-Hygiene**. (2) Mikro-/Uppercase-Labels von ~3,1–3,7:1 auf **WCAG AA ≥ 4,5:1** gehoben — ein Token `--txt-dim` `#64748b`→`#8b97a8` (4,97–5,90:1 auf allen Flächen inkl. blauer WL-Tönung), bleibt < `--txt-sub` (Hierarchie). (3) **8 tote Ticker** (`empty_data`: US `MMC`/`FI`/`HES`, DE `1COV.DE`/`CTS.DE`/`UN01.DE`/`SHA.DE`/`COP.DE`) aus `config.py` + `ticker_meta.json` entfernt (**361→353**), Registry-Log ergänzt. Folge-Lauf belegt `empty_data → 0`. Audit-Punkt 1 via #40 schon auf main → übersprungen | Guardian + manual +Bild |
+| #(dieser) | `(offen)` | **P2-Audit: Messfelder v1** (Volumen-Profil, Alternation, W5-Momentum-Divergenz) — drei literaturgestützte MESS-Felder point-in-time in die Forward-Sammlung eingefroren. **Reine Messung: Score/Ranking/Filter/Population/Reifung byte-identisch** (Report-Diff nur additive `vol_*`-Keys). Volumen aus DEMSELBEN yfinance-Download (`FetchOutcome.volumes`, kein Extra-Call). Einziges UI: dezenter Chip „W3-Volumen schwach" (`vol_ratio_w3_w1 < 1`). Konstanten datiert in Registry („Messfelder v1"). 17 neue Tests | Guardian + manual, KEINE Vorschau-Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -314,7 +315,33 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ P1-Audit: A11y-Kontrast (Mikro-Labels WCAG AA) — erledigt (dieser PR,
+**✅ P2-Audit: Messfelder v1 (Volumen/Alternation/W5-Momentum) — erledigt (dieser PR,
+`scripts/` + `docs/index.html`):** Drei literaturgestützte MESS-Felder point-in-time
+in die Forward-Sammlung eingefroren — **reine Messung, kein Score/Ranking/Filter/
+Population-Einfluss**, die bestehende Reifung **byte-identisch** (belegt: Report-Diff
+nur additive `vol_*`-Keys bei gleicher Kandidaten-Menge/Reihenfolge/Scores; Reifungs-
+Test grün). **Vorab-Prüfung bestanden:** Volumen steckt im **selben** yfinance-Download
+→ additiv als `FetchOutcome.volumes` aus `parse_download_df` (KEIN Extra-Call), durch
+`volume_sink` (parallel zu `price_sink`) zu `build_candidate` gefädelt. **(A)
+Volumen-Profil** (`_volume_profile`, bei Anlage): `vol_profile` je Welle + `vol_ratio_*`
+(Division-Guards → null). **(B) Alternation** (`_alternation_fields`, nur end_of_w4):
+Rohwerte `w2/w4_retrace_pct`+`w2/w4_bars` + Flag `alternation_observed`
+(`|ΔRetrace|≥20pp` ODER Dauer≥2×); end_of_w2 → null. **(C) W5-Momentum-Divergenz**
+(`observe_w5_divergence`, bei Reifung, nur end_of_w4+target_hit): ROC-14-Proxy, W3-Hoch
+per **Datum** (2-J-Fenster wandert), angehängter Schritt wie W5→A → Reifung unberührt.
+Alle bei `_new_record` gefroren/initialisiert; Konstanten in `forward_collection.py`,
+datiert in der Registry („Messfelder v1", stehende Regel: **nie umdefinieren →
+neue datierte Felder**). **UI:** einziges sichtbares Element = dezenter Chip
+„W3-Volumen schwach" (`vol_ratio_w3_w1 < 1`, `w3VolChip`, neutral, kein Alarm).
+Alt-Records unberührt (Felder=null, kein Backfill). **17 neue Tests** (Profil stark/
+schwach/guards, Alternation ja/nein/null, Divergenz true/false/null, Freeze, Idempotenz,
+Reifung byte-identisch, Volume-Parse aligned/NaN/kein-Volume). Tests grün (**219**).
+Revert = additive Felder + `volumes`-Pfad + `_volume_profile`/`_alternation_fields`/
+`observe_w5_divergence` + Chip raus. Merge: **Guardian + Manual-Merge**, keine Vorschau-
+Screenshots (neue Regel). **Nach Merge:** `daily.yml` → Füllquote + 1 Beispiel-Record
+nachtragen.
+
+**✅ P1-Audit: A11y-Kontrast (Mikro-Labels WCAG AA) — erledigt (#41,
 `docs/index.html`, reines Frontend):** Audit-Befund: alle Mikro-/Uppercase-Labels
 (MONAT/WOCHE/TAG, INVAL/ZIEL/EXT, INVALIDIERUNG/ZIELZONE, Mark-Labels, Kachel-Labels)
 lagen mit `--txt-dim` `#64748b` bei nur **3,1–3,7:1** (gemessen, WCAG-Blend über die
@@ -328,7 +355,7 @@ unverändert**. Verifiziert: Vorher/Nachher-Screenshots (390px) neutraler tf-Blo
 blaue WL-Kachel, `getComputedStyle` bestätigt `#8b97a8`. Revert = ein Zeichenketten-Wert
 im `:root`. Reine Anzeige.
 
-**✅ P1-Audit: Universum-Hygiene (8 tote Ticker) — erledigt (dieser PR, `config.py`
+**✅ P1-Audit: Universum-Hygiene (8 tote Ticker) — erledigt (#41, `config.py`
 + `data/ticker_meta.json` + Registry):** Grundlage = `market.diag.dead_tickers` aus dem
 committeten `report.json` (Lauf 25.07. 13:35Z), alle Grund `empty_data`. Entfernt: **US
 (3)** `MMC`, `FI`, `HES`; **DE (5)** `1COV.DE`, `CTS.DE`, `UN01.DE`, `SHA.DE`, `COP.DE`.

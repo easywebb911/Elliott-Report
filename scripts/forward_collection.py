@@ -37,6 +37,25 @@ A_OBSERVE_DAYS = 10        # Handelstage NACH dem Episoden-Hoch beobachten
 A_RETRACE_MIN = 0.382      # Fib-Minimum: Korrektur gilt ab 38,2 % Rücklauf der
                            # W5-Strecke (P4 -> Episoden-Hoch)
 
+# ---------------------------------------------------------------------------
+# Messfelder v1 (Lit-Check P2, ab 2026-07-25) — REINE MESSUNG, kein Score/Ranking/
+# Filter/Population-Einfluss. Point-in-time eingefroren. STEHENDE REGEL: Definitionen
+# werden NIE umdefiniert; eine Änderung erzeugt NEUE, datierte Felder (v2, …).
+# Siehe docs/validation_registry.md „Messfelder v1".
+# (A) Volumen-Profil: bei Anlage in der Pipeline (build_candidate) berechnet, hier
+#     nur aus dem Kandidaten eingefroren — Guideline: Volumen trägt in W1/3/5,
+#     W3 am höchsten (W3 < W1 = Zählfehler-Verdacht).
+# (B) Alternation (NUR end_of_w4; end_of_w2 hat noch kein W4 -> null): W2/W4
+#     alternieren im Charakter (scharf<->flach). Rohwerte eingefroren; das Flag ist
+#     definierbar, die Rohwerte machen die Auswertung definitions-unabhängig.
+ALTERNATION_MIN_DIFF_PP = 20.0    # |w2_retrace − w4_retrace| ≥ 20 Prozentpunkte ODER
+ALTERNATION_DURATION_RATIO = 2.0  # Dauer-Verhältnis (länger/kürzer) ≥ 2× -> alterniert
+# (C) W5-Momentum-Divergenz (bei REIFUNG, NUR end_of_w4 + target_hit): einfacher
+#     deterministischer Momentum-Proxy = n-Tage-Rate-of-Change der Schlusskurse
+#     (reines Python, keine Dependency). Divergenz = Episoden-Hoch > W3-Hoch, aber
+#     Momentum am Episoden-Hoch < Momentum am W3-Hoch. Roh-Momentum mit eingefroren.
+MOMENTUM_ROC_BARS = 14
+
 # Regime-Index je Markt (200-Tage-Linie).
 REGIME_INDEX = {"US": "SPY", "DE": "^GDAXI"}
 
@@ -262,6 +281,125 @@ def observe_a_correction(rec: Dict, dates: Sequence[str], closes: Sequence[float
 
 
 # ---------------------------------------------------------------------------
+# Messfelder v1 (Lit-Check P2) — (B) Alternation + (C) W5-Momentum-Divergenz.
+# REINE MESSUNG, point-in-time. Definitionen s. Konstanten + validation_registry.
+# ---------------------------------------------------------------------------
+def _pivot_by_wave(chart_points: Sequence[Dict], labels: Sequence[Dict],
+                   wave: int) -> Optional[Dict]:
+    """Der eingefrorene chart_point zur Wellen-Ziffer `wave` (0..4). None, wenn
+    nicht ableitbar. `labels`-index zeigt auf die Position in `chart_points`."""
+    for lab in (labels or []):
+        if lab.get("wave") == wave:
+            i = lab.get("index")
+            if isinstance(i, int) and 0 <= i < len(chart_points or []):
+                return chart_points[i]
+    return None
+
+
+def _alternation_fields(chart_points: Optional[Sequence[Dict]],
+                        labels: Optional[Sequence[Dict]]) -> Dict:
+    """(B) Alternation W2<->W4 — NUR end_of_w4 (Wellen-Ziffer 4 vorhanden); sonst
+    alle Felder null. Rohwerte (retrace % + Dauer in Bars) aus den EINGEFRORENEN
+    Pivots; `alternation_observed` = |ΔRetrace| ≥ ALTERNATION_MIN_DIFF_PP ODER
+    Dauer-Verhältnis ≥ ALTERNATION_DURATION_RATIO. Fail-soft: fehlende Pivots/
+    0-Nenner -> betroffenes Feld null. Die ROHWERTE machen die spätere Auswertung
+    definitions-unabhängig (das Flag ist nur eine mögliche Operationalisierung)."""
+    out = {"w2_retrace_pct": None, "w4_retrace_pct": None,
+           "w2_bars": None, "w4_bars": None, "alternation_observed": None}
+    cps = chart_points or []
+    labs = labels or []
+    if not any(l.get("wave") == 4 for l in labs):
+        return out  # end_of_w2 -> es gibt noch kein W4
+    p = {w: _pivot_by_wave(cps, labs, w) for w in range(5)}
+    if any(p[w] is None for w in range(5)):
+        return out
+
+    def retr(a: Dict, b: Dict, c: Dict) -> Optional[float]:
+        den = abs(b["price"] - a["price"])
+        return round(abs(c["price"] - b["price"]) / den * 100.0, 4) if den > 0 else None
+
+    def bars(a: Dict, b: Dict) -> Optional[int]:
+        ia, ib = a.get("index"), b.get("index")
+        return abs(ib - ia) if isinstance(ia, int) and isinstance(ib, int) else None
+
+    w2r = retr(p[0], p[1], p[2])   # W2 = |P2-P1| / |P1-P0|
+    w4r = retr(p[2], p[3], p[4])   # W4 = |P4-P3| / |P3-P2|
+    w2b = bars(p[1], p[2])
+    w4b = bars(p[3], p[4])
+    out.update(w2_retrace_pct=w2r, w4_retrace_pct=w4r, w2_bars=w2b, w4_bars=w4b)
+
+    diff = abs(w2r - w4r) if (w2r is not None and w4r is not None) else None
+    dur = None
+    if w2b and w4b and min(w2b, w4b) > 0:
+        dur = max(w2b, w4b) / min(w2b, w4b)
+    if diff is None and dur is None:
+        out["alternation_observed"] = None
+    else:
+        out["alternation_observed"] = bool(
+            (diff is not None and diff >= ALTERNATION_MIN_DIFF_PP)
+            or (dur is not None and dur >= ALTERNATION_DURATION_RATIO))
+    return out
+
+
+def _roc(closes: Sequence[float], pos: int, n: int) -> Optional[float]:
+    """n-Tage-Rate-of-Change als Momentum-Proxy (reines Python). None, wenn zu
+    wenig Vorlauf (pos < n) oder Nenner 0."""
+    if pos < n or pos >= len(closes):
+        return None
+    prev = closes[pos - n]
+    if prev == 0:
+        return None
+    return round(closes[pos] / prev - 1.0, 6)
+
+
+def _w3_date_price(rec: Dict) -> Tuple[Optional[str], Optional[float]]:
+    """(Datum, Kurs) des W3-Hochs (P3) aus den eingefrorenen Pivots — per DATUM
+    (nicht Index), da das 2-Jahres-Fenster bei der Reifung vorne wandert."""
+    cp = _pivot_by_wave(rec.get("chart_points") or [],
+                        rec.get("count_wave_labels") or [], 3)
+    if cp is None:
+        return None, None
+    return cp.get("date"), cp.get("price")
+
+
+def observe_w5_divergence(rec: Dict, dates: Sequence[str], closes: Sequence[float],
+                          now_iso: str) -> None:
+    """(C) W5-Momentum-Divergenz — NUR gereifte end_of_w4-Treffer, nicht
+    ausgeschlossen. Divergenz = Episoden-Hoch > W3-Hoch, aber ROC am Episoden-Hoch
+    < ROC am W3-Hoch. Nicht bestimmbar (zu wenig Bars/pre_reached/kein P3) -> null.
+    Deterministisch/idempotent; schreibt NUR w5_momentum_divergence + Roh-Momentum,
+    berührt die Reifung (Schritt 2) NICHT — angehängter Schritt wie W5->A."""
+    if not rec.get("matured") or rec.get("target_hit") != 1:
+        return
+    if not _is_end_of_w4(rec) or is_excluded(rec):
+        return
+    w3_date, w3_price = _w3_date_price(rec)
+    if w3_date is None or w3_price is None:
+        return
+    dl, cl = list(dates), list(closes)
+    try:
+        w3_pos = dl.index(w3_date)
+        idx = dl.index(rec["first_seen_date"])
+    except ValueError:
+        return
+    # „Episoden-Hoch" = Hoch im SELBEN HORIZON_DAYS-Fenster nach dem Einstieg wie in
+    # mature_record/observe_a_correction (ein Fenster, eine Wahrheit — kein neues).
+    fwd = cl[idx + 1: idx + 1 + HORIZON_DAYS]
+    if len(fwd) < HORIZON_DAYS:
+        return  # defensiv (durch matured impliziert)
+    high = max(fwd)
+    high_pos = idx + 1 + fwd.index(high)
+    mom_w3 = _roc(cl, w3_pos, MOMENTUM_ROC_BARS)
+    mom_high = _roc(cl, high_pos, MOMENTUM_ROC_BARS)
+    rec["w5_mom_w3"] = mom_w3
+    rec["w5_mom_high"] = mom_high
+    if mom_w3 is None or mom_high is None:
+        rec["w5_momentum_divergence"] = None
+        return
+    rec["w5_momentum_divergence"] = bool(high > w3_price and mom_high < mom_w3)
+
+
+# ---------------------------------------------------------------------------
 # Episoden-Anlage + Reifung (pure)
 # ---------------------------------------------------------------------------
 def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
@@ -317,6 +455,21 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "a_correction_observed": None,
         "a_retrace_pct": None,
         "a_observe_until": None,
+        # Messfelder v1 (Lit-Check P2, ab 2026-07-25) — REINE MESSUNG, additiv,
+        # point-in-time. (A) Volumen-Profil bei Anlage in der Pipeline berechnet ->
+        # hier nur aus dem Kandidaten EINGEFROREN (wie confluence/chart_points).
+        "vol_profile": entry.get("vol_profile", {}),
+        "vol_ratio_w3_w1": entry.get("vol_ratio_w3_w1"),
+        "vol_ratio_w4_w3": entry.get("vol_ratio_w4_w3"),
+        "vol_ratio_w2_w1": entry.get("vol_ratio_w2_w1"),
+        # (B) Alternation W2<->W4 (NUR end_of_w4) aus den eingefrorenen Pivots —
+        # Rohwerte + Flag; end_of_w2 -> alle null.
+        **_alternation_fields(entry.get("chart_points"), entry.get("count_wave_labels")),
+        # (C) W5-Momentum-Divergenz — bei der Reifung gesetzt (nur end_of_w4 +
+        # target_hit). None = keine Messung / nicht bestimmbar.
+        "w5_momentum_divergence": None,
+        "w5_mom_w3": None,
+        "w5_mom_high": None,
         "last_update_utc": now_iso,
     }
 
@@ -377,6 +530,15 @@ def update_forward_collection(
         pdata = price_data.get(r["ticker"])
         if pdata:
             observe_a_correction(r, pdata[0], pdata[1], now_iso)
+
+    # 4) W5-Momentum-Divergenz (Messfeld v1 C) — SEPARATER Durchgang, damit die
+    #    Reifung (Schritt 2) byte-identisch bleibt. Angehängter Schritt wie W5->A.
+    for r in records:
+        if not r.get("matured"):
+            continue
+        pdata = price_data.get(r["ticker"])
+        if pdata:
+            observe_w5_divergence(r, pdata[0], pdata[1], now_iso)
 
     coll["schema_version"] = SCHEMA_VERSION
     coll["last_run_date"] = run_date
