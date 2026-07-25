@@ -779,8 +779,9 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 
 ### Merge-Policy & QS-Kette
 - **Draft-PR → Guardian-Zweitblick (bei Workflow/Schema/Score/Filter/Pipeline) →
-  Screenshots bei Optik → Easys Bild-Freigabe → Manual-Merge durch Easy.** Reine
-  Doku-/Daten-PRs: kein Guardian; Doku-only darf bei grünem CI self-merge.
+  Manual-Merge durch Easy → Live-Verify.** **Keine Vorschau-Screenshots zur
+  Optik-Freigabe mehr** (Easy-Regel 25.07., s. Abschnitt 8) — Optik am Live-Deploy.
+  Reine Doku-/Daten-PRs: kein Guardian; Doku-only darf bei grünem CI self-merge.
 - Guardian = **Zweitblick, kein Gatekeeper** (Urteil OK / Nits / Blocker).
 - **QS-Kette:** CI (`test`, required empfohlen) + Guardian + Easy.
 - Modell-ID `claude-opus-4-8` **nie** in Commits/PRs/Artefakten.
@@ -847,8 +848,12 @@ Beleg = Abschnitt 3.)
   → `cache:'no-store'` + Cache-Buster; **kein Service Worker**. `localStorage`
   räumt iOS-WebKit nach **~7 Tagen** Inaktivität (Token/Watchlist ggf. neu setzen).
 - **Sequenz-Regel:** pro Runde **ein** Anzeige-/Optik-PR (Review-Last klein halten).
-- **Draft-Bild-Freigabe:** Optik-PRs als Draft + Screenshots (~390 px) in den Chat
-  → Easys Freigabe → dann ready/merge.
+- **Keine Vorschau-Screenshots mehr (Easy-Regel 25.07.):** Es werden **keine**
+  Vorschau-Screenshots/Renderings zur Optik-**Freigabe** mehr erzeugt und an Easy
+  geschickt — die Optik wird am **Live-Deploy** beurteilt. Verifikations-Renders
+  (Playwright) für die **eigenen** Checks bleiben erlaubt, wandern aber **nicht** in
+  den Chat. Optik-PRs laufen als Draft → Manual-Merge durch Easy → Live-Verify.
+  (Ersetzt die frühere „Draft-Bild-Freigabe"-Runde.)
 - **Alert-Flanke statt Zustand (Schwester-Repo PR #471, 23.07.):** Cooldowns/
   Schwellen ohne **Flanken-Logik** re-alarmieren, solange der Zustand anhält →
   Push-Flut. Regel: edge-triggered (einmal je Episode, Flag), NICHT
