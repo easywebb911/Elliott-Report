@@ -470,6 +470,11 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "w5_momentum_divergence": None,
         "w5_mom_w3": None,
         "w5_mom_high": None,
+        # Ambiguität v1 (Lit-Check P3, ab 2026-07-25) — Mehrdeutigkeit INNERHALB des
+        # heutigen Zähl-Vokabulars (2 Fenster Ende-W4/Ende-W2), point-in-time bei
+        # Anlage eingefroren. Auswertungs-Dimension: treffen eindeutige Zählungen
+        # (N=1) öfter als mehrdeutige (N=2)? Reine Messung, kein Score/Ranking.
+        "ambiguity_n": entry.get("valid_count_total"),
         "last_update_utc": now_iso,
     }
 

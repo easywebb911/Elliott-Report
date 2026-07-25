@@ -225,3 +225,35 @@ vor n ≥ 100) gilt unverändert.
     W5→A-Nachprüfung — die Reifung (Schritt 2) bleibt byte-identisch.
   Alt-Records unberührt (Felder fehlen = `null`, forward-only, **kein Backfill**).
   Revert = die additiven Felder + `volumes`-Pfad + der eine Frontend-Chip raus.
+- **25.07.2026 — Ambiguität v1 (Lit-Check P3): Ambiguitäts-Ausweis.** Fach-Konsens
+  ist Multi-Count (fast immer > eine valide Zählung); der Haupt-Kritikpunkt an
+  Elliott ist Subjektivität — dieser Ausweis macht sie **sichtbar UND messbar**.
+  **`ambiguity v1` misst Mehrdeutigkeit INNERHALB des heutigen Zähl-Vokabulars
+  (2 Fenster: Ende-W4/Ende-W2), nicht den vollen Elliott-Interpretationsraum.
+  Erweitert sich das Vokabular später (z. B. ABC-Erkennung aus P4), entsteht ein
+  NEUES datiertes Feld (`ambiguity v2`) — v1 wird nie umdefiniert.** REINE ANZEIGE/
+  MESSUNG: **Score, Ranking, Filter, `target_exceeded`, Reifung byte-identisch**
+  (belegt: Report-Diff rekursiv nur additive `valid_count_total`/`alt_count`-Keys,
+  gleiche Top-5/Scores/Reihenfolge; `SCHEMA_VERSION` = 1). **Befund/Zuschnitt:**
+  `classify_setup` (`scripts/elliott_pipeline.py`) ist **first-fit** über genau diese
+  zwei festen End-Fenster; der Ausweis **zählt beide** (statt nur den ersten) — kein
+  neuer Suchraum, keine Enumeration über variable Fenster (die wäre mit den zwei
+  fixen Validatoren nicht sauber abgrenzbar → bewusst NICHT gebaut). Definitionen v1:
+  - **`valid_count_total`** (int, 1..2): Anzahl regelkonformer **LONG**-Counts unter
+    {Ende-W4 auf den letzten 5 Pivots, Ende-W2 auf den letzten 3}. Short-Counts
+    zählen **nicht** mit (Long-only, konsistent zum Board). Auf jeder erzeugten
+    Zählung (Markt-Kandidat + Watchlist + alle Zeitebenen `timeframes`/`higher_degree`).
+  - **`alt_count`** (nur wenn `total ≥ 2`, sonst `null`): kompakte **zweitbeste** —
+    `{count_label, invalidation_price, target_zone, score_heuristic}`, geordnet nach
+    **exakt derselben** `score_setup`-Formel (kein neues Ranking-Kriterium). Die
+    Primär-Zählung (`counts[0]`) ist byte-identisch zu `classify_setup`.
+  - **`ambiguity_n`** (Sammlung, bei **Anlage** eingefroren = `valid_count_total`):
+    Auswertungs-Dimension für n≥100 — treffen **eindeutige** Zählungen (N=1) öfter
+    als **mehrdeutige** (N=2)? Alt-Records `null`, forward-only, kein Backfill.
+  **UI (dezent):** am Count-Label „Zählung 1 von N" **nur bei N ≥ 2** (Maximum
+  **„1 von 2"**); darunter aufklappbar die Alternative (Label · Inval · Ziel · Score
+  gedämpft). N = 1 zeigt nichts (Eindeutigkeit ist der Normal-Idealfall). Laufzeit-
+  Impact vernachlässigbar (1 zusätzlicher fixer 5-/3-Punkt-Check je Zählung, O(1);
+  synthetic-Vollreport 353 Ticker ≈ 64 ms). Revert = additive Felder + `_eval_*`/
+  `enumerate_long_counts`/`ambiguity_fields` + Frontend-Block raus; `classify_setup`
+  bleibt (die Helfer-Auslagerung ist verhaltensgleich).
