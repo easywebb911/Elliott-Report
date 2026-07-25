@@ -666,7 +666,8 @@ def _count_from_fetch(ticker: str, fetcher: Optional[Fetcher]) -> Optional[Dict]
 # forward_collection-Population bleiben unberührt (nur im Watchlist-Zweig gesetzt).
 STRUCTURE_NO = "no_structure"
 _STRUCTURE_DEFAULT = {"state": STRUCTURE_NO, "label": "keine regelkonforme Zählung",
-                      "invalidation_price": None, "direction": None}
+                      "invalidation_price": None, "mark_label": None,
+                      "orientation_price": None, "direction": None}
 
 
 def _classify_structure(prices: Sequence[float], close: float) -> Dict:
@@ -680,36 +681,52 @@ def _classify_structure(prices: Sequence[float], close: float) -> Dict:
     if n < 3:
         return dict(_STRUCTURE_DEFAULT)
 
-    def mk(state: str, label: str, invalid: Optional[float], direction: int) -> Dict:
+    # `invalid` = struktureller Ungültigkeitspunkt der Zählung; `mark_label` sagt,
+    # WELCHER Pivot das ist (sonst wirkt die nackte Zahl wie eine nahe Orientierung).
+    # `orient` = NAHE, handlungsnähere Orientierung (nur bei komplettem Impuls: das
+    # W4-Extrem als typische erste Ziel-Region der erwarteten Korrektur A).
+    def mk(state: str, label: str, invalid: Optional[float], direction: int,
+           mark_label: Optional[str] = None, orient: Optional[float] = None) -> Dict:
         return {"state": state, "label": label,
                 "invalidation_price": round(invalid, 4) if invalid is not None else None,
+                "mark_label": mark_label,
+                "orientation_price": round(orient, 4) if orient is not None else None,
                 "direction": "long" if direction > 0 else "short"}
 
     # 1) Kompletter 5-Wellen-Impuls (letzte 6 Pivots) -> Korrektur erwartet.
+    #    Marke = Impuls-Start (P0, Zählung ungültig darunter); Orientierung = W4-
+    #    Extrem (P4), das typische erste Ziel einer Korrektur A.
     if n >= 6:
         r = validate_impulse(prices[-6:])
         if r.is_valid:
-            p0 = prices[-6]
+            p0, _p1, _p2, _p3, p4, _p5 = prices[-6:]
             if r.direction > 0:
                 return mk("impulse_complete",
-                          "5 Wellen komplett · Korrektur (A) erwartet", p0, 1)
+                          "5 Wellen komplett · Korrektur (A) erwartet", p0, 1,
+                          mark_label="Impuls-Start", orient=p4)
             return mk("short_structure",
-                      "Abwärts-Impuls · 5 Wellen komplett", p0, -1)
+                      "Abwärts-Impuls · 5 Wellen komplett", p0, -1,
+                      mark_label="Impuls-Start", orient=p4)
 
-    # 2) Teil-Impuls bis W4 (letzte 5 Pivots).
+    # 2) Teil-Impuls bis W4 (letzte 5 Pivots). Marke = W1-Hoch (P1; W4 darf W1 nicht
+    #    überlappen -> darunter Zählung hin) — zugleich der Count-Invalidierungspunkt.
     if n >= 5:
         r = validate_partial_to_w4(prices[-5:])
         if r.is_valid:
             _p0, p1, _p2, p3, _p4 = prices[-5:]
             if r.direction > 0:
                 if close > p3:            # W3-Hoch gebrochen -> W5 läuft
-                    return mk("impulse_running", "Impuls läuft · vermutlich W5", p1, 1)
-                return mk("long_setup", "Long-Setup · Ende W4 (W5 erwartet)", p1, 1)
-            return mk("short_structure", "Abwärts-Impuls · Ende W4", p1, -1)
+                    return mk("impulse_running", "Impuls läuft · vermutlich W5", p1, 1,
+                              mark_label="W1-Hoch")
+                return mk("long_setup", "Long-Setup · Ende W4 (W5 erwartet)", p1, 1,
+                          mark_label="W1-Hoch")
+            return mk("short_structure", "Abwärts-Impuls · Ende W4", p1, -1,
+                      mark_label="W1-Hoch")
 
     # 3) Ende W2 (letzte 3 Pivots). Fallback, wenn weder ein kompletter Impuls
     #    (6) noch ein Teil-Impuls bis W4 (5) regelkonform war — hier zählen die
     #    letzten drei bestätigten Pivots als P0/P1/P2 (Regel 1 + plausibler Retrace).
+    #    Marke = W1-Start (P0; W2 darf W1 nicht > 100 % zurücklaufen).
     p0, p1, p2 = prices[-3:]
     direction = 1 if p1 >= p0 else -1
     if direction * p2 >= direction * p0:              # Regel 1: W2 <= 100 %
@@ -718,9 +735,12 @@ def _classify_structure(prices: Sequence[float], close: float) -> Dict:
         if 0.0 < retr <= 1.0:
             if direction > 0:
                 if close > p1:            # W1-Hoch gebrochen -> W3 läuft
-                    return mk("impulse_running", "Impuls läuft · vermutlich W3", p0, 1)
-                return mk("long_setup", "Long-Setup · Ende W2 (W3 erwartet)", p0, 1)
-            return mk("short_structure", "Abwärts-Impuls · Ende W2", p0, -1)
+                    return mk("impulse_running", "Impuls läuft · vermutlich W3", p0, 1,
+                              mark_label="W1-Start")
+                return mk("long_setup", "Long-Setup · Ende W2 (W3 erwartet)", p0, 1,
+                          mark_label="W1-Start")
+            return mk("short_structure", "Abwärts-Impuls · Ende W2", p0, -1,
+                      mark_label="W1-Start")
     return dict(_STRUCTURE_DEFAULT)
 
 

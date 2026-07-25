@@ -25,6 +25,7 @@ def test_long_setup_end_of_w2():
     assert r["state"] == "long_setup"
     assert "Ende W2" in r["label"]
     assert r["invalidation_price"] == 100.0       # P0
+    assert r["mark_label"] == "W1-Start"
     assert r["direction"] == "long"
 
 
@@ -34,6 +35,8 @@ def test_long_setup_end_of_w4():
     assert r["state"] == "long_setup"
     assert "Ende W4" in r["label"]
     assert r["invalidation_price"] == 120.0       # P1
+    assert r["mark_label"] == "W1-Hoch"
+    assert r["orientation_price"] is None         # A-Orientierung nur bei impulse_complete
 
 
 def test_impulse_running_w3():
@@ -57,7 +60,9 @@ def test_impulse_complete():
     assert r["state"] == "impulse_complete"
     assert "Korrektur" in r["label"]
     assert r["direction"] == "long"
-    assert r["invalidation_price"] == 100.0       # P0
+    assert r["invalidation_price"] == 100.0       # P0 = Impuls-Start
+    assert r["mark_label"] == "Impuls-Start"
+    assert r["orientation_price"] == 130.0        # P4 = W4-Tief (nahe A-Ziel-Region)
 
 
 def test_short_structure_down_w2():
@@ -69,10 +74,14 @@ def test_short_structure_down_w2():
 
 
 def test_short_structure_down_complete():
-    # Kompletter Abwärts-Impuls (6 Pivots).
+    # Kompletter Abwärts-Impuls (6 Pivots). Symmetrisch zu impulse_complete:
+    # Marke = Impuls-Start (P0), A-Orientierung = W4-Extrem (P4).
     r = pipe._classify_structure([200.0, 180.0, 190.0, 160.0, 170.0, 140.0], 145.0)
     assert r["state"] == "short_structure"
     assert "komplett" in r["label"]
+    assert r["mark_label"] == "Impuls-Start"
+    assert r["invalidation_price"] == 200.0       # P0
+    assert r["orientation_price"] == 170.0        # P4 = W4-Extrem
 
 
 def test_no_structure():
@@ -110,7 +119,7 @@ def test_structure_from_series_shape():
     # Fail-soft: zu wenig Daten -> Default-Dict, nie Exception.
     r = pipe._structure_from_series(["d0", "d1"], [10.0, 11.0])
     assert r["state"] == "no_structure"
-    assert set(r) == {"state", "label", "invalidation_price", "direction"}
+    assert set(r) == {"state", "label", "invalidation_price", "mark_label", "orientation_price", "direction"}
 
 
 # ---------------------------------------------------------------------------
@@ -145,4 +154,4 @@ def test_watchlist_entries_carry_structure_per_timeframe():
                                    pipe.fetch_synthetic_weekly, pipe.fetch_synthetic_monthly)
     assert set(e["structure"]) == {"day", "week", "month"}
     for tf in e["structure"].values():
-        assert tf is None or set(tf) == {"state", "label", "invalidation_price", "direction"}
+        assert tf is None or set(tf) == {"state", "label", "invalidation_price", "mark_label", "orientation_price", "direction"}
