@@ -39,7 +39,7 @@ for _p in (str(_ROOT), str(_HERE)):
 import config  # noqa: E402
 import forward_collection as fc  # noqa: E402
 import notify  # noqa: E402 — Score-Alert-Push (fail-soft, no-op ohne NTFY_TOPIC)
-from rules import validate_partial_to_w4  # noqa: E402
+from rules import validate_impulse, validate_partial_to_w4  # noqa: E402
 from zigzag import Pivot, zigzag  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -658,6 +658,99 @@ def _count_from_fetch(ticker: str, fetcher: Optional[Fetcher]) -> Optional[Dict]
     return _count_from_series(dates, closes)
 
 
+# ── Struktur-Befund (NUR Watchlist-Diagnostik) ─────────────────────────────
+# Ehrliche Einordnung JE ZEITEBENE — auch wenn KEIN Long-Setup vorliegt: wo steht
+# der Titel in der Elliott-Struktur (statt nur „kein Count")? Fünf Kategorien,
+# KEINE Wahrscheinlichkeit, kein Score. Dieselben Pivots/Regeln wie der Count.
+# Reine Anzeige: Markt-Pipeline, Score, Ranking, Filter und die
+# forward_collection-Population bleiben unberührt (nur im Watchlist-Zweig gesetzt).
+STRUCTURE_NO = "no_structure"
+_STRUCTURE_DEFAULT = {"state": STRUCTURE_NO, "label": "keine regelkonforme Zählung",
+                      "invalidation_price": None, "direction": None}
+
+
+def _classify_structure(prices: Sequence[float], close: float) -> Dict:
+    """Reine Klassifikation aus den Pivot-Preisen + aktuellem Schlusskurs (ohne
+    Netz/ZigZag — direkt testbar). Priorität: kompletter 5-Wellen-Impuls (letzte
+    6 Pivots) -> Teil-Impuls bis W4 (5) -> Ende W2 (3). Long/Short aus P0->P1.
+    „läuft" vs. „Setup" über die Lage des Schlusskurses zur zuletzt bestätigten
+    Impulsspitze (W1- bzw. W3-Hoch): ist sie gebrochen, läuft die Folge-Welle
+    (W3/W5); sonst ist es ein offenes Ende-W2/W4-Setup."""
+    n = len(prices)
+    if n < 3:
+        return dict(_STRUCTURE_DEFAULT)
+
+    def mk(state: str, label: str, invalid: Optional[float], direction: int) -> Dict:
+        return {"state": state, "label": label,
+                "invalidation_price": round(invalid, 4) if invalid is not None else None,
+                "direction": "long" if direction > 0 else "short"}
+
+    # 1) Kompletter 5-Wellen-Impuls (letzte 6 Pivots) -> Korrektur erwartet.
+    if n >= 6:
+        r = validate_impulse(prices[-6:])
+        if r.is_valid:
+            p0 = prices[-6]
+            if r.direction > 0:
+                return mk("impulse_complete",
+                          "5 Wellen komplett · Korrektur (A) erwartet", p0, 1)
+            return mk("short_structure",
+                      "Abwärts-Impuls · 5 Wellen komplett", p0, -1)
+
+    # 2) Teil-Impuls bis W4 (letzte 5 Pivots).
+    if n >= 5:
+        r = validate_partial_to_w4(prices[-5:])
+        if r.is_valid:
+            _p0, p1, _p2, p3, _p4 = prices[-5:]
+            if r.direction > 0:
+                if close > p3:            # W3-Hoch gebrochen -> W5 läuft
+                    return mk("impulse_running", "Impuls läuft · vermutlich W5", p1, 1)
+                return mk("long_setup", "Long-Setup · Ende W4 (W5 erwartet)", p1, 1)
+            return mk("short_structure", "Abwärts-Impuls · Ende W4", p1, -1)
+
+    # 3) Ende W2 (letzte 3 Pivots). Fallback, wenn weder ein kompletter Impuls
+    #    (6) noch ein Teil-Impuls bis W4 (5) regelkonform war — hier zählen die
+    #    letzten drei bestätigten Pivots als P0/P1/P2 (Regel 1 + plausibler Retrace).
+    p0, p1, p2 = prices[-3:]
+    direction = 1 if p1 >= p0 else -1
+    if direction * p2 >= direction * p0:              # Regel 1: W2 <= 100 %
+        w1 = abs(p1 - p0)
+        retr = abs(p2 - p1) / w1 if w1 else 0.0
+        if 0.0 < retr <= 1.0:
+            if direction > 0:
+                if close > p1:            # W1-Hoch gebrochen -> W3 läuft
+                    return mk("impulse_running", "Impuls läuft · vermutlich W3", p0, 1)
+                return mk("long_setup", "Long-Setup · Ende W2 (W3 erwartet)", p0, 1)
+            return mk("short_structure", "Abwärts-Impuls · Ende W2", p0, -1)
+    return dict(_STRUCTURE_DEFAULT)
+
+
+def _structure_from_series(dates: Sequence[str], closes: Sequence[float]) -> Dict:
+    """Struktur-Befund aus EINER Kursreihe: dieselben Pivots/Regeln wie der Count
+    (ZigZag), dann `_classify_structure`. Fail-soft -> no_structure-Default."""
+    if not closes or len(closes) < 2:
+        return dict(_STRUCTURE_DEFAULT)
+    pivots = zigzag(list(closes), config.ZIGZAG_WINDOW, list(dates))
+    prices = [p.price for p in pivots]
+    if len(prices) < 3:
+        return dict(_STRUCTURE_DEFAULT)
+    return _classify_structure(prices, closes[-1])
+
+
+def _analyze_from_fetch(ticker: str, fetcher: Optional[Fetcher]) -> Tuple[Optional[Dict], Dict]:
+    """Holt EINE Reihe und liefert (Long-Count|None, Struktur-Befund) aus EINEM
+    Fetch (kein Doppelabruf). Fail-soft -> (None, no_structure-Default)."""
+    if fetcher is None:
+        return None, dict(_STRUCTURE_DEFAULT)
+    try:
+        outcome = fetcher(ticker)
+    except Exception:  # noqa: BLE001 — fail-soft
+        return None, dict(_STRUCTURE_DEFAULT)
+    if outcome is None or outcome.data is None:
+        return None, dict(_STRUCTURE_DEFAULT)
+    dates, closes = outcome.data
+    return _count_from_series(dates, closes), _structure_from_series(dates, closes)
+
+
 def higher_degree_for(ticker: str, weekly_fetcher: Optional[Fetcher]) -> Optional[Dict]:
     """Zweite Zählung auf WOCHEN-Basis (großer Grad) für EINEN Ticker.
 
@@ -964,6 +1057,10 @@ def _wl_base_entry(ticker: str) -> Dict:
         # „kein Count"-Zeilen statt zu verschweigen. Jede Ebene ist entweder null
         # oder {count_label, invalidation_price, target_zone, target_zone_extended}.
         "timeframes": {"day": None, "week": None, "month": None},
+        # Struktur-Befund je Zeitebene (NUR Watchlist-Diagnostik, additiv). Sagt
+        # ehrlich, WO der Titel in der Elliott-Struktur steht, auch ohne Long-
+        # Setup (statt bloßem „kein Count"). Default null -> Fehler-Karte fail-soft.
+        "structure": {"day": None, "week": None, "month": None},
         "status": config.CARD_STATUS,
     }
 
@@ -1026,12 +1123,19 @@ def build_watchlist_entry(
     else:
         dates, closes = data
 
-    # Drei Zählungen: Tag (reuse geladene Tagesreihe), Woche + Monat (je 1 Fetch).
-    week_count = _count_from_fetch(ticker, weekly_fetcher)
+    # Je Zeitebene EIN Fetch -> Long-Count UND Struktur-Befund (kein Doppelabruf).
+    # Tag reust die bereits geladene Tagesreihe.
+    week_count, week_struct = _analyze_from_fetch(ticker, weekly_fetcher)
+    month_count, month_struct = _analyze_from_fetch(ticker, monthly_fetcher)
     timeframes = {
         "day": _count_from_series(dates, closes),
         "week": week_count,
-        "month": _count_from_fetch(ticker, monthly_fetcher),
+        "month": month_count,
+    }
+    structure = {
+        "day": _structure_from_series(dates, closes),
+        "week": week_struct,
+        "month": month_struct,
     }
 
     # Watchlist zeigt ALLES — auch Setups mit erreichter Zielzone (Badge markiert
@@ -1042,6 +1146,7 @@ def build_watchlist_entry(
         # Long-Setup vorhanden -> volle Karte inkl. großem Grad (Wochen).
         entry["higher_degree"] = week_count          # == vorher (higher_degree_for)
         entry["timeframes"] = timeframes
+        entry["structure"] = structure
         entry["watchlist"] = True
         entry["wl_status"] = "setup"
         entry["note"] = ""
@@ -1049,6 +1154,7 @@ def build_watchlist_entry(
         return entry
     e = _wl_no_setup_entry(ticker, dates, closes, reason, detail)
     e["timeframes"] = timeframes
+    e["structure"] = structure
     return e
 
 
