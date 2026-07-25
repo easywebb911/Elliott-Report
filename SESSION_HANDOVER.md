@@ -2,11 +2,11 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #36 (**Struktur-Marke präzisiert + A-Orientierung**, gemerged; dieser PR:
-**Watchlist-Auto-Sync**, offen — Speichern-Button entfällt). Alle Zahlen/Hashes sind
-gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #37 (**Watchlist-Auto-Sync**, gemerged; dieser PR: **3D-Karten-Look + blaue
+Watchlist-Tönung**, offen — reines CSS). Alle Zahlen/Hashes sind gegen `git log` und
+den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #36-Merge `3aa7739`, Feature-Commit `a06f200`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #37-Merge `bcac52e`, Feature-Commit `b891efa`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -81,7 +81,8 @@ durchgängig ab #13.
 | #34 | `d543303` | **Recalculate-Status mit Zeitzähler** (Squeeze-Muster): nach 204-Dispatch ein Header-Banner „Neuberechnung läuft … N s" (Sekunden live); pollt den **Report-Stand** (frische Baseline vom Server, „fertig" nur bei **strikt neuerem** `run_timestamp_utc`, `RECALC_POLL_MS=10s`) → bei Erfolg **automatisch in-place rendern** (kein Reload) + grünes „fertig" + Toast; Timeout `RECALC_TIMEOUT_MS=10min` → neutraler Hinweis; Feiertag (`MARKET_FULL_CLOSURE`) → sofort-Hinweis; visibilitychange-Pause, getrennte Timer. **Bugfix Baseline-Falle** (`0f14d9a`). Reines Frontend | self (CI grün) +Bild |
 | #35 | `ff411c7` | **Watchlist-Mehrwert**: (A) **Top-5-Historie** je Kachel aus `forward_collection` (Datum · Markt · Zählung · Anlage-Kurs · Zielzone · Status, max 3, neueste zuerst; Klick öffnet die bestehende Backtesting-Detail-Ansicht); (B) **Struktur-Befund** je Zeitebene statt binärem „kein Count" — additives Feld `structure` (5 Kategorien), reine Watchlist-Diagnostik, **Markt/Score/Ranking/Sammlung beweisbar unberührt** | +G +Bild manual |
 | #36 | `a06f200` | **Struktur-Marke präzisiert + A-Orientierung** (Read-only-Diagnose PANW): additives `mark_label` sagt WAS die Marke ist (`Impuls-Start`/`W1-Hoch`/`W1-Start`); bei `impulse_complete` zusätzlich `orientation_price` = **W4-Extrem** als nahe **A-Ziel-Region**. Reine Watchlist-Anzeige, additiv | +G +Bild manual |
-| #(dieser) | `(offen)` | **Watchlist-Auto-Sync**: der manuelle „Für die Pipeline speichern"-Button (#17) entfällt — jede add/remove synct automatisch nach `watchlist_personal.json` (PUT), **Debounce `WL_SYNC_DEBOUNCE_MS=3000`** (mehrere schnelle Änderungen = EIN Commit), idempotent (kein PUT ohne Änderung). Session gesperrt → normaler Passwort-Dialog (wie Recalculate), Änderung bleibt lokal + „noch nicht gesynct"-Chip, synct beim nächsten Gelingen. 409 → sha frisch + 1× Retry. Erklär-Absatz entfernt (Hinweise situativ). Reines Frontend | +G self (CI grün) +Bild |
+| #37 | `b891efa` | **Watchlist-Auto-Sync**: der manuelle „Für die Pipeline speichern"-Button (#17) entfällt — jede add/remove synct automatisch nach `watchlist_personal.json` (PUT), **Debounce `WL_SYNC_DEBOUNCE_MS=3000`** (EIN Commit), idempotent, gesperrte Session → Dialog + „noch nicht gesynct"-Chip, 409 → sha frisch + 1× Retry. Reines Frontend | +G self (CI grün) +Bild |
+| #(dieser) | `(offen)` | **3D-Karten-Look + blaue Watchlist-Tönung** (Squeeze „Variante 1B" portiert): Markt-Karten, Watchlist-Kacheln UND aufgeklappte Karten bekommen die einheitliche Tiefen-Sprache (2-Stop-Gradient + Drop-Schatten + **Inset-Kanten-Highlight**, Hover-Lift auf Kacheln); aufgeklappte Watchlist-Karten zusätzlich **dezent blaustichig** (Akzent-Blau) → auf einen Blick von den neutralen Markt-Karten unterscheidbar. Reines CSS, `prefers-reduced-motion` respektiert, Kontrast belegt | self (CI grün) +Bild |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -285,7 +286,30 @@ Auf-/Zuklappen, Persistenz über Reload, Add→auto-offen (pending), Remove übe
 keine Konsolen-Fehler (außer externem Quote-Netz). Revert = reiner Frontend-Diff-
 Revert (Kacheln zurück zu vollen `.card`s, `wl-grid`→`grid`).
 
-**✅ Watchlist-Auto-Sync — erledigt (dieser PR, `docs/index.html`):** Seit #27 ist das
+**✅ 3D-Karten-Look + blaue Watchlist-Tönung — erledigt (dieser PR, `docs/index.html`,
+reines CSS):** Squeeze-Vorbild „Variante 1B" (Aktien-Update `app.html`) portiert —
+abgelesene Stilmittel: 2-Stop-Vertikal-Gradient (`rgba(255,255,255,.05)`→`rgba(0,0,0,.10)`,
+app.html:556), Drop-Schatten + **Inset-Kanten-Highlight** (`0 2px 8px … , inset 0 0 0
+.5px rgba(255,255,255,.05)`, app.html:558) und der Hover-Lift der Kachel (app.html:695).
+**Einheitliche Tiefen-Sprache** auf drei Flächen: `.card` (Markt + Setup-Watchlist),
+`.wl-tile` (Kompakt-Grid, Hover hebt an), `.wl-tile[data-open]` (aufgeklappt). Elliott
+hatte den Gradient schon — NEU ist überall das Inset-Highlight (der eigentliche 3D-Reiz);
+Drop-Alpha an den dunkleren Elliott-Canvas angepasst (Struktur portiert, nicht erfunden).
+Tiefe auf Easys Wunsch **einen Tick angehoben**: tieferer Drop (`0 4px 14px rgba(0,0,0,.45)`)
++ zusätzlicher oberer **1px-Licht-Grat** (`inset 0 1px 0 rgba(255,255,255,.07)`); Hover kräftiger.
+**Aufgeklappte Watchlist-Karte:** dezent **blaustichige** Tönung (`rgba(96,165,250,.06)`
++ Blau-Border `.40`; Technik wie Squeeze `.card-manual`-Tönung app.html:698, Farbe
+Elliott-eigen = Akzent-Blau) → auf einen Blick von den neutralen Markt-Karten
+unterscheidbar; innere `.card` transparent, damit die Tönung durchscheint. **Kontrast
+belegt** (WCAG auf der Tönung: txt 11:1, txt-sub 5,4:1, grn 6,1:1, ora 6,5:1; die
+dezenten Mikro-Labels `--txt-dim` ~2,9:1 wie schon auf der neutralen Karte — Blau senkt
+sie nur marginal, daher .06 statt .08). `prefers-reduced-motion` respektiert (Hover-/
+Caret-Transition aus). Keine Dauer-Animation auf Schatten, iOS-Safari-tauglich (nur
+box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
+Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
+reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
+
+**✅ Watchlist-Auto-Sync — erledigt (#37, `docs/index.html`):** Seit #27 ist das
 Token 28 Tage entsperrt → der manuelle „Für die Pipeline speichern"-Schritt (#17) war
 überholt. Easy: Ticker add/remove = fertig. Gebaut: jede Änderung persistiert lokal
 und triggert `_wlScheduleSync` (**Debounce `WL_SYNC_DEBOUNCE_MS=3000`** → mehrere
