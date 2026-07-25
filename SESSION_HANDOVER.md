@@ -295,6 +295,8 @@ app.html:556), Drop-Schatten + **Inset-Kanten-Highlight** (`0 2px 8px … , inse
 `.wl-tile` (Kompakt-Grid, Hover hebt an), `.wl-tile[data-open]` (aufgeklappt). Elliott
 hatte den Gradient schon — NEU ist überall das Inset-Highlight (der eigentliche 3D-Reiz);
 Drop-Alpha an den dunkleren Elliott-Canvas angepasst (Struktur portiert, nicht erfunden).
+Tiefe auf Easys Wunsch **einen Tick angehoben**: tieferer Drop (`0 4px 14px rgba(0,0,0,.45)`)
++ zusätzlicher oberer **1px-Licht-Grat** (`inset 0 1px 0 rgba(255,255,255,.07)`); Hover kräftiger.
 **Aufgeklappte Watchlist-Karte:** dezent **blaustichige** Tönung (`rgba(96,165,250,.06)`
 + Blau-Border `.40`; Technik wie Squeeze `.card-manual`-Tönung app.html:698, Farbe
 Elliott-eigen = Akzent-Blau) → auf einen Blick von den neutralen Markt-Karten

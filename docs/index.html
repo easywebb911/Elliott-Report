@@ -106,10 +106,12 @@
     .card {
       background:linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(0,0,0,.10) 100%) var(--bg-card);
       border:1px solid var(--brd); border-radius:var(--radius);
-      /* 3D „Variante 1B" nach Squeeze (app.html:558): Drop-Schatten + oberes
-         Inset-Kanten-Highlight (der eigentliche 3D-Reiz). Drop-Alpha an Elliotts
-         dunkleren Canvas angepasst, Struktur (0 2px 8px + inset .5px) portiert. */
-      box-shadow:0 2px 8px rgba(0,0,0,.30), inset 0 0 0 .5px rgba(255,255,255,.06);
+      /* 3D „Variante 1B" nach Squeeze (app.html:558): Drop-Schatten + Inset-
+         Kanten-Highlight (der eigentliche 3D-Reiz) + oberer 1px-Licht-Grat für
+         etwas mehr Tiefe. Drop-Alpha an Elliotts dunkleren Canvas angepasst. */
+      box-shadow:0 4px 14px rgba(0,0,0,.45),
+                 inset 0 1px 0 rgba(255,255,255,.07),
+                 inset 0 0 0 .5px rgba(255,255,255,.06);
       overflow:hidden;
     }
     /* Header nach Squeeze-Vorbild (app.html): Rang-Kreis, Mono-Ticker,
@@ -643,12 +645,16 @@
     .wl-tile {
       position:relative; background:linear-gradient(180deg,rgba(34,197,94,.05) 0%,rgba(0,0,0,.10) 100%) var(--bg-card);
       border:1px solid rgba(34,197,94,.28); border-radius:12px; overflow:hidden;
-      /* 3D wie Squeeze .wl-card (app.html:693): leichter Drop + Inset-Highlight,
-         Hover hebt an (box-shadow, kein Transform). */
-      box-shadow:0 1px 3px rgba(0,0,0,.22), inset 0 0 0 .5px rgba(255,255,255,.05);
+      /* 3D wie Squeeze .wl-card (app.html:693): Drop + Inset-Highlight + Licht-
+         Grat oben, Hover hebt an (box-shadow, kein Transform). */
+      box-shadow:0 2px 7px rgba(0,0,0,.35),
+                 inset 0 1px 0 rgba(255,255,255,.06),
+                 inset 0 0 0 .5px rgba(255,255,255,.05);
       transition:box-shadow .15s;
     }
-    .wl-tile:hover { box-shadow:0 2px 8px rgba(0,0,0,.30), inset 0 0 0 .5px rgba(255,255,255,.07); }
+    .wl-tile:hover { box-shadow:0 4px 12px rgba(0,0,0,.45),
+                 inset 0 1px 0 rgba(255,255,255,.08),
+                 inset 0 0 0 .5px rgba(255,255,255,.07); }
     .wl-tile.wl-tile-pending { border-color:rgba(245,158,11,.5); border-style:dashed; }
     .wl-tile.wl-tile-error { border-color:rgba(239,68,68,.5); opacity:.92; }
     /* Kompakter Kopf (Klick-Handle). */
@@ -694,7 +700,9 @@
        Akzent-Blau (--accent, wie das Zeitebenen-Panel). 3D-Schatten bleibt. */
     .wl-tile[data-open] { grid-column:1 / -1; border-color:rgba(96,165,250,.40);
       background:linear-gradient(180deg,rgba(96,165,250,.06) 0%,rgba(0,0,0,.10) 100%) var(--bg-card);
-      box-shadow:0 2px 8px rgba(0,0,0,.30), inset 0 0 0 .5px rgba(255,255,255,.06); }
+      box-shadow:0 4px 14px rgba(0,0,0,.45),
+                 inset 0 1px 0 rgba(255,255,255,.07),
+                 inset 0 0 0 .5px rgba(255,255,255,.06); }
     .wl-tile[data-open] .wl-thead { display:none; }
     .wl-tile[data-open] .wl-x, .wl-tile[data-open] .wl-caret { display:none; }
     /* Innere Voll-Karte transparent -> die blaue Tönung der Kachel scheint durch. */
