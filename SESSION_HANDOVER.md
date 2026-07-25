@@ -1,12 +1,12 @@
 # SESSION_HANDOVER — Elliott-Report
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
-allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **24.07.2026**,
-nach PR #34 (**Recalculate-Status mit Zeitzähler**, gemerged; dieser PR: **Watchlist-
-Mehrwert — Top-5-Historie + Struktur-Befund**, offen). Alle Zahlen/Hashes sind gegen
-`git log` und den Code geprüft, nicht aus dem Gedächtnis.
+allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
+nach PR #35 (**Watchlist-Mehrwert**, gemerged; dieser PR: **Struktur-Marke präzisiert
++ A-Orientierung**, offen). Alle Zahlen/Hashes sind gegen `git log` und den Code
+geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (HEAD = #34-Merge `bf251df`, Feature-Commit `d543303`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (HEAD = #35-Merge `1d3f236`, Feature-Commit `ff411c7`) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -79,7 +79,8 @@ durchgängig ab #13.
 | #32 | `8d2ac29` | **☰-Menü an Squeeze angeglichen**: Struktur/Design des ☰-Panels ans Schwester-Repo angeglichen (abgerundete Icon-Kacheln + Label, großzügige Zeilen, Fuß-Trennung), **eigene Farbwelt** (Sparkline-Grün `--grn` statt Squeeze-Blau). Reihenfolge Squeeze-analog, aber NUR echte Funktionen: **Reload NEU im Menü** (Header-Button „↻ Neu laden" entfällt, gleiche `refresh()`-Funktion + Cache-Buster), Recalculate, Backtesting, Methodik, Validierung, Lauf-Status, Sperren (abgesetzt). Einheitliche inline-SVG-Icons (keine externe Bibliothek). Reines Frontend | self (CI grün) +Bild |
 | #33 | `d6bfa1f` | **Watchlist-Kompakt-Grid**: Watchlist-Karten als kompaktes Grid (~3/Reihe @390px), Kacheln standardmäßig eingeklappt (Mini-Donut/„—", Ticker, Trend-Punkt, ×, ▾), volle Karte beim Aufklappen; Zustand pro Gerät (localStorage). Sofortkarte (#25) bleibt. Reines Frontend | self (CI grün) +Bild |
 | #34 | `d543303` | **Recalculate-Status mit Zeitzähler** (Squeeze-Muster): nach 204-Dispatch ein Header-Banner „Neuberechnung läuft … N s" (Sekunden live); pollt den **Report-Stand** (frische Baseline vom Server, „fertig" nur bei **strikt neuerem** `run_timestamp_utc`, `RECALC_POLL_MS=10s`) → bei Erfolg **automatisch in-place rendern** (kein Reload) + grünes „fertig" + Toast; Timeout `RECALC_TIMEOUT_MS=10min` → neutraler Hinweis; Feiertag (`MARKET_FULL_CLOSURE`) → sofort-Hinweis; visibilitychange-Pause, getrennte Timer. **Bugfix Baseline-Falle** (`0f14d9a`). Reines Frontend | self (CI grün) +Bild |
-| #(dieser) | `(offen)` | **Watchlist-Mehrwert**: (A) **Top-5-Historie** je Kachel aus `forward_collection` (Datum · Markt · Zählung · Anlage-Kurs · Zielzone · Status, max 3, neueste zuerst; Klick öffnet die bestehende Backtesting-Detail-Ansicht); (B) **Struktur-Befund** je Zeitebene statt binärem „kein Count" — additives Feld `structure` (5 Kategorien: long_setup / impulse_running / impulse_complete / short_structure / no_structure), reine Watchlist-Diagnostik, **Markt/Score/Ranking/Sammlung beweisbar unberührt** | +G +Bild manual |
+| #35 | `ff411c7` | **Watchlist-Mehrwert**: (A) **Top-5-Historie** je Kachel aus `forward_collection` (Datum · Markt · Zählung · Anlage-Kurs · Zielzone · Status, max 3, neueste zuerst; Klick öffnet die bestehende Backtesting-Detail-Ansicht); (B) **Struktur-Befund** je Zeitebene statt binärem „kein Count" — additives Feld `structure` (5 Kategorien), reine Watchlist-Diagnostik, **Markt/Score/Ranking/Sammlung beweisbar unberührt** | +G +Bild manual |
+| #(dieser) | `(offen)` | **Struktur-Marke präzisiert + A-Orientierung** (Read-only-Diagnose PANW): die „Marke" beim Struktur-Befund war unbeschriftet (nackte Zahl wirkte wie nahe Orientierung, war aber der Zählungs-Ungültigkeitspunkt). Jetzt: additives `mark_label` sagt WAS die Marke ist (`Impuls-Start`/`W1-Hoch`/`W1-Start`); bei `impulse_complete` zusätzlich `orientation_price` = **W4-Extrem** als nahe **A-Ziel-Region** (typisches erstes Korrektur-Ziel). Reine Watchlist-Anzeige, additiv | +G +Bild manual |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -281,7 +282,22 @@ Auf-/Zuklappen, Persistenz über Reload, Add→auto-offen (pending), Remove übe
 keine Konsolen-Fehler (außer externem Quote-Netz). Revert = reiner Frontend-Diff-
 Revert (Kacheln zurück zu vollen `.card`s, `wl-grid`→`grid`).
 
-**✅ Watchlist-Mehrwert — erledigt (dieser PR):** Easys Befund: eine Ex-Top-5-Karte
+**✅ Struktur-Marke präzisiert + A-Orientierung — erledigt (dieser PR):** Read-only-
+Diagnose (PANW, Lauf 25.07.): die „Marke" beim Struktur-Befund war eine **nackte,
+unbeschriftete Zahl** — bei `impulse_complete` der Impuls-Start (PANW 155,73, > 50 %
+unter Kurs), was wie eine nahe Orientierung wirkte, aber der Zählungs-Ungültigkeitspunkt
+ist. Easys Wahl: **(c) beides**. Gebaut: (1) additives **`mark_label`** benennt die
+Marke je Kategorie (`Impuls-Start`/`W1-Hoch`/`W1-Start`); (2) bei `impulse_complete`
+additives **`orientation_price`** = **W4-Extrem** (P4) als nahe **A-Ziel-Region**
+(typisches erstes Korrektur-A-Ziel; PANW 320,59 — Kurs stand schon dort). Frontend
+`tfPanel` zeigt „<mark_label> <inval>" + ggf. „A-Ziel-Region ~<W4>" statt nacktem
+„Marke". **Rein additive Watchlist-Anzeige** — Markt/Score/Ranking/Sammlung unberührt,
+`SCHEMA_VERSION` bleibt 1. Verifiziert: 15 Struktur-Tests (mark_label/orientation je
+Kategorie, Grenzfall), Real-Check PANW (Impuls-Start 155,73 · A-Ziel ~320,59),
+Playwright (alle drei Ebenen beschriftet). Guardian: erwartet. Revert = `mark_label`/
+`orientation_price` + Frontend-Zweig entfernen (rein additiv).
+
+**✅ Watchlist-Mehrwert — erledigt (#35):** Easys Befund: eine Ex-Top-5-Karte
 (PANW) zeigte auf der Watchlist nur „kein regelkonformes Long-Setup", ihr Kontext
 war unsichtbar; Nicht-Setup-Ticker (IONQ) sagten nicht, WO sie in der Struktur stehen.
 - **(A) Top-5-Historie (reines Frontend, `docs/index.html`):** die aufgeklappte
@@ -471,17 +487,26 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   NICHT (Top-5 bleiben Tag+Woche, `timeframes` fehlt dort bewusst). Frontend
   `tfPanel()` rendert das Panel NUR bei vorhandenem `c.timeframes` (Markt-Karten
   behalten den reinen Wochen-`hd-block`).
-- **Struktur-Befund (NUR Watchlist, dieser PR):** additives Feld `structure`
+- **Struktur-Befund (NUR Watchlist, #35):** additives Feld `structure`
   {`day`,`week`,`month`}, je Ebene `null` **oder** {`state`,`label`,
-  `invalidation_price`,`direction`}. `_classify_structure(prices, close)` (reine
-  Logik, direkt testbar) → 5 `state`: `long_setup` / `impulse_running` /
-  `impulse_complete` / `short_structure` / `no_structure`. Priorität kompletter
-  Impuls (letzte 6 Pivots, `validate_impulse`) → Teil-Impuls bis W4 (5,
-  `validate_partial_to_w4`) → Ende W2 (3). `_analyze_from_fetch` holt je Ebene EINEN
-  Fetch und liefert (Long-Count, Struktur) — **kein** Doppelabruf zu `timeframes`.
+  `invalidation_price`,`mark_label`,`orientation_price`,`direction`}.
+  `_classify_structure(prices, close)` (reine Logik, direkt testbar) → 5 `state`:
+  `long_setup` / `impulse_running` / `impulse_complete` / `short_structure` /
+  `no_structure`. Priorität kompletter Impuls (letzte 6 Pivots, `validate_impulse`)
+  → Teil-Impuls bis W4 (5, `validate_partial_to_w4`) → Ende W2 (3). `_analyze_from_fetch`
+  holt je Ebene EINEN Fetch und liefert (Long-Count, Struktur) — **kein** Doppelabruf.
   Gesetzt **nur** in `build_watchlist_entry` (+ Default in `_wl_base_entry`) →
   `build_market`/Score/Ranking/Sammlung unberührt (Tests). Frontend:
   `tfPanel(tf, structure)` zeigt bei null-Count den Struktur-Befund statt „kein Count".
+- **Marke präzisiert + A-Orientierung (dieser PR):** `invalidation_price` = struktureller
+  **Zählungs-Ungültigkeitspunkt**; `mark_label` sagt WELCHER Pivot das ist
+  (`Impuls-Start` = P0 bei complete/W2, `W1-Hoch` = P1 bei W4, `W1-Start` = P0 bei W2)
+  — die nackte Zahl allein (z. B. PANW 155,73, > 50 % unter Kurs) wirkte sonst wie eine
+  nahe Orientierung. Bei **`impulse_complete`** zusätzlich `orientation_price` = **W4-
+  Extrem** (P4) als nahe **A-Ziel-Region** (typisches erstes Ziel der erwarteten
+  Korrektur A; für PANW 320,59 — Kurs stand schon dort). Frontend `tfPanel` zeigt
+  `mark_label`+Wert (statt nacktem „Marke") und, wenn vorhanden, „A-Ziel-Region ~<W4>".
+  Ehrlichkeits-Sprache, **keine Wahrscheinlichkeit**.
 - **Workflow:** `.github/workflows/daily.yml` — Cron **`45 21 * * 1-5`** (Werktage,
   #23) + `workflow_dispatch: {}`, `timeout-minutes: 30`, `concurrency:
   daily-elliott`, committet **report + collection** (#21) sowie den einmaligen
