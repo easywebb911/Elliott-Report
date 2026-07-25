@@ -179,3 +179,15 @@ vor n ≥ 100) gilt unverändert.
   werden **nicht** gemessen. **Bewusst NICHT geändert:** Score, Ranking, Filterung,
   `report.json`-Markt-Payload, Erfolgs-Definition. **Auswertung erst gemeinsam mit
   der n ≥ 100-Population** (dann als eigene Dimension). Revertierbar (additive Felder).
+- **25.07.2026 — Universum-Hygiene: 8 Symbole entfernt** (US 239 → 236, DE 122 → 117;
+  Gesamt 361 → 353). Grundlage: `market.diag.dead_tickers` aus dem committeten
+  `report.json` (Lauf 2026-07-25T13:35Z), alle Grund `empty_data` (yfinance liefert
+  keine Kursreihe). Entfernt aus `config.py`-Listen **und** `data/ticker_meta.json`:
+  **US (3):** `MMC`, `FI`, `HES`; **DE (5):** `1COV.DE`, `CTS.DE`, `UN01.DE`,
+  `SHA.DE`, `COP.DE`. **Keine Ersatz-Ticker erfunden** — das Universum schrumpft
+  minimal (ehrlicher als geratene Ersetzungen). Deckt sich exakt mit den
+  `empty_data`-Zählern (DE 5 / US 3); gesunde Namensvettern **erhalten** (`COP`≠`COP.DE`,
+  `FI`≠`FIS`, `NEM`/`NEM.DE`). **Wirkung auf die Validierung:** die Population
+  schrumpft um tote Symbole, die ohnehin nie Kandidaten wurden — **Zählweise, Score,
+  Ranking, Filter unverändert**. Erwartung Folge-Lauf: `empty_data → 0` je Markt.
+  Revert = die 8 Symbole in `config.py` + `ticker_meta.json` wieder eintragen.
