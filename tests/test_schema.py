@@ -51,6 +51,8 @@ REPORT_SCHEMA = {
                                 "change_abs",
                                 "count_wave_labels",
                                 "higher_degree",
+                                "valid_count_total",
+                                "alt_count",
                             ],
                             "properties": {
                                 "ticker": {"type": "string"},
@@ -106,6 +108,18 @@ REPORT_SCHEMA = {
                                         "invalidation_price": {"type": "number"},
                                         "target_zone": {"type": "object"},
                                         "target_zone_extended": {"type": "object"},
+                                    },
+                                },
+                                # Ambiguität v1 (additiv): Anzahl valider Long-Counts
+                                # (1..2) + kompakte Alternative (null bei N<2).
+                                "valid_count_total": {"type": "integer", "minimum": 1},
+                                "alt_count": {
+                                    "type": ["object", "null"],
+                                    "properties": {
+                                        "count_label": {"type": "string"},
+                                        "invalidation_price": {"type": "number"},
+                                        "target_zone": {"type": "object"},
+                                        "score_heuristic": {"type": "number"},
                                     },
                                 },
                             },

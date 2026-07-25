@@ -2,13 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #41 (**P1-Audit: A11y-Kontrast + Universum-Hygiene**, gemerged; Universum jetzt
-**353**); dieser PR: **P2-Audit — Messfelder v1** (Volumen-Profil, Alternation,
-W5-Momentum-Divergenz; reine Messung), offen. Alle Zahlen/Hashes sind gegen `git log`
+nach PR #42 (**P2-Audit: Messfelder v1**, gemerged); dieser PR: **P3-Audit —
+Ambiguitäts-Ausweis v1** (`valid_count_total`/`alt_count`/`ambiguity_n`, reine
+Messung, Primär byte-identisch), offen. Alle Zahlen/Hashes sind gegen `git log`
 und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`969d27f` = täglicher Commit nach dem
-> #41-Merge `2320157`) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`e9101d3` = täglicher Commit nach dem
+> #42-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -88,7 +88,8 @@ durchgängig ab #13.
 | #39 | `7946dad` | **Header-Layout**: Disclaimer-Banner aus dem Kopf entfernt → dezenter statischer **Footer-Disclaimer** am Seitenende (kein Einklappen mehr, `elliott_disc_collapsed`+JS entfallen); **☰ von oben links nach oben RECHTS** (Squeeze-Position, Panel öffnet rechtsbündig `right:12px`), Titel/Stand-Zeile links. Alle Menü-Funktionen unverändert. Reines Frontend | self (CI grün) +Bild |
 | #40 | `c5b14ca` | **„Ziel erreicht/überschritten" je Zeitebenen-Zeile**: jede Tag/Woche/Monat-Zeile mit Zielzone (Markt + Watchlist) bekommt einen kompakten `.tf-hint`-Chip — Kurs ≥ `ziel.low` → „Ziel erreicht", ≥ `ziel.high` → „Ziel überschritten" (**Schwellen identisch zum #28-Badge**, `_setTfHint` = Zwilling von `_setZoneBadge`, live via `quotePatch`). Macht sichtbar, dass ältere Zählungen auf großen Zeitebenen (Monats-Pivot-Trägheit) längst gelaufene Ziele zeigen (Live-Fall AMAT: Monat Ziel 296–391 bei Kurs 536). Methodik ergänzt. Reines Frontend | self (CI grün) +Bild |
 | #41 | `2320157` | **P1-Audit: A11y-Kontrast + Universum-Hygiene**. (2) Mikro-/Uppercase-Labels von ~3,1–3,7:1 auf **WCAG AA ≥ 4,5:1** gehoben — ein Token `--txt-dim` `#64748b`→`#8b97a8` (4,97–5,90:1 auf allen Flächen inkl. blauer WL-Tönung), bleibt < `--txt-sub` (Hierarchie). (3) **8 tote Ticker** (`empty_data`: US `MMC`/`FI`/`HES`, DE `1COV.DE`/`CTS.DE`/`UN01.DE`/`SHA.DE`/`COP.DE`) aus `config.py` + `ticker_meta.json` entfernt (**361→353**), Registry-Log ergänzt. Folge-Lauf belegt `empty_data → 0`. Audit-Punkt 1 via #40 schon auf main → übersprungen | Guardian + manual +Bild |
-| #(dieser) | `(offen)` | **P2-Audit: Messfelder v1** (Volumen-Profil, Alternation, W5-Momentum-Divergenz) — drei literaturgestützte MESS-Felder point-in-time in die Forward-Sammlung eingefroren. **Reine Messung: Score/Ranking/Filter/Population/Reifung byte-identisch** (Report-Diff nur additive `vol_*`-Keys). Volumen aus DEMSELBEN yfinance-Download (`FetchOutcome.volumes`, kein Extra-Call). Einziges UI: dezenter Chip „W3-Volumen schwach" (`vol_ratio_w3_w1 < 1`). Konstanten datiert in Registry („Messfelder v1"). 17 neue Tests | Guardian + manual, KEINE Vorschau-Screenshots |
+| #42 | `e9101d3` | **P2-Audit: Messfelder v1** (Volumen-Profil, Alternation, W5-Momentum-Divergenz) — drei literaturgestützte MESS-Felder point-in-time in die Forward-Sammlung eingefroren. **Reine Messung: Score/Ranking/Filter/Population/Reifung byte-identisch** (Report-Diff nur additive `vol_*`-Keys). Volumen aus DEMSELBEN yfinance-Download (`FetchOutcome.volumes`, kein Extra-Call). Einziges UI: Chip „W3-Volumen schwach". 17 neue Tests | Guardian + manual, keine Screenshots |
+| #(dieser) | `(offen)` | **P3-Audit: Ambiguitäts-Ausweis v1** — je Zählung `valid_count_total` (1..2, Long-Counts unter den 2 festen Fenstern Ende-W4/Ende-W2) + `alt_count` (zweitbeste nach `score_setup`); `ambiguity_n` bei Anlage eingefroren. `classify_setup` in 2 Fenster-Helfer refaktoriert (**Primär byte-identisch**, first-fit-Befund). **Score/Ranking/Filter/Reifung byte-identisch** (Report-Diff rekursiv nur additive Keys), `SCHEMA_VERSION`=1. UI: „Zählung 1 von N" (max „1 von 2") + aufklappbare Alternative, nur bei N≥2. Registry „Ambiguität v1" (nie umdefinieren → v2). 8 neue Tests, Laufzeit O(1)/Count | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -315,7 +316,31 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ P2-Audit: Messfelder v1 (Volumen/Alternation/W5-Momentum) — erledigt (dieser PR,
+**✅ P3-Audit: Ambiguitäts-Ausweis v1 — erledigt (dieser PR, `scripts/` +
+`docs/index.html`):** Multi-Count sichtbar+messbar machen. **Read-only-Befund
+(mit Datei:Zeile):** `classify_setup` (`elliott_pipeline.py`) ist **first-fit** über
+genau **zwei feste End-Fenster** (`_eval_end_of_w4` auf letzte 5, `_eval_end_of_w2`
+auf letzte 3 Pivots) — keine Enumeration über variablen Suchraum. **Zuschnitt (Easy:
+Option 1):** der einzige sauber abgrenzbare Suchraum sind genau diese 2 Fenster
+(Grad-Ambiguität W4-vs-W2), die `classify_setup` ohnehin beide auswertet → **mitzählen**
+statt first-fit; ein „gleitendes" N≥3-Fenster wäre mit den 2 fixen Validatoren nicht
+sauber abgrenzbar (bewusst NICHT gebaut, Mini-Stopp-Kriterium). `classify_setup` in
+die 2 Helfer refaktoriert → `classify_setup = _eval_end_of_w4() or _eval_end_of_w2()`
+(**verhaltensgleich**, alle Bestandstests grün). **Felder:** `valid_count_total` (1..2,
+Long-only) + `alt_count` (nur ≥2: zweitbeste nach `score_setup`, Primär byte-identisch)
+auf **jeder** Zählung (`build_candidate` + `_count_from_series` → Markt/Watchlist/
+timeframes/higher_degree); `ambiguity_n` bei Anlage in die Sammlung eingefroren
+(`_new_record`). **UI:** „Zählung 1 von N" nur bei N≥2 (max „1 von 2"), aufklappbare
+Alternative (Label·Inval·Ziel·Score gedämpft), N=1 zeigt nichts. **Byte-Identität
+bewiesen** (rekursiver Report-Diff: nur `valid_count_total`/`alt_count` neu, gleiche
+Top-5/Scores/Reihenfolge; `SCHEMA_VERSION`=1). Laufzeit O(1)/Count (synthetic 353
+Ticker ≈ 64 ms). Registry „Ambiguität v1" datiert (nie umdefinieren → v2). **8 neue
+Tests** (N=1/N=2/alt/short-nicht-gezählt/Primär-identisch/Determinismus/Freeze),
+Suite **219 → 227** grün. Revert = additive Felder + `_eval_*`/`enumerate_long_counts`/
+`ambiguity_fields` + Frontend-Block raus (`classify_setup` bleibt). Merge: Guardian +
+Manual, keine Screenshots. **Nach Merge:** `daily.yml` → N-Verteilung + Beispiel.
+
+**✅ P2-Audit: Messfelder v1 (Volumen/Alternation/W5-Momentum) — erledigt (#42,
 `scripts/` + `docs/index.html`):** Drei literaturgestützte MESS-Felder point-in-time
 in die Forward-Sammlung eingefroren — **reine Messung, kein Score/Ranking/Filter/
 Population-Einfluss**, die bestehende Reifung **byte-identisch** (belegt: Report-Diff

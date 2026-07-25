@@ -466,74 +466,85 @@ def _target_zone(base: float, direction: int, w1_len: float, ext: Sequence[float
     return {"low": round(min(a, b), 4), "high": round(max(a, b), 4)}
 
 
+def _eval_end_of_w4(prices: Sequence[float], close: float) -> Optional[Dict]:
+    """Bewertet die letzten 5 Pivots als Teil-Impuls P0..P4 (end_of_w4). Setup-Dict
+    oder None. Extrahiert aus classify_setup — Logik/Rückgabe UNVERÄNDERT."""
+    if len(prices) < 5:
+        return None
+    pts = prices[-5:]
+    res = validate_partial_to_w4(pts)
+    if not res.is_valid:
+        return None
+    p0, p1, p2, p3, p4 = pts
+    direction = res.direction
+    w1_len = abs(p1 - p0)
+    w3_len = abs(p3 - p2)
+    retrace_w4 = abs(p4 - p3) / w3_len if w3_len else 0.0
+    fib = _fib_proximity_bonus(retrace_w4, config.FIB_TARGETS["w4_retrace"])
+    invalid = p1  # W4 darf W1 nicht überlappen
+    inval_bonus = _invalidation_bonus(close, invalid)
+    base_pts = config.SETUP_BASE_POINTS["end_of_w4"]
+    side = "Long" if direction > 0 else "Short"
+    # Extension-Zielzone (additiv): W5 gemessen an der Netto-Strecke P0->P3
+    # (nicht an W1), ab P4. _target_zone sichert die min/max-Ordnung.
+    net_len = abs(p3 - p0)
+    return {
+        "setup": "end_of_w4",
+        "direction": direction,
+        "count_label": f"Impuls 1–5 · {side}-Setup am Ende W4 (W5 erwartet)",
+        "invalidation_price": round(invalid, 4),
+        "target_zone": _target_zone(p4, direction, w1_len, config.TARGET_EXTENSIONS["w5"]),
+        "target_zone_extended": _target_zone(p4, direction, net_len, config.TARGET_EXTENSIONS["w5_ext"]),
+        "base_points": base_pts,
+        "fib_bonus": fib,
+        "inval_bonus": inval_bonus,
+    }
+
+
+def _eval_end_of_w2(prices: Sequence[float], close: float) -> Optional[Dict]:
+    """Bewertet die letzten 3 Pivots P0..P2 (end_of_w2). Setup-Dict oder None.
+    Extrahiert aus classify_setup — Logik/Rückgabe UNVERÄNDERT."""
+    if len(prices) < 3:
+        return None
+    p0, p1, p2 = prices[-3:]
+    direction = 1 if p1 >= p0 else -1
+    # Regel 1 (W2 <= 100 %): normalisiert P2 nicht jenseits von P0.
+    norm_p0, norm_p2 = direction * p0, direction * p2
+    if norm_p2 < norm_p0:
+        return None
+    w1_len = abs(p1 - p0)
+    retrace_w2 = abs(p2 - p1) / w1_len if w1_len else 0.0
+    # Nur plausible Retracements (0 < r <= 1) als Setup werten.
+    if not (0.0 < retrace_w2 <= 1.0):
+        return None
+    fib = _fib_proximity_bonus(retrace_w2, config.FIB_TARGETS["w2_retrace"])
+    invalid = p0  # W2 darf W1 nicht > 100 % retracen
+    inval_bonus = _invalidation_bonus(close, invalid)
+    base_pts = config.SETUP_BASE_POINTS["end_of_w2"]
+    side = "Long" if direction > 0 else "Short"
+    return {
+        "setup": "end_of_w2",
+        "direction": direction,
+        "count_label": f"Impuls 1–5 · {side}-Setup am Ende W2 (W3 erwartet)",
+        "invalidation_price": round(invalid, 4),
+        "target_zone": _target_zone(p2, direction, w1_len, config.TARGET_EXTENSIONS["w3"]),
+        "target_zone_extended": _target_zone(p2, direction, w1_len, config.TARGET_EXTENSIONS["w3_ext"]),
+        "base_points": base_pts,
+        "fib_bonus": fib,
+        "inval_bonus": inval_bonus,
+    }
+
+
 def classify_setup(pivots: List[Pivot], close: float) -> Optional[Dict]:
     """Ermittelt das aktuelle Setup aus den jüngsten Pivots.
 
-    Priorität: end_of_w4 (mehr bestätigte Struktur) vor end_of_w2.
-    Gibt None zurück, wenn kein sauberes, regelkonformes Setup vorliegt.
-    """
+    Priorität: end_of_w4 (mehr bestätigte Struktur) vor end_of_w2 — **first-fit**
+    über genau diese zwei festen End-Fenster (letzte 5 / letzte 3 Pivots). Gibt
+    None zurück, wenn kein sauberes, regelkonformes Setup vorliegt. Verhalten
+    byte-identisch zu vorher (nur in zwei Helfer ausgelagert; die Ambiguitäts-
+    Enumeration zählt dieselben zwei Fenster, ändert die PRIMÄR-Wahl NICHT)."""
     prices = [p.price for p in pivots]
-
-    # --- end_of_w4: die letzten 5 Pivots als Teil-Impuls P0..P4 ---
-    if len(prices) >= 5:
-        pts = prices[-5:]
-        res = validate_partial_to_w4(pts)
-        if res.is_valid:
-            p0, p1, p2, p3, p4 = pts
-            direction = res.direction
-            w1_len = abs(p1 - p0)
-            w3_len = abs(p3 - p2)
-            retrace_w4 = abs(p4 - p3) / w3_len if w3_len else 0.0
-            fib = _fib_proximity_bonus(retrace_w4, config.FIB_TARGETS["w4_retrace"])
-            invalid = p1  # W4 darf W1 nicht überlappen
-            inval_bonus = _invalidation_bonus(close, invalid)
-            base_pts = config.SETUP_BASE_POINTS["end_of_w4"]
-            side = "Long" if direction > 0 else "Short"
-            # Extension-Zielzone (additiv): W5 gemessen an der Netto-Strecke
-            # P0->P3 (nicht an W1), ab P4. _target_zone sichert die min/max-
-            # Ordnung auch bei degenerierten Fällen (winzige Strecke etc.).
-            net_len = abs(p3 - p0)
-            return {
-                "setup": "end_of_w4",
-                "direction": direction,
-                "count_label": f"Impuls 1–5 · {side}-Setup am Ende W4 (W5 erwartet)",
-                "invalidation_price": round(invalid, 4),
-                "target_zone": _target_zone(p4, direction, w1_len, config.TARGET_EXTENSIONS["w5"]),
-                "target_zone_extended": _target_zone(p4, direction, net_len, config.TARGET_EXTENSIONS["w5_ext"]),
-                "base_points": base_pts,
-                "fib_bonus": fib,
-                "inval_bonus": inval_bonus,
-            }
-
-    # --- end_of_w2: die letzten 3 Pivots P0..P2 ---
-    if len(prices) >= 3:
-        p0, p1, p2 = prices[-3:]
-        direction = 1 if p1 >= p0 else -1
-        # Regel 1 (W2 <= 100 %): normalisiert P2 nicht jenseits von P0.
-        norm_p0, norm_p2 = direction * p0, direction * p2
-        if norm_p2 >= norm_p0:
-            w1_len = abs(p1 - p0)
-            retrace_w2 = abs(p2 - p1) / w1_len if w1_len else 0.0
-            # Nur plausible Retracements (0 < r <= 1) als Setup werten.
-            if 0.0 < retrace_w2 <= 1.0:
-                fib = _fib_proximity_bonus(retrace_w2, config.FIB_TARGETS["w2_retrace"])
-                invalid = p0  # W2 darf W1 nicht > 100 % retracen
-                inval_bonus = _invalidation_bonus(close, invalid)
-                base_pts = config.SETUP_BASE_POINTS["end_of_w2"]
-                side = "Long" if direction > 0 else "Short"
-                return {
-                    "setup": "end_of_w2",
-                    "direction": direction,
-                    "count_label": f"Impuls 1–5 · {side}-Setup am Ende W2 (W3 erwartet)",
-                    "invalidation_price": round(invalid, 4),
-                    "target_zone": _target_zone(p2, direction, w1_len, config.TARGET_EXTENSIONS["w3"]),
-                    "target_zone_extended": _target_zone(p2, direction, w1_len, config.TARGET_EXTENSIONS["w3_ext"]),
-                    "base_points": base_pts,
-                    "fib_bonus": fib,
-                    "inval_bonus": inval_bonus,
-                }
-
-    return None
+    return _eval_end_of_w4(prices, close) or _eval_end_of_w2(prices, close)
 
 
 def score_setup(setup: Dict) -> float:
@@ -545,6 +556,48 @@ def score_setup(setup: Dict) -> float:
         + setup["inval_bonus"] * w["invalidation_distance"]
     )
     return round(score, 2)
+
+
+# ---------------------------------------------------------------------------
+# AMBIGUITÄT v1 (additiv, REINE ANZEIGE/MESSUNG — kein Score/Ranking/Filter)
+# ---------------------------------------------------------------------------
+# Fach-Konsens ist Multi-Count: fast immer > eine valide Zählung. classify_setup
+# ist first-fit über ZWEI feste End-Fenster (Ende-W4 auf den letzten 5, Ende-W2 auf
+# den letzten 3 Pivots). Der Ausweis ZÄHLT beide Fenster (statt nur first-fit) und
+# weist die beste Alternative aus — die PRIMÄR-Wahl (classify_setup) bleibt
+# byte-identisch. Bewusst begrenzt auf das heutige Zähl-Vokabular (2 Fenster),
+# NICHT der volle Elliott-Interpretationsraum → Maximum ist „1 von 2". Erweitert
+# sich das Vokabular (z. B. ABC ab P4), entsteht ein NEUES datiertes Feld
+# (ambiguity v2); v1 wird nie umdefiniert. Long-only (konsistent zum Board).
+def enumerate_long_counts(pivots: List[Pivot], close: float) -> List[Dict]:
+    """Alle validen LONG-Counts im definierten Suchraum (die zwei End-Fenster von
+    classify_setup), in Prioritätsreihenfolge [Ende-W4, Ende-W2]. Short-Counts
+    zählen NICHT mit (Long-only). Deterministisch (gleiche Pivots → gleiche Liste)."""
+    prices = [p.price for p in pivots]
+    out: List[Dict] = []
+    for setup in (_eval_end_of_w4(prices, close), _eval_end_of_w2(prices, close)):
+        if setup is not None and setup["direction"] > 0:
+            out.append(setup)
+    return out
+
+
+def ambiguity_fields(pivots: List[Pivot], close: float) -> Tuple[int, Optional[Dict]]:
+    """(valid_count_total, alt_count). total = Anzahl valider Long-Counts (0..2).
+    alt_count (nur bei total ≥ 2) = kompakte **zweitbeste** nach **exakt derselben**
+    Score-Formel (`score_setup`) — kein neues Ranking-Kriterium. Die Primär-Zählung
+    (counts[0]) ist byte-identisch zu classify_setup; alt = beste der übrigen."""
+    counts = enumerate_long_counts(pivots, close)
+    total = len(counts)
+    alt = None
+    if total >= 2:
+        best_alt = max(counts[1:], key=score_setup)  # zweitbeste (bei 2: counts[1])
+        alt = {
+            "count_label": best_alt["count_label"],
+            "invalidation_price": best_alt["invalidation_price"],
+            "target_zone": best_alt["target_zone"],
+            "score_heuristic": score_setup(best_alt),
+        }
+    return total, alt
 
 
 # ---------------------------------------------------------------------------
@@ -667,11 +720,16 @@ def _count_from_series(dates: Sequence[str], closes: Sequence[float]) -> Optiona
     setup = classify_setup(pivots, closes[-1])
     if setup is None or setup["direction"] < 0:
         return None
+    # Ambiguität v1 (additiv, kein Score/Ranking): wie viele valide Long-Counts
+    # lässt die Struktur zu (max 2), plus die beste Alternative.
+    total, alt = ambiguity_fields(pivots, closes[-1])
     return {
         "count_label": setup["count_label"],
         "invalidation_price": setup["invalidation_price"],
         "target_zone": setup["target_zone"],
         "target_zone_extended": setup["target_zone_extended"],
+        "valid_count_total": total,
+        "alt_count": alt,
     }
 
 
@@ -961,6 +1019,11 @@ def build_candidate(
     entry["vol_ratio_w3_w1"] = _vp["vol_ratio_w3_w1"]
     entry["vol_ratio_w4_w3"] = _vp["vol_ratio_w4_w3"]
     entry["vol_ratio_w2_w1"] = _vp["vol_ratio_w2_w1"]
+    # Ambiguitäts-Ausweis v1 (additiv, NACH dem Score — kein Score/Ranking-Einfluss):
+    # Anzahl valider Long-Counts (max 2) + beste Alternative. Primär byte-identisch.
+    total, alt = ambiguity_fields(pivots, close)
+    entry["valid_count_total"] = total
+    entry["alt_count"] = alt
     return entry, None, ""
 
 
