@@ -2,14 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **26.07.2026**,
-nach PR #46 (**P4b-Audit: Grad-Sparklines**, gemerged; live: 4 Grad-Sparklines,
-Payload real nur +6,6 KB, Ziffern-Stichproben AMAT/VRTX bestätigt); dieser PR:
-**P4c-Audit — Sparkline-Achsen** (Eck-Werte Hoch/Tief + Zeitspanne; reines
-Frontend, **letzter Audit-Punkt — P1–P4 damit KOMPLETT**), offen. Alle Zahlen/
-Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #47 (**P4c-Audit: Sparkline-Achsen**, gemerged — **EXZELLENZ-AUDIT P1–P4
+KOMPLETT**); dieser PR: **Elliott-Wellen-Banner + Chip-Zeile entfernt** (reines
+Frontend), offen. Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft,
+nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`29d1e1e` = täglicher Commit nach dem
-> #46-Merge) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`0ac6d92` = Stand nach dem #47-Merge)
+> abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -94,7 +93,8 @@ durchgängig ab #13.
 | #44 | `efa3f87` | **Textgrößen-Steuerung** (Squeeze-Vorbild `app.html:3511`): − / + im ☰-Menü-Fuß skalieren die **ganze rem-basierte UI** über `--app-fs`. 5 Stufen `[14,16,18,20,22]`px (Default 16px = unveränderte Optik), Persistenz, Grenzen. Alle CSS-`font-size:px`→`rem` (SVG-Text bleibt px). Reines Frontend | self (CI grün) |
 | #45 | `6f6d98c` | **P4a-Audit: ABC-Korrektur-Erkennung** (Struktur-Vokabular v2): `_detect_correction` (strikte Ungleichungen, longest-first) → 2 neue `structure_state` (`correction_running`/`complete`, **Präzedenz vor Impuls-Lesarten**); `valid_count_total_v2`/`alt_count_v2` (Anzeige nutzt v2); `ambiguity_n_v2` zusätzlich eingefroren (v1 unverändert); W5→A strukturell (`a_structure_observed`/`c_target_pct`, fenstergebunden nach Guardian-Nit). **Markt byte-identisch**, kein neuer Setup-Typ. Live: 3 Korrektur-Lesarten (PANW/AMAT Monat, IONQ Tag short-symm.), v2-Gewinne CVS/SPG/ADS.DE. 18 Tests (245) | Guardian (Nits, behoben) + manual |
 | #46 | `29d1e1e` | **P4b-Audit: Grad-Sparklines** — `_count_from_series` liefert additiv `chart_points` (letzte `DEGREE_CHART_PIVOTS=8` ZigZag-Pivots) + `count_wave_labels`; `degreeSpark()` reust `drawSparkline` (`data-h=36`), Minis im Großer-Grad-Block + je Zeitebenen-Zeile mit Count, direkt sichtbar. Report-Diff nur additive Keys. **Live: 4 Sparklines (US 2 hd, AMAT Tag+Monat), Payload real +6,6 KB**, Ziffern-Stichproben AMAT [Monat]/VRTX [Woche] korrekt | Guardian (OK) + manual |
-| #(dieser) | `(offen)` | **P4c-Audit: Sparkline-Achsen** (LETZTER Audit-Punkt): dezente Eck-Werte an der GROSSEN Tages-Sparkline — Hoch-/Tief-Preis (rechts oben/unten, kollisions-genudged gegen Wellen-Ziffern, sonst weglassen) + Zeitspanne erster/letzter Pivot (unten links/rechts, `TT.MM.JJ`); `.spark-axis` 7px SVG-px, `--txt-dim` (AA), **Halo** (`paint-order:stroke`) gegen Linie/Inval-Strich; `data-dates` an den 2 Big-Call-Sites; **Minis (36px) bewusst ohne** (zu klein); keine Gitter/Achsen-Striche. Verifiziert am echten AMAT (723 / 322,72 / 25.02.26–07.07.26), 0 Kollisionen, Konsole sauber. Reines Frontend | self (CI grün), keine Screenshots |
+| #47 | `0ac6d92` | **P4c-Audit: Sparkline-Achsen** (LETZTER Audit-Punkt → **P1–P4 komplett**): dezente Eck-Werte an der GROSSEN Tages-Sparkline — Hoch-/Tief-Preis + Zeitspanne (`TT.MM.JJ`), `.spark-axis` 7px SVG-px, `--txt-dim` (AA), Halo (`paint-order`), Kollisions-Nudge gegen Wellen-Ziffern; **Minis bewusst ohne**; keine Gitter/Striche. Verifiziert am echten AMAT (723 / 322,72 / 25.02.26–07.07.26), 0 Kollisionen | self (CI grün) |
+| #(dieser) | `(offen)` | **Elliott-Wellen-Banner + Chip-Zeile entfernt**: (1) von Easy freigegebenes SVG (v3) **inline** unter der Stand-Zeile / über der Watchlist — dekorativ (`aria-hidden`), responsive über viewBox, `--radius`+`overflow:hidden`; alle 6 SVG-ids mit **`ewb-`-Präfix** (Kollisionsschutz ggü. Sparkline-Defs, per Grep + headless auf doppelte ids geprüft). (2) **Chip-Zeile `#wl-chips` komplett entfernt** (doppelt zu den Kacheln; Entfernen-× lebt auf der Kachel): Markup + CSS + `renderWatchlistChips` raus, ersetzt durch `renderWatchlistCount` (Zähler im Titel bleibt), Empty-State wandert in die Kachel-Fläche. Watchlist-Flows (Add/Sofortkarte/Auto-Sync/Kachel-×/Persistenz) headless durchgespielt | self (CI grün), keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -321,7 +321,33 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ P4c-Audit: Sparkline-Achsen — erledigt (dieser PR, `docs/index.html`, reines
+**✅ Elliott-Wellen-Banner + Chip-Zeile entfernt — erledigt (dieser PR,
+`docs/index.html`, reines Frontend):** (1) **Banner:** das von Easy freigegebene
+SVG (v3) liegt **inline** im Markup (kein Asset, kein Fetch) zwischen Staleness-
+Banner und Watchlist-Sektion — im Normalfall also direkt unter der Stand-Zeile,
+Warnungen bleiben zuoberst. Dekorativ: `aria-hidden="true"`, `focusable="false"`,
+`role`/`aria-label` entfernt, keine Interaktion. Responsive über die viewBox
+(`svg{width:100%;height:auto}`), Wrapper `.ew-banner` mit `--radius` +
+`overflow:hidden` (SVG-`rx:16` + Clip) und dezentem Abstand. **Alle 6 SVG-ids mit
+`ewb-`-Präfix** (`ewb-bg/-wave/-fill/-glow/-fadeL/-fadeR`) — Kollisionsschutz
+gegenüber den Sparkline-Defs (die zwar `sg…`-Zufalls-ids nutzen, aber die
+generischen Namen wären eine Falle); per Grep vorab **und** headless auf doppelte
+DOM-ids geprüft. (2) **Chip-Zeile entfernt:** `#wl-chips`-Markup, die `.wl-chip*`-
+CSS-Regeln und `renderWatchlistChips()` sind raus — sie duplizierten nur die
+Kacheln (deren `×`/`data-wl-remove` die eigentliche Entfernen-Geste ist). Ersatz:
+`renderWatchlistCount()` (setzt weiter den Zähler `#wl-count` im Titel, 3 Call-
+Sites umgestellt); der Empty-State „Noch keine eigenen Ticker." wandert in die
+Kachel-Fläche (`renderWatchlistCards`, Guard bei leerer Liste). **Verifiziert**
+(headless, echter Report `29d1e1e`): Banner @390px **und** Desktop unverzerrt
+(ratio 6,16 == 1170/190), über der Watchlist, 6 `ewb-`-ids **ohne** Duplikate,
+37 Sparkline-Pfade unverändert gezeichnet; Watchlist-Flows komplett grün — Add
+(Sofortkarte + Auto-Sync geplant + persistiert), Reload-Persistenz, Entfernen über
+Kachel-× (Kachel erst einklappen — bestehendes Design, `.wl-x` ist an der offenen
+Kachel `display:none`); Konsole sauber, Tests grün (245). Revert = `.ew-banner`-
+Block (Markup+CSS) raus; Chip-Zeile zurück = Markup `<div class="wl-chips">`,
+`.wl-chip*`-CSS und `renderWatchlistChips()` aus der Historie (`git show`).
+
+**✅ P4c-Audit: Sparkline-Achsen — erledigt (#47, `docs/index.html`, reines
 Frontend; damit ist das EXZELLENZ-AUDIT P1–P4 KOMPLETT):** Die große Tages-Sparkline
 (Markt + Watchlist) bekommt **dezente Eck-Werte** — minimale Verortung ohne
 Chart-Bombast: **Hoch-/Tief-Preis** (rechts oben/unten) + **Zeitspanne** (Datum

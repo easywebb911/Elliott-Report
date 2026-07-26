@@ -651,20 +651,12 @@
     .wl-add-btn:active { transform:scale(.97); }
     .wl-err { color:var(--red); font-size:0.78125rem; font-weight:600; margin:8px 0 0; }
     .wl-err[hidden] { display:none; }
-    .wl-chips { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0; }
-    .wl-chip {
-      display:inline-flex; align-items:center; gap:6px; font-family:var(--mono);
-      font-size:0.78125rem; font-weight:700; color:var(--txt);
-      background:var(--bg-met); border:1px solid var(--brd);
-      border-radius:999px; padding:4px 6px 4px 11px;
-    }
-    .wl-chip button {
-      -webkit-appearance:none; appearance:none; cursor:pointer; border:0;
-      background:transparent; color:var(--txt-dim); font-size:0.9375rem; line-height:1;
-      padding:0 3px; touch-action:manipulation;
-    }
-    .wl-chip button:active { color:var(--red); }
-    .wl-chip.dirty { border-color:var(--ora); }
+    /* Elliott-Wellen-Banner (dekorativ): volle Breite, Höhe skaliert über die
+       viewBox mit; Radius passend zur Karten-Optik (SVG-rx 16 + Clip). */
+    .ew-banner { margin:12px 0 4px; border-radius:var(--radius); overflow:hidden;
+      line-height:0; }
+    .ew-banner svg { width:100%; height:auto; display:block; }
+    /* Chip-Zeile entfernt (doppelt zu den Kacheln; Entfernen-× lebt auf der Kachel). */
     /* Situativer Sync-Status: „noch nicht gesynct"-Chip NUR wenn wirklich etwas
        ungesynct ist (Erfolg meldet ein kurzer Toast, kein Dauertext). */
     .wl-sync {
@@ -803,6 +795,81 @@
   </header>
   <main>
     <div class="banner" id="staleness"></div>
+    <!-- Elliott-Wellen-Banner (dekorativ, von Easy freigegebenes SVG v3, inline —
+         kein Asset/Fetch). ids mit ewb--Präfix (Kollisionsschutz ggü. Sparkline-
+         Defs). Steht nach dem (normal leeren) Staleness-Banner: Warnungen bleiben
+         zuoberst; im Normalzustand sitzt es direkt unter der Stand-Zeile. -->
+    <div class="ew-banner">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1170 190" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="ewb-bg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#0d1524"/>
+            <stop offset="1" stop-color="#0a0f1a"/>
+          </linearGradient>
+          <linearGradient id="ewb-wave" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#1fd07c"/>
+            <stop offset="0.60" stop-color="#4ade80"/>
+            <stop offset="0.61" stop-color="#38bdf8"/>
+            <stop offset="1" stop-color="#60a5fa"/>
+          </linearGradient>
+          <linearGradient id="ewb-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#22c55e" stop-opacity="0.28"/>
+            <stop offset="1" stop-color="#22c55e" stop-opacity="0"/>
+          </linearGradient>
+          <filter id="ewb-glow" x="-20%" y="-60%" width="140%" height="220%">
+            <feGaussianBlur stdDeviation="5" result="b"/>
+            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <linearGradient id="ewb-fadeL" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#0a0f1a"/>
+            <stop offset="1" stop-color="#0a0f1a" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="ewb-fadeR" x1="1" y1="0" x2="0" y2="0">
+            <stop offset="0" stop-color="#0a0f1a"/>
+            <stop offset="1" stop-color="#0a0f1a" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <rect width="1170" height="190" rx="16" fill="url(#ewb-bg)"/>
+        <g stroke="#1e2a3f" stroke-width="1" opacity="0.55">
+          <line x1="0" y1="48" x2="1170" y2="48"/>
+          <line x1="0" y1="95" x2="1170" y2="95"/>
+          <line x1="0" y1="143" x2="1170" y2="143"/>
+          <line x1="130" y1="0" x2="130" y2="190"/><line x1="260" y1="0" x2="260" y2="190"/>
+          <line x1="390" y1="0" x2="390" y2="190"/><line x1="520" y1="0" x2="520" y2="190"/>
+          <line x1="650" y1="0" x2="650" y2="190"/><line x1="780" y1="0" x2="780" y2="190"/>
+          <line x1="910" y1="0" x2="910" y2="190"/><line x1="1040" y1="0" x2="1040" y2="190"/>
+        </g>
+        <path d="M60,168 L185,92 L300,128 L540,30 L665,86 L820,16" fill="none"
+              stroke="url(#ewb-wave)" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round" filter="url(#ewb-glow)"/>
+        <path d="M60,168 L185,92 L300,128 L540,30 L665,86 L820,16 L820,190 L60,190 Z" fill="url(#ewb-fill)"/>
+        <path d="M820,16 L925,88 L985,58 L1105,128" fill="none"
+              stroke="#38bdf8" stroke-width="4" stroke-dasharray="7 6"
+              stroke-linejoin="round" stroke-linecap="round" opacity="0.9" filter="url(#ewb-glow)"/>
+        <g fill="#0a0f1a" stroke="#4ade80" stroke-width="2.5">
+          <circle cx="60" cy="168" r="5.5"/><circle cx="185" cy="92" r="5.5"/>
+          <circle cx="300" cy="128" r="5.5"/><circle cx="540" cy="30" r="5.5"/>
+          <circle cx="665" cy="86" r="5.5"/><circle cx="820" cy="16" r="6"/>
+        </g>
+        <g fill="#0a0f1a" stroke="#38bdf8" stroke-width="2.5">
+          <circle cx="925" cy="88" r="5"/><circle cx="985" cy="58" r="5"/><circle cx="1105" cy="128" r="5"/>
+        </g>
+        <g font-family="Helvetica, Arial, sans-serif" font-size="21" font-weight="700" fill="#a7f3d0">
+          <text x="50" y="154" opacity="0.85">0</text>
+          <text x="192" y="80">1</text>
+          <text x="307" y="152">2</text>
+          <text x="547" y="21">3</text>
+          <text x="672" y="112">4</text>
+          <text x="804" y="14" font-size="23" fill="#d1fae5">5</text>
+        </g>
+        <g font-family="Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#7dd3fc">
+          <text x="931" y="112">A</text>
+          <text x="992" y="47">B</text>
+          <text x="1092" y="154">C</text>
+        </g>
+        <rect x="0" y="0" width="46" height="190" fill="url(#ewb-fadeL)"/>
+        <rect x="1124" y="0" width="46" height="190" fill="url(#ewb-fadeR)"/>
+      </svg>
+    </div>
     <!-- Recalculate-Status mit Zeitzähler (läuft / fertig / Timeout). -->
     <div class="recalc-banner" id="recalc-banner" hidden></div>
     <!-- Persönliche Watchlist (eigene Ticker, volle Analyse, außer Konkurrenz).
@@ -817,7 +884,6 @@
           <button id="wl-add-btn" class="wl-add-btn" type="button">+ Hinzufügen</button>
         </div>
         <div class="wl-err" id="wl-err" hidden></div>
-        <div class="wl-chips" id="wl-chips"></div>
         <div class="wl-sync" id="wl-sync" hidden>noch nicht gesynct</div>
       </div>
       <div class="wl-grid" id="wl-cards"></div>
@@ -1817,18 +1883,12 @@
       </article>`;
     }
 
-    function renderWatchlistChips() {
-      const wrap = document.getElementById('wl-chips');
+    // Chip-Zeile entfernt (doppelt zu den Kacheln; Entfernen-× lebt auf der
+    // Kachel). Übrig bleibt nur der Zähler im Watchlist-Titel; der Empty-State
+    // wandert in die Kachel-Fläche (renderWatchlistCards).
+    function renderWatchlistCount() {
       const cnt = document.getElementById('wl-count');
-      if (cnt) cnt.textContent = _wlArr.length ? String(_wlArr.length) : '';
-      if (!_wlArr.length) { wrap.innerHTML = '<span class="empty" style="font-size:0.75rem">Noch keine eigenen Ticker.</span>'; return; }
-      wrap.innerHTML = _wlArr.map(t => {
-        // „dirty" = seit dem letzten Lauf hinzugekommen (erscheint erst nach Run).
-        const dirty = _wlLastRunSet && !_wlLastRunSet.has(t) ? ' dirty' : '';
-        return `<span class="wl-chip${dirty}" data-t="${esc(t)}">${esc(t)}<button type="button" data-rm="${esc(t)}" aria-label="Entfernen">×</button></span>`;
-      }).join('');
-      wrap.querySelectorAll('button[data-rm]').forEach(b =>
-        b.addEventListener('click', () => removeWatchlistTicker(b.dataset.rm)));
+      if (cnt) cnt.textContent = (_wlArr && _wlArr.length) ? String(_wlArr.length) : '';
     }
 
     // Sofort-Karte für lokal hinzugefügte Ticker, die der Lauf noch NICHT
@@ -1907,6 +1967,11 @@
       // (_wlArr === null, vor dem Seeden) — ein bewusst geleertes Array [] bleibt
       // leer (sonst tauchten nach „alle entfernen" alte Analyse-Karten wieder auf).
       const list = Array.isArray(_wlArr) ? _wlArr : entries.map(e => e.ticker);
+      // Empty-State (früher in der Chip-Zeile): leere Watchlist ehrlich benennen.
+      if (!list.length) {
+        el.innerHTML = '<span class="empty" style="font-size:0.75rem">Noch keine eigenen Ticker.</span>';
+        return;
+      }
       const openSet = _wlExpandedSet();
       el.innerHTML = list.map(t => {
         const e = byTicker.get(t);
@@ -2003,7 +2068,7 @@
       // watchlist_personal.json. Beim ersten Aufbau setzen -> „noch nicht gesynct"
       // erscheint nur, wenn lokal WIRKLICH davon abweicht (kein Auto-PUT beim Laden).
       if (_wlSyncedJson === null) _wlSyncedJson = JSON.stringify(lastRun.slice());
-      renderWatchlistChips();
+      renderWatchlistCount();
       renderWatchlistCards(report);
       _wlUpdateSyncChip();
     }
@@ -2036,13 +2101,13 @@
       // (#25) direkt sichtbar; alle übrigen Kacheln bleiben eingeklappt.
       const exp = _wlExpandedSet(); exp.add(v.ticker); _wlPersistExpanded(exp);
       inp.value = ''; _wlErr('');
-      renderWatchlistChips(); _wlRerenderCards(); _wlScheduleSync();
+      renderWatchlistCount(); _wlRerenderCards(); _wlScheduleSync();
     }
     function removeWatchlistTicker(t) {
       _wlArr = _wlArr.filter(x => x !== t);
       _wlPersistLocal();
       const exp = _wlExpandedSet(); if (exp.delete(t)) _wlPersistExpanded(exp);
-      renderWatchlistChips(); _wlRerenderCards(); _wlScheduleSync();
+      renderWatchlistCount(); _wlRerenderCards(); _wlScheduleSync();
     }
 
     // Auto-Sync (seit #27 28-Tage-Token-Session -> kein manueller Speichern-Schritt
