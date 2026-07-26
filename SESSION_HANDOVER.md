@@ -2,13 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #43 (**P3-Audit: Ambiguitäts-Ausweis v1**, gemerged); dieser PR:
-**Textgrößen-Steuerung** (− / + im ☰-Menü-Fuß, Squeeze-Vorbild; reines Frontend),
-offen. Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
-Gedächtnis.
+nach PR #44 (**Textgrößen-Steuerung**, gemerged); dieser PR: **P4a-Audit —
+ABC-Korrektur-Erkennung** (Struktur-Vokabular v2 + ambiguity v2 + W5→A strukturell;
+Markt byte-identisch), offen. Alle Zahlen/Hashes sind gegen `git log` und den Code
+geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`c41658f` = täglicher Commit nach dem
-> #43-Merge) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`efa3f87` = Stand nach dem #44-Merge)
+> abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -90,7 +90,8 @@ durchgängig ab #13.
 | #41 | `2320157` | **P1-Audit: A11y-Kontrast + Universum-Hygiene**. (2) Mikro-/Uppercase-Labels von ~3,1–3,7:1 auf **WCAG AA ≥ 4,5:1** gehoben — ein Token `--txt-dim` `#64748b`→`#8b97a8` (4,97–5,90:1 auf allen Flächen inkl. blauer WL-Tönung), bleibt < `--txt-sub` (Hierarchie). (3) **8 tote Ticker** (`empty_data`: US `MMC`/`FI`/`HES`, DE `1COV.DE`/`CTS.DE`/`UN01.DE`/`SHA.DE`/`COP.DE`) aus `config.py` + `ticker_meta.json` entfernt (**361→353**), Registry-Log ergänzt. Folge-Lauf belegt `empty_data → 0`. Audit-Punkt 1 via #40 schon auf main → übersprungen | Guardian + manual +Bild |
 | #42 | `e9101d3` | **P2-Audit: Messfelder v1** (Volumen-Profil, Alternation, W5-Momentum-Divergenz) — drei literaturgestützte MESS-Felder point-in-time in die Forward-Sammlung eingefroren. **Reine Messung: Score/Ranking/Filter/Population/Reifung byte-identisch** (Report-Diff nur additive `vol_*`-Keys). Volumen aus DEMSELBEN yfinance-Download (`FetchOutcome.volumes`, kein Extra-Call). Einziges UI: Chip „W3-Volumen schwach". 17 neue Tests | Guardian + manual, keine Screenshots |
 | #43 | `c41658f` | **P3-Audit: Ambiguitäts-Ausweis v1** — je Zählung `valid_count_total` (1..2, Long-Counts unter den 2 festen Fenstern Ende-W4/Ende-W2) + `alt_count` (zweitbeste nach `score_setup`); `ambiguity_n` bei Anlage eingefroren. `classify_setup` in 2 Fenster-Helfer refaktoriert (**Primär byte-identisch**). **Score/Ranking/Filter/Reifung byte-identisch**, `SCHEMA_VERSION`=1. UI: „Zählung 1 von N" (max „1 von 2") + aufklappbare Alternative. Registry „Ambiguität v1". Live: US 2×N2 / DE 1×N2. 8 Tests | Guardian + manual |
-| #(dieser) | `(offen)` | **Textgrößen-Steuerung** (Squeeze-Vorbild `app.html:3511`): − / + im ☰-Menü-Fuß skalieren die **ganze rem-basierte UI** über `--app-fs` (Root-Fontsize). 5 Stufen `_FS_SIZES=[14,16,18,20,22]`px (Default idx 1 = 16px = **unveränderte Optik**), Persistenz `localStorage['elliott_fs']`, sofort beim Laden angewandt, Grenzen deaktivieren −/+ am Ende. **Alle CSS-`font-size:px` → `rem` konvertiert** (exakt /16 → default byte-identisch), NUR die 4 **SVG-Text**-Klassen (`.wave-num`×2, `.wl-mini-num`, `.wl-mini-dash`) bleiben px → Sparkline/Donut skalieren nicht mit. Layout 390px @min/std/max geprüft (kein Overflow). Reines Frontend | self (CI grün), keine Screenshots |
+| #44 | `efa3f87` | **Textgrößen-Steuerung** (Squeeze-Vorbild `app.html:3511`): − / + im ☰-Menü-Fuß skalieren die **ganze rem-basierte UI** über `--app-fs`. 5 Stufen `[14,16,18,20,22]`px (Default 16px = unveränderte Optik), Persistenz, Grenzen. Alle CSS-`font-size:px`→`rem` (SVG-Text bleibt px). Reines Frontend | self (CI grün) |
+| #(dieser) | `(offen)` | **P4a-Audit: ABC-Korrektur-Erkennung** (Struktur-Vokabular v2): Zigzag-Korrektur A-B-C nach validem 5er-Impuls auf den bestätigten Pivots (`_detect_correction`, strikte Ungleichungen, longest-first). 2 neue `structure_state` (`correction_running`/`correction_complete`, Marken W5-Extrem/B-Hoch/C-Tief, **Präzedenz vor Impuls-Lesarten**); `valid_count_total_v2`/`alt_count_v2` (Anzeige nutzt v2, max-N wächst); `ambiguity_n_v2` ZUSÄTZLICH eingefroren (v1 unverändert weiter); W5→A strukturell (`a_structure_observed`/`c_target_pct`, bestätigter Gegen-Pivot). **HARTE GRENZE eingehalten: Markt/Top-5/Score/Ranking/Filter/Episoden-Anlage byte-identisch** (Beweis), KEIN neuer Setup-Typ. 16 neue Tests (243) | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -317,7 +318,38 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ Textgrößen-Steuerung (− / + im ☰-Menü-Fuß) — erledigt (dieser PR,
+**✅ P4a-Audit: ABC-Korrektur-Erkennung (Struktur-Vokabular v2) — erledigt (dieser
+PR, `scripts/` + `docs/index.html`):** Das Zähl-Vokabular kennt jetzt einfache
+**Zigzag-Korrekturen (A-B-C)** — NUR für Watchlist-Struktur-Befund, ambiguity v2 und
+die W5→A-Strukturmessung; **HARTE SCOPE-GRENZE eingehalten:** kein neuer Markt-Setup-
+Typ, Markt-Report/v1-Felder/Reifung **byte-identisch** (rekursiver Diff: nur
+`valid_count_total_v2`/`alt_count_v2` additiv). **Befund:** `_classify_structure`
+(`elliott_pipeline.py`, 5 Kategorien, Präzedenz 6→5→3 Pivots), ambiguity v1
+(`ambiguity_fields`), W5→A (`observe_a_correction`, forward_collection). **Gebaut:**
+(1) `_detect_correction` (nach `validate_impulse`-validem 6-Pivot-Impuls: A gegen
+Impulsrichtung, B in (0,1) ohne P5-Überschreitung, C jenseits A; **longest-first**
+3→2→1, Konstanten `_ABC_IMPULSE_PIVOTS=6`/`_ABC_MAX_CORR_PIVOTS=3`; bewusst OHNE
+Magnituden-Schwelle — die ZigZag-Bestätigung ist der Filter). Neue States
+`correction_running` (Marke: W5-Extrem bzw. B-Hoch/B-Tief) / `correction_complete`
+(Marke: C-Tief/C-Hoch, „neuer Impuls möglich" = Ehrlichkeits-Sprache); **Präzedenz
+VOR den 5 Impuls-Kategorien** (bestätigte Korrektur beschreibt die Lage vollständiger;
+greift nur bei ≥7 Pivots + validem Impuls). (2) **ambiguity v2**: `ambiguity_v2_fields`
+= Impuls-Lesarten + 1 bei Korrektur; `valid_count_total_v2`/`alt_count_v2` auf
+Kandidat + allen Zeitebenen; Anzeige nutzt v2 (fail-soft v1-Fallback); Sammlung friert
+`ambiguity_n_v2` ZUSÄTZLICH ein, **v1 läuft unverändert weiter**. (3) **W5→A
+strukturell**: `observe_w5_structure` (Schritt 5, angehängt) → `a_structure_observed`
+(bestätigter ZigZag-Gegen-Pivot nach dem Episoden-Hoch; False erst nach vollem
+`A_OBSERVE_DAYS`-Fenster) + `c_target_pct` (% der W5-Strecke). (4) Frontend: 2 CSS-
+States (`--txt-sub` gedämpft / Akzent-Blau — bewusst nicht Grün), v2-Badge, Korrektur-
+Alternative ohne Ziel/Score, Methodik-Absatz „ABC-Korrektur". **Verifiziert:**
+konstruierte Fälle (komplett/A-B/B>P5 ungültig/C nicht jenseits A/Short symmetrisch/
+Präzedenz/Determinismus), Byte-Identität (Markt + v1 + Reifung), headless-Render der
+neuen Kategorien, Konsole sauber. **16 neue Tests, Suite 227 → 243 grün**; Laufzeit
+synthetic-Vollreport ≈ 51 ms (ABC = O(3) Fenster-Checks je Struktur-Befund). Registry
+„Struktur-Vokabular v2 + ambiguity v2" datiert. Revert = Detector + Präzedenz-Zweig +
+v2-Felder + `observe_w5_structure` + Frontend-Teile raus.
+
+**✅ Textgrößen-Steuerung (− / + im ☰-Menü-Fuß) — erledigt (#44,
 `docs/index.html`, reines Frontend):** Squeeze-Vorbild (`Aktien-Update/app.html`)
 **belegt** portiert: `--base-font-size:15px`+`html{font-size:var(...)}` (app.html:25/27),
 `_FS_SIZES=[13,15,17,19,21]`, key `squeeze_fs`, Clamp+Persist+Disable-an-den-Enden,

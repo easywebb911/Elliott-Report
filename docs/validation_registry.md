@@ -257,3 +257,48 @@ vor n ≥ 100) gilt unverändert.
   synthetic-Vollreport 353 Ticker ≈ 64 ms). Revert = additive Felder + `_eval_*`/
   `enumerate_long_counts`/`ambiguity_fields` + Frontend-Block raus; `classify_setup`
   bleibt (die Helfer-Auslagerung ist verhaltensgleich).
+- **25.07.2026 — Struktur-Vokabular v2 + ambiguity v2 (Lit-Check P4a): ABC-Korrektur-
+  Erkennung.** Das Zähl-Vokabular wird um einfache **Zigzag-Korrekturen (A-B-C)**
+  erweitert — AUSSCHLIESSLICH für (1) den Watchlist-Struktur-Befund, (2) `ambiguity
+  v2` und (3) die W5→A-Strukturmessung. **HARTE SCOPE-GRENZE (Populations-Schutz):
+  KEIN neuer Markt-Setup-Typ — Top-5, Score, Ranking, Filter, Episoden-Anlage
+  byte-identisch** (belegt: rekursiver Report-Diff nur additive
+  `valid_count_total_v2`/`alt_count_v2`-Keys; v1-Felder byte-identisch). Ein
+  „Ende-ABC = Long-Einstieg" wäre eine SPÄTERE, datierte Produktentscheidung.
+  Definitionen v2 (`_detect_correction`/`_corr_from` in `scripts/elliott_pipeline.py`,
+  Konstanten `_ABC_IMPULSE_PIVOTS=6`, `_ABC_MAX_CORR_PIVOTS=3`):
+  - **ABC-Erkennung** (nur auf BESTÄTIGTEN ZigZag-Pivots — die Pivot-Bestätigung IST
+    der Signifikanzfilter, der Rest strikte Preis-Ungleichungen): nach einem per
+    `validate_impulse` **validen 5er-Impuls** (6 Pivots) gilt, richtungs-normalisiert:
+    **A** gegen die Impulsrichtung (`d·A < d·P5`), **B** retraced A ohne den
+    Impuls-Endpunkt zu überschreiten (`d·A < d·B < d·P5`), **C** jenseits des A-Endes
+    (`d·C < d·A`). **Longest-first** (A-B-C vor A-B vor A) → deterministisch.
+  - **Neue `structure_state`-Kategorien** (Watchlist): `correction_running` (A oder
+    A-B bestätigt; Marke = Invalidierung der Korrektur-Lesart: bei A das
+    **W5-Extrem** — darüber ist die Korrektur-Lesart hinfällig —, bei A-B das
+    **B-Hoch/B-Tief** — darüber/darunter wäre B kein Korrektur-Hoch mehr) und
+    `correction_complete` (A-B-C komplett; Marke = **C-Tief/C-Hoch** — jenseits
+    läuft die Korrektur weiter, „neuer Impuls möglich" ist Ehrlichkeits-Sprache,
+    KEIN Setup-Versprechen). **Präzedenz:** eine bestätigte Korrektur-Lesart
+    beschreibt die Lage vollständiger als das erneute Impuls-Lesen der letzten
+    6/5/3 Pivots → sie **gewinnt** gegen die bestehenden 5 Kategorien; greift NUR
+    bei ≥7 Pivots mit validem Impuls + erfüllten Ungleichungen, sonst unverändert.
+  - **`valid_count_total_v2`/`alt_count_v2`** (Kandidat + alle Zeitebenen):
+    Lesarten im erweiterten Vokabular = valide Impuls-Fenster (wie v1) **+ 1**,
+    falls eine Korrektur-Lesart bestätigt ist. Primär bleibt die Impuls-Zählung;
+    `alt_count_v2` bevorzugt die zweitbeste Impuls-Lesart (nach `score_setup`),
+    sonst die Korrektur-Lesart (`kind`='correction', ohne Zielzone/Score). Die
+    **Anzeige** („Zählung 1 von N") nutzt ab jetzt v2 (fail-soft-Fallback v1).
+  - **`ambiguity_n_v2`** (Sammlung, bei Anlage): ZUSÄTZLICH eingefroren; **`ambiguity_n`
+    (v1) wird UNVERÄNDERT weiter befüllt** (Vergleichbarkeit der Alt-Daten).
+  - **W5→A strukturell** (`observe_w5_structure`, bei Reifung, nur end_of_w4 +
+    target_hit): `a_structure_observed` = True, sobald nach dem Episoden-Hoch
+    mindestens **ein bestätigter ZigZag-Gegen-Pivot** vorliegt (dieselbe Engine wie
+    der Count); False erst nach voll beobachtetem `A_OBSERVE_DAYS`-Fenster ohne
+    Gegen-Pivot; sonst null. `c_target_pct` = Tiefe des tiefsten bestätigten
+    Korrektur-Pivots in % der W5-Strecke (P4→Hoch). **Angehängter Schritt** —
+    Reifung + bestehende W5→A-Felder byte-identisch.
+  Alt-Records: Felder fehlen = null, forward-only, kein Backfill. **v1-Felder werden
+  nie umdefiniert.** Revert = `_detect_correction`/`_corr_from` + Präzedenz-Zweig +
+  v2-Felder + `observe_w5_structure` + Frontend (2 CSS-States, v2-Badge-Switch,
+  Methodik-Absatz) raus.
