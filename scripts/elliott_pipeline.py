@@ -600,6 +600,38 @@ def ambiguity_fields(pivots: List[Pivot], close: float) -> Tuple[int, Optional[D
     return total, alt
 
 
+def ambiguity_v2_fields(pivots: List[Pivot], close: float) -> Tuple[int, Optional[Dict]]:
+    """Ambiguität v2 (Struktur-Vokabular v2, ab 2026-07-25): zählt Lesarten im
+    ERWEITERTEN Vokabular = die validen Impuls-Fenster (wie v1) PLUS eine bestätigte
+    A-B-C-Korrektur-Lesart (falls vorhanden). `valid_count_total_v2` ≥ v1. Die
+    Primär-Lesart bleibt die Impuls-Zählung (counts[0]); die Korrektur ist immer
+    ALTERNATIVE. alt bevorzugt die zweitbeste Impuls-Lesart (nach `score_setup`),
+    sonst die Korrektur-Lesart (ohne Zielzone/Score — `kind`='correction'). v1 läuft
+    UNVERÄNDERT weiter (Vergleichbarkeit der Alt-Daten)."""
+    impulse = enumerate_long_counts(pivots, close)
+    corr = _detect_correction([p.price for p in pivots])
+    total = len(impulse) + (1 if corr is not None else 0)
+    alt = None
+    if len(impulse) >= 2:
+        best = max(impulse[1:], key=score_setup)
+        alt = {
+            "count_label": best["count_label"],
+            "invalidation_price": best["invalidation_price"],
+            "target_zone": best["target_zone"],
+            "score_heuristic": score_setup(best),
+            "kind": "impulse",
+        }
+    elif corr is not None and impulse:
+        alt = {
+            "count_label": corr["label"],
+            "invalidation_price": corr["invalidation_price"],
+            "target_zone": None,
+            "score_heuristic": None,
+            "kind": "correction",
+        }
+    return total, alt
+
+
 # ---------------------------------------------------------------------------
 # KONFLUENZ-MARKEN (additiv, REINE ANZEIGE/MESSUNG — kein Score/Ranking)
 # ---------------------------------------------------------------------------
@@ -721,8 +753,9 @@ def _count_from_series(dates: Sequence[str], closes: Sequence[float]) -> Optiona
     if setup is None or setup["direction"] < 0:
         return None
     # Ambiguität v1 (additiv, kein Score/Ranking): wie viele valide Long-Counts
-    # lässt die Struktur zu (max 2), plus die beste Alternative.
+    # lässt die Struktur zu (max 2), plus die beste Alternative. v2 zusätzlich (ABC).
     total, alt = ambiguity_fields(pivots, closes[-1])
+    total_v2, alt_v2 = ambiguity_v2_fields(pivots, closes[-1])
     return {
         "count_label": setup["count_label"],
         "invalidation_price": setup["invalidation_price"],
@@ -730,6 +763,8 @@ def _count_from_series(dates: Sequence[str], closes: Sequence[float]) -> Optiona
         "target_zone_extended": setup["target_zone_extended"],
         "valid_count_total": total,
         "alt_count": alt,
+        "valid_count_total_v2": total_v2,
+        "alt_count_v2": alt_v2,
     }
 
 
@@ -761,6 +796,74 @@ _STRUCTURE_DEFAULT = {"state": STRUCTURE_NO, "label": "keine regelkonforme Zähl
                       "orientation_price": None, "direction": None}
 
 
+# ── ABC-Korrektur (Struktur-Vokabular v2, ab 2026-07-25) ───────────────────
+# Eine einfache Zigzag-Korrektur (A-B-C) NACH einem validen 5-Wellen-Impuls,
+# erkannt AUSSCHLIESSLICH auf den BESTÄTIGTEN ZigZag-Pivots. Bewusst OHNE
+# Magnituden-Schwelle: die ZigZag-Bestätigung (Fenster) IST der Signifikanzfilter,
+# der Rest sind strikte Preis-Ungleichungen → sauber abgrenzbar & deterministisch.
+# NUR für den Watchlist-Struktur-Befund + ambiguity v2 + W5→A-Strukturmessung —
+# KEIN neuer Markt-Setup-Typ (Board/Score/Ranking/Filter unberührt).
+_ABC_IMPULSE_PIVOTS = 6   # P0..P5 (validate_impulse)
+_ABC_MAX_CORR_PIVOTS = 3  # A, B, C (longest-first: complete vor running)
+
+
+def _corr_reading(state: str, label: str, invalid: Optional[float], d: int,
+                  mark: Optional[str], orient: Optional[float]) -> Dict:
+    """Korrektur-Reading im gleichen Schema wie _classify_structure.mk()."""
+    return {"state": state, "label": label,
+            "invalidation_price": round(invalid, 4) if invalid is not None else None,
+            "mark_label": mark,
+            "orientation_price": round(orient, 4) if orient is not None else None,
+            "direction": "long" if d > 0 else "short"}
+
+
+def _corr_from(imp: Sequence[float], corr: Sequence[float], d: int) -> Optional[Dict]:
+    """Prüft die Korrektur-Pivots gegen den Impuls (Richtung d). d normalisiert die
+    Ungleichungen (long: Korrektur nach UNTEN; short: symmetrisch nach OBEN).
+    A gegen Impulsrichtung · B retraced A in (0,1) (überschreitet A-Start=P5 nicht)
+    · C jenseits des A-Endes. Invalidierung der Korrektur-Lesart: running(A) über
+    dem Impuls-Extrem, running(A-B) über B, complete(A-B-C) jenseits C."""
+    p5 = imp[-1]                      # Impuls-Ende (W5-Extrem)
+    a = corr[0]
+    if not (d * a < d * p5):          # A muss GEGEN die Impulsrichtung laufen
+        return None
+    long_ctx = d > 0
+    if len(corr) == 1:
+        return _corr_reading("correction_running", "Korrektur läuft · A (ABC im Aufbau)",
+                             p5, d, mark="W5-Extrem", orient=a)
+    b = corr[1]
+    if not (d * a < d * b < d * p5):  # B retraced A, bleibt unter dem Impuls-Extrem
+        return None
+    if len(corr) == 2:
+        return _corr_reading("correction_running", "Korrektur läuft · A-B (C erwartet)",
+                             b, d, mark=("B-Hoch" if long_ctx else "B-Tief"), orient=a)
+    c = corr[2]
+    if not (d * c < d * a):           # C jenseits des A-Endes (neuer Extrempunkt)
+        return None
+    return _corr_reading("correction_complete", "Korrektur A-B-C komplett · neuer Impuls möglich",
+                         c, d, mark=("C-Tief" if long_ctx else "C-Hoch"), orient=None)
+
+
+def _detect_correction(prices: Sequence[float]) -> Optional[Dict]:
+    """A-B-C-Korrektur nach validem 5er-Impuls auf den bestätigten Pivots. None,
+    wenn keine sauber abgrenzbare Korrektur vorliegt. Longest-first (A-B-C vor A-B
+    vor A) → correction_complete gewinnt gegen correction_running. Deterministisch."""
+    n = len(prices)
+    for k in range(_ABC_MAX_CORR_PIVOTS, 0, -1):   # 3 -> 2 -> 1
+        need = _ABC_IMPULSE_PIVOTS + k
+        if n < need:
+            continue
+        imp = prices[-need:-k]                      # 6 Impuls-Pivots P0..P5
+        corr = prices[-k:]                          # k Korrektur-Pivots
+        r = validate_impulse(list(imp))
+        if not r.is_valid:
+            continue
+        reading = _corr_from(imp, corr, r.direction)
+        if reading is not None:
+            return reading
+    return None
+
+
 def _classify_structure(prices: Sequence[float], close: float) -> Dict:
     """Reine Klassifikation aus den Pivot-Preisen + aktuellem Schlusskurs (ohne
     Netz/ZigZag — direkt testbar). Priorität: kompletter 5-Wellen-Impuls (letzte
@@ -771,6 +874,15 @@ def _classify_structure(prices: Sequence[float], close: float) -> Dict:
     n = len(prices)
     if n < 3:
         return dict(_STRUCTURE_DEFAULT)
+
+    # PRÄZEDENZ (Struktur-Vokabular v2): Eine bestätigte A-B-C-Korrektur NACH einem
+    # validen Impuls beschreibt die aktuelle Lage vollständiger als ein erneutes
+    # Lesen der letzten 6/5/3 Pivots → sie gewinnt gegen die Impuls-Kategorien.
+    # Greift nur bei ≥7 Pivots mit validem Impuls + Korrektur-Ungleichungen; sonst
+    # None → unveränderte Weiterverarbeitung der bestehenden 5 Kategorien.
+    corr = _detect_correction(prices)
+    if corr is not None:
+        return corr
 
     # `invalid` = struktureller Ungültigkeitspunkt der Zählung; `mark_label` sagt,
     # WELCHER Pivot das ist (sonst wirkt die nackte Zahl wie eine nahe Orientierung).
@@ -1024,6 +1136,10 @@ def build_candidate(
     total, alt = ambiguity_fields(pivots, close)
     entry["valid_count_total"] = total
     entry["alt_count"] = alt
+    # Ambiguität v2 (additiv, ZUSÄTZLICH zu v1): erweitertes Vokabular inkl. ABC.
+    total_v2, alt_v2 = ambiguity_v2_fields(pivots, close)
+    entry["valid_count_total_v2"] = total_v2
+    entry["alt_count_v2"] = alt_v2
     return entry, None, ""
 
 

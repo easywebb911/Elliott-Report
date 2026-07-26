@@ -19,6 +19,9 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import config
+from zigzag import zigzag
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 FORWARD_PATH = "data/forward_collection.json"
@@ -399,6 +402,61 @@ def observe_w5_divergence(rec: Dict, dates: Sequence[str], closes: Sequence[floa
     rec["w5_momentum_divergence"] = bool(high > w3_price and mom_high < mom_w3)
 
 
+def _p4_date_price(rec: Dict) -> Tuple[Optional[str], Optional[float]]:
+    """(Datum, Kurs) des W5-Start-Pivots P4 aus den eingefrorenen Pivots — Basis der
+    W5-Strecke P4→Episoden-Hoch. None, wenn nicht ableitbar."""
+    cps = rec.get("chart_points") or []
+    for lab in (rec.get("count_wave_labels") or []):
+        if lab.get("wave") == 4:
+            i = lab.get("index")
+            if isinstance(i, int) and 0 <= i < len(cps):
+                return cps[i].get("date"), cps[i].get("price")
+    return None, None
+
+
+def observe_w5_structure(rec: Dict, dates: Sequence[str], closes: Sequence[float],
+                         now_iso: str) -> None:
+    """(Struktur-Vokabular v2) W5→A STRUKTURELL — NUR gereifte end_of_w4-Treffer,
+    nicht ausgeschlossen. Ist die Gegenbewegung nach dem Episoden-Hoch als
+    regelkonforme A-/ABC-Struktur BESTÄTIGT (mind. ein bestätigter ZigZag-Pivot nach
+    dem Hoch)? a_structure_observed True/False/null; c_target_pct = Tiefe des
+    tiefsten bestätigten Korrektur-Pivots in % der W5-Strecke (P4→Hoch), sonst null.
+    Deterministisch/idempotent; schreibt NUR a_structure_observed/c_target_pct,
+    berührt Reifung + bestehende W5→A-Felder NICHT — angehängter Schritt."""
+    if not rec.get("matured") or rec.get("target_hit") != 1:
+        return
+    if not _is_end_of_w4(rec) or is_excluded(rec):
+        return
+    p4_date, p4 = _p4_date_price(rec)
+    if p4 is None:
+        return
+    dl, cl = list(dates), list(closes)
+    try:
+        idx = dl.index(rec["first_seen_date"])
+    except ValueError:
+        return
+    fwd = cl[idx + 1: idx + 1 + HORIZON_DAYS]
+    if len(fwd) < HORIZON_DAYS:
+        return
+    high = max(fwd)
+    high_pos = idx + 1 + fwd.index(high)
+    w5_len = high - p4
+    if w5_len <= 0:
+        return  # W5-Strecke nicht interpretierbar
+    # Bestätigte ZigZag-Pivots NACH dem Episoden-Hoch (dieselbe Engine wie der Count).
+    pivots = zigzag(cl, config.ZIGZAG_WINDOW, dl)
+    post = [p for p in pivots if isinstance(p.index, int) and p.index > high_pos]
+    window_end = high_pos + A_OBSERVE_DAYS
+    if post:
+        rec["a_structure_observed"] = True
+        low = min(p.price for p in post)              # tiefster bestätigter Korrektur-Pivot
+        rec["c_target_pct"] = round((high - low) / w5_len * 100.0, 4)
+    elif window_end < len(cl):
+        # Fenster voll beobachtet, aber KEIN bestätigter Gegen-Pivot -> keine Struktur.
+        rec["a_structure_observed"] = False
+    # sonst: Fenster noch offen -> None (unverändert)
+
+
 # ---------------------------------------------------------------------------
 # Episoden-Anlage + Reifung (pure)
 # ---------------------------------------------------------------------------
@@ -475,6 +533,15 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         # Anlage eingefroren. Auswertungs-Dimension: treffen eindeutige Zählungen
         # (N=1) öfter als mehrdeutige (N=2)? Reine Messung, kein Score/Ranking.
         "ambiguity_n": entry.get("valid_count_total"),
+        # Ambiguität v2 (Struktur-Vokabular v2, ab 2026-07-25) — ZUSÄTZLICH zu v1
+        # (v1 läuft unverändert weiter, Vergleichbarkeit der Alt-Daten). Erweitertes
+        # Vokabular inkl. A-B-C-Korrektur-Lesart.
+        "ambiguity_n_v2": entry.get("valid_count_total_v2"),
+        # W5→A strukturell (additiv, bei Reifung): ist die Gegenbewegung nach dem
+        # Episoden-Hoch als regelkonforme A-/ABC-Struktur (bestätigter Pivot)
+        # bestätigt? + Korrektur-Tiefe (C) in % der W5-Strecke. None = keine Messung.
+        "a_structure_observed": None,
+        "c_target_pct": None,
         "last_update_utc": now_iso,
     }
 
@@ -544,6 +611,15 @@ def update_forward_collection(
         pdata = price_data.get(r["ticker"])
         if pdata:
             observe_w5_divergence(r, pdata[0], pdata[1], now_iso)
+
+    # 5) W5→A STRUKTURELL (Struktur-Vokabular v2) — SEPARATER Durchgang; schreibt nur
+    #    a_structure_observed/c_target_pct, Reifung + W5→A-Felder byte-identisch.
+    for r in records:
+        if not r.get("matured"):
+            continue
+        pdata = price_data.get(r["ticker"])
+        if pdata:
+            observe_w5_structure(r, pdata[0], pdata[1], now_iso)
 
     coll["schema_version"] = SCHEMA_VERSION
     coll["last_run_date"] = run_date

@@ -101,7 +101,8 @@ def test_count_from_series_on_clean_impulse():
     c = pipe._count_from_series(dates, closes)
     assert c is not None
     assert set(c) == {"count_label", "invalidation_price", "target_zone",
-                      "target_zone_extended", "valid_count_total", "alt_count"}
+                      "target_zone_extended", "valid_count_total", "alt_count",
+                      "valid_count_total_v2", "alt_count_v2"}
     assert "Long-Setup" in c["count_label"]
     assert isinstance(c["valid_count_total"], int) and c["valid_count_total"] >= 1
 
@@ -131,7 +132,8 @@ def test_timeframes_on_setup_entry_all_three():
         assert tf[lvl] is not None, lvl
         assert set(tf[lvl]) == {"count_label", "invalidation_price",
                                 "target_zone", "target_zone_extended",
-                                "valid_count_total", "alt_count"}
+                                "valid_count_total", "alt_count",
+                                "valid_count_total_v2", "alt_count_v2"}
     # Wochen-Count EINMAL geholt -> higher_degree ist identisch (kein Doppel-Fetch).
     assert e["higher_degree"] == tf["week"]
 

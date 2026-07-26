@@ -290,6 +290,13 @@
     .tf-struct-impulse_complete .tf-label { color:var(--ora); }
     .tf-struct-short_structure .tf-tag,
     .tf-struct-short_structure .tf-label { color:var(--red); }
+    /* Struktur-Vokabular v2 (ABC-Korrektur): laufende Korrektur dezent gedämpft,
+       komplette Korrektur im Akzent-Blau („neuer Impuls möglich" — Ehrlichkeits-
+       Sprache, KEIN Setup-Versprechen, daher bewusst nicht Grün). */
+    .tf-struct-correction_running .tf-tag,
+    .tf-struct-correction_running .tf-label { color:var(--txt-sub); }
+    .tf-struct-correction_complete .tf-tag,
+    .tf-struct-correction_complete .tf-label { color:var(--accent); }
     /* „Ziel erreicht/überschritten" je Zeitebene — kompakter Ableger des
        #28-Zonen-Badges (gleiche Schwellen, dezent, KEIN Alarm-Rot). Erscheint
        nur, wenn der Karten-Kurs die Ziel-Zone dieser Zeitebene erreicht hat. */
@@ -1492,24 +1499,28 @@
       return `<div class="vol-note-row"><span class="vol-note" title="Ø-Volumen der Welle 3 unter dem der Welle 1 (${fmt(r)}×). In der Elliott-Literatur trägt W3 typisch das höchste Volumen — schwaches W3-Volumen ist ein Zählfehler-Verdacht. Reine Messung, kein Score-Einfluss.">W3-Volumen schwach</span></div>`;
     }
 
-    // Ambiguitäts-Ausweis v1 (P3): „Zählung 1 von N" nur bei N ≥ 2 (Maximum 2 —
-    // die zwei Zähl-Fenster Ende-W4/Ende-W2), darunter kompakt aufklappbar die
-    // Alternative. Ehrlichkeits-Sprache, kein eigener Donut, Alt-Score dezent.
+    // Ambiguitäts-Ausweis (P3/P4a): „Zählung 1 von N" nur bei N ≥ 2 — die Anzeige
+    // nutzt ab v2 das ERWEITERTE Vokabular (Impuls-Fenster + ABC-Korrektur-Lesart);
+    // fail-soft-Fallback auf v1, solange ein älterer report.json ohne v2 geladen ist.
+    // Ehrlichkeits-Sprache, kein eigener Donut, Alt-Score dezent. Eine Korrektur-
+    // Alternative hat keine Zielzone/Score (kind='correction') -> Zeile ohne beide.
     function ambiguityBlock(c) {
-      const n = c && c.valid_count_total;
-      const alt = c && c.alt_count;
+      const useV2 = c && typeof c.valid_count_total_v2 === 'number';
+      const n = useV2 ? c.valid_count_total_v2 : (c && c.valid_count_total);
+      const alt = useV2 ? (c.alt_count_v2 || c.alt_count) : (c && c.alt_count);
       if (typeof n !== 'number' || n < 2 || !alt) return '';
-      const zone = alt.target_zone ? `${fmt(alt.target_zone.low)}–${fmt(alt.target_zone.high)}` : '–';
+      const zone = alt.target_zone ? `${fmt(alt.target_zone.low)}–${fmt(alt.target_zone.high)}` : null;
+      const score = (typeof alt.score_heuristic === 'number') ? fmt(alt.score_heuristic) : null;
       return `<div class="amb-row">
-        <span class="amb-badge" title="Die Struktur lässt mehr als eine regelkonforme Zählung zu. Reine Anzeige/Messung — der Score/das Ranking richtet sich unverändert nach der Primär-Zählung.">Zählung 1 von ${n}</span>
+        <span class="amb-badge" title="Die Struktur lässt mehr als eine regelkonforme Lesart zu (Impuls-Zählungen und ggf. eine A-B-C-Korrektur-Lesart). Reine Anzeige/Messung — der Score/das Ranking richtet sich unverändert nach der Primär-Zählung.">Zählung 1 von ${n}</span>
         <details class="amb-details">
           <summary class="amb-summary">Alternative anzeigen</summary>
           <div class="amb-alt">
             <div class="amb-alt-label">${esc(alt.count_label || '')}</div>
             <div class="amb-alt-meta">
               <span><span class="amb-k">Inval</span> ${fmt(alt.invalidation_price)}</span>
-              <span><span class="amb-k">Ziel</span> ${zone}</span>
-              <span class="amb-alt-score"><span class="amb-k">Score</span> ${fmt(alt.score_heuristic)}</span>
+              ${zone ? `<span><span class="amb-k">Ziel</span> ${zone}</span>` : ''}
+              ${score ? `<span class="amb-alt-score"><span class="amb-k">Score</span> ${score}</span>` : ''}
             </div>
           </div>
         </details>
@@ -2549,6 +2560,7 @@
         ['Donut / Farbe', 'Der Score als Ring. Schwellen: <code>≥ 60</code> grün, <code>≥ 30</code> orange, <code>≥ 15</code> rot, darunter/ohne Wert grau.'],
         ['Großer Grad', 'Zweite, unabhängige Zählung auf <b>Wochen</b>-Basis für die Top-5 (höherer Wellengrad). Zweitblick zur Einordnung — fließt nicht in den Score ein.'],
         ['Ziel erreicht / überschritten', 'Dezenter Hinweis an einer Zeitebenen-Zeile (Tag/Woche/Monat), sobald der aktuelle Kurs die Zielzone dieser Zeitebene erreicht (<code>≥ Ziel-Low</code>) bzw. überschritten hat (<code>≥ Ziel-High</code>) — gleiche Schwellen wie das Zonen-Badge der Hauptkarte. <b>Warum überhaupt „erreicht"?</b> Auf großen Zeitebenen bestätigt der ZigZag einen neuen Pivot erst nach einer deutlichen Gegenbewegung (auf Monatskerzen leicht ±5 Balken Verzögerung). Eine ältere Zählung kann darum noch „Ende W2, W3 erwartet" anzeigen, obwohl der Kurs die damalige W3-Projektion längst durchlaufen hat — der Hinweis macht genau das sichtbar.'],
+        ['ABC-Korrektur', 'Nach einem kompletten 5-Wellen-Impuls erkennt der Struktur-Befund (Watchlist) eine einfache <b>Zigzag-Korrektur A-B-C</b> auf den bestätigten Pivots: A läuft gegen die Impulsrichtung, B retraced A ohne den Impuls-Endpunkt zu überschreiten, C fällt/steigt jenseits des A-Endes. Eine bestätigte Korrektur-Lesart hat <b>Vorrang</b> vor dem erneuten Impuls-Lesen der letzten Pivots und fließt als zusätzliche Lesart in „Zählung 1 von N" ein. <b>Keine Prognose:</b> „Korrektur komplett · neuer Impuls möglich" ist eine Struktur-Beschreibung, kein Setup-Versprechen — Score/Ranking bleiben unberührt.'],
         ['Konfluenz', 'Chips an Zielzone/Invalidierung, wenn eine breit beachtete <b>Crowd-Marke</b> (52W-Hoch, 200-Tage-Linie, nächste runde Zahl) innerhalb ±1&nbsp;% zusammenfällt. Reine Anzeige/Messung — <b>kein Score-Einfluss</b>.'],
         ['Live-Punkt', 'Kurs-Aktualität im Kartenkopf: grün pulsierend = Live-Quote aktiv, grau = Quelle nicht erreichbar/veraltet, gedimmt = Tab inaktiv (Polling pausiert).'],
       ].map(([k, v]) => `<div class="legend-row"><span class="legend-k">${k}</span><span class="legend-v">${v}</span></div>`).join('');
