@@ -342,6 +342,13 @@
     .spark-mini { height:auto; margin-top:6px; }
     .spark-mini svg { height:36px; }
     .spark-mini .spark-empty { display:none; }  /* fail-soft: nie leere Fläche */
+    /* Achsen-Eckwerte (P4c): Hoch/Tief-Preis + Zeitspanne, dezent in den Ecken der
+       GROSSEN Sparkline (Minis bewusst ohne). SVG-px wie .wave-num (skaliert nicht
+       mit der Text-Größe); Halo (paint-order) hält die Werte über Linie/Inval-
+       Strich lesbar. --txt-dim = WCAG AA (#41). Keine Gitter, keine Achsenstriche. */
+    .spark-axis { font-size:7px; font-weight:600; fill:var(--txt-dim);
+      font-variant-numeric:tabular-nums; paint-order:stroke;
+      stroke:var(--bg-card); stroke-width:2.5px; stroke-linejoin:round; }
     /* Wellen-Ziffern in der Sparkline: kleiner, mit BG-Halo (paint-order) für
        Lesbarkeit über Linie/Fill. */
     .wave-num { font-size:8px; font-weight:800; fill:var(--txt);
@@ -1368,6 +1375,7 @@
       }
 
       let dots = '', labels = '', lastLabelX = -999;
+      const digitPos = [];  // (x, ly) der gesetzten Ziffern — für die Achsen-Kollision (P4c)
       for (let i = 0; i < n; i++) {
         const x = xOf(i), y = yOf(ys[i]);
         if (i >= countStart) {
@@ -1377,10 +1385,38 @@
             const ly = (y < 14) ? (y + 11) : (y - 6);       // nahe oben -> unter den Punkt
             labels += `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" class="wave-num" text-anchor="middle">${waveByIdx.get(i)}</text>`;
             lastLabelX = x;
+            digitPos.push({ x, ly });
           }
         } else {
           dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.8" fill="var(--spark)" opacity="0.5"/>`;
         }
+      }
+
+      // Achsen-Eckwerte (P4c, NUR die große Sparkline — Minis via data-h bewusst
+      // ohne, zu klein): Preis am Hoch/Tief rechts oben/unten, Zeitspanne (erster/
+      // letzter Pivot, Kurzformat TT.MM.JJ) unten links/rechts. Keine Gitter/
+      // Achsen-Striche. Halo (paint-order:stroke) hält die Werte über Linie/
+      // Inval-Strich lesbar; Ziffern-Kollision: oben ist digit-frei (Ziffern nahe
+      // dem Rand wandern unter den Punkt), die Datums-Zeile liegt unterm Plot.
+      let axes = '';
+      if (!el.dataset.h) {
+        let dsArr = [];
+        try { dsArr = JSON.parse(el.dataset.dates || '[]'); } catch (e) { dsArr = []; }
+        const dShort = s => (typeof s === 'string' && s.length >= 10)
+          ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(2, 4)}` : '';
+        const d0 = dShort(dsArr[0]), d1 = dShort(dsArr[n - 1]);
+        // Preis-Label rechts: erste kollisionsfreie y-Position (gegen die gesetzten
+        // Wellen-Ziffern), sonst weglassen — gleiche Disziplin wie bei den Ziffern.
+        const collides = Y => digitPos.some(d => d.x > W - 40 && Math.abs(d.ly - Y) < 9);
+        const priceAt = (v, cands) => {
+          for (const Y of cands) if (!collides(Y))
+            return `<text class="spark-axis" x="${W - 2}" y="${Y}" text-anchor="end">${fmt(v)}</text>`;
+          return '';
+        };
+        axes = priceAt(max, [8, 16])
+          + priceAt(min, [H - 11, H - 19])
+          + (d0 ? `<text class="spark-axis" x="2" y="${(H - 1.5).toFixed(1)}" text-anchor="start">${d0}</text>` : '')
+          + (d1 ? `<text class="spark-axis" x="${W - 2}" y="${(H - 1.5).toFixed(1)}" text-anchor="end">${d1}</text>` : '');
       }
 
       el.innerHTML =
@@ -1392,7 +1428,7 @@
           ${invLine}
           <path d="${area}" fill="url(#${id})"/>
           ${preLine}${cntLine}
-          ${dots}${labels}
+          ${dots}${labels}${axes}
         </svg>`;
     }
     function drawAllSparklines() {
@@ -1684,7 +1720,7 @@
             <span class="spark-title">Pivot-Verlauf</span>
             <span class="spark-trend" style="color:${trendUp ? 'var(--grn)' : 'var(--red)'}">${trendUp ? '▲' : '▼'}</span>
           </div>
-          <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-inval="${c.invalidation_price ?? ''}" data-waves="${esc(JSON.stringify(c.count_wave_labels || []))}"></div>
+          <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-dates="${esc(JSON.stringify((c.chart_points || []).map(p => p.date || '')))}" data-inval="${c.invalidation_price ?? ''}" data-waves="${esc(JSON.stringify(c.count_wave_labels || []))}"></div>
         </div>
       </article>`;
     }
@@ -1761,7 +1797,7 @@
       const ys = (c.chart_points || []).map(p => p.price);
       const spark = (!isErr && ys.length >= 2)
         ? `<div class="spark-wrap"><div class="spark-header"><span class="spark-title">Pivot-Verlauf</span></div>
-             <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-inval="" data-waves="[]"></div></div>` : '';
+             <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-dates="${esc(JSON.stringify((c.chart_points || []).map(p => p.date || '')))}" data-inval="" data-waves="[]"></div></div>` : '';
       const tickerAttr = isErr ? '' : ` data-ticker="${esc(c.ticker)}"`;
       return `<article class="card wl-card-${c.wl_status}"${tickerAttr}>
         <div class="card-top">

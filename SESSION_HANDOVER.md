@@ -2,13 +2,14 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **26.07.2026**,
-nach PR #45 (**P4a-Audit: ABC-Korrektur-Erkennung**, gemerged; live verifiziert —
-beide neuen Kategorien real aufgetreten, v2 ≥ v1); dieser PR: **P4b-Audit —
-Grad-Sparklines** (Mini-Charts für Wochen-/Monats-Zählungen; reine Anzeige), offen.
-Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
+nach PR #46 (**P4b-Audit: Grad-Sparklines**, gemerged; live: 4 Grad-Sparklines,
+Payload real nur +6,6 KB, Ziffern-Stichproben AMAT/VRTX bestätigt); dieser PR:
+**P4c-Audit — Sparkline-Achsen** (Eck-Werte Hoch/Tief + Zeitspanne; reines
+Frontend, **letzter Audit-Punkt — P1–P4 damit KOMPLETT**), offen. Alle Zahlen/
+Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`6f6d98c` = täglicher Commit nach dem
-> #45-Merge) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`29d1e1e` = täglicher Commit nach dem
+> #46-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -92,7 +93,8 @@ durchgängig ab #13.
 | #43 | `c41658f` | **P3-Audit: Ambiguitäts-Ausweis v1** — je Zählung `valid_count_total` (1..2, Long-Counts unter den 2 festen Fenstern Ende-W4/Ende-W2) + `alt_count` (zweitbeste nach `score_setup`); `ambiguity_n` bei Anlage eingefroren. `classify_setup` in 2 Fenster-Helfer refaktoriert (**Primär byte-identisch**). **Score/Ranking/Filter/Reifung byte-identisch**, `SCHEMA_VERSION`=1. UI: „Zählung 1 von N" (max „1 von 2") + aufklappbare Alternative. Registry „Ambiguität v1". Live: US 2×N2 / DE 1×N2. 8 Tests | Guardian + manual |
 | #44 | `efa3f87` | **Textgrößen-Steuerung** (Squeeze-Vorbild `app.html:3511`): − / + im ☰-Menü-Fuß skalieren die **ganze rem-basierte UI** über `--app-fs`. 5 Stufen `[14,16,18,20,22]`px (Default 16px = unveränderte Optik), Persistenz, Grenzen. Alle CSS-`font-size:px`→`rem` (SVG-Text bleibt px). Reines Frontend | self (CI grün) |
 | #45 | `6f6d98c` | **P4a-Audit: ABC-Korrektur-Erkennung** (Struktur-Vokabular v2): `_detect_correction` (strikte Ungleichungen, longest-first) → 2 neue `structure_state` (`correction_running`/`complete`, **Präzedenz vor Impuls-Lesarten**); `valid_count_total_v2`/`alt_count_v2` (Anzeige nutzt v2); `ambiguity_n_v2` zusätzlich eingefroren (v1 unverändert); W5→A strukturell (`a_structure_observed`/`c_target_pct`, fenstergebunden nach Guardian-Nit). **Markt byte-identisch**, kein neuer Setup-Typ. Live: 3 Korrektur-Lesarten (PANW/AMAT Monat, IONQ Tag short-symm.), v2-Gewinne CVS/SPG/ADS.DE. 18 Tests (245) | Guardian (Nits, behoben) + manual |
-| #(dieser) | `(offen)` | **P4b-Audit: Grad-Sparklines** — Wochen-/Monats-Zählungen bekommen die Tages-Visualisierung als Mini (36px): `_count_from_series` liefert additiv `chart_points` (letzte `DEGREE_CHART_PIVOTS=8` ZigZag-Pivots, Datum+Preis) + `count_wave_labels`; Frontend `degreeSpark()` reust `drawSparkline` (neues `data-h`), Minis im Großer-Grad-Block + je Zeitebenen-Zeile mit Count, **direkt sichtbar** (36px stört @390px nicht, keine Interaktionskosten). Ziffern-Zuordnung + Inval-Linie + fail-soft verifiziert; **Report-Diff nur additive Keys** (Scores/Reihenfolge identisch); Payload +27,5 KB (synthetic, formatiert; real nach Merge beziffern). Reine Anzeige | Guardian + manual, keine Screenshots |
+| #46 | `29d1e1e` | **P4b-Audit: Grad-Sparklines** — `_count_from_series` liefert additiv `chart_points` (letzte `DEGREE_CHART_PIVOTS=8` ZigZag-Pivots) + `count_wave_labels`; `degreeSpark()` reust `drawSparkline` (`data-h=36`), Minis im Großer-Grad-Block + je Zeitebenen-Zeile mit Count, direkt sichtbar. Report-Diff nur additive Keys. **Live: 4 Sparklines (US 2 hd, AMAT Tag+Monat), Payload real +6,6 KB**, Ziffern-Stichproben AMAT [Monat]/VRTX [Woche] korrekt | Guardian (OK) + manual |
+| #(dieser) | `(offen)` | **P4c-Audit: Sparkline-Achsen** (LETZTER Audit-Punkt): dezente Eck-Werte an der GROSSEN Tages-Sparkline — Hoch-/Tief-Preis (rechts oben/unten, kollisions-genudged gegen Wellen-Ziffern, sonst weglassen) + Zeitspanne erster/letzter Pivot (unten links/rechts, `TT.MM.JJ`); `.spark-axis` 7px SVG-px, `--txt-dim` (AA), **Halo** (`paint-order:stroke`) gegen Linie/Inval-Strich; `data-dates` an den 2 Big-Call-Sites; **Minis (36px) bewusst ohne** (zu klein); keine Gitter/Achsen-Striche. Verifiziert am echten AMAT (723 / 322,72 / 25.02.26–07.07.26), 0 Kollisionen, Konsole sauber. Reines Frontend | self (CI grün), keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -319,7 +321,28 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ P4b-Audit: Grad-Sparklines — erledigt (dieser PR, `scripts/elliott_pipeline.py`
+**✅ P4c-Audit: Sparkline-Achsen — erledigt (dieser PR, `docs/index.html`, reines
+Frontend; damit ist das EXZELLENZ-AUDIT P1–P4 KOMPLETT):** Die große Tages-Sparkline
+(Markt + Watchlist) bekommt **dezente Eck-Werte** — minimale Verortung ohne
+Chart-Bombast: **Hoch-/Tief-Preis** (rechts oben/unten) + **Zeitspanne** (Datum
+erster/letzter Pivot, unten links/rechts, Kurzformat `TT.MM.JJ`). KEINE Gitterlinien,
+KEINE Achsen-Striche. Umsetzung: `data-dates` an den 2 Big-Sparkline-Call-Sites
+(aus den vorhandenen `chart_points`-Daten, kein neues Backend-Feld); im Renderer
+NUR im `!el.dataset.h`-Zweig (→ **Grad-Minis (36px, P4b) bewusst OHNE** — zu klein);
+`.spark-axis` = 7px SVG-px (skaliert nicht mit der Textgrößen-Steuerung, wie
+`.wave-num`), Farbe `--txt-dim` (**WCAG AA** 5,9:1 seit #41), **Halo**
+(`paint-order:stroke` in `--bg-card`) hält die Werte über Linie/Inval-Strich lesbar.
+**Kollisions-Disziplin wie bei den Ziffern:** Preis-Labels prüfen gegen die gesetzten
+`digitPos` (erste freie y-Kandidatin, sonst weglassen); die Datums-Zeile liegt unter
+dem Plot (digit-frei, Ziffern nahe dem Rand wandern unter den Punkt).
+`prefers-reduced-motion` unberührt (keine neue Animation). **Verifiziert** (390px,
+headless, ECHTER committeter Report `29d1e1e`): AMAT-Eck-Werte exakt = Pivot-Daten
+(Hoch 723 · Tief 322,72 · 25.02.26–07.07.26), **0 sichtbare Achse↔Ziffer-
+Überschneidungen** über alle Karten, Minis ohne Achsen, Konsole sauber, Tests grün
+(245). Revert = `data-dates`-Attribute + `axes`-Block + `digitPos`-Sammlung +
+`.spark-axis`-CSS raus. Merge: reines Frontend → **self-merge bei grünem CI**.
+
+**✅ P4b-Audit: Grad-Sparklines — erledigt (#46, `scripts/elliott_pipeline.py`
 + `docs/index.html`):** Wochen-/Monats-Zählungen bekommen die bewährte Tages-
 Visualisierung als **Mini-Sparkline** — genau das Bild, dessen Fehlen Easys
 AMAT-Monats-Verwirrung auslöste. **Pipeline (additiv, Schema v1):**
