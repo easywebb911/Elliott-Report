@@ -1558,12 +1558,17 @@
         const s = st[k];
         if (s && s.state && s.state !== 'no_structure') {
           // Beschriftete Marke (Struktur-Invalidierung, sagt WAS sie ist) + ggf. eine
-          // nahe A-Orientierung (W4-Extrem) bei komplettem Impuls.
+          // Orientierung: bei komplettem Impuls das W4-Extrem als PROJIZIERTE
+          // „A-Ziel-Region" (~); bei Korrektur-Zuständen der BESTÄTIGTE A-Endpunkt
+          // („A-Ende", realisiert — kein Ziel, daher ohne ~).
           const marks = [];
           if (s.invalidation_price != null)
             marks.push(pair(esc(s.mark_label || 'Inval.'), fmt(s.invalidation_price)));
-          if (s.orientation_price != null)
-            marks.push(pair('A-Ziel-Region', '~' + fmt(s.orientation_price)));
+          if (s.orientation_price != null) {
+            const isCorr = String(s.state).indexOf('correction') === 0;
+            marks.push(isCorr ? pair('A-Ende', fmt(s.orientation_price))
+                              : pair('A-Ziel-Region', '~' + fmt(s.orientation_price)));
+          }
           const meta = marks.length ? `<div class="tf-meta">${marks.join('')}</div>` : '';
           return `<div class="tf-row tf-struct tf-struct-${esc(s.state)}"><span class="tf-tag">${lbl}</span>`
             + `<div class="tf-body"><div class="tf-label">${esc(s.label || '')}</div>${meta}</div></div>`;

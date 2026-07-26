@@ -186,3 +186,32 @@ def test_w5_structure_null_when_no_target_hit():
     r["target_hit"] = 0
     fc.observe_w5_structure(r, dates, closes, "now")
     assert r["a_structure_observed"] is None
+
+
+def test_w5_structure_false_when_window_elapsed_without_pivot():
+    # Monotoner Anstieg NACH dem Hoch-Fenster: kein Gegen-Pivot entsteht je.
+    # Fenster (A_OBSERVE_DAYS) + ZigZag-Bestätigungsraum voll beobachtet -> False.
+    import config
+    closes = [80, 85, 90, 95, 98, 100]                       # P4 @ idx5
+    closes += [102 + i for i in range(60)]                    # monoton hoch, kein Pivot
+    dates = [f"d{i}" for i in range(len(closes))]
+    r = _w5_rec(dates, closes)
+    fc.observe_w5_structure(r, dates, closes, "now")
+    assert r["a_structure_observed"] is False
+    assert r["c_target_pct"] is None
+
+
+def test_w5_structure_true_is_window_bound_and_stable():
+    # Ein bestätigter Gegen-Pivot AUSSERHALB des A_OBSERVE_DAYS-Fensters zählt
+    # NICHT (True/False sind symmetrisch fenstergebunden -> stabil über Läufe).
+    closes = [80, 85, 90, 95, 98, 100]                        # P4 @ idx5
+    closes += [102 + i for i in range(20)]                    # Anstieg (Hoch am Fenster-Ende)
+    # Korrektur erst WEIT nach dem Fenster (Hoch ~idx25, Fenster bis idx35):
+    closes += [121 + i for i in range(15)]                    # weiter hoch bis idx40
+    closes += [134, 128, 122, 116, 112, 114, 118, 124, 130, 136]  # später Pivot ~idx45
+    dates = [f"d{i}" for i in range(len(closes))]
+    r = _w5_rec(dates, closes)
+    fc.observe_w5_structure(r, dates, closes, "now")
+    # Das Episoden-Hoch liegt im HORIZON-Fenster nach first_seen; der einzige
+    # Gegen-Pivot liegt jenseits von high_pos + A_OBSERVE_DAYS -> nicht True.
+    assert r["a_structure_observed"] is not True

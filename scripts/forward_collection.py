@@ -443,16 +443,21 @@ def observe_w5_structure(rec: Dict, dates: Sequence[str], closes: Sequence[float
     w5_len = high - p4
     if w5_len <= 0:
         return  # W5-Strecke nicht interpretierbar
-    # Bestätigte ZigZag-Pivots NACH dem Episoden-Hoch (dieselbe Engine wie der Count).
-    pivots = zigzag(cl, config.ZIGZAG_WINDOW, dl)
-    post = [p for p in pivots if isinstance(p.index, int) and p.index > high_pos]
+    # Bestätigte ZigZag-Pivots NACH dem Episoden-Hoch, STRIKT im selben
+    # A_OBSERVE_DAYS-Fenster wie die v1-Pendants (a_retrace_pct etc.) — True und
+    # False sind damit symmetrisch fenstergebunden und über Läufe STABIL (ein
+    # späterer Pivot außerhalb des Fensters kann das Ergebnis nie mehr kippen).
     window_end = high_pos + A_OBSERVE_DAYS
+    pivots = zigzag(cl, config.ZIGZAG_WINDOW, dl)
+    post = [p for p in pivots
+            if isinstance(p.index, int) and high_pos < p.index <= window_end]
     if post:
         rec["a_structure_observed"] = True
         low = min(p.price for p in post)              # tiefster bestätigter Korrektur-Pivot
         rec["c_target_pct"] = round((high - low) / w5_len * 100.0, 4)
-    elif window_end < len(cl):
-        # Fenster voll beobachtet, aber KEIN bestätigter Gegen-Pivot -> keine Struktur.
+    elif window_end + config.ZIGZAG_WINDOW < len(cl):
+        # False erst, wenn JEDER Bar im Fenster seine Bestätigungs-Chance hatte
+        # (ZigZag braucht rechts ZIGZAG_WINDOW Bars) -> False ist final/stabil.
         rec["a_structure_observed"] = False
     # sonst: Fenster noch offen -> None (unverändert)
 
