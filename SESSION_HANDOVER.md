@@ -1,14 +1,14 @@
 # SESSION_HANDOVER — Elliott-Report
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
-allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **25.07.2026**,
-nach PR #44 (**Textgrößen-Steuerung**, gemerged); dieser PR: **P4a-Audit —
-ABC-Korrektur-Erkennung** (Struktur-Vokabular v2 + ambiguity v2 + W5→A strukturell;
-Markt byte-identisch), offen. Alle Zahlen/Hashes sind gegen `git log` und den Code
-geprüft, nicht aus dem Gedächtnis.
+allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **26.07.2026**,
+nach PR #45 (**P4a-Audit: ABC-Korrektur-Erkennung**, gemerged; live verifiziert —
+beide neuen Kategorien real aufgetreten, v2 ≥ v1); dieser PR: **P4b-Audit —
+Grad-Sparklines** (Mini-Charts für Wochen-/Monats-Zählungen; reine Anzeige), offen.
+Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`efa3f87` = Stand nach dem #44-Merge)
-> abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`6f6d98c` = täglicher Commit nach dem
+> #45-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -91,7 +91,8 @@ durchgängig ab #13.
 | #42 | `e9101d3` | **P2-Audit: Messfelder v1** (Volumen-Profil, Alternation, W5-Momentum-Divergenz) — drei literaturgestützte MESS-Felder point-in-time in die Forward-Sammlung eingefroren. **Reine Messung: Score/Ranking/Filter/Population/Reifung byte-identisch** (Report-Diff nur additive `vol_*`-Keys). Volumen aus DEMSELBEN yfinance-Download (`FetchOutcome.volumes`, kein Extra-Call). Einziges UI: Chip „W3-Volumen schwach". 17 neue Tests | Guardian + manual, keine Screenshots |
 | #43 | `c41658f` | **P3-Audit: Ambiguitäts-Ausweis v1** — je Zählung `valid_count_total` (1..2, Long-Counts unter den 2 festen Fenstern Ende-W4/Ende-W2) + `alt_count` (zweitbeste nach `score_setup`); `ambiguity_n` bei Anlage eingefroren. `classify_setup` in 2 Fenster-Helfer refaktoriert (**Primär byte-identisch**). **Score/Ranking/Filter/Reifung byte-identisch**, `SCHEMA_VERSION`=1. UI: „Zählung 1 von N" (max „1 von 2") + aufklappbare Alternative. Registry „Ambiguität v1". Live: US 2×N2 / DE 1×N2. 8 Tests | Guardian + manual |
 | #44 | `efa3f87` | **Textgrößen-Steuerung** (Squeeze-Vorbild `app.html:3511`): − / + im ☰-Menü-Fuß skalieren die **ganze rem-basierte UI** über `--app-fs`. 5 Stufen `[14,16,18,20,22]`px (Default 16px = unveränderte Optik), Persistenz, Grenzen. Alle CSS-`font-size:px`→`rem` (SVG-Text bleibt px). Reines Frontend | self (CI grün) |
-| #(dieser) | `(offen)` | **P4a-Audit: ABC-Korrektur-Erkennung** (Struktur-Vokabular v2): Zigzag-Korrektur A-B-C nach validem 5er-Impuls auf den bestätigten Pivots (`_detect_correction`, strikte Ungleichungen, longest-first). 2 neue `structure_state` (`correction_running`/`correction_complete`, Marken W5-Extrem/B-Hoch/C-Tief, **Präzedenz vor Impuls-Lesarten**); `valid_count_total_v2`/`alt_count_v2` (Anzeige nutzt v2, max-N wächst); `ambiguity_n_v2` ZUSÄTZLICH eingefroren (v1 unverändert weiter); W5→A strukturell (`a_structure_observed`/`c_target_pct`, bestätigter Gegen-Pivot). **HARTE GRENZE eingehalten: Markt/Top-5/Score/Ranking/Filter/Episoden-Anlage byte-identisch** (Beweis), KEIN neuer Setup-Typ. 16 neue Tests (243) | Guardian + manual, keine Screenshots |
+| #45 | `6f6d98c` | **P4a-Audit: ABC-Korrektur-Erkennung** (Struktur-Vokabular v2): `_detect_correction` (strikte Ungleichungen, longest-first) → 2 neue `structure_state` (`correction_running`/`complete`, **Präzedenz vor Impuls-Lesarten**); `valid_count_total_v2`/`alt_count_v2` (Anzeige nutzt v2); `ambiguity_n_v2` zusätzlich eingefroren (v1 unverändert); W5→A strukturell (`a_structure_observed`/`c_target_pct`, fenstergebunden nach Guardian-Nit). **Markt byte-identisch**, kein neuer Setup-Typ. Live: 3 Korrektur-Lesarten (PANW/AMAT Monat, IONQ Tag short-symm.), v2-Gewinne CVS/SPG/ADS.DE. 18 Tests (245) | Guardian (Nits, behoben) + manual |
+| #(dieser) | `(offen)` | **P4b-Audit: Grad-Sparklines** — Wochen-/Monats-Zählungen bekommen die Tages-Visualisierung als Mini (36px): `_count_from_series` liefert additiv `chart_points` (letzte `DEGREE_CHART_PIVOTS=8` ZigZag-Pivots, Datum+Preis) + `count_wave_labels`; Frontend `degreeSpark()` reust `drawSparkline` (neues `data-h`), Minis im Großer-Grad-Block + je Zeitebenen-Zeile mit Count, **direkt sichtbar** (36px stört @390px nicht, keine Interaktionskosten). Ziffern-Zuordnung + Inval-Linie + fail-soft verifiziert; **Report-Diff nur additive Keys** (Scores/Reihenfolge identisch); Payload +27,5 KB (synthetic, formatiert; real nach Merge beziffern). Reine Anzeige | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -318,8 +319,35 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ P4a-Audit: ABC-Korrektur-Erkennung (Struktur-Vokabular v2) — erledigt (dieser
-PR, `scripts/` + `docs/index.html`):** Das Zähl-Vokabular kennt jetzt einfache
+**✅ P4b-Audit: Grad-Sparklines — erledigt (dieser PR, `scripts/elliott_pipeline.py`
++ `docs/index.html`):** Wochen-/Monats-Zählungen bekommen die bewährte Tages-
+Visualisierung als **Mini-Sparkline** — genau das Bild, dessen Fehlen Easys
+AMAT-Monats-Verwirrung auslöste. **Pipeline (additiv, Schema v1):**
+`_count_from_series` liefert zusätzlich `chart_points` = die letzten
+**`DEGREE_CHART_PIVOTS = 8`** ZigZag-Pivots (Datum+Preis via `Pivot.as_dict`,
+gezählte Struktur ≤5 + wenige Vorlauf-Pivots — bewusst klein, Tages-Sparkline
+bleibt bei ihren 12) + `count_wave_labels` (index relativ zu chart_points, wave 0
+= P0). Wirkt auf `timeframes.day/week/month` UND `higher_degree` (geteilter Pfad).
+**Frontend:** `degreeSpark(count)` erzeugt `.spark-svg.spark-mini` mit `data-h=36`
+— `drawSparkline` wurde um GENAU einen parametrisierten Höhen-Read erweitert
+(ohne `data-h` byte-identisch 56) → **dieselbe Render-Technik** (Pivot-Punkte,
+Wellen-Ziffern mit Kollisions-Weglassen, Inval-Linie im Sichtbereich, Count-
+Abschnitt farblich abgesetzt). Einbau: Großer-Grad-Block der Markt-Karten + jede
+Zeitebenen-Zeile mit Count. **Direkt sichtbar** statt ausklappbar (Begründung:
+36px hoch stört @390px nicht, erspart Interaktion; verifiziert kein Overflow).
+Fail-soft: <2 Punkte → kein Markup (nie leere Fläche). **Beweise:** Ziffern-
+Invarianten am echten Pipeline-Pfad (Ziffer sitzt auf P0..Pk-1, chart_points ==
+letzte ZigZag-Pivots, Setup-Konsistenz W2/W4; echte yfinance-Daten aus der Sandbox
+nicht erreichbar → Realdaten-Stichprobe im Nach-Merge-Lauf); **Report-Diff rekursiv
+nur additive `chart_points`/`count_wave_labels`** (Scores/Reihenfolge identisch);
+Payload 51,7→79,2 KB formatiert (+27,5 KB synthetic — real nach Merge beziffern);
+Tages-Sparkline H=56 unberührt, Minis H=36, Konsole sauber, Tests grün (245).
+Revert = Konstante+2 Keys in `_count_from_series`, `degreeSpark` + 2 Einbau-Stellen
++ `data-h`-Read + `.spark-mini`-CSS raus. Merge: Guardian + Manual, keine Screenshots.
+**Nach Merge:** `daily.yml` → Anzahl Live-Grad-Sparklines + realer Payload-Zuwachs.
+
+**✅ P4a-Audit: ABC-Korrektur-Erkennung (Struktur-Vokabular v2) — erledigt (#45,
+`scripts/` + `docs/index.html`):** Das Zähl-Vokabular kennt jetzt einfache
 **Zigzag-Korrekturen (A-B-C)** — NUR für Watchlist-Struktur-Befund, ambiguity v2 und
 die W5→A-Strukturmessung; **HARTE SCOPE-GRENZE eingehalten:** kein neuer Markt-Setup-
 Typ, Markt-Report/v1-Felder/Reifung **byte-identisch** (rekursiver Diff: nur
