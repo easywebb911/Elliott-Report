@@ -44,6 +44,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run pipeline
+        env:
+          # Agent-Kommentar v1 (rein additiv). Fehlt das Secret, ist der Schritt
+          # ein no-op — der Lauf verhält sich exakt wie vorher.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python scripts/elliott_pipeline.py
 
       - name: Validate report JSON

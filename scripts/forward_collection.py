@@ -542,6 +542,15 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         # (v1 läuft unverändert weiter, Vergleichbarkeit der Alt-Daten). Erweitertes
         # Vokabular inkl. A-B-C-Korrektur-Lesart.
         "ambiguity_n_v2": entry.get("valid_count_total_v2"),
+        # Agent-Kommentar v1 (ab 26.07.2026) — das LLM-Urteil zum ANLAGE-Zeitpunkt
+        # point-in-time eingefroren (LLM-Output ist nicht deterministisch;
+        # temperature 0 mildert das, garantiert es nicht → der damalige Wert muss
+        # verortbar bleiben). Auswertungs-Frage: trifft concern_level="high"
+        # schlechter? Reine Mess-Dimension, kein Score/Ranking. Alt-Records null.
+        "agent_concern_level": ((entry.get("agent_comment") or {}).get("concern_level")
+                                if isinstance(entry.get("agent_comment"), dict) else None),
+        "agent_model": ((entry.get("agent_comment") or {}).get("model")
+                        if isinstance(entry.get("agent_comment"), dict) else None),
         # W5→A strukturell (additiv, bei Reifung): ist die Gegenbewegung nach dem
         # Episoden-Hoch als regelkonforme A-/ABC-Struktur (bestätigter Pivot)
         # bestätigt? + Korrektur-Tiefe (C) in % der W5-Strecke. None = keine Messung.

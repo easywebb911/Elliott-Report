@@ -656,6 +656,23 @@
     .ew-banner { margin:12px 0 4px; border-radius:var(--radius); overflow:hidden;
       line-height:0; }
     .ew-banner svg { width:100%; height:auto; display:block; }
+    /* Agent-Kommentar v1 (KI): dezenter Kommentar-Block — bewusst neutral gehalten
+       (kein Alarm-Rot, keine Ampel-Farbe für concern_level: der Kommentar bewertet
+       nicht, er erklärt und widerspricht). Optik an .hd-block/.tf-block angelehnt. */
+    .agent-block { margin:0 12px 12px; padding:8px 10px; border:1px solid var(--brd);
+      border-radius:10px; background:rgba(148,163,184,.05); }
+    .agent-head { display:flex; align-items:center; gap:7px; }
+    .agent-title { font-size:.58rem; text-transform:uppercase; letter-spacing:.09em;
+      color:var(--txt-sub); font-weight:800; }
+    .agent-badge { font-size:.52rem; font-weight:700; letter-spacing:.03em;
+      text-transform:uppercase; color:var(--txt-dim); background:var(--bg-met);
+      border:1px solid var(--brd); border-radius:999px; padding:1px 6px; }
+    .agent-text { font-size:.72rem; color:var(--txt-sub); line-height:1.4; margin-top:5px; }
+    .agent-counter { font-size:.7rem; color:var(--txt-sub); line-height:1.4; margin-top:5px; }
+    .agent-k { font-size:.52rem; text-transform:uppercase; letter-spacing:.04em;
+      color:var(--txt-dim); font-weight:700; margin-right:3px; }
+    .agent-foot { font-size:.55rem; color:var(--txt-dim); margin-top:6px;
+      font-variant-numeric:tabular-nums; }
     /* Chip-Zeile entfernt (doppelt zu den Kacheln; Entfernen-× lebt auf der Kachel). */
     /* Situativer Sync-Status: „noch nicht gesynct"-Chip NUR wenn wirklich etwas
        ungesynct ist (Erfolg meldet ein kurzer Toast, kein Dauertext). */
@@ -1637,6 +1654,29 @@
       </div>`;
     }
 
+    // Agent-Kommentar v1 (KI): dezente Kommentar-Sektion — Lesart + stärkstes
+    // Gegenargument. KLAR als Kommentar erkennbar („heuristisch"-Badge, Modellname
+    // klein), kein Alarm-Stil. `concern_level` bewusst als NEUTRALER TEXT, NICHT
+    // als Ampel-Farbe (das wäre Score-Optik — der Kommentar bewertet nichts).
+    // Fehlt das Feld (kein Key/API-Fehler/älterer Report) → Sektion fehlt komplett.
+    const _CONCERN_TXT = { none: 'keine Einwände aus den Daten',
+                           low: 'leichte Einwände aus den Daten',
+                           high: 'deutliche Einwände aus den Daten' };
+    function agentBlock(c) {
+      const a = c && c.agent_comment;
+      if (!a || !a.lesart) return '';
+      const concern = _CONCERN_TXT[a.concern_level];
+      return `<div class="agent-block">
+        <div class="agent-head">
+          <span class="agent-title">KI-Kommentar</span>
+          <span class="agent-badge">heuristisch</span>
+        </div>
+        <div class="agent-text">${esc(a.lesart)}</div>
+        ${a.gegenargument ? `<div class="agent-counter"><span class="agent-k">Gegenargument</span> ${esc(a.gegenargument)}</div>` : ''}
+        <div class="agent-foot">${concern ? esc(concern) + ' · ' : ''}${esc(a.model || '')}</div>
+      </div>`;
+    }
+
     // Grad-Mini-Sparkline (P4b): Wochen-/Monats-Zählungen bekommen dieselbe
     // Pivot-Visualisierung wie der Tagesgrad (drawSparkline via .spark-svg),
     // nur kompakter (data-h=36). Fail-soft: keine/zu wenige Punkte -> kein Markup
@@ -1780,6 +1820,7 @@
         ${zoneBadge}
         ${confluenceChips(c)}
         ${w3VolChip(c)}
+        ${agentBlock(c)}
         ${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close) : hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">
