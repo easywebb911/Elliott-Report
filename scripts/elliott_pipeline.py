@@ -739,6 +739,13 @@ def _meta_sector(ticker: str) -> str:
     return entry.get("sector") or ""
 
 
+# Grad-Sparklines (P4b): wie viele Pivots die Wochen-/Monats-Zählung als
+# Mini-Chart mitgibt — die gezählte Struktur (max 5 Pivots bei Ende-W4) plus
+# wenige Vorlauf-Pivots für Kontext. Bewusst KLEIN (Payload): 8 Pivots ≈ ~0,5 KB
+# je Zählung; die Tages-Sparkline der Karten bleibt bei ihren 12 (unberührt).
+DEGREE_CHART_PIVOTS = 8
+
+
 def _count_from_series(dates: Sequence[str], closes: Sequence[float]) -> Optional[Dict]:
     """Long-Count (4 Anzeige-Felder) aus EINER fertigen Kursreihe — reine Logik,
     kein Netz. Reuse der bestehenden ZigZag-/Regel-/Zielzonen-Mechanik inkl.
@@ -756,6 +763,13 @@ def _count_from_series(dates: Sequence[str], closes: Sequence[float]) -> Optiona
     # lässt die Struktur zu (max 2), plus die beste Alternative. v2 zusätzlich (ABC).
     total, alt = ambiguity_fields(pivots, closes[-1])
     total_v2, alt_v2 = ambiguity_v2_fields(pivots, closes[-1])
+    # Grad-Sparkline (P4b, additiv): Pivot-Punkte der gezählten Struktur + wenige
+    # Vorlauf-Pivots (DEGREE_CHART_PIVOTS), Wellen-Ziffern wie beim Tagesgrad
+    # (index relativ zu chart_points; wave 0 = P0-Start). Reine Anzeige.
+    chart_points = [p.as_dict() for p in pivots[-DEGREE_CHART_PIVOTS:]]
+    k = 5 if setup["setup"] == "end_of_w4" else 3
+    ncp = len(chart_points)
+    count_wave_labels = [{"index": ncp - k + j, "wave": j} for j in range(k)]
     return {
         "count_label": setup["count_label"],
         "invalidation_price": setup["invalidation_price"],
@@ -765,6 +779,8 @@ def _count_from_series(dates: Sequence[str], closes: Sequence[float]) -> Optiona
         "alt_count": alt,
         "valid_count_total_v2": total_v2,
         "alt_count_v2": alt_v2,
+        "chart_points": chart_points,
+        "count_wave_labels": count_wave_labels,
     }
 
 

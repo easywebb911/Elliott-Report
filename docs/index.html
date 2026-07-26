@@ -336,6 +336,12 @@
     .spark-trend { font-size:0.75rem; font-weight:700; }
     .spark-svg { width:100%; height:56px; }
     .spark-svg svg { width:100%; height:56px; display:block; overflow:visible; }
+    /* Grad-Mini-Sparkline (P4b): gleiche Technik, kompakter — für Wochen-/Monats-
+       Zählungen (Großer Grad + Zeitebenen-Zeilen). Direkt sichtbar (kein Klapp-
+       Mechanismus): 36px hoch stört bei 390px nicht und erspart die Interaktion. */
+    .spark-mini { height:auto; margin-top:6px; }
+    .spark-mini svg { height:36px; }
+    .spark-mini .spark-empty { display:none; }  /* fail-soft: nie leere Fläche */
     /* Wellen-Ziffern in der Sparkline: kleiner, mit BG-Halo (paint-order) für
        Lesbarkeit über Linie/Fill. */
     .wave-num { font-size:8px; font-weight:800; fill:var(--txt);
@@ -1327,7 +1333,9 @@
       inval = el.dataset.inval === '' ? null : parseFloat(el.dataset.inval);
       if (!ys || ys.length < 2) { el.innerHTML = '<div class="spark-empty">Kein Verlauf</div>'; return; }
 
-      const W = Math.max(el.clientWidth || 280, 80), H = 56, PX = 3, PY = 7;
+      // Höhe parametrisierbar (data-h): die Grad-Minis (P4b) nutzen DIESELBE
+      // Render-Technik, nur kompakter. Ohne data-h bleibt alles wie bisher (56).
+      const W = Math.max(el.clientWidth || 280, 80), H = parseInt(el.dataset.h || '56', 10), PX = 3, PY = 7;
       const min = Math.min(...ys), max = Math.max(...ys), span = (max - min) || 1;
       const n = ys.length;
       const xOf = i => PX + (i / (n - 1)) * (W - 2 * PX);
@@ -1527,6 +1535,20 @@
       </div>`;
     }
 
+    // Grad-Mini-Sparkline (P4b): Wochen-/Monats-Zählungen bekommen dieselbe
+    // Pivot-Visualisierung wie der Tagesgrad (drawSparkline via .spark-svg),
+    // nur kompakter (data-h=36). Fail-soft: keine/zu wenige Punkte -> kein Markup
+    // (nie eine leere Fläche). Reine Anzeige.
+    function degreeSpark(count) {
+      const cps = count && count.chart_points;
+      if (!Array.isArray(cps) || cps.length < 2) return '';
+      const ys = cps.map(p => p.price).filter(v => typeof v === 'number' && isFinite(v));
+      if (ys.length < 2) return '';
+      return `<div class="spark-svg spark-mini" data-h="36" data-pts="${esc(JSON.stringify(ys))}"`
+        + ` data-inval="${count.invalidation_price ?? ''}"`
+        + ` data-waves="${esc(JSON.stringify(count.count_wave_labels || []))}"></div>`;
+    }
+
     function tfPanel(tf, structure, cardClose) {
       if (!tf) return '';
       const st = structure || {};
@@ -1552,7 +1574,7 @@
             + pair('Inval', fmt(c.invalidation_price))
             + pair('Ziel', zoneStr(c.target_zone))
             + pair('Ext', zoneStr(c.target_zone_extended))
-            + `</div>${hint}</div></div>`;
+            + `</div>${hint}${degreeSpark(c)}</div></div>`;
         }
         // Kein Long-Count -> ehrlicher Struktur-Befund statt bloßem „kein Count".
         const s = st[k];
@@ -1616,6 +1638,7 @@
             <div><span class="hd-k">Zielzone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span></div>
             <div><span class="hd-k">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span></div>
           </div>
+          ${degreeSpark(hd)}
         </div>` : '';
       // N×-Zähler (rückblickend): wie oft der Ticker in den Top 5 stand
       // (Episoden, nicht Tage). Nur ab N ≥ 2 (1× ist Rauschen). Reine Anzeige.
