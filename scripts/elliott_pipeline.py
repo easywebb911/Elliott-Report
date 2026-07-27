@@ -1532,14 +1532,25 @@ def build_report(
 
 
 def write_report(report: Dict) -> List[Path]:
-    """Schreibt den Report kanonisch + gespiegelt (Pages /docs)."""
+    """Schreibt den Report kanonisch + gespiegelt (Pages /docs).
+
+    ATOMAR (Guardian-Nit 27.07.): erst in eine Temp-Datei im SELBEN Verzeichnis
+    schreiben, dann ``os.replace`` — ein Abbruch mitten im Schreiben (Timeout,
+    OOM) kann so keine halbfertige `report.json` hinterlassen; entweder steht
+    der alte oder der neue Stand da. Vorher truncierte ``open(..., "w")``
+    die gültige Datei sofort. Der Health-Check schreibt den Report ein ZWEITES
+    Mal (additiver `health`-Block) — er verdoppelt das Zeitfenster, also wird
+    es hier geschlossen statt bloß dokumentiert. Ergebnis-Bytes unverändert.
+    """
     written: List[Path] = []
     for rel in (config.REPORT_PATH, config.REPORT_PATH_PUBLISHED):
         path = REPO_ROOT / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as fh:
+        tmp = path.with_name(path.name + ".tmp")
+        with tmp.open("w", encoding="utf-8") as fh:
             json.dump(report, fh, ensure_ascii=False, indent=2, sort_keys=True)
             fh.write("\n")
+        os.replace(tmp, path)   # atomar auf demselben Dateisystem
         written.append(path)
     return written
 
@@ -1668,9 +1679,14 @@ def main() -> int:
     # — dann meldet Regel 4 bewusst NICHTS (der Fehler steht schon im Log,
     # ein Phantom-Alarm wäre Rauschen).
     _hc_sig_before = _hc_sig_after = None
+    # Zweiter Lauf am SELBEN Kalendertag (Retry-Dispatch)? Dann ist ein
+    # Sammlungs-„Stillstand" das korrekte Verhalten — Regel 4 schweigt.
+    # VOR dem Update lesen: update_forward_collection setzt last_run_date neu.
+    _hc_same_day = False
     try:
         regimes = fc.market_regimes(fetcher is fetch_synthetic)
         coll = fc.load_collection()
+        _hc_same_day = coll.get("last_run_date") == run_date
         try:
             import health_check as hc  # noqa: WPS433
 
@@ -1725,6 +1741,7 @@ def main() -> int:
             has_agent_key=bool(os.environ.get("ANTHROPIC_API_KEY", "")),
             topic=os.environ.get("NTFY_TOPIC", ""),
             run_date=run_date, now_iso=ts, now=datetime.now(timezone.utc),
+            same_day_rerun=_hc_same_day,
         )
         write_report(report)
         _log(f"[elliott] Health-Check: Status {health['status']} "

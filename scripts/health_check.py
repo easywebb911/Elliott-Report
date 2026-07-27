@@ -237,7 +237,8 @@ def collection_signature(coll: Optional[Dict]) -> Dict[str, str]:
 
 
 def check_collection_progress(report: Dict, sig_before: Optional[Dict],
-                              sig_after: Optional[Dict]) -> List[Dict]:
+                              sig_after: Optional[Dict],
+                              same_day_rerun: bool = False) -> List[Dict]:
     """Top-5 vorhanden, aber die Sammlung ist WEDER gewachsen NOCH wurde ein
     Datensatz verlängert → warn.
 
@@ -245,8 +246,16 @@ def check_collection_progress(report: Dict, sig_before: Optional[Dict],
     persistiert, n wuchs nie). Signaturen None (Sammel-Schritt gescheitert) →
     kein Befund; dieser Fall ist bereits über den Fail-soft-Log sichtbar und
     soll hier keinen Phantom-Alarm erzeugen.
+
+    ``same_day_rerun`` (Guardian-Nit 27.07.): Beim ZWEITEN Lauf desselben
+    Kalendertags — ein ausdrücklich vorgesehener Pfad (`workflow_dispatch` als
+    Retry, siehe daily.yml) — ist Stillstand das KORREKTE Verhalten: die
+    Episoden-Logik findet die heutigen Records bereits mit
+    ``last_seen_top5_date == heute`` und setzt sie idempotent erneut. Die
+    Signatur ist dann zwangsläufig identisch. Ohne diese Ausnahme meldet die
+    Regel bei jedem Retry-Dispatch einen Fehlalarm (reproduziert).
     """
-    if sig_before is None or sig_after is None:
+    if sig_before is None or sig_after is None or same_day_rerun:
         return []
     has_top5 = any(
         (m.get("candidates") or [])
@@ -342,8 +351,12 @@ def evaluate_edges(findings: Sequence[Dict], state: Optional[Dict],
                 runs = 0
         if push:
             to_push.append(f)
+        # `prev` ist hier nie None, wenn nicht gepusht wird (ein neuer Befund
+        # pusht immer) — der Ausdruck bleibt trotzdem defensiv lesbar statt
+        # verschachtelt. `last_push_run` ist reine Diagnose für den State.
+        last_push = run_date if push else (prev or {}).get("last_push_run")
         new[k] = {"severity": sev, "since_run": since,
-                  "last_push_run": run_date if push else prev.get("last_push_run") if prev else None,
+                  "last_push_run": last_push,
                   "runs_since_push": 0 if push else runs}
     return to_push, {"schema_version": 1, "rules": new}
 
@@ -462,13 +475,15 @@ def attach_to_report(report: Dict, findings: Sequence[Dict], now_iso: str,
 def collect_findings(report: Dict, prev_report: Optional[Dict],
                      finite_findings: Sequence[Dict],
                      sig_before: Optional[Dict], sig_after: Optional[Dict],
-                     has_agent_key: bool) -> List[Dict]:
+                     has_agent_key: bool,
+                     same_day_rerun: bool = False) -> List[Dict]:
     """Alle Regeln zusammenführen. ``finite_findings`` kommen von außen, weil
     Regel 1 VOR den beiden Serialisierungen laufen muss (Report + Sammlung)."""
     findings: List[Dict] = list(finite_findings)
     findings.extend(check_completeness(report))
     findings.extend(check_fetch_quality(report, prev_report))
-    findings.extend(check_collection_progress(report, sig_before, sig_after))
+    findings.extend(check_collection_progress(report, sig_before, sig_after,
+                                              same_day_rerun))
     findings.extend(check_agent_comments(report, has_agent_key))
     # Stabile Reihenfolge: crit zuerst, dann Regel, dann Markt — der Push-Text
     # und der Report-Block sind damit deterministisch.
@@ -480,7 +495,8 @@ def collect_findings(report: Dict, prev_report: Optional[Dict],
 def run(report: Dict, prev_report: Optional[Dict],
         finite_findings: Sequence[Dict], sig_before: Optional[Dict],
         sig_after: Optional[Dict], has_agent_key: bool, topic: str,
-        run_date: str, now_iso: str, now: _dt.datetime) -> Dict:
+        run_date: str, now_iso: str, now: _dt.datetime,
+        same_day_rerun: bool = False) -> Dict:
     """Kompletter Health-Check-Durchlauf. Gibt die Befund-Liste zurück und
     hängt den Report-Block an. Push + State nur an Handelstagen.
 
@@ -489,7 +505,8 @@ def run(report: Dict, prev_report: Optional[Dict],
     Handelstag würde ihn verschlucken. Der Report-Block wird trotzdem gesetzt.
     """
     findings = collect_findings(report, prev_report, finite_findings,
-                                sig_before, sig_after, has_agent_key)
+                                sig_before, sig_after, has_agent_key,
+                                same_day_rerun)
     gated = push_gated(now)
     pushed = False
     if gated:

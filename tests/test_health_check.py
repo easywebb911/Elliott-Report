@@ -271,6 +271,38 @@ def test_collection_grown_or_extended_is_silent():
     assert hc.check_collection_progress(_report(), before, extended) == []
 
 
+def test_collection_rule_silent_on_same_day_rerun():
+    """Guardian-Nit 27.07.: der ZWEITE Dispatch desselben Kalendertags ist ein
+    vorgesehener Pfad (Retry). Die Episoden-Logik setzt die heutigen Records
+    dann idempotent erneut — die Signatur MUSS identisch bleiben. Ohne
+    Ausnahme wäre das ein Fehlalarm bei jedem Retry."""
+    sig = hc.collection_signature(_coll(2))
+    assert hc.check_collection_progress(_report(), sig, dict(sig)), (
+        "Normalfall: Stillstand ist ein Befund")
+    assert hc.check_collection_progress(_report(), sig, dict(sig),
+                                        same_day_rerun=True) == []
+
+
+def test_same_day_rerun_reproduces_the_stall_on_real_collection():
+    """Der Fehlalarm am ECHTEN Sammel-Pfad — nachgestellt, damit die Ausnahme
+    nicht an einer Annahme hängt."""
+    rep = _report(us=1, de=0)
+    rep["markets"]["DE"]["candidates"] = []
+    prices = {"US0": (["2026-07-20", "2026-07-21"], [99.0, 100.0])}
+    coll = {"records": []}
+    fc.update_forward_collection(coll, rep, prices, {"US": "risk_on"},
+                                 RUN_DATE, NOW_ISO)
+    same_day = coll.get("last_run_date") == RUN_DATE
+    assert same_day is True
+    before = hc.collection_signature(coll)
+    fc.update_forward_collection(coll, rep, prices, {"US": "risk_on"},
+                                 RUN_DATE, NOW_ISO)          # Retry, selber Tag
+    after = hc.collection_signature(coll)
+    assert before == after, "Retry am selben Tag ist idempotent (Erwartung)"
+    assert hc.check_collection_progress(rep, before, after) != []      # ohne Flag
+    assert hc.check_collection_progress(rep, before, after, same_day) == []
+
+
 def test_collection_rule_silent_without_signatures_or_top5():
     sig = hc.collection_signature(_coll(2))
     assert hc.check_collection_progress(_report(), None, sig) == []
@@ -539,6 +571,29 @@ def test_real_pipeline_report_is_clean_and_unchanged(monkeypatch, tmp_path):
            now_iso=NOW_ISO, now=MON)
     stripped = {k: v for k, v in report.items() if k != "health"}
     assert json.dumps(stripped, sort_keys=True) == snapshot
+
+
+def test_write_report_is_atomic_and_byte_identical(tmp_path, monkeypatch):
+    """Guardian-Nit 27.07.: dieser PR schreibt den Report ZWEIMAL (zweiter Lauf
+    ergänzt den health-Block) und verdoppelt damit das Zeitfenster für einen
+    Abbruch mitten im Schreiben. `write_report` schreibt jetzt über eine
+    Temp-Datei + os.replace — die Bytes bleiben identisch, aber eine gültige
+    Datei kann nicht mehr durch eine halbfertige ersetzt werden."""
+    monkeypatch.setattr(ep, "REPO_ROOT", tmp_path)
+    rep = _report(us=2, de=2)
+    written = ep.write_report(rep)
+    assert len(written) == 2
+    expected = json.dumps(rep, ensure_ascii=False, indent=2,
+                          sort_keys=True) + "\n"
+    for p in written:
+        assert p.read_text(encoding="utf-8") == expected
+    assert list(tmp_path.rglob("*.tmp")) == [], "keine Temp-Reste"
+    # Zweiter Schreibvorgang (der neue Health-Pfad) ersetzt sauber.
+    hc.attach_to_report(rep, [], NOW_ISO)
+    ep.write_report(rep)
+    for p in written:
+        assert json.loads(p.read_text(encoding="utf-8"))["health"]["status"] == "ok"
+    assert list(tmp_path.rglob("*.tmp")) == []
 
 
 def test_real_collection_update_is_finite(monkeypatch):
