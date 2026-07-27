@@ -157,27 +157,28 @@ def test_many_paths_are_capped_but_count_stays_full():
     assert "+12 weitere" in out[0]["message"]
 
 
-def test_nan_in_real_pipeline_volume_guard_is_caught():
-    """ECHTER Code-Pfad: ``_volume_profile`` prüft mit ``vb <= 0`` (negierte
-    Form) — ein NaN-Volumen rutscht durch und landet als NaN im Report. Die
-    Prüfung fängt genau das ab.
+def test_volume_guard_is_hardened_no_nan_reaches_the_report():
+    """DIESELBE Fundstelle wie in #51 — jetzt umgedreht.
 
-    Der Guard selbst wird hier BEWUSST nicht angefasst (Score-/Messpfad, eigener
-    PR) — dieser Test hält die Fundstelle fest.
+    #51 hielt hier fest, dass ``_volume_profile`` ein NaN-Volumen durch die
+    negierten Guards (``s <= 0``, ``vb <= 0``) durchließ und ``vol_ratio_*``
+    zu NaN wurde. Die Guard-Härtung hat die Ursache beseitigt: das Profil
+    liefert jetzt ``None`` statt NaN. Der Test bleibt als Regressionsnetz —
+    fällt er, ist die Härtung zurückgedreht.
     """
     from zigzag import Pivot
 
     pivots = [Pivot(i, 100.0 + i, "LOW" if i % 2 else "HIGH", f"2026-07-0{i+1}")
               for i in range(5)]
-    volumes = [NAN] * 5
-    prof = ep._volume_profile(pivots, "end_of_w4", volumes)
-    assert hc.non_finite_paths(prof), (
-        "Erwartet: NaN rutscht durch die negierten Guards (`s <= 0`, `vb <= 0`) "
-        "— sonst ist der Test veraltet und die Fundstelle im PR-Text muss "
-        "angepasst werden")
-    rep = _report()
-    rep["markets"]["US"]["candidates"][0].update(prof)
-    assert hc.check_finite(rep, "report")[0]["severity"] == hc.CRIT
+    for bad in ([NAN] * 5, [INF] * 5, [1000.0, NAN, 1000.0, 1000.0, 1000.0]):
+        prof = ep._volume_profile(pivots, "end_of_w4", bad)
+        assert hc.non_finite_paths(prof) == [], (
+            f"kein NaN/Inf darf das Volumen-Profil verlassen: {prof}")
+        assert prof["vol_ratio_w3_w1"] is None
+    # Gesunde Volumina bleiben unverändert messbar (Gegenprobe).
+    good = ep._volume_profile(pivots, "end_of_w4", [100.0, 200.0, 300.0, 400.0, 500.0])
+    assert good["vol_ratio_w3_w1"] is not None
+    assert hc.non_finite_paths(good) == []
 
 
 def test_nan_survives_json_roundtrip_and_breaks_the_browser():

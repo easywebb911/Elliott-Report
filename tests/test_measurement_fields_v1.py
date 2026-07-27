@@ -106,12 +106,36 @@ def test_parse_no_volume_column_failsoft():
     assert out.data is not None and out.volumes is None    # fail-soft None
 
 
-def test_parse_volume_nan_to_zero():
+def test_parse_volume_nan_becomes_none_not_zero():
+    """GEÄNDERTE SEMANTIK (27.07.2026, Nicht-finit-Härtung).
+
+    Vorher wurde ein NaN-Volumen zu ``0.0``. Das ist stilles Weiterrechnen: die
+    0 zieht den Segment-Mittelwert nach unten und behauptet damit „an diesem Tag
+    wurde nichts gehandelt", obwohl in Wahrheit **kein Wert vorlag**. Jetzt
+    ``None`` — das Messfeld fehlt ehrlich, und ``_volume_profile`` liefert für
+    das betroffene Segment ``null`` statt eines aus Lücken gemittelten Werts.
+    Der Bar selbst BLEIBT (der Preis ist gültig; das Volumen ist ein rein
+    additives Messfeld ohne Score-Wirkung).
+    """
     import math
     df = _mk_df()
     df.iloc[7, df.columns.get_loc(("Volume", "AAPL"))] = math.nan
     out = pipe.parse_download_df(df)
-    assert out.volumes[7] == 0.0
+    assert out.volumes[7] is None
+    assert out.invalid_volume_bars == 1
+    assert out.dropped_bars == 0, "der Preis-Bar bleibt erhalten"
+    # Alle anderen Volumina unberührt.
+    assert all(v is not None for i, v in enumerate(out.volumes) if i != 7)
+
+
+def test_parse_volume_inf_also_becomes_none():
+    """±Inf ist derselbe Fall — ``dropna`` hätte es nie entfernt."""
+    df = _mk_df()
+    col = ("Volume", "AAPL")
+    df[col] = df[col].astype(float)          # int64-Spalte verträgt kein inf
+    df.iloc[3, df.columns.get_loc(col)] = float("inf")
+    out = pipe.parse_download_df(df)
+    assert out.volumes[3] is None and out.invalid_volume_bars == 1
 
 
 # ---------------------------------------------------------------------------
