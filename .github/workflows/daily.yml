@@ -105,9 +105,25 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.push_selftest }}
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python scripts/notify.py --mode selftest
+        run: |
+          # Diagnose OHNE Leak: nur ob gesetzt und wie lang — nie der Wert.
+          # (Ein leeres Secret sieht sonst exakt aus wie ein fehlendes Mapping;
+          # dieser Unterschied hat am 27.07. eine Stunde gekostet.)
+          if [ -z "$NTFY_TOPIC" ]; then
+            echo "::warning::secrets.NTFY_TOPIC ist im Job LEER — Secret fehlt,
+            heisst anders, oder wurde erst nach Job-Start angelegt."
+          else
+            echo "secrets.NTFY_TOPIC ist gesetzt (Laenge ${#NTFY_TOPIC})."
+          fi
+          python scripts/notify.py --mode selftest
 
+      # NUR auf main committen. Ein Dispatch von einem Feature-Branch (z. B. um
+      # die Push-Verdrahtung zu testen) soll den Lauf nicht rot faerben: dort
+      # laeuft `git pull --rebase origin main` zwangslaeufig in einen Konflikt
+      # mit den Datenfiles, und der daraus folgende Fehlschlag-Push ist ein
+      # reiner Fehlalarm (beobachtet am 27.07., Run 30304607999).
       - name: Commit report + collection if changed
+        if: github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
