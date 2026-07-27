@@ -255,3 +255,23 @@ STATUS_REVIEW_WEEKDAY = 0        # 0 = Montag; Drossel ~1x/Woche (Daily läuft 1
 # ist. Watchlist-Karten sind ausgenommen (eigene Auswahl, nicht Teil der
 # gerankten Population). Bewusst ein Aufmerksamkeits-Hinweis, KEIN Signal.
 SCORE_ALERT_THRESHOLD = 90       # strikt größer als (>90) löst aus
+
+# ---------------------------------------------------------------------------
+# HEALTH-CHECK STUFE 2 (ab 27.07.2026, siehe scripts/health_check.py)
+# ---------------------------------------------------------------------------
+# Stufe 1 meldet ABSTURZ und AUSFALL. Stufe 2 schließt die Lücke „Lauf war
+# technisch erfolgreich, liefert aber Unsinn" — Plausibilitäts-Regeln am Ende
+# des Laufs, gebündelt in EINEN flankengetriggerten Push.
+#
+# WICHTIG (Registry-Abgrenzung): Alle Schwellen hier sind **Betriebs-Parameter**
+# der Selbstüberwachung — sie steuern, wann sich das System MELDET. Sie sind
+# ausdrücklich KEINE Auswertungs-Definitionen (kein Score, kein Erfolgsmaß,
+# keine Populations-Regel) und dürfen deshalb ohne neue Registry-Version
+# justiert werden. Die Registry führt sie nur nachvollziehbar auf.
+HEALTH_MIN_CANDIDATES = 3        # < N Top-Einträge je Markt trotz Kandidaten -> warn
+HEALTH_MAX_FETCH_ERROR_PCT = 10.0  # (empty_data+fetch_error)/Universum -> warn
+HEALTH_MAX_DEAD_DELTA = 3        # Anstieg toter Ticker ggü. Vorlauf -> warn
+HEALTH_AGENT_MIN_OK = 5          # < N von 10 Karten mit KI-Kommentar -> warn
+HEALTH_WARN_REPEAT_RUNS = 3      # warn wiederholt sich frühestens nach N Läufen
+# Flanken-Marker der Health-Pushes (wie die Sammlung von daily.yml committet).
+HEALTH_STATE_PATH = "data/health_state.json"

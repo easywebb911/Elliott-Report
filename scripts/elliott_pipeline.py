@@ -1628,6 +1628,24 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         _log(f"[elliott] Agent-Kommentar übersprungen (fail-soft): "
              f"{type(exc).__name__}: {exc}")
+
+    # Health-Check Stufe 2, Teil 1 von 3 — NICHT-FINIT-PRÜFUNG des Reports.
+    # MUSS hier stehen: nach dem Report-Bau, aber VOR der Serialisierung. Sonst
+    # steht im File bereits literales `NaN` (kein gültiges JSON, der Browser
+    # wirft beim Parsen) und der Befund käme im selben Lauf zu spät. Der
+    # Vorlauf-Report wird ebenfalls JETZT gelesen — gleich überschreibt ihn
+    # write_report, und die Delta-Regel (tote Ticker) braucht ihn.
+    _hc_prev_report = None
+    _hc_finite: list = []
+    try:
+        import health_check as hc  # noqa: WPS433 — lazy wie agent_comment
+
+        _hc_prev_report = hc.load_previous_report()
+        _hc_finite = hc.check_finite(report, "report")
+    except Exception as exc:  # noqa: BLE001 — Prüfung darf den Lauf nie brechen
+        _log(f"[elliott] Health-Check (Report-Finit) übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
+
     written = write_report(report)
 
     us = report["markets"]["US"]
@@ -1645,11 +1663,31 @@ def main() -> int:
 
     # Forward-Sammlung — NACH write_report (report.json ist schon geschrieben)
     # und komplett gekapselt: ein Sammel-Fehler darf den Report NIE brechen.
+    run_date = report["run_timestamp_utc"][:10]
+    # Health-Check-Signaturen: bleiben None, wenn der Sammel-Schritt scheitert
+    # — dann meldet Regel 4 bewusst NICHTS (der Fehler steht schon im Log,
+    # ein Phantom-Alarm wäre Rauschen).
+    _hc_sig_before = _hc_sig_after = None
     try:
-        run_date = report["run_timestamp_utc"][:10]
         regimes = fc.market_regimes(fetcher is fetch_synthetic)
         coll = fc.load_collection()
+        try:
+            import health_check as hc  # noqa: WPS433
+
+            _hc_sig_before = hc.collection_signature(coll)
+        except Exception:  # noqa: BLE001
+            _hc_sig_before = None
         fc.update_forward_collection(coll, report, price_sink, regimes, run_date, ts)
+        # Health-Check Stufe 2, Teil 2 von 3 — NICHT-FINIT-PRÜFUNG der Sammlung,
+        # ebenfalls VOR write_collection (gleiche Begründung wie beim Report).
+        try:
+            import health_check as hc  # noqa: WPS433
+
+            _hc_finite += hc.check_finite(coll, "collection")
+            _hc_sig_after = hc.collection_signature(coll)
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[elliott] Health-Check (Sammlung-Finit) übersprungen "
+                 f"(fail-soft): {type(exc).__name__}: {exc}")
         # Score-Alert-Flanke: an DIESELBE Episoden-Logik gekoppelt. NACH dem
         # Update (Episoden-Records tragen jetzt last_seen == run_date), Flags
         # werden in coll gesetzt -> VOR write_collection persistiert. Der Push
@@ -1670,6 +1708,29 @@ def main() -> int:
              f"· Regime {regimes}")
     except Exception as exc:  # noqa: BLE001 — Sammlung darf Report nie brechen
         _log(f"[elliott] Forward-Sammlung übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
+
+    # Health-Check Stufe 2, Teil 3 von 3 — restliche Regeln, Push, Transparenz.
+    # GANZ am Ende, weil Regel 4 den Sammlungs-Stand NACH dem Update braucht.
+    # Der Report wurde oben BEREITS geschrieben (unverändert wie bisher); hier
+    # kommt ein ZWEITER Schreibvorgang, der nur den additiven `health`-Block
+    # ergänzt. Bewusst so herum: scheitert irgendetwas hier, liegt der
+    # vollständige Report längst auf Platte — der Lauf bricht nie ab und
+    # veröffentlicht nie weniger als vorher.
+    try:
+        import health_check as hc  # noqa: WPS433
+
+        health = hc.run(
+            report, _hc_prev_report, _hc_finite, _hc_sig_before, _hc_sig_after,
+            has_agent_key=bool(os.environ.get("ANTHROPIC_API_KEY", "")),
+            topic=os.environ.get("NTFY_TOPIC", ""),
+            run_date=run_date, now_iso=ts, now=datetime.now(timezone.utc),
+        )
+        write_report(report)
+        _log(f"[elliott] Health-Check: Status {health['status']} "
+             f"({len(health['findings'])} Befund(e))")
+    except Exception as exc:  # noqa: BLE001 — Selbstüberwachung nie den Lauf
+        _log(f"[elliott] Health-Check übersprungen (fail-soft): "
              f"{type(exc).__name__}: {exc}")
     return 0
 
