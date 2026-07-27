@@ -302,3 +302,65 @@ vor n ≥ 100) gilt unverändert.
   nie umdefiniert.** Revert = `_detect_correction`/`_corr_from` + Präzedenz-Zweig +
   v2-Felder + `observe_w5_structure` + Frontend (2 CSS-States, v2-Badge-Switch,
   Methodik-Absatz) raus.
+- **26.07.2026 — Agent-Kommentar v1 (KI-Entscheidung Easy): nächtlicher LLM-Kommentar
+  je Markt-Top-5-Karte.** REINE KOMMENTAR-EBENE — **kein Score-/Ranking-/Filter-
+  Effekt** (belegt: der Schritt läuft in `main()` NACH `build_report`, also nach
+  Sortierung, Top-N-Schnitt und allen Filtern, und schreibt ausschließlich das
+  additive Feld `agent_comment`; Test `test_ranking_and_scores_byte_identical`).
+  Adaption der Squeeze-KI unter Elliott-Disziplin. **Bewusst NICHT übernommen:**
+  Agent-Boost ins Ranking (Squeeze-Re-Test: kein Edge), KI-Score, Stunden-Ticks.
+  **NEU gegenüber Squeeze:** das Urteil wird **messbar eingefroren**.
+  - **Umfang:** nur die FINALEN Markt-Top-5 (~10 Aufrufe/Lauf), **Watchlist
+    ausgenommen**. Ein Aufruf je Kandidat.
+  - **Konstanten** (`scripts/agent_comment.py`): `AGENT_MODEL =
+    "claude-haiku-4-5-20251001"`, `AGENT_TEMPERATURE = 0.0`, `AGENT_MAX_TOKENS = 500`,
+    `AGENT_TIMEOUT_S = 30`, `AGENT_PARSE_RETRIES = 1`, `ANTHROPIC_VERSION = "2023-06-01"`.
+  - **Input:** ausschließlich eigene Pipeline-Felder des Kandidaten (`count_label`,
+    Zonen, Invalidierung, Score, `valid_count_total_v2` + Alternative, `vol_ratio_*`,
+    Alternation-Rohwerte, `confluence`, `appearance_count`, `change_pct`) — **keine
+    externen Fetches in v1**, keine Nachrichten/Fundamentaldaten.
+  - **Output** (strukturiert erzwungen): `{lesart, gegenargument, concern_level}` mit
+    `concern_level ∈ {none, low, high}`; Parse-Fehler → 1 Retry → sonst `null`.
+  - **Inhalts-Netz (Guardian-Nit, 26.07.):** der Prompt verbietet Wahrscheinlichkeits-/
+    Empfehlungs-Sprache, ein LLM ist aber nicht bindbar — deshalb prüft `_parse_reply`
+    den Freitext zusätzlich gegen `BANNED_PHRASES` (`wahrscheinlich`, `probability`,
+    `confidence`, `trefferquote`, `kaufempfehlung`, `verkaufsempfehlung`,
+    `anlageberatung`; dieselben Wörter wie das Report-Sicherheitsnetz). Treffer wird
+    wie ein Parse-Fehler behandelt (Retry → sonst `null`) — verbotene Sprache kann
+    also **nie** in `report.json` oder die UI gelangen (Test auf Report-Ebene).
+    Gespeichert als `agent_comment = {lesart, gegenargument, concern_level, model,
+    generated_at}` oder `null`.
+  - **Fail-soft total:** fehlendes `ANTHROPIC_API_KEY` → no-op (Feld gar nicht
+    gesetzt) + Log-Zeile; jeder API-/Parse-Fehler → `null`, der Lauf läuft weiter.
+    Der Key wird **nie** geloggt (Test `test_key_never_logged`). Kosten-Log je Lauf
+    (Tokens in/out).
+  - **Messung:** bei Episoden-ANLAGE werden `agent_concern_level` und `agent_model`
+    **point-in-time eingefroren**. Begründung: **LLM-Output ist nicht
+    deterministisch** — `temperature 0` mildert das, garantiert es nicht; deshalb
+    muss der Wert ZUM ANLAGE-ZEITPUNKT verortbar bleiben. Alt-Records `null`,
+    forward-only, kein Backfill. **Auswertungs-Frage (n≥100):** trifft
+    `concern_level = "high"` seltener als `none`/`low`?
+  - **Der Prompt ist Teil dieser datierten Definition** (Änderung ⇒ neue Version,
+    v1 wird nie umdefiniert). System-Prompt wörtlich:
+
+    > Du bist ein nüchterner Elliott-Wellen-Analyst und kommentierst eine bereits
+    > fertig berechnete Zählung. Du bewertest NICHT neu und vergibst KEINE Punkte —
+    > du erklärst und widersprichst. Sprich Klartext auf Deutsch, ohne Werbe- oder
+    > Empfehlungssprache, ohne Wahrscheinlichkeits- oder Trefferquoten-Behauptungen,
+    > ohne Kauf-/Verkaufsempfehlung. Nutze AUSSCHLIESSLICH die gelieferten Zahlen;
+    > erfinde keine Kurse, Nachrichten oder Fundamentaldaten. Antworte NUR mit einem
+    > JSON-Objekt, ohne Markdown-Codefence, mit exakt den Schlüsseln: lesart (2-3
+    > Sätze: was diese Zählung im Klartext behauptet), gegenargument (1-2 Sätze: der
+    > stärkste Einwand, der sich AUS DEN DATEN ergibt — z. B. Mehrdeutigkeit,
+    > schwaches W3-Volumen, weite Invalidierung, fehlende Alternation),
+    > concern_level (genau einer der Werte "none", "low", "high" — wie stark die
+    > Daten der Zählung widersprechen).
+
+    User-Nachricht: `Kommentiere diese Elliott-Zählung. Alle Angaben stammen aus
+    unserer eigenen Pipeline (heuristisch, unvalidiert):\n\n{facts-als-JSON}`.
+  - **Anzeige:** dezente Karten-Sektion „KI-Kommentar" (Lesart + Gegenargument,
+    grauer „heuristisch"-Badge, Modellname klein). `concern_level` bewusst als
+    **neutraler Text**, NICHT als Ampel-Farbe (das wäre Score-Optik). Fehlt das
+    Feld → Sektion fehlt.
+  Revert = `scripts/agent_comment.py` + der `try`-Block in `main()` + die 2
+  Freeze-Felder in `_new_record` + `agentBlock`/CSS + das `env:`-Secret raus.

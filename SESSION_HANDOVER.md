@@ -2,13 +2,14 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **26.07.2026**,
-nach PR #47 (**P4c-Audit: Sparkline-Achsen**, gemerged — **EXZELLENZ-AUDIT P1–P4
-KOMPLETT**); dieser PR: **Elliott-Wellen-Banner + Chip-Zeile entfernt** (reines
-Frontend), offen. Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft,
-nicht aus dem Gedächtnis.
+nach PR #48 (**Elliott-Wellen-Banner + Chip-Zeile entfernt**, gemerged; das
+**EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett); dieser PR: **Agent-Kommentar v1**
+(nächtlicher LLM-Kommentar je Markt-Top-5-Karte, reine Kommentar-Ebene), offen.
+Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
+Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`0ac6d92` = Stand nach dem #47-Merge)
-> abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`90577a7` = #48-Merge) abgezweigt
+> (nach dem #48-Merge nachgezogen, damit Banner/Chips-Stand drin ist).
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -94,7 +95,8 @@ durchgängig ab #13.
 | #45 | `6f6d98c` | **P4a-Audit: ABC-Korrektur-Erkennung** (Struktur-Vokabular v2): `_detect_correction` (strikte Ungleichungen, longest-first) → 2 neue `structure_state` (`correction_running`/`complete`, **Präzedenz vor Impuls-Lesarten**); `valid_count_total_v2`/`alt_count_v2` (Anzeige nutzt v2); `ambiguity_n_v2` zusätzlich eingefroren (v1 unverändert); W5→A strukturell (`a_structure_observed`/`c_target_pct`, fenstergebunden nach Guardian-Nit). **Markt byte-identisch**, kein neuer Setup-Typ. Live: 3 Korrektur-Lesarten (PANW/AMAT Monat, IONQ Tag short-symm.), v2-Gewinne CVS/SPG/ADS.DE. 18 Tests (245) | Guardian (Nits, behoben) + manual |
 | #46 | `29d1e1e` | **P4b-Audit: Grad-Sparklines** — `_count_from_series` liefert additiv `chart_points` (letzte `DEGREE_CHART_PIVOTS=8` ZigZag-Pivots) + `count_wave_labels`; `degreeSpark()` reust `drawSparkline` (`data-h=36`), Minis im Großer-Grad-Block + je Zeitebenen-Zeile mit Count, direkt sichtbar. Report-Diff nur additive Keys. **Live: 4 Sparklines (US 2 hd, AMAT Tag+Monat), Payload real +6,6 KB**, Ziffern-Stichproben AMAT [Monat]/VRTX [Woche] korrekt | Guardian (OK) + manual |
 | #47 | `0ac6d92` | **P4c-Audit: Sparkline-Achsen** (LETZTER Audit-Punkt → **P1–P4 komplett**): dezente Eck-Werte an der GROSSEN Tages-Sparkline — Hoch-/Tief-Preis + Zeitspanne (`TT.MM.JJ`), `.spark-axis` 7px SVG-px, `--txt-dim` (AA), Halo (`paint-order`), Kollisions-Nudge gegen Wellen-Ziffern; **Minis bewusst ohne**; keine Gitter/Striche. Verifiziert am echten AMAT (723 / 322,72 / 25.02.26–07.07.26), 0 Kollisionen | self (CI grün) |
-| #(dieser) | `(offen)` | **Elliott-Wellen-Banner + Chip-Zeile entfernt**: (1) von Easy freigegebenes SVG (v3) **inline** unter der Stand-Zeile / über der Watchlist — dekorativ (`aria-hidden`), responsive über viewBox, `--radius`+`overflow:hidden`; alle 6 SVG-ids mit **`ewb-`-Präfix** (Kollisionsschutz ggü. Sparkline-Defs, per Grep + headless auf doppelte ids geprüft). (2) **Chip-Zeile `#wl-chips` komplett entfernt** (doppelt zu den Kacheln; Entfernen-× lebt auf der Kachel): Markup + CSS + `renderWatchlistChips` raus, ersetzt durch `renderWatchlistCount` (Zähler im Titel bleibt), Empty-State wandert in die Kachel-Fläche. Watchlist-Flows (Add/Sofortkarte/Auto-Sync/Kachel-×/Persistenz) headless durchgespielt | self (CI grün), keine Screenshots |
+| #48 | `90577a7` | **Elliott-Wellen-Banner + Chip-Zeile entfernt**: (1) freigegebenes SVG (v3) **inline** unter der Stand-Zeile / über der Watchlist — dekorativ (`aria-hidden`), responsive über viewBox; alle 6 ids mit **`ewb-`-Präfix** (Kollisionsschutz, headless auf doppelte ids geprüft). (2) **Chip-Zeile `#wl-chips` entfernt** (doppelt zu den Kacheln), ersetzt durch `renderWatchlistCount`; Empty-State in der Kachel-Fläche. Watchlist-Flows headless durchgespielt | self (CI grün) |
+| #(dieser) | `(offen)` | **Agent-Kommentar v1** (KI-Entscheidung Easy 26.07.): nächtlich EIN Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf, Watchlist ausgenommen) → `agent_comment {lesart, gegenargument, concern_level, model, generated_at}` \| null. **REINE Kommentar-Ebene:** Schritt läuft NACH `build_report` (nach Sortierung/Filtern), Score/Ranking/Filter/Reifung byte-identisch (Test). **Fail-soft total:** ohne `ANTHROPIC_API_KEY` no-op, API-/Parse-Fehler → null (1 Retry), Key nie geloggt; Token-Kosten-Log. **Messung:** `agent_concern_level`+`agent_model` bei Anlage eingefroren (LLM nicht deterministisch). Registry datiert **inkl. wörtlichem Prompt**. UI: dezente „KI-Kommentar"-Sektion, concern_level als **neutraler Text** (keine Ampel). Kosten ~**$0,02/Lauf** (~$5/Jahr). 19 neue Tests (264) | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -321,7 +323,53 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ Elliott-Wellen-Banner + Chip-Zeile entfernt — erledigt (dieser PR,
+**✅ Agent-Kommentar v1 (KI) — erledigt (dieser PR, `scripts/agent_comment.py` +
+Pipeline/Sammlung/Frontend):** Easys KI-Entscheidung vom 26.07. — nächtlich **ein**
+Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf; **Watchlist
+ausgenommen**) liefert Klartext-**Lesart**, **stärkstes Gegenargument** und ein
+messbares **`concern_level`** (`none`/`low`/`high`). Adaption der Squeeze-KI unter
+Elliott-Disziplin; **bewusst NICHT übernommen:** Agent-Boost ins Ranking
+(Squeeze-Re-Test: kein Edge), KI-Score, Stunden-Ticks.
+**HARTE GRENZE (bewiesen):** der Schritt läuft in `main()` **NACH `build_report`**
+— also nach Sortierung, Top-N-Schnitt und allen Filtern — und schreibt
+ausschließlich das additive Feld `agent_comment`; Score/Ranking/Filter/Reifung
+byte-identisch (`test_ranking_and_scores_byte_identical`; `set(nachher)-set(vorher)
+== {"agent_comment"}`). **Modell/Konstanten:** `AGENT_MODEL =
+claude-haiku-4-5-20251001`, `temperature 0`, `max_tokens 500`, `timeout 30 s`,
+`AGENT_PARSE_RETRIES = 1`; HTTP über **stdlib-`urllib`** (keine neue Dependency —
+`requests` steht nicht in `requirements.txt`). **Input:** ausschließlich eigene
+Pipeline-Felder des Kandidaten (`build_facts`: Zählung, Zonen, Inval, Score,
+`valid_count_total_v2`+Alternative, `vol_ratio_*`, Alternation-Rohwerte über die
+geteilte `_alternation_fields`, Konfluenz, `appearance_count`, `change_pct`) —
+**keine externen Fetches in v1**. **Output** strukturiert erzwungen (JSON,
+Codefence-tolerant geparst); Parse-Fehler → 1 Retry → sonst `null`.
+**Fail-soft total (ntfy-Muster):** fehlendes `ANTHROPIC_API_KEY` → **no-op**, Feld
+gar nicht gesetzt + Log-Zeile; jeder API-Fehler → `null`, Lauf läuft weiter (der
+Aufruf ist zusätzlich in `main()` in `try/except` gekapselt). **Key nie geloggt**
+(Test mit Fake-Key + `capsys`). **Kosten-Log** je Lauf (Tokens in/out); Schätzung
+**~$0,02/Lauf ≈ $0,42/Monat ≈ $5/Jahr** (Haiku-Tarif, ~1,1 k in / 180 out je
+Kandidat). **Messung:** `agent_concern_level` + `agent_model` bei Episoden-**Anlage**
+point-in-time eingefroren (LLM-Output ist **nicht deterministisch**; `temperature 0`
+mildert, garantiert nicht) → Auswertungs-Frage n≥100: trifft `high` seltener?
+Alt-Records `null`, kein Backfill. **Inhalts-Netz (Guardian-Nit):** `_parse_reply`
+prüft den LLM-Freitext zusätzlich gegen `BANNED_PHRASES` (Wahrscheinlichkeits-/
+Empfehlungs-Sprache) — Treffer = wie Parse-Fehler (Retry → `null`), belegt auf
+Report-Ebene. **Registry datiert inkl. WÖRTLICHEM Prompt**
+(auch der Prompt ist eine datierte Definition — Änderung ⇒ neue Version).
+**Frontend:** dezente Sektion „KI-Kommentar" (Lesart + Gegenargument, grauer
+`heuristisch`-Badge, Modellname klein); `concern_level` als **neutraler Text**
+(„deutliche Einwände aus den Daten"), **NICHT als Ampel-Farbe** — das wäre
+Score-Optik; fehlt das Feld, fehlt die Sektion. Verifiziert: 15 neue Tests
+(Parse/Codefence/Retry/null/no-op/Token-Zähler/Freeze/Key-Leak/Grenze/
+Bann-Wörter/kaputte API-Antwort), Suite
+**245 → 264**, headless-Render (Sektion nur bei Kommentar, neutraler Stil, kein
+Overflow @390px), Konsole sauber. `daily.yml` reicht das Secret durch (fehlt es →
+Lauf verhält sich exakt wie vorher). Revert = `scripts/agent_comment.py` + der
+`try`-Block in `main()` + die 2 Freeze-Felder + `agentBlock`/CSS + das `env:` raus.
+**Nach Merge + gesetztem Secret:** `daily.yml` → 10 Kommentare? Beispiel wörtlich,
+`concern_level`-Verteilung, reale Token-Kosten.
+
+**✅ Elliott-Wellen-Banner + Chip-Zeile entfernt — erledigt (#48,
 `docs/index.html`, reines Frontend):** (1) **Banner:** das von Easy freigegebene
 SVG (v3) liegt **inline** im Markup (kein Asset, kein Fetch) zwischen Staleness-
 Banner und Watchlist-Sektion — im Normalfall also direkt unter der Stand-Zeile,

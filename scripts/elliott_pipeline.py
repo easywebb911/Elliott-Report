@@ -1617,6 +1617,17 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001
         _log(f"[elliott] N×-Zähler übersprungen (fail-soft): "
              f"{type(exc).__name__}: {exc}")
+    # Agent-Kommentar v1 (additiv, REINE Kommentar-Ebene): läuft NACH build_report
+    # — also nach Sortierung, Top-N-Schnitt und allen Filtern — und schreibt nur
+    # `agent_comment` auf die finalen Markt-Top-5 (Watchlist ausgenommen). Ohne
+    # ANTHROPIC_API_KEY ein no-op; jeder Fehler ist gekapselt (Report geht raus).
+    try:
+        import agent_comment as ac  # noqa: WPS433 — lazy, hält Tests/Offline leicht
+
+        ac.annotate_agent_comments(report, os.environ.get("ANTHROPIC_API_KEY", ""), ts)
+    except Exception as exc:  # noqa: BLE001
+        _log(f"[elliott] Agent-Kommentar übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
     written = write_report(report)
 
     us = report["markets"]["US"]
