@@ -98,6 +98,37 @@ def test_comment_for_gives_up_after_retry(monkeypatch):
     assert c is None and calls["n"] == ac.AGENT_PARSE_RETRIES + 1
 
 
+def test_parse_rejects_probability_language():
+    # Laufzeit-Netz: der Prompt VERBIETET solche Sprache, ein LLM ist aber nicht
+    # bindbar — verbotene Formulierungen dürfen nie in report.json/UI landen.
+    for bad in ("Der Kurs steigt wahrscheinlich weiter.",
+                "Die Trefferquote solcher Setups ist hoch.",
+                "Das ist eine klare Kaufempfehlung."):
+        raw = json.dumps({"lesart": bad, "gegenargument": "Neutraler Einwand.",
+                          "concern_level": "low"}, ensure_ascii=False)
+        assert ac._parse_reply(raw) is None, bad
+    # auch im Gegenargument-Feld
+    raw = json.dumps({"lesart": "Neutrale Lesart.",
+                      "gegenargument": "Die Confidence ist gering.",
+                      "concern_level": "low"}, ensure_ascii=False)
+    assert ac._parse_reply(raw) is None
+
+
+def test_malformed_api_response_is_failsoft(monkeypatch):
+    # Strukturell kaputte Antworten (kein content/usage, None) -> null, kein Crash.
+    for bad in ({}, None, {"content": None, "usage": None},
+                {"content": [{"type": "text"}]}):
+        monkeypatch.setattr(ac, "_post", lambda *a, _b=bad, **k: _b)
+        c, tin, tout = ac.comment_for(_entry(), "key", NOW)
+        assert c is None and (tin, tout) == (0, 0), bad
+
+
+def test_missing_markets_key_is_failsoft(monkeypatch):
+    monkeypatch.setattr(ac, "_post", lambda *a, **k: _reply(GOOD))
+    diag = ac.annotate_agent_comments({}, "key", NOW)   # kein "markets"
+    assert diag["kandidaten"] == 0 and diag["kommentare"] == 0
+
+
 def test_api_error_is_failsoft(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("kein Netz")
@@ -164,6 +195,22 @@ def test_ranking_and_scores_byte_identical(monkeypatch):
             # Einziger Unterschied ist das additive Feld.
             assert set(ca) - set(cb) == {"agent_comment"}
             assert {k: v for k, v in ca.items() if k != "agent_comment"} == cb
+
+
+def test_report_stays_free_of_probability_language(monkeypatch):
+    # Sicherheitsnetz auf REPORT-Ebene (Ergänzung zu test_schema.test_no_probability_
+    # language, das den Agent-Pfad nicht durchläuft): liefert das LLM verbotene
+    # Sprache, bleibt das Feld null — der Report ist danach garantiert sauber.
+    bad = json.dumps({"lesart": "Der Kurs steigt wahrscheinlich weiter.",
+                      "gegenargument": "Die Trefferquote ist hoch.",
+                      "concern_level": "low"}, ensure_ascii=False)
+    monkeypatch.setattr(ac, "_post", lambda *a, **k: _reply(bad))
+    rep = _report()
+    ac.annotate_agent_comments(rep, "key", NOW)
+    blob = json.dumps(rep, ensure_ascii=False).lower()
+    for banned in ("wahrscheinlich", "probability", "confidence", "trefferquote"):
+        assert banned not in blob
+    assert rep["markets"]["US"]["candidates"][0]["agent_comment"] is None
 
 
 def test_facts_contain_only_own_pipeline_fields():

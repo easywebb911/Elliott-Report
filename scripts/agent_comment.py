@@ -34,6 +34,12 @@ AGENT_PARSE_RETRIES = 1                      # 1 Retry bei Parse-Fehler, dann nu
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
 CONCERN_LEVELS = ("none", "low", "high")
+# Laufzeit-Netz gegen Wahrscheinlichkeits-/Empfehlungs-Sprache: der Prompt verbietet
+# sie, aber ein LLM ist nicht bindbar — deshalb wird der Freitext zusätzlich GEPRÜFT
+# (Treffer = wie Parse-Fehler: Retry, sonst null). Bewusst dieselben Wörter wie das
+# Report-Sicherheitsnetz in tests/test_schema.py, plus die Empfehlungs-Formulierungen.
+BANNED_PHRASES = ("wahrscheinlich", "probability", "confidence", "trefferquote",
+                  "kaufempfehlung", "verkaufsempfehlung", "anlageberatung")
 
 # Der WÖRTLICHE Prompt (datierte Definition — nie stillschweigend ändern).
 SYSTEM_PROMPT = (
@@ -136,6 +142,13 @@ def _parse_reply(raw: str) -> Optional[Dict]:
         return None
     if level not in CONCERN_LEVELS:
         return None
+    # Inhalts-Netz (nicht nur Struktur): verbotene Sprache → wie ein Parse-Fehler
+    # behandeln, damit sie nie in report.json/UI landet.
+    low = f"{lesart} {gegen}".lower()
+    for bad in BANNED_PHRASES:
+        if bad in low:
+            _log(f"verbotene Formulierung im LLM-Text verworfen: {bad!r}")
+            return None
     return {"lesart": lesart.strip(), "gegenargument": gegen.strip(),
             "concern_level": level}
 

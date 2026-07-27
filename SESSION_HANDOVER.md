@@ -96,7 +96,7 @@ durchgängig ab #13.
 | #46 | `29d1e1e` | **P4b-Audit: Grad-Sparklines** — `_count_from_series` liefert additiv `chart_points` (letzte `DEGREE_CHART_PIVOTS=8` ZigZag-Pivots) + `count_wave_labels`; `degreeSpark()` reust `drawSparkline` (`data-h=36`), Minis im Großer-Grad-Block + je Zeitebenen-Zeile mit Count, direkt sichtbar. Report-Diff nur additive Keys. **Live: 4 Sparklines (US 2 hd, AMAT Tag+Monat), Payload real +6,6 KB**, Ziffern-Stichproben AMAT [Monat]/VRTX [Woche] korrekt | Guardian (OK) + manual |
 | #47 | `0ac6d92` | **P4c-Audit: Sparkline-Achsen** (LETZTER Audit-Punkt → **P1–P4 komplett**): dezente Eck-Werte an der GROSSEN Tages-Sparkline — Hoch-/Tief-Preis + Zeitspanne (`TT.MM.JJ`), `.spark-axis` 7px SVG-px, `--txt-dim` (AA), Halo (`paint-order`), Kollisions-Nudge gegen Wellen-Ziffern; **Minis bewusst ohne**; keine Gitter/Striche. Verifiziert am echten AMAT (723 / 322,72 / 25.02.26–07.07.26), 0 Kollisionen | self (CI grün) |
 | #48 | `90577a7` | **Elliott-Wellen-Banner + Chip-Zeile entfernt**: (1) freigegebenes SVG (v3) **inline** unter der Stand-Zeile / über der Watchlist — dekorativ (`aria-hidden`), responsive über viewBox; alle 6 ids mit **`ewb-`-Präfix** (Kollisionsschutz, headless auf doppelte ids geprüft). (2) **Chip-Zeile `#wl-chips` entfernt** (doppelt zu den Kacheln), ersetzt durch `renderWatchlistCount`; Empty-State in der Kachel-Fläche. Watchlist-Flows headless durchgespielt | self (CI grün) |
-| #(dieser) | `(offen)` | **Agent-Kommentar v1** (KI-Entscheidung Easy 26.07.): nächtlich EIN Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf, Watchlist ausgenommen) → `agent_comment {lesart, gegenargument, concern_level, model, generated_at}` \| null. **REINE Kommentar-Ebene:** Schritt läuft NACH `build_report` (nach Sortierung/Filtern), Score/Ranking/Filter/Reifung byte-identisch (Test). **Fail-soft total:** ohne `ANTHROPIC_API_KEY` no-op, API-/Parse-Fehler → null (1 Retry), Key nie geloggt; Token-Kosten-Log. **Messung:** `agent_concern_level`+`agent_model` bei Anlage eingefroren (LLM nicht deterministisch). Registry datiert **inkl. wörtlichem Prompt**. UI: dezente „KI-Kommentar"-Sektion, concern_level als **neutraler Text** (keine Ampel). Kosten ~**$0,02/Lauf** (~$5/Jahr). 15 neue Tests (260) | Guardian + manual, keine Screenshots |
+| #(dieser) | `(offen)` | **Agent-Kommentar v1** (KI-Entscheidung Easy 26.07.): nächtlich EIN Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf, Watchlist ausgenommen) → `agent_comment {lesart, gegenargument, concern_level, model, generated_at}` \| null. **REINE Kommentar-Ebene:** Schritt läuft NACH `build_report` (nach Sortierung/Filtern), Score/Ranking/Filter/Reifung byte-identisch (Test). **Fail-soft total:** ohne `ANTHROPIC_API_KEY` no-op, API-/Parse-Fehler → null (1 Retry), Key nie geloggt; Token-Kosten-Log. **Messung:** `agent_concern_level`+`agent_model` bei Anlage eingefroren (LLM nicht deterministisch). Registry datiert **inkl. wörtlichem Prompt**. UI: dezente „KI-Kommentar"-Sektion, concern_level als **neutraler Text** (keine Ampel). Kosten ~**$0,02/Lauf** (~$5/Jahr). 19 neue Tests (264) | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -351,14 +351,18 @@ Aufruf ist zusätzlich in `main()` in `try/except` gekapselt). **Key nie geloggt
 Kandidat). **Messung:** `agent_concern_level` + `agent_model` bei Episoden-**Anlage**
 point-in-time eingefroren (LLM-Output ist **nicht deterministisch**; `temperature 0`
 mildert, garantiert nicht) → Auswertungs-Frage n≥100: trifft `high` seltener?
-Alt-Records `null`, kein Backfill. **Registry datiert inkl. WÖRTLICHEM Prompt**
+Alt-Records `null`, kein Backfill. **Inhalts-Netz (Guardian-Nit):** `_parse_reply`
+prüft den LLM-Freitext zusätzlich gegen `BANNED_PHRASES` (Wahrscheinlichkeits-/
+Empfehlungs-Sprache) — Treffer = wie Parse-Fehler (Retry → `null`), belegt auf
+Report-Ebene. **Registry datiert inkl. WÖRTLICHEM Prompt**
 (auch der Prompt ist eine datierte Definition — Änderung ⇒ neue Version).
 **Frontend:** dezente Sektion „KI-Kommentar" (Lesart + Gegenargument, grauer
 `heuristisch`-Badge, Modellname klein); `concern_level` als **neutraler Text**
 („deutliche Einwände aus den Daten"), **NICHT als Ampel-Farbe** — das wäre
 Score-Optik; fehlt das Feld, fehlt die Sektion. Verifiziert: 15 neue Tests
-(Parse/Codefence/Retry/null/no-op/Token-Zähler/Freeze/Key-Leak/Grenze), Suite
-**245 → 260**, headless-Render (Sektion nur bei Kommentar, neutraler Stil, kein
+(Parse/Codefence/Retry/null/no-op/Token-Zähler/Freeze/Key-Leak/Grenze/
+Bann-Wörter/kaputte API-Antwort), Suite
+**245 → 264**, headless-Render (Sektion nur bei Kommentar, neutraler Stil, kein
 Overflow @390px), Konsole sauber. `daily.yml` reicht das Secret durch (fehlt es →
 Lauf verhält sich exakt wie vorher). Revert = `scripts/agent_comment.py` + der
 `try`-Block in `main()` + die 2 Freeze-Felder + `agentBlock`/CSS + das `env:` raus.

@@ -321,6 +321,13 @@ vor n ≥ 100) gilt unverändert.
     externen Fetches in v1**, keine Nachrichten/Fundamentaldaten.
   - **Output** (strukturiert erzwungen): `{lesart, gegenargument, concern_level}` mit
     `concern_level ∈ {none, low, high}`; Parse-Fehler → 1 Retry → sonst `null`.
+  - **Inhalts-Netz (Guardian-Nit, 26.07.):** der Prompt verbietet Wahrscheinlichkeits-/
+    Empfehlungs-Sprache, ein LLM ist aber nicht bindbar — deshalb prüft `_parse_reply`
+    den Freitext zusätzlich gegen `BANNED_PHRASES` (`wahrscheinlich`, `probability`,
+    `confidence`, `trefferquote`, `kaufempfehlung`, `verkaufsempfehlung`,
+    `anlageberatung`; dieselben Wörter wie das Report-Sicherheitsnetz). Treffer wird
+    wie ein Parse-Fehler behandelt (Retry → sonst `null`) — verbotene Sprache kann
+    also **nie** in `report.json` oder die UI gelangen (Test auf Report-Ebene).
     Gespeichert als `agent_comment = {lesart, gegenargument, concern_level, model,
     generated_at}` oder `null`.
   - **Fail-soft total:** fehlendes `ANTHROPIC_API_KEY` → no-op (Feld gar nicht
