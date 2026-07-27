@@ -2,14 +2,15 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **26.07.2026**,
-nach PR #48 (**Elliott-Wellen-Banner + Chip-Zeile entfernt**, gemerged; das
-**EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett); dieser PR: **Agent-Kommentar v1**
-(nächtlicher LLM-Kommentar je Markt-Top-5-Karte, reine Kommentar-Ebene), offen.
+nach PR #49 (**Agent-Kommentar v1**, gemerged; **live bestätigt**: erster Lauf mit
+Secret `48665a4` → **10/10 Kommentare**, concern_level 7×`high`/3×`low`, reale Kosten
+**~$0,011/Lauf ≈ $2,66/Jahr**); dieser PR: **KI-Kommentar standardmäßig eingeklappt**
+(reines Frontend), offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
 Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
 Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`90577a7` = #48-Merge) abgezweigt
-> (nach dem #48-Merge nachgezogen, damit Banner/Chips-Stand drin ist).
+> **BRANCH-BASIS:** frisch von `main` (`48665a4` = täglicher Commit nach dem
+> #49-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -96,7 +97,8 @@ durchgängig ab #13.
 | #46 | `29d1e1e` | **P4b-Audit: Grad-Sparklines** — `_count_from_series` liefert additiv `chart_points` (letzte `DEGREE_CHART_PIVOTS=8` ZigZag-Pivots) + `count_wave_labels`; `degreeSpark()` reust `drawSparkline` (`data-h=36`), Minis im Großer-Grad-Block + je Zeitebenen-Zeile mit Count, direkt sichtbar. Report-Diff nur additive Keys. **Live: 4 Sparklines (US 2 hd, AMAT Tag+Monat), Payload real +6,6 KB**, Ziffern-Stichproben AMAT [Monat]/VRTX [Woche] korrekt | Guardian (OK) + manual |
 | #47 | `0ac6d92` | **P4c-Audit: Sparkline-Achsen** (LETZTER Audit-Punkt → **P1–P4 komplett**): dezente Eck-Werte an der GROSSEN Tages-Sparkline — Hoch-/Tief-Preis + Zeitspanne (`TT.MM.JJ`), `.spark-axis` 7px SVG-px, `--txt-dim` (AA), Halo (`paint-order`), Kollisions-Nudge gegen Wellen-Ziffern; **Minis bewusst ohne**; keine Gitter/Striche. Verifiziert am echten AMAT (723 / 322,72 / 25.02.26–07.07.26), 0 Kollisionen | self (CI grün) |
 | #48 | `90577a7` | **Elliott-Wellen-Banner + Chip-Zeile entfernt**: (1) freigegebenes SVG (v3) **inline** unter der Stand-Zeile / über der Watchlist — dekorativ (`aria-hidden`), responsive über viewBox; alle 6 ids mit **`ewb-`-Präfix** (Kollisionsschutz, headless auf doppelte ids geprüft). (2) **Chip-Zeile `#wl-chips` entfernt** (doppelt zu den Kacheln), ersetzt durch `renderWatchlistCount`; Empty-State in der Kachel-Fläche. Watchlist-Flows headless durchgespielt | self (CI grün) |
-| #(dieser) | `(offen)` | **Agent-Kommentar v1** (KI-Entscheidung Easy 26.07.): nächtlich EIN Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf, Watchlist ausgenommen) → `agent_comment {lesart, gegenargument, concern_level, model, generated_at}` \| null. **REINE Kommentar-Ebene:** Schritt läuft NACH `build_report` (nach Sortierung/Filtern), Score/Ranking/Filter/Reifung byte-identisch (Test). **Fail-soft total:** ohne `ANTHROPIC_API_KEY` no-op, API-/Parse-Fehler → null (1 Retry), Key nie geloggt; Token-Kosten-Log. **Messung:** `agent_concern_level`+`agent_model` bei Anlage eingefroren (LLM nicht deterministisch). Registry datiert **inkl. wörtlichem Prompt**. UI: dezente „KI-Kommentar"-Sektion, concern_level als **neutraler Text** (keine Ampel). Kosten ~**$0,02/Lauf** (~$5/Jahr). 19 neue Tests (264) | Guardian + manual, keine Screenshots |
+| #49 | `48665a4` | **Agent-Kommentar v1** (KI-Entscheidung Easy 26.07.): nächtlich EIN Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf, Watchlist ausgenommen) → `agent_comment {lesart, gegenargument, concern_level, model, generated_at}` \| null. **REINE Kommentar-Ebene:** Schritt läuft NACH `build_report` (nach Sortierung/Filtern), Score/Ranking/Filter/Reifung byte-identisch (Test). **Fail-soft total:** ohne `ANTHROPIC_API_KEY` no-op, API-/Parse-Fehler → null (1 Retry), Key nie geloggt; Token-Kosten-Log. **Messung:** `agent_concern_level`+`agent_model` bei Anlage eingefroren (LLM nicht deterministisch). Registry datiert **inkl. wörtlichem Prompt**. UI: dezente „KI-Kommentar"-Sektion, concern_level als **neutraler Text** (keine Ampel). **Live: 10/10 Kommentare, 7×high/3×low, real ~$0,011/Lauf ≈ $2,66/Jahr.** 19 neue Tests (264) | Guardian (Nits, behoben) + manual |
+| #(dieser) | `(offen)` | **KI-Kommentar standardmäßig eingeklappt**: `agentBlock` rendert die Sektion als **`<details>` ohne `open`** — `<summary>` trägt kompakt „KI-Kommentar · heuristisch" + Chevron; Lesart/Gegenargument/Modell erst nach aktivem Öffnen. Squeeze-Muster: Chevron-Rotation per CSS über `[open]`, **kein animiertes height → kein Layout-Sprung**, `prefers-reduced-motion`-tolerant, Tap-Ziel `min-height:44px`. Zustand je Karte unabhängig, **keine Persistenz** über Reload. null-Fall unverändert: **gar keine Sektion**. Headless am ECHTEN Lauf belegt | self (CI grün), keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -323,7 +325,31 @@ box-shadow/gradient, kein filter/backdrop-filter). Verifiziert: Vorher/Nachher-
 Screenshots aller drei Flächen (390px), Konsole sauber, Tests grün (202). Revert =
 reiner CSS-Diff-Revert (box-shadow/background der drei Regeln + reduced-motion-Block).
 
-**✅ Agent-Kommentar v1 (KI) — erledigt (dieser PR, `scripts/agent_comment.py` +
+**✅ KI-Kommentar standardmäßig eingeklappt — erledigt (dieser PR, `docs/index.html`,
+reines Frontend):** Der Agent-Kommentar ist ein **Zusatz** — die ruhige Karte bleibt
+der Normalzustand. `agentBlock` rendert die Sektion jetzt als **`<details>` OHNE
+`open`-Attribut** (Default eingeklappt): `<summary class="agent-summary">` trägt
+kompakt „KI-Kommentar · heuristisch" + Chevron; **Lesart, Gegenargument und
+Modellname erscheinen erst nach aktivem Öffnen** (`.agent-body`). **Muster** (aus dem
+Squeeze-Schwester-Repo bestätigt: „Score-Methodik-Panel UX (Accordion-Redesign)";
+im Elliott-Report bereits Haus-Muster bei der Ambiguitäts-Alternative aus #43):
+HTML5 `<details>/<summary>`, **Chevron-Rotation per CSS über den `[open]`-Selector**
+(`.agent-block[open] .agent-summary::after {transform:rotate(90deg)}`) — **kein
+animiertes `height`**, deshalb **kein Layout-Sprung**; `list-style:none` +
+`::-webkit-details-marker{display:none}`; **Tap-Ziel `min-height:44px`**;
+`prefers-reduced-motion` schaltet die Chevron-Transition ab (gemeinsame Regel mit
+`.amb-summary`). Zustand je Karte **unabhängig**, bewusst **ohne Persistenz** über
+Reload. **null-Fall unverändert:** kein Kommentar → **gar keine Sektion**, auch keine
+leere Kopfzeile. **Verifiziert (390px, headless, am ECHTEN Lauf `48665a4`):** 5 Karten
+/ 4 Sektionen (die auf `null` gesetzte Karte zeigt nichts); alle default `open=null`,
+Body unsichtbar; Summary-Höhe exakt **44px**; Öffnen von Karte 2 lässt Karte 1 und 3
+zu (unabhängig) und verschiebt **nichts oberhalb** (Dokument-Koordinaten 416→416 bzw.
+1065→1065); Chevron dreht (`matrix(0,1,-1,0,0,0)` vs. `none`); Schließen funktioniert;
+kein H-Scroll; Konsole sauber. Tests grün (264). Revert = `<details>/<summary>` zurück
+zu `<div class="agent-block">`/`<div class="agent-head">` + die `.agent-summary`/
+`.agent-body`-Regeln raus (Inhalt unverändert).
+
+**✅ Agent-Kommentar v1 (KI) — erledigt (#49, `scripts/agent_comment.py` +
 Pipeline/Sammlung/Frontend):** Easys KI-Entscheidung vom 26.07. — nächtlich **ein**
 Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf; **Watchlist
 ausgenommen**) liefert Klartext-**Lesart**, **stärkstes Gegenargument** und ein
