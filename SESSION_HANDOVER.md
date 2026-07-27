@@ -148,11 +148,30 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
   rendert drei Zeilen Tag/Woche/Monat, null → „kein valider Long-Count". **Live zu
   prüfen:** echte yfinance-`1mo`-Daten je `.DE`/US-Titel (Datenlage ≥ 60 Monate),
   Panel-Optik am realen Ticker, `.DE`-Monatshistorie-Verfügbarkeit.
-- **OFFEN — Push-Paket Stufe 1 scharfschalten (#22):** Easy muss das Repo-Secret
-  **`NTFY_TOPIC`** (z. B. `easy-elliott-report`) setzen — bis dahin ist alles
-  **still** (no-op). Danach live prüfen: Lauf-Fehlschlag-Push, Staleness-Push
-  (report künstlich altern lassen / Cron dispatchen), ntfy-App auf das Topic
-  abonnieren. Zustellung aus der Sandbox nicht testbar (Netz).
+- **✅ ERLEDIGT — Push-Paket Stufe 1 scharfgeschaltet (#22):** Das Secret
+  **`NTFY_TOPIC`** ist gesetzt und **funktioniert nachweislich** — Easy hat das
+  Topic seit 23.07. abonniert, es kamen real 2 Benachrichtigungen an.
+- **⚠️ FUND 27.07. — das Secret war nur in DREI von vier Steps verdrahtet.**
+  `daily.yml` reichte `NTFY_TOPIC` an „Self-monitor push", „Push bei
+  Lauf-Fehlschlag" und (in `staleness_check.yml`) an den Staleness-Step durch —
+  **nicht** an den Step **„Run pipeline"**. GitHub Actions vererbt Secrets
+  **nicht** automatisch in Steps: nur was im `env:`-Block des Steps steht,
+  landet im Prozess. Der Name war nie das Problem (überall identisch
+  `NTFY_TOPIC`), es fehlte allein das Mapping.
+  **Folge:** beide Push-Zweige, die INNERHALB der Pipeline leben, waren still —
+  der **Score-Alert >90** (#24) **seit seinem Bau** und der **Health-Check
+  Stufe 2** (#51) von Anfang an. Beide sind fail-soft: leeres Topic →
+  `send_ntfy` loggt „kein NTFY_TOPIC" und gibt `False` zurück. **Kein Fehler,
+  keine rote CI, kein Hinweis** — genau die Defekt-Klasse, gegen die der
+  Health-Check gebaut wurde, eine Ebene tiefer.
+  **Praktisch verloren ging nie ein Push:** kein Kandidat erreichte je >90
+  (Höchststand 89,84) und der erste Health-Lauf meldete `ok`. Die Verdrahtung
+  war trotzdem tot. Behoben + Regressionsnetz
+  (`tests/test_workflow_push_wiring.py`: startet ein Step ein Skript, das das
+  Topic liest, muss er es setzen — der Test wurde gegen den kaputten Zustand
+  gegengeprüft und schlägt dort fehl). Zusätzlich ein **Bestätigungs-Push**
+  (`notify.py --mode selftest`, nur per `workflow_dispatch`-Schalter
+  `push_selftest`, nie automatisch, priority `low`).
 - **OFFEN — Score-Alert >90 live beobachten (dieser PR):** greift erst, wenn ein
   Kandidat real **>90** erreicht. **Frequenz-Messung über die GESAMTE committete
   Report-Historie (Universum 361): 0 Kandidaten je >90**, Höchststand **89,84**
