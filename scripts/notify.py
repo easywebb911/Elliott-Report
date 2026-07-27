@@ -257,15 +257,40 @@ def run_daily(topic: str, now: _dt.datetime) -> dict:
     return out
 
 
+def run_selftest(topic: str, now: _dt.datetime) -> bool:
+    """EIN harmloser Bestätigungs-Push — beweist die Verdrahtung Ende zu Ende.
+
+    Anlass (27.07.2026): Das Secret `NTFY_TOPIC` war gesetzt und funktionierte,
+    aber der Step „Run pipeline" in daily.yml reichte es nicht durch — GitHub
+    Actions vererbt Secrets nicht in Steps. Score-Alert (#24) und Health-Check
+    (#51) leben INNERHALB der Pipeline und waren dadurch still. Fail-soft heißt:
+    kein Fehler, keine rote CI, kein Hinweis. Genau deshalb braucht die
+    Verdrahtung einen Weg, sich EINMAL bewusst zu beweisen.
+
+    Wird nur per `workflow_dispatch`-Schalter ausgelöst, nie automatisch.
+    """
+    return send_ntfy(
+        topic,
+        "Elliott: Push-Verdrahtung ok",
+        f"Selbsttest {now.strftime('%Y-%m-%d %H:%M UTC')} — dieser Push kam aus "
+        f"demselben Prozess wie Score-Alert und Health-Check. Kein Befund, "
+        f"keine Handlung nötig.",
+        priority="low", tags="white_check_mark",
+    )
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--mode", required=True, choices=["staleness", "daily"])
+    p.add_argument("--mode", required=True,
+                   choices=["staleness", "daily", "selftest"])
     args = p.parse_args(argv)
     topic = os.environ.get("NTFY_TOPIC", "")
     now = _dt.datetime.now(_dt.timezone.utc)
     try:
         if args.mode == "staleness":
             run_staleness(topic, now)
+        elif args.mode == "selftest":
+            run_selftest(topic, now)
         else:
             run_daily(topic, now)
     except Exception as exc:  # noqa: BLE001 — Selbstüberwachung darf nie brechen
