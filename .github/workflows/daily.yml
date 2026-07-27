@@ -54,12 +54,23 @@ jobs:
         run: |
           python - <<'PY'
           import json, sys
+
+          # STRIKT gegen NaN/Infinity (ab 27.07.2026, Health-Check Stufe 2):
+          # json.dump schreibt float('nan') als literales `NaN` — das ist KEIN
+          # gültiges JSON. Python liest es klaglos zurück (deshalb lief diese
+          # Prüfung bisher durch), aber JSON.parse im Browser WIRFT → die PWA
+          # lädt gar nicht mehr. Lieber hier laut scheitern (nichts wird
+          # committet, der letzte gute Report bleibt stehen und das Frontend
+          # zeigt den Staleness-Hinweis) als kaputte Daten veröffentlichen.
+          def _reject(const):
+              raise ValueError(f"nicht-endliche Zahl im Report: {const}")
+
           for path in ("data/report.json", "docs/data/report.json"):
               with open(path, encoding="utf-8") as fh:
-                  data = json.load(fh)
+                  data = json.load(fh, parse_constant=_reject)
               assert "markets" in data and "US" in data["markets"] and "DE" in data["markets"], path
               assert "run_timestamp_utc" in data, path
-          print("report JSON valide")
+          print("report JSON valide (inkl. Finit-Prüfung)")
           PY
 
       # Selbstüberwachung (bewusst fast stumm): Meilenstein n>=100 + Review-
@@ -81,6 +92,10 @@ jobs:
           # Einmaliger Meilenstein-Marker (falls in diesem Lauf gesetzt).
           [ -f data/validation_milestone_fired.flag ] \
             && git add data/validation_milestone_fired.flag || true
+          # Flanken-Marker des Health-Checks (Stufe 2). MUSS persistiert werden,
+          # sonst ist jeder Lauf eine neue Flanke -> Push-Wiederholung bei
+          # unverändertem Zustand (genau das, was die Flanken-Logik verhindert).
+          [ -f data/health_state.json ] && git add data/health_state.json || true
           if git diff --cached --quiet; then
             echo "Keine Änderungen — nichts zu committen."
           else

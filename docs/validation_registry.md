@@ -364,3 +364,51 @@ vor n ≥ 100) gilt unverändert.
     Feld → Sektion fehlt.
   Revert = `scripts/agent_comment.py` + der `try`-Block in `main()` + die 2
   Freeze-Felder in `_new_record` + `agentBlock`/CSS + das `env:`-Secret raus.
+
+- **27.07.2026 — Health-Check Stufe 2 (Plausibilitäts-Regeln mit Push).**
+  Keine Populations-, Score- oder Auswertungs-Änderung — dieser Eintrag steht
+  hier ausschließlich der Nachvollziehbarkeit halber. Stufe 1 (`notify.py`)
+  meldet **Absturz** und **Ausfall**; Stufe 2 (`scripts/health_check.py`)
+  schließt die verbleibende Lücke: **ein Lauf kann technisch erfolgreich sein
+  und trotzdem Unsinn liefern.**
+  **Anlass:** Lehre aus dem Schwester-Repo (easywebb911/Aktien-Update, PR #485,
+  27.07.) — dort erzeugte ein Fetch-Pfad **NaN statt None**; NaN passierte alle
+  `is not None`-Guards und jeden Vergleich (`nan <= 0` ist False), der
+  Provider-Check verbuchte „Erfolg", der Fehler lief zwei Tage still weiter und
+  ließ am Ende einen Trigger falsch feuern. Elliott rechnet ebenfalls Ratios aus
+  Kursreihen — dieselbe Klasse ist strukturell möglich, mit **anderem
+  Schadensbild**: `json.dump` schreibt `float('nan')` als literales `NaN`, das
+  ist **kein gültiges JSON**; Python liest es klaglos, `JSON.parse` im Browser
+  **wirft** → die PWA lädt gar nicht mehr (empirisch geprüft, nicht angenommen).
+  **Sechs Regeln** am Lauf-Ende: (1) **Nicht-finit** — rekursiv über den
+  fertigen Report **und** die Sammlung, geprüft mit `math.isfinite` (nicht mit
+  `is not None`) und **vor** beiden Serialisierungen → `crit`; (2)
+  **Vollständigkeit** — 0 Top-Einträge in einem Markt `crit`, weniger als
+  `HEALTH_MIN_CANDIDATES` `warn`; (3) **Fetch-Qualität** — Fehlanteil über
+  `HEALTH_MAX_FETCH_ERROR_PCT`, tote Ticker um mehr als `HEALTH_MAX_DEAD_DELTA`
+  gegenüber dem Vorlauf gestiegen → `warn`; (4) **Sammlung** — Top-5 vorhanden,
+  aber die Forward-Sammlung weder gewachsen noch verlängert → `warn` (fängt
+  Persistenz-Regressionen wie #21 wieder ein); (5) **Agent** — weniger als
+  `HEALTH_AGENT_MIN_OK` von 10 Karten mit Kommentar trotz gesetztem Secret →
+  `warn` (ohne Secret: kein Befund); (6) **Push-Disziplin** — alle Befunde
+  gebündelt in **einen** ntfy-Push, nur auf der **Flanke** (neu oder
+  verschlechtert), `warn` frühestens nach `HEALTH_WARN_REPEAT_RUNS` Läufen
+  erneut, Marker in `data/health_state.json`, Wochenend-/Feiertags-Gate.
+  **Transparenz:** additiver Block `report["health"]`, sichtbar in der
+  Lauf-Status-Ansicht — der Zustand ist auch **ohne** gesetztes `NTFY_TOPIC`
+  nachlesbar.
+  **SCHWELLEN SIND BETRIEBS-PARAMETER, KEINE AUSWERTUNGS-DEFINITIONEN.** Sie
+  steuern, wann sich die Selbstüberwachung **meldet** — sie definieren nichts,
+  was gemessen oder ausgewertet wird (kein Score, kein Erfolgsmaß, keine
+  Populations-Regel). Sie dürfen deshalb **ohne neue Registry-Version** justiert
+  werden; hier stehen sie nur, damit der damalige Melde-Stand verortbar bleibt:
+  `HEALTH_MIN_CANDIDATES = 3`, `HEALTH_MAX_FETCH_ERROR_PCT = 10.0`,
+  `HEALTH_MAX_DEAD_DELTA = 3`, `HEALTH_AGENT_MIN_OK = 5`,
+  `HEALTH_WARN_REPEAT_RUNS = 3` (alle in `config.py`).
+  **Harte Grenzen:** der Health-Check **ändert nie Daten**, **bricht den Lauf
+  nie ab** (der Report wird geschrieben, der Befund gemeldet) und berührt
+  **Score/Ranking/Filter/Reifung nicht** (bewiesen: der Report ist mit und ohne
+  Health-Check identisch bis auf den additiven `health`-Schlüssel).
+  Revert = `scripts/health_check.py` + die drei `try`-Blöcke in `main()` + der
+  `HEALTH_*`-Block in `config.py` + `.health-box`-CSS/Renderer + die zwei
+  `daily.yml`-Zeilen raus.

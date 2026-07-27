@@ -1,16 +1,15 @@
 # SESSION_HANDOVER — Elliott-Report
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
-allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **26.07.2026**,
-nach PR #49 (**Agent-Kommentar v1**, gemerged; **live bestätigt**: erster Lauf mit
-Secret `48665a4` → **10/10 Kommentare**, concern_level 7×`high`/3×`low`, reale Kosten
-**~$0,011/Lauf ≈ $2,66/Jahr**); dieser PR: **KI-Kommentar standardmäßig eingeklappt**
-(reines Frontend), offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
+allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **27.07.2026**,
+nach PR #50 (**KI-Kommentar standardmäßig eingeklappt**, gemerged); dieser PR:
+**Health-Check Stufe 2** (Plausibilitäts-Regeln mit flankengetriggertem Push),
+offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
 Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
 Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`48665a4` = täglicher Commit nach dem
-> #49-Merge) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`e8aca20` = täglicher Commit nach dem
+> #50-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -98,7 +97,8 @@ durchgängig ab #13.
 | #47 | `0ac6d92` | **P4c-Audit: Sparkline-Achsen** (LETZTER Audit-Punkt → **P1–P4 komplett**): dezente Eck-Werte an der GROSSEN Tages-Sparkline — Hoch-/Tief-Preis + Zeitspanne (`TT.MM.JJ`), `.spark-axis` 7px SVG-px, `--txt-dim` (AA), Halo (`paint-order`), Kollisions-Nudge gegen Wellen-Ziffern; **Minis bewusst ohne**; keine Gitter/Striche. Verifiziert am echten AMAT (723 / 322,72 / 25.02.26–07.07.26), 0 Kollisionen | self (CI grün) |
 | #48 | `90577a7` | **Elliott-Wellen-Banner + Chip-Zeile entfernt**: (1) freigegebenes SVG (v3) **inline** unter der Stand-Zeile / über der Watchlist — dekorativ (`aria-hidden`), responsive über viewBox; alle 6 ids mit **`ewb-`-Präfix** (Kollisionsschutz, headless auf doppelte ids geprüft). (2) **Chip-Zeile `#wl-chips` entfernt** (doppelt zu den Kacheln), ersetzt durch `renderWatchlistCount`; Empty-State in der Kachel-Fläche. Watchlist-Flows headless durchgespielt | self (CI grün) |
 | #49 | `48665a4` | **Agent-Kommentar v1** (KI-Entscheidung Easy 26.07.): nächtlich EIN Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf, Watchlist ausgenommen) → `agent_comment {lesart, gegenargument, concern_level, model, generated_at}` \| null. **REINE Kommentar-Ebene:** Schritt läuft NACH `build_report` (nach Sortierung/Filtern), Score/Ranking/Filter/Reifung byte-identisch (Test). **Fail-soft total:** ohne `ANTHROPIC_API_KEY` no-op, API-/Parse-Fehler → null (1 Retry), Key nie geloggt; Token-Kosten-Log. **Messung:** `agent_concern_level`+`agent_model` bei Anlage eingefroren (LLM nicht deterministisch). Registry datiert **inkl. wörtlichem Prompt**. UI: dezente „KI-Kommentar"-Sektion, concern_level als **neutraler Text** (keine Ampel). **Live: 10/10 Kommentare, 7×high/3×low, real ~$0,011/Lauf ≈ $2,66/Jahr.** 19 neue Tests (264) | Guardian (Nits, behoben) + manual |
-| #(dieser) | `(offen)` | **KI-Kommentar standardmäßig eingeklappt**: `agentBlock` rendert die Sektion als **`<details>` ohne `open`** — `<summary>` trägt kompakt „KI-Kommentar · heuristisch" + Chevron; Lesart/Gegenargument/Modell erst nach aktivem Öffnen. Squeeze-Muster: Chevron-Rotation per CSS über `[open]`, **kein animiertes height → kein Layout-Sprung**, `prefers-reduced-motion`-tolerant, Tap-Ziel `min-height:44px`. Zustand je Karte unabhängig, **keine Persistenz** über Reload. null-Fall unverändert: **gar keine Sektion**. Headless am ECHTEN Lauf belegt | self (CI grün), keine Screenshots |
+| #50 | `4c7b7d4` | **KI-Kommentar standardmäßig eingeklappt**: `agentBlock` rendert die Sektion als **`<details>` ohne `open`** — `<summary>` trägt kompakt „KI-Kommentar · heuristisch" + Chevron; Lesart/Gegenargument/Modell erst nach aktivem Öffnen. Squeeze-Muster: Chevron-Rotation per CSS über `[open]`, **kein animiertes height → kein Layout-Sprung**, `prefers-reduced-motion`-tolerant, Tap-Ziel `min-height:44px`. Zustand je Karte unabhängig, **keine Persistenz** über Reload. null-Fall unverändert: **gar keine Sektion**. Headless am ECHTEN Lauf belegt | self (CI grün), keine Screenshots |
+| #(dieser) | `(offen)` | **Health-Check Stufe 2 — Plausibilitäts-Regeln mit Push**: sechs Regeln am Lauf-Ende (`scripts/health_check.py`), gebündelt in EINEN flankengetriggerten ntfy-Push. Kern: **Nicht-finit-Prüfung** (`math.isfinite`, rekursiv über Report **und** Sammlung, **vor** beiden Serialisierungen) — Lehre aus dem Schwester-Repo (NaN passiert `is not None`). Elliotts Schadensbild ist ein **hartes Frontend-Aus** (literales `NaN` = ungültiges JSON, `JSON.parse` wirft), empirisch belegt. Dazu Vollständigkeit / Fetch-Qualität + Tote-Ticker-Delta / Sammlungs-Fortschritt (#21-Netz) / Agent-Abdeckung. Flanke: neu oder verschlechtert → Push, unverändert still, `warn` erst nach 3 Läufen erneut, Marker `data/health_state.json`, Wochenend-/Feiertags-Gate. **Transparenz** ohne Push: additiver Block `report["health"]` in der Lauf-Status-Ansicht. **Grenzen bewiesen:** ändert nie Daten, bricht den Lauf nie ab, Report identisch bis auf den `health`-Schlüssel. **Regeln über die letzten 15 committeten Reports zurückgespielt: 0 Fehlalarme.** 48 neue Tests (312) | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -162,6 +162,31 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 - **TEILWEISE — Lauf-Status-Ansicht:** der #19-Dispatch-Lauf (`8a7d390`) hat
   `report.json` **mit** `diag` committet → die Ansicht sollte jetzt echte Zahlen
   zeigen (im UI noch gegenzuprüfen).
+- **OFFEN — Health-Check Stufe 2 im echten Lauf (dieser PR):** nach dem Merge
+  `daily.yml` dispatchen und nachtragen: **welche Regeln real feuerten (Soll:
+  keine)**, **Laufzeit-Delta** (erwartet ~0 — die Prüfung ist ein Baum-Durchlauf
+  über ~80 KB, plus EIN zusätzlicher `write_report`) und ein **Beweis-Lauf mit
+  künstlich injiziertem NaN**, dass die Prüfung `crit` meldet. Offline
+  vorbereitet: die Regeln wurden über die **letzten 15 committeten Reports
+  zurückgespielt → 0 Fehlalarme**, der synthetische Voll-Lauf meldet `ok`, und
+  der UI-Block ist headless in allen Zuständen (ok/warn/crit/gated/legacy)
+  belegt. **Push-Zustellung** braucht wie #22/#24 das Secret **`NTFY_TOPIC`** —
+  ohne Topic ist der Health-Check **still**, aber der `health`-Block im
+  Lauf-Status zeigt den Zustand trotzdem (bewusst: Sichtbarkeit hängt nicht am
+  Push).
+- **OFFEN — NaN-Guard-Härtung (Folge-PR, NICHT Teil dieses PRs):** Der
+  Health-Check macht die Folgen sichtbar, **repariert die Guards aber nicht**.
+  Konkrete Fundstellen derselben Klasse im Elliott-Code (per Grep + Test
+  belegt): `elliott_pipeline._volume_profile` (`s <= 0` / `vb <= 0`, negierte
+  Form — ein NaN-Volumen erzeugt nachweislich `vol_ratio_* = NaN`, Test
+  `test_nan_in_real_pipeline_volume_guard_is_caught`);
+  `elliott_pipeline` Z. ~830/832/910/912 (`round(x, 4) if x is not None`);
+  `forward_collection.mature_record` Z. ~186–190 (`c <= inval` — ein NaN-Close
+  lässt den Record **still** nie reifen); `forward_collection._alternation_fields`
+  Z. ~334 (`w2r is not None and w4r is not None`);
+  `forward_collection` Z. ~208 (`if entry` — truthy, NaN ist truthy).
+  Diese liegen im **Score-/Messpfad** — Härtung ist ein eigener PR mit
+  Populations-Vergleich vorher/nachher, nicht Beifang der Selbstüberwachung.
 - **✅ ERLEDIGT — `dead_tickers`-Hygiene nach #19-Lauf** (Run 30002584301,
   Pipeline 85 s / Job ~1,7 min): `fetch_error=0` beide Märkte. `empty_data`
   namentlich — US: `MMC`, `FI`, `HES`; DE: `1COV.DE`, `CTS.DE`, `UN01.DE`,
@@ -172,7 +197,77 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 
 ---
 
-## 4. WARTESCHLANGE / ROADMAP (Stand 23.07.2026)
+## 4. WARTESCHLANGE / ROADMAP (Stand 27.07.2026)
+
+**✅ Health-Check Stufe 2 — erledigt (dieser PR, `scripts/health_check.py`):**
+Stufe 1 meldet **Absturz** und **Ausfall**. Stufe 2 schließt die Lücke
+**„technisch erfolgreich, inhaltlich Unsinn"** — sechs Plausibilitäts-Regeln am
+Lauf-Ende, gebündelt in **EINEN** flankengetriggerten ntfy-Push.
+**Anlass (Lehre aus dem Schwester-Repo, 27.07.):** dort erzeugte ein Fetch-Pfad
+**NaN statt None**; NaN passiert **alle** `is not None`-Guards und **jeden**
+Vergleich (`nan <= 0` ist False), der Fehler lief zwei Tage still weiter.
+**Elliotts Schadensbild ist ein anderes und schlimmeres** (empirisch geprüft):
+`json.dump` schreibt `NaN` literal → **kein gültiges JSON** → `JSON.parse` im
+Browser wirft → die PWA lädt gar nicht mehr. Deshalb prüft Regel 1 mit
+`math.isfinite` (nicht `is not None`) und **vor** beiden Serialisierungen
+(Report **und** Sammlung).
+**Regeln:** (1) nicht-finit `crit`; (2) Vollständigkeit — 0 Top-Einträge `crit`,
+< `HEALTH_MIN_CANDIDATES` `warn`; (3) Fetch-Qualität > `HEALTH_MAX_FETCH_ERROR_PCT`
+und Tote-Ticker-Delta > `HEALTH_MAX_DEAD_DELTA` `warn`; (4) Sammlung weder
+gewachsen noch verlängert `warn` (**#21-Netz**); (5) < `HEALTH_AGENT_MIN_OK`
+KI-Kommentare **trotz** gesetztem Secret `warn` (ohne Secret: kein Befund).
+(6) **Push-Disziplin:** Flanke statt Zustand — neu **oder verschlechtert** →
+Push; unverändert **still**; `warn` frühestens nach `HEALTH_WARN_REPEAT_RUNS`
+Läufen erneut; `crit` sofort, danach still bis zur Änderung; Erholung gibt den
+Marker frei. State in `data/health_state.json` (von `daily.yml` mitcommittet —
+**ohne Persistenz wäre jeder Lauf eine neue Flanke**). Wochenend-/Feiertags-Gate;
+an gegateten Tagen wird der State **bewusst nicht** fortgeschrieben, sonst
+verschluckt der nächste Handelstag den Befund.
+(7) **Transparenz:** additiver Block `report["health"]` (Status, Befunde,
+Schwellen) in der **Lauf-Status-Ansicht** — ohne `NTFY_TOPIC` die einzige
+Sichtbarkeit.
+**Grenzen (bewiesen):** ändert **nie** Daten; bricht den Lauf **nie** ab (drei
+eigene `try`-Blöcke, der Report ist längst geschrieben, bevor der Health-Block
+in einem **zweiten** `write_report` ergänzt wird); Score/Ranking/Filter/Reifung
+unberührt — der Report ist mit und ohne Health-Check identisch **bis auf den
+`health`-Schlüssel** (Test). **Schwellen sind Betriebs-Parameter, keine
+Auswertungs-Definitionen** (Registry-Notiz 27.07.).
+**Zusatz außerhalb der Aufgabe (bewusst, im PR begründet):** der bestehende
+`daily.yml`-Schritt „Validate report JSON" liest jetzt **strikt** (`parse_constant`)
+— NaN/Infinity lassen den Lauf dort **laut scheitern**, statt unparsebare Daten
+zu committen. Der letzte gute Report bleibt dann stehen (Staleness-Hinweis im
+Frontend) — besser als eine PWA, die gar nicht mehr lädt.
+**Guardian-Nits (27.07., alle eingearbeitet):** (1) **Regel 4 feuerte beim
+zweiten Dispatch DESSELBEN Kalendertags** — ein ausdrücklich vorgesehener
+Retry-Pfad, an dem die Episoden-Logik die heutigen Records idempotent erneut
+setzt, die Signatur also zwangsläufig gleich bleibt. Reproduziert und gefixt
+(`same_day_rerun`, aus `coll["last_run_date"]` VOR dem Update). (2)
+`write_report` war **nicht atomar** (`open("w")` truncierte sofort) — dieser PR
+verdoppelt das Zeitfenster durch den zweiten Schreibvorgang, also jetzt
+Temp-Datei + `os.replace`; Ergebnis-Bytes unverändert. (3) toter Ternär-Zweig in
+`evaluate_edges` entschärft.
+**Bekanntes, akzeptiertes Rauschen (Guardian, nicht gefixt — bewusst):**
+Regel 2 meldet an ruhigen Markttagen mit nur 1–2 echten Setups ein `warn`
+(genau so gewollt: „wenige Kandidaten aus hunderten Titeln" IST der Fall, für
+den diese Stufe existiert). Und wenn die strikte `daily.yml`-Validierung greift,
+kommen an dem Tag **zwei** Pushes (spezifischer Health-Push + generischer
+Lauf-Fehlschlag) und `health_state.json` wird **nicht** committet (der
+Commit-Schritt läuft bei rotem Job nicht) — Folge: Befunde dieses Tages gelten
+beim nächsten Auftreten wieder als „neu". Konsequenz ist mehr Sichtbarkeit,
+nicht weniger.
+**Belege:** 48 neue Tests (264 → **312**); Regeln über die **letzten 15
+committeten Reports** zurückgespielt → **0 Fehlalarme**; synthetischer Voll-Lauf
+`ok`, auch der **zweite Lauf am selben Tag** (Retry-Pfad) meldet `ok`;
+**NaN-Injektions-Beweis am echten committeten Report**: `crit` mit exakten
+Pfaden → high-Priority-Push → literales `NaN` im serialisierten JSON → strikte
+`daily.yml`-Validierung lehnt ab (ganze Kette offline durchgespielt);
+UI headless in allen Zuständen (ok/warn/crit/gated/legacy, XSS-Escaping,
+390 px, kein H-Scroll). Revert = `scripts/health_check.py` + die drei
+`try`-Blöcke in `main()` + `HEALTH_*` in `config.py` + `.health-box`-CSS/Renderer
++ die zwei `daily.yml`-Zeilen raus (rein additiv, keine Datenreste außer
+`data/health_state.json`).
+**Nach Merge:** `daily.yml` dispatchen → welche Regeln feuerten (Soll: keine),
+Laufzeit-Delta, NaN-Injektions-Beweislauf (Abschnitt 3).
 
 **✅ Push-Paket Stufe 1 — erledigt (#22, `scripts/notify.py`):** ntfy, bewusst
 fast stumm. Anlässe: **Lauf-Fehlschlag** (`if: failure()` in daily.yml),
