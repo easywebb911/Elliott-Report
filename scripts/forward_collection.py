@@ -495,6 +495,14 @@ def observe_w5_structure(rec: Dict, dates: Sequence[str], closes: Sequence[float
     fwd = cl[idx + 1: idx + 1 + HORIZON_DAYS]
     if len(fwd) < HORIZON_DAYS:
         return
+    # Nicht-finit-Härtung (Guardian-Nit 27.07.): dasselbe Fenster-Pendant wie
+    # in observe_a_correction und observe_w5_divergence. `max()` ist mit einem
+    # NaN im Fenster reihenfolge-abhängig; der `finite(w5_len)`-Guard unten
+    # fängt zwar den erreichbaren Schadensfall ab, aber die drei Funktionen
+    # sollen dieselbe Fenster-Regel tragen — sonst driftet die nächste
+    # Änderung an einer davon vorbei.
+    if not all_finite(fwd) or not finite(p4):
+        return
     high = max(fwd)
     high_pos = idx + 1 + fwd.index(high)
     w5_len = high - p4

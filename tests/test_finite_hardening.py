@@ -12,9 +12,9 @@ Guards dieser Formen schützen nicht, sie **schweigen**. Jeder Test hier hat
 zwei Hälften: der kaputte Fall wird abgefangen, **und** gesunde Daten liefern
 unverändert dasselbe Ergebnis wie vorher (Gegenprobe).
 """
-import copy
 import json
 import math
+import pathlib
 
 import pandas as pd
 import pytest
@@ -284,6 +284,36 @@ def test_roc_rejects_non_finite(bad):
 def test_roc_healthy_unchanged():
     closes = [10.0] * 14 + [11.0]
     assert fc._roc(closes, 14, 14) == round(11.0 / 10.0 - 1.0, 6)
+
+
+@pytest.mark.parametrize("bad", BAD)
+def test_all_three_observe_windows_share_the_same_finite_rule(bad):
+    """Guardian-Nit 27.07.: die drei ``observe_*``-Funktionen benutzen dieselbe
+    Fenster-Logik (``high = max(fwd)``) und müssen deshalb auch dieselbe
+    Finit-Regel tragen — sonst driftet die nächste Änderung an einer vorbei."""
+    src = (pathlib.Path(fc.__file__).read_text(encoding="utf-8"))
+    for fn in ("observe_a_correction", "observe_w5_divergence",
+               "observe_w5_structure"):
+        body = src.split(f"def {fn}(", 1)[1].split("\ndef ", 1)[0]
+        assert "all_finite(fwd)" in body, f"{fn} ohne Fenster-Finit-Guard"
+
+    # Verhalten: ein kaputter Bar im Fenster -> gar keine Messung, nie ein
+    # erfundenes Urteil.
+    rec = {"first_seen_date": "d0", "matured": True, "target_hit": 1,
+           "count_label": "end_of_w4", "entry_close": 100.0,
+           "invalidation_price": 90.0,
+           "target_zone": {"low": 110.0, "high": 120.0},
+           "target_zone_extended": {"low": 125.0, "high": 140.0},
+           "chart_points": [{"index": i, "price": 90.0 + i,
+                             "date": f"d{i}"} for i in range(5)],
+           "count_wave_labels": [{"index": i, "wave": i} for i in range(5)]}
+    dates = [f"d{i}" for i in range(24)]
+    closes = [100.0] * 24
+    closes[5] = bad
+    before = json.dumps(rec, sort_keys=True)
+    fc.observe_w5_structure(rec, dates, closes, NOW)
+    assert json.dumps(rec, sort_keys=True) == before, (
+        "kaputtes Fenster darf keine Messung schreiben")
 
 
 # ══ 6) Regime ══════════════════════════════════════════════════════════════
