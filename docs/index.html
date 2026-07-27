@@ -2912,6 +2912,24 @@
       const stale = (ageH != null && ageH > STALENESS_HOURS && _calendarMissedRun(ts, _now))
         ? `<div class="info-stale show">⚠️ Daten sind ${Math.round(ageH)} h alt — seit dem letzten erwarteten Werktags-Lauf kein frischer Report.</div>` : '';
 
+      // Nicht-finit-Härtung (27.07.2026): beim Parsen verworfene Bars. Die
+      // Zeile erscheint NUR, wenn es etwas zu melden gibt — im gesunden Lauf
+      // ist sie 0 und würde nur Rauschen erzeugen. Ältere Reports ohne die
+      // Felder verhalten sich wie „nichts verworfen".
+      function barsRow(d) {
+        const dropped = Number(d.dropped_bars || 0);
+        const badVol = Number(d.invalid_volume_bars || 0);
+        if (!dropped && !badVol) return '';
+        const who = Array.isArray(d.bad_bar_tickers)
+          ? d.bad_bar_tickers.slice(0, 6).map(b => esc(String(b.ticker))).join(', ')
+          : '';
+        const parts = [];
+        if (dropped) parts.push(`${dropped} Bar(s) verworfen`);
+        if (badVol) parts.push(`${badVol} ohne Volumen`);
+        return `<span class="k">Rohdaten</span><span class="v">${parts.join(' · ')}` +
+               (who ? ` (${who})` : '') + `</span>`;
+      }
+
       const FLAGS = { US: '🇺🇸', DE: '🇩🇪' };
       let markets = '';
       let anyDiag = false;
@@ -2934,6 +2952,7 @@
                <span class="k">Kandidaten</span><span class="v">${m.candidates_found ?? '–'} / ${m.universe_size ?? '–'} Universum</span>
                <span class="k">Übersprungen</span><span class="v">${m.skipped ?? '–'}</span>
                <span class="k">Großer Grad</span><span class="v">${d.higher_degree_count ?? 0} / ${d.top_count ?? 0} mit Wochen-Count</span>
+               ${barsRow(d)}
              </div>
              <div class="status-skips">${chips}</div>`;
         }

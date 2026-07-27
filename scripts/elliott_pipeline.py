@@ -39,6 +39,7 @@ for _p in (str(_ROOT), str(_HERE)):
 import config  # noqa: E402
 import forward_collection as fc  # noqa: E402
 import notify  # noqa: E402 — Score-Alert-Push (fail-soft, no-op ohne NTFY_TOPIC)
+from numeric import finite  # noqa: E402 — EIN Finit-Prädikat für alle Guards
 from rules import validate_impulse, validate_partial_to_w4  # noqa: E402
 from zigzag import Pivot, zigzag  # noqa: E402
 
@@ -86,7 +87,13 @@ class FetchOutcome:
     # data[1] (closes). Steckt im SELBEN yfinance-Download — KEIN Extra-Call.
     # Fail-soft None, wenn keine Volume-Spalte vorliegt. Berührt data NICHT
     # (bestehende `dates, closes = outcome.data`-Unpacks bleiben byte-identisch).
-    volumes: Optional[List[float]] = None
+    volumes: Optional[List[Optional[float]]] = None
+    # Nicht-finit-Härtung (27.07.2026): wie viele Bars beim Parsen VERWORFEN
+    # wurden, weil ihr Close nicht endlich war (NaN/±Inf), und wie viele Bars
+    # ein unbrauchbares Volumen hatten (Bar bleibt, Volumen wird None).
+    # Rein diagnostisch — Skip-Entscheidung und `data` bleiben unberührt.
+    dropped_bars: int = 0
+    invalid_volume_bars: int = 0
 
 
 # Ein Fetcher liefert ein FetchOutcome (Daten ODER Skip-Grund + Detail).
@@ -225,38 +232,91 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
             detail=f"keine 'Close'-Spalte; columns={list(df.columns)}",
         )
 
-    closes = [float(x) for x in df["Close"].dropna().tolist()]
-    dates = [d.strftime("%Y-%m-%d") for d in df.index.to_pydatetime()]
-    dates = dates[: len(closes)]
+    dates, closes, volumes, dropped, bad_vol = _extract_bars(df)
     if len(closes) < mb:
         return FetchOutcome(
             reason=EMPTY_DATA,
             detail=(
                 f"zu wenige Kerzen: {len(closes)} < min_bars={mb}; "
-                f"shape={df.shape}, columns={list(df.columns)}"
+                f"shape={df.shape}, columns={list(df.columns)}, "
+                f"verworfene Bars={dropped}"
             ),
+            dropped_bars=dropped,
+            invalid_volume_bars=bad_vol,
         )
-    # Additiv (Messfelder v1): Tagesvolumen aus DEMSELBEN Download mitnehmen —
-    # gleich gekürzt wie `dates` (auf len(closes)), damit Pivot-Indizes (die auf
-    # `closes` zeigen) 1:1 auf das Volumen passen. Fail-soft: keine Volume-Spalte
-    # ODER Parse-Problem -> None (Volumen-Profil wird dann null, kein Absturz).
-    volumes = _extract_volumes(df, len(closes))
-    return FetchOutcome(data=(dates, closes), volumes=volumes)
+    return FetchOutcome(data=(dates, closes), volumes=volumes,
+                        dropped_bars=dropped, invalid_volume_bars=bad_vol)
 
 
-def _extract_volumes(df, n: int) -> Optional[List[float]]:
-    """Tagesvolumen als Liste (Länge n, auf `closes` ausgerichtet). NaN/fehlend
-    -> 0.0 (Division-Guards im Profil fangen 0 ab). Kein Volume/Fehler -> None."""
-    if "Volume" not in getattr(df, "columns", []):
-        return None
-    try:
-        out: List[float] = []
-        for x in df["Volume"].tolist()[:n]:
-            v = float(x)
-            out.append(0.0 if v != v else v)  # v != v -> NaN
-        return out
-    except Exception:  # noqa: BLE001 — fail-soft, Volumen ist rein additiv
-        return None
+def _extract_bars(df):
+    """Datum/Close/Volumen in EINEM ausgerichteten Durchgang — die Quelle.
+
+    NICHT-FINIT-HÄRTUNG (27.07.2026, Ursachen-Fix zu #51). Vorher lief das so:
+
+        closes = [float(x) for x in df["Close"].dropna().tolist()]
+        dates  = [...alle Datumswerte...][: len(closes)]
+        volumes = _extract_volumes(df, len(closes))   # aus dem UNGEFILTERTEN df
+
+    Daran waren **drei** Dinge kaputt, und zwar still:
+
+    1. **Datums-Versatz.** ``dropna`` entfernt die Zeile, das Datum wird aber
+       nur vorne abgeschnitten. Sitzt das Loch in der MITTE, bekommt jeder
+       Close danach das Datum seines Vorgängers. Belegt: Close-Reihe
+       ``[10, NaN, 30, 40]`` liefert ``30.0`` mit dem Datum des 02.01. statt
+       des 03.01. Das verschiebt Pivot-Daten, ``chart_points``, die
+       Sparkline-Achsen (#47) und die point-in-time eingefrorenen Pivots in
+       der Sammlung — also genau die Belege, die später ausgewertet werden.
+    2. **±Inf blieb drin.** ``dropna`` entfernt NUR NaN. Ein unendlicher Close
+       lief unverändert in Zählung, Zielzone und Score.
+    3. **Volumen-Versatz.** Die Volumen kamen aus dem ungefilterten Frame und
+       passten nach jedem entfernten Close nicht mehr zu den Pivot-Indizes.
+
+    Jetzt: EIN Durchgang über die Zeilen, gemeinsam gefiltert. Ein Bar ohne
+    endlichen Close ist **kein Bar** und wird verworfen (gezählt). Ein Bar mit
+    unbrauchbarem Volumen bleibt (der Preis ist gültig!), sein Volumen wird
+    ``None`` — Messfeld-Semantik, siehe ``numeric``. Bewusst NICHT der ganze
+    Bar: das Volumen ist ein rein additives Messfeld ohne Score-Wirkung, ein
+    Verwerfen würde die Zählung von der Volumen-Verfügbarkeit abhängig machen.
+
+    Returnt ``(dates, closes, volumes|None, dropped_bars, invalid_volume_bars)``.
+    """
+    has_vol = "Volume" in getattr(df, "columns", [])
+    close_col = df["Close"].tolist()
+    vol_col = df["Volume"].tolist() if has_vol else None
+    idx = list(df.index)
+
+    dates: List[str] = []
+    closes: List[float] = []
+    volumes: List[Optional[float]] = []
+    dropped = bad_vol = 0
+
+    for i, raw_close in enumerate(close_col):
+        try:
+            c = float(raw_close)
+        except (TypeError, ValueError):
+            c = float("nan")
+        if not finite(c):
+            dropped += 1
+            continue                      # kein gültiger Preis = kein Bar
+        try:
+            dates.append(idx[i].strftime("%Y-%m-%d"))
+        except Exception:  # noqa: BLE001 — Index ohne strftime: Bar unbrauchbar
+            dropped += 1
+            continue
+        closes.append(c)
+        if vol_col is None:
+            continue
+        try:
+            v = float(vol_col[i])
+        except (TypeError, ValueError, IndexError):
+            v = float("nan")
+        if finite(v):
+            volumes.append(v)
+        else:
+            volumes.append(None)          # Messfeld fehlt ehrlich, statt 0.0
+            bad_vol += 1
+
+    return dates, closes, (volumes if has_vol else None), dropped, bad_vol
 
 
 def fetch_synthetic(ticker: str) -> FetchOutcome:
@@ -441,7 +501,14 @@ def get_monthly_fetcher() -> Fetcher:
 # 4) SETUP-ERKENNUNG + REGEL-VALIDIERUNG
 # ---------------------------------------------------------------------------
 def _fib_proximity_bonus(retrace: float, targets: Sequence[float]) -> float:
-    """Weicher Bonus je näher `retrace` an einem Schlüssel-Fib liegt."""
+    """Weicher Bonus je näher `retrace` an einem Schlüssel-Fib liegt.
+
+    Nicht-finit-Härtung: ein nicht endliches ``retrace`` ergäbe über
+    ``max(best, nan)`` einen NaN-Bonus und damit einen NaN-Score. Kein Bonus
+    ist die ehrliche Antwort — die Nähe ist schlicht nicht bestimmbar.
+    """
+    if not finite(retrace):
+        return 0.0
     tol = config.FIB_PROXIMITY_TOLERANCE
     best = 0.0
     for t in targets:
@@ -452,8 +519,12 @@ def _fib_proximity_bonus(retrace: float, targets: Sequence[float]) -> float:
 
 
 def _invalidation_bonus(close: float, invalidation: float) -> float:
-    """Bonus nach prozentualem Abstand des Kurses zum K.o.-Level."""
-    if close <= 0:
+    """Bonus nach prozentualem Abstand des Kurses zum K.o.-Level.
+
+    Nicht-finit-Härtung: ``close <= 0`` ist die negierte Form — NaN rutschte
+    durch, ``dist_pct`` wurde NaN und der Score damit auch.
+    """
+    if not finite(close) or not finite(invalidation) or close <= 0:
         return 0.0
     dist_pct = abs(close - invalidation) / close * 100.0
     frac = min(dist_pct / config.INVALIDATION_DISTANCE_CAP, 1.0)
@@ -827,9 +898,9 @@ def _corr_reading(state: str, label: str, invalid: Optional[float], d: int,
                   mark: Optional[str], orient: Optional[float]) -> Dict:
     """Korrektur-Reading im gleichen Schema wie _classify_structure.mk()."""
     return {"state": state, "label": label,
-            "invalidation_price": round(invalid, 4) if invalid is not None else None,
+            "invalidation_price": round(invalid, 4) if finite(invalid) else None,
             "mark_label": mark,
-            "orientation_price": round(orient, 4) if orient is not None else None,
+            "orientation_price": round(orient, 4) if finite(orient) else None,
             "direction": "long" if d > 0 else "short"}
 
 
@@ -907,9 +978,9 @@ def _classify_structure(prices: Sequence[float], close: float) -> Dict:
     def mk(state: str, label: str, invalid: Optional[float], direction: int,
            mark_label: Optional[str] = None, orient: Optional[float] = None) -> Dict:
         return {"state": state, "label": label,
-                "invalidation_price": round(invalid, 4) if invalid is not None else None,
+                "invalidation_price": round(invalid, 4) if finite(invalid) else None,
                 "mark_label": mark_label,
-                "orientation_price": round(orient, 4) if orient is not None else None,
+                "orientation_price": round(orient, 4) if finite(orient) else None,
                 "direction": "long" if direction > 0 else "short"}
 
     # 1) Kompletter 5-Wellen-Impuls (letzte 6 Pivots) -> Korrektur erwartet.
@@ -1006,7 +1077,14 @@ def _volume_profile(wave_pivots, setup_name: str,
     Literatur beachteten Verhältnisse. Messfeld v1, bei Anlage eingefroren — REINE
     Messung, kein Score/Ranking. `wave_pivots` = die GEZÄHLTEN Pivots (end_of_w4:
     P0..P4; end_of_w2: P0..P2); `.index` zeigt auf `volumes` (== `closes`-Index).
-    Fail-soft: kein/0-Volumen im Segment -> betroffenes Feld null (Division-Guards)."""
+    Fail-soft: kein/0-Volumen im Segment -> betroffenes Feld null (Division-Guards).
+
+    NICHT-FINIT-HÄRTUNG (27.07.2026): ``s <= 0`` und ``vb <= 0`` waren negierte
+    Guards — ``nan <= 0`` ist False, ein NaN rutschte durch und ``vol_ratio_*``
+    wurde NaN (in #51 am echten Pfad nachgewiesen). Ein Segment mit auch nur
+    EINEM unbrauchbaren Volumen liefert jetzt ``None``: das Messfeld fehlt
+    ehrlich, statt einen aus Lücken gemittelten Wert zu behaupten. Für gesunde
+    Daten identisch (dort ist jedes Volumen endlich)."""
     out = {"vol_mean": {}, "vol_ratio_w3_w1": None, "vol_ratio_w4_w3": None,
            "vol_ratio_w2_w1": None}
     if not volumes:
@@ -1021,8 +1099,10 @@ def _volume_profile(wave_pivots, setup_name: str,
         if lo < 0 or hi >= n:
             return None
         seg = volumes[lo:hi + 1]
+        if not seg or not all(finite(v) for v in seg):
+            return None            # Lücke im Segment -> kein gemittelter Wert
         s = sum(seg)
-        if not seg or s <= 0:
+        if s <= 0:
             return None
         return round(s / len(seg), 2)
 
@@ -1034,7 +1114,7 @@ def _volume_profile(wave_pivots, setup_name: str,
 
     def ratio(a: str, b: str) -> Optional[float]:
         va, vb = vm.get(a), vm.get(b)
-        if va is None or vb is None or vb <= 0:
+        if not finite(va) or not finite(vb) or vb <= 0:
             return None
         return round(va / vb, 4)
 
@@ -1170,17 +1250,23 @@ def _scan_market(
     short_setup_excluded) direkt unit-testbar sind. Verhalten identisch.
 
     Returns:
-        (candidates, reason_counts, first_samples, dead_tickers)
+        (candidates, reason_counts, first_samples, dead_tickers, bad_bars)
         candidates: unsortierte Long-Kandidaten
         reason_counts: Zähler je Skip-Grund (SKIP_REASONS)
         first_samples: erste 3 Skips (ticker, reason, detail) fürs Log
         dead_tickers: (ticker, reason) für JEDEN empty_data/fetch_error —
             Listen-Hygiene: benennt tote/fehlerhafte Symbole namentlich.
+        bad_bars: (ticker, dropped_bars, invalid_volume_bars) je Ticker mit
+            nicht-finiten Rohdaten (Nicht-finit-Härtung, 27.07.2026).
     """
     candidates: List[Dict] = []
     reason_counts: Dict[str, int] = {r: 0 for r in SKIP_REASONS}
     first_samples: List[Tuple[str, str, str]] = []  # (ticker, reason, detail)
     dead_tickers: List[Tuple[str, str]] = []         # (ticker, reason) hygiene
+    # Nicht-finit-Härtung (27.07.2026): je Ticker die beim Parsen verworfenen
+    # Bars. Soll im Normalbetrieb LEER sein — jeder Eintrag ist ein Hinweis auf
+    # eine löchrige Kursquelle und landet im Lauf-Status.
+    bad_bars: List[Tuple[str, int, int]] = []        # (ticker, dropped, bad_vol)
     MAX_SAMPLES = 3
 
     def _record_skip(tk: str, reason: str, detail: str) -> None:
@@ -1202,6 +1288,12 @@ def _scan_market(
             )
             continue
 
+        # Verworfene Bars IMMER erfassen — auch wenn der Ticker danach ohnehin
+        # übersprungen wird (gerade dann ist die Zahl interessant).
+        if outcome.dropped_bars or outcome.invalid_volume_bars:
+            bad_bars.append((ticker, outcome.dropped_bars,
+                             outcome.invalid_volume_bars))
+
         if outcome.data is None:
             _record_skip(ticker, outcome.reason or FETCH_ERROR, outcome.detail)
             continue
@@ -1222,7 +1314,7 @@ def _scan_market(
             continue
         candidates.append(entry)
 
-    return candidates, reason_counts, first_samples, dead_tickers
+    return candidates, reason_counts, first_samples, dead_tickers, bad_bars
 
 
 def build_market(
@@ -1244,7 +1336,7 @@ def build_market(
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
 
-    candidates, reason_counts, first_samples, dead_tickers = _scan_market(
+    candidates, reason_counts, first_samples, dead_tickers, bad_bars = _scan_market(
         universe, fetcher, price_sink, volume_sink)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
@@ -1284,6 +1376,13 @@ def build_market(
         names = ", ".join(f"{tk}({rs})" for tk, rs in dead_tickers)
         _log(f"[elliott][diag] {market_key} Listen-Hygiene: "
              f"{len(dead_tickers)} tote/fehlerhafte Ticker -> {names}")
+    # Nicht-finit-Härtung: verworfene Bars namentlich. Soll 0 sein.
+    _dropped_total = sum(d for _, d, _ in bad_bars)
+    _badvol_total = sum(v for _, _, v in bad_bars)
+    if bad_bars:
+        _log(f"[elliott][diag] {market_key} nicht-finite Rohdaten: "
+             f"{_dropped_total} Bars verworfen, {_badvol_total} ohne Volumen "
+             f"-> " + ", ".join(f"{tk}(-{d}/{v})" for tk, d, v in bad_bars))
 
     return {
         "label": cfg["label"],
@@ -1300,6 +1399,14 @@ def build_market(
             "top_count": len(top),
             # Listen-Hygiene: tote/fehlerhafte Symbole namentlich (Anzeige/Log).
             "dead_tickers": [{"ticker": tk, "reason": rs} for tk, rs in dead_tickers],
+            # Nicht-finit-Härtung (27.07.2026): beim Parsen verworfene Bars.
+            # Soll im Normalbetrieb 0/leer sein — sichtbar im Lauf-Status.
+            "dropped_bars": _dropped_total,
+            "invalid_volume_bars": _badvol_total,
+            "bad_bar_tickers": [
+                {"ticker": tk, "dropped": d, "invalid_volume": v}
+                for tk, d, v in bad_bars
+            ],
         },
     }
 

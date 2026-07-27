@@ -2,14 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **27.07.2026**,
-nach PR #50 (**KI-Kommentar standardmäßig eingeklappt**, gemerged); dieser PR:
-**Health-Check Stufe 2** (Plausibilitäts-Regeln mit flankengetriggertem Push),
+nach PR #52 (**NTFY_TOPIC-Verdrahtung**, gemerged; Test-Push live bestätigt);
+dieser PR: **Nicht-finit-Härtung** im Score-/Messpfad (Ursachen-Fix zu #51),
 offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
 Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
 Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`e8aca20` = täglicher Commit nach dem
-> #50-Merge) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`c942c28` = Merge von #52) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -98,7 +97,9 @@ durchgängig ab #13.
 | #48 | `90577a7` | **Elliott-Wellen-Banner + Chip-Zeile entfernt**: (1) freigegebenes SVG (v3) **inline** unter der Stand-Zeile / über der Watchlist — dekorativ (`aria-hidden`), responsive über viewBox; alle 6 ids mit **`ewb-`-Präfix** (Kollisionsschutz, headless auf doppelte ids geprüft). (2) **Chip-Zeile `#wl-chips` entfernt** (doppelt zu den Kacheln), ersetzt durch `renderWatchlistCount`; Empty-State in der Kachel-Fläche. Watchlist-Flows headless durchgespielt | self (CI grün) |
 | #49 | `48665a4` | **Agent-Kommentar v1** (KI-Entscheidung Easy 26.07.): nächtlich EIN Anthropic-Aufruf je **finaler Markt-Top-5**-Karte (~10/Lauf, Watchlist ausgenommen) → `agent_comment {lesart, gegenargument, concern_level, model, generated_at}` \| null. **REINE Kommentar-Ebene:** Schritt läuft NACH `build_report` (nach Sortierung/Filtern), Score/Ranking/Filter/Reifung byte-identisch (Test). **Fail-soft total:** ohne `ANTHROPIC_API_KEY` no-op, API-/Parse-Fehler → null (1 Retry), Key nie geloggt; Token-Kosten-Log. **Messung:** `agent_concern_level`+`agent_model` bei Anlage eingefroren (LLM nicht deterministisch). Registry datiert **inkl. wörtlichem Prompt**. UI: dezente „KI-Kommentar"-Sektion, concern_level als **neutraler Text** (keine Ampel). **Live: 10/10 Kommentare, 7×high/3×low, real ~$0,011/Lauf ≈ $2,66/Jahr.** 19 neue Tests (264) | Guardian (Nits, behoben) + manual |
 | #50 | `4c7b7d4` | **KI-Kommentar standardmäßig eingeklappt**: `agentBlock` rendert die Sektion als **`<details>` ohne `open`** — `<summary>` trägt kompakt „KI-Kommentar · heuristisch" + Chevron; Lesart/Gegenargument/Modell erst nach aktivem Öffnen. Squeeze-Muster: Chevron-Rotation per CSS über `[open]`, **kein animiertes height → kein Layout-Sprung**, `prefers-reduced-motion`-tolerant, Tap-Ziel `min-height:44px`. Zustand je Karte unabhängig, **keine Persistenz** über Reload. null-Fall unverändert: **gar keine Sektion**. Headless am ECHTEN Lauf belegt | self (CI grün), keine Screenshots |
-| #(dieser) | `(offen)` | **Health-Check Stufe 2 — Plausibilitäts-Regeln mit Push**: sechs Regeln am Lauf-Ende (`scripts/health_check.py`), gebündelt in EINEN flankengetriggerten ntfy-Push. Kern: **Nicht-finit-Prüfung** (`math.isfinite`, rekursiv über Report **und** Sammlung, **vor** beiden Serialisierungen) — Lehre aus dem Schwester-Repo (NaN passiert `is not None`). Elliotts Schadensbild ist ein **hartes Frontend-Aus** (literales `NaN` = ungültiges JSON, `JSON.parse` wirft), empirisch belegt. Dazu Vollständigkeit / Fetch-Qualität + Tote-Ticker-Delta / Sammlungs-Fortschritt (#21-Netz) / Agent-Abdeckung. Flanke: neu oder verschlechtert → Push, unverändert still, `warn` erst nach 3 Läufen erneut, Marker `data/health_state.json`, Wochenend-/Feiertags-Gate. **Transparenz** ohne Push: additiver Block `report["health"]` in der Lauf-Status-Ansicht. **Grenzen bewiesen:** ändert nie Daten, bricht den Lauf nie ab, Report identisch bis auf den `health`-Schlüssel. **Regeln über die letzten 15 committeten Reports zurückgespielt: 0 Fehlalarme.** 48 neue Tests (312) | Guardian + manual, keine Screenshots |
+| #51 | `85589a5` | **Health-Check Stufe 2 — Plausibilitäts-Regeln mit Push**: sechs Regeln am Lauf-Ende (`scripts/health_check.py`), gebündelt in EINEN flankengetriggerten ntfy-Push. Kern: **Nicht-finit-Prüfung** (`math.isfinite`, rekursiv über Report **und** Sammlung, **vor** beiden Serialisierungen) — Lehre aus dem Schwester-Repo (NaN passiert `is not None`). Elliotts Schadensbild ist ein **hartes Frontend-Aus** (literales `NaN` = ungültiges JSON, `JSON.parse` wirft), empirisch belegt. Dazu Vollständigkeit / Fetch-Qualität + Tote-Ticker-Delta / Sammlungs-Fortschritt (#21-Netz) / Agent-Abdeckung. Flanke: neu oder verschlechtert → Push, unverändert still, `warn` erst nach 3 Läufen erneut, Marker `data/health_state.json`, Wochenend-/Feiertags-Gate. **Transparenz** ohne Push: additiver Block `report["health"]` in der Lauf-Status-Ansicht. **Grenzen bewiesen:** ändert nie Daten, bricht den Lauf nie ab, Report identisch bis auf den `health`-Schlüssel. **Regeln über die letzten 15 committeten Reports zurückgespielt: 0 Fehlalarme.** 48 neue Tests (312) | Guardian + manual, keine Screenshots |
+| #52 | `79375fb` | **NTFY_TOPIC-Verdrahtung**: das Secret war gesetzt und stellte real zu, aber der Step **Run pipeline** in `daily.yml` reichte es nicht durch (Actions vererbt Secrets NICHT in Steps) — beide Push-Zweige INNERHALB der Pipeline waren still: **Score-Alert >90 (#24) seit seinem Bau** und Health-Check (#51) von Anfang an; fail-soft, also ohne jede Fehlermeldung. Fix: eine Zeile (derselbe Name, dasselbe Mapping) + **Bestätigungs-Push** (`notify.py --mode selftest`, nur über den Dispatch-Schalter `push_selftest`, mit Secret-Diagnose ohne Leak) + Commit-Schritt nur auf `main` (ein Dispatch vom Feature-Branch färbte den Lauf sonst rot) + Regressionsnetz `tests/test_workflow_push_wiring.py`. **Live bestätigt:** Secret gesetzt (Länge 25) und `Push gesendet: Elliott: Push-Verdrahtung ok` | self (CI grün) |
+| #(dieser) | `(offen)` | **Nicht-finit-Härtung (Ursachen-Fix zu #51)**: EIN Prädikat `scripts/numeric.finite` für alle Zahlen-Guards (geteilt mit `health_check`). **Quelle:** `_extract_bars` filtert Bars ohne endlichen Close in EINEM ausgerichteten Durchgang — dabei fielen zwei stille Quell-Defekte auf: `dropna` schnitt die Datumsliste nur vorne ab (**eine Lücke in der Mitte verschob jedes Datum danach** — Pivot-Daten, `chart_points`, Sparkline-Achsen, eingefrorene Pivots) und die Volumen kamen aus dem **ungefilterten** Frame. **Reifung:** Fehlbar ist kein Treffer-Nein — er wird übersprungen und als `skipped_bars` ausgewiesen, gereift wird über 10 **gültige** Bars (kein ewig offener Record). **Messfelder** werden `null` statt still weiterzurechnen. **Population belegt unverändert:** ALT vs. NEU über 25 Sammlungs-Stände / 341 Reifungs-Läufe → **0 Abweichungen**. Registry datiert. 42 neue Tests (361) | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -193,19 +194,33 @@ Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
   ohne Topic ist der Health-Check **still**, aber der `health`-Block im
   Lauf-Status zeigt den Zustand trotzdem (bewusst: Sichtbarkeit hängt nicht am
   Push).
-- **OFFEN — NaN-Guard-Härtung (Folge-PR, NICHT Teil dieses PRs):** Der
-  Health-Check macht die Folgen sichtbar, **repariert die Guards aber nicht**.
-  Konkrete Fundstellen derselben Klasse im Elliott-Code (per Grep + Test
-  belegt): `elliott_pipeline._volume_profile` (`s <= 0` / `vb <= 0`, negierte
-  Form — ein NaN-Volumen erzeugt nachweislich `vol_ratio_* = NaN`, Test
-  `test_nan_in_real_pipeline_volume_guard_is_caught`);
-  `elliott_pipeline` Z. ~830/832/910/912 (`round(x, 4) if x is not None`);
-  `forward_collection.mature_record` Z. ~186–190 (`c <= inval` — ein NaN-Close
-  lässt den Record **still** nie reifen); `forward_collection._alternation_fields`
-  Z. ~334 (`w2r is not None and w4r is not None`);
-  `forward_collection` Z. ~208 (`if entry` — truthy, NaN ist truthy).
-  Diese liegen im **Score-/Messpfad** — Härtung ist ein eigener PR mit
-  Populations-Vergleich vorher/nachher, nicht Beifang der Selbstüberwachung.
+- **✅ ERLEDIGT — Nicht-finit-Härtung (Folge-PR zu #51, 27.07.).** Die
+  #51-Fundstellen-Liste ist **vollständig abgearbeitet**; alle Guards laufen
+  jetzt über EIN Prädikat (`scripts/numeric.finite`, geteilt mit
+  `health_check`). Abgehakt:
+  `elliott_pipeline._volume_profile` (`s <= 0` / `vb <= 0` → `finite`, Segment
+  mit Lücke liefert `null` statt gemitteltem Wert) ·
+  `elliott_pipeline` Z. 901/903/981/983 (`round(x,4) if x is not None` →
+  `if finite(x)`) · `elliott_pipeline._invalidation_bonus` (`close <= 0`) ·
+  `elliott_pipeline._fib_proximity_bonus` (NaN-Retrace → NaN-Bonus → NaN-Score) ·
+  `forward_collection.mature_record` (`c <= inval` — Fehlbar wird übersprungen
+  und gezählt, gereift wird über 10 **gültige** Bars) ·
+  `forward_collection` `if entry` (truthy) und `risk > 0` ·
+  `forward_collection._alternation_fields` (`retr`-Nenner + `diff`) ·
+  `forward_collection._roc` (`prev == 0`) ·
+  `forward_collection.observe_a_correction`/`observe_w5_structure`
+  (`w5_len <= 0` + Fenster-Finitheit) · `forward_collection.market_regimes`
+  (`dropna` ließ ±Inf durch).
+  **Zusätzlich zwei Quell-Defekte gefunden, die niemand auf der Liste hatte:**
+  `dropna` schnitt die Datumsliste nur **vorne** ab → eine Lücke in der Mitte
+  verschob **jedes** Datum danach (Pivot-Daten, `chart_points`,
+  Sparkline-Achsen, eingefrorene Pivots); und die Volumen kamen aus dem
+  **ungefilterten** Frame (zweiter Versatz). Beide behoben durch EINEN
+  ausgerichteten Parse-Durchgang (`_extract_bars`).
+  **Population belegt unverändert:** ALT vs. NEU über **25 committete
+  Sammlungs-Stände / 341 Reifungs-Läufe** → **0 Abweichungen** (Registry-Eintrag
+  27.07.). Diag: `dropped_bars` / `invalid_volume_bars` je Markt, sichtbar im
+  Lauf-Status (Zeile erscheint nur, wenn es etwas zu melden gibt).
 - **✅ ERLEDIGT — `dead_tickers`-Hygiene nach #19-Lauf** (Run 30002584301,
   Pipeline 85 s / Job ~1,7 min): `fetch_error=0` beide Märkte. `empty_data`
   namentlich — US: `MMC`, `FI`, `HES`; DE: `1COV.DE`, `CTS.DE`, `UN01.DE`,

@@ -327,7 +327,13 @@ def test_market_diag_present_and_shaped():
     for m in report["markets"].values():
         d = m["diag"]
         assert set(d) == {"reason_counts", "higher_degree_count", "top_count",
-                          "dead_tickers"}
+                          "dead_tickers",
+                          # Nicht-finit-Haertung (27.07.2026)
+                          "dropped_bars", "invalid_volume_bars",
+                          "bad_bar_tickers"}
+        # Gesunde (synthetische) Daten: nichts verworfen.
+        assert d["dropped_bars"] == 0 and d["invalid_volume_bars"] == 0
+        assert d["bad_bar_tickers"] == []
         assert set(d["reason_counts"]) == set(pipe.SKIP_REASONS)
         assert all(isinstance(v, int) for v in d["reason_counts"].values())
         assert isinstance(d["higher_degree_count"], int)

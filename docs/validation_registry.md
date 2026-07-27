@@ -412,3 +412,47 @@ vor n ≥ 100) gilt unverändert.
   Revert = `scripts/health_check.py` + die drei `try`-Blöcke in `main()` + der
   `HEALTH_*`-Block in `config.py` + `.health-box`-CSS/Renderer + die zwei
   `daily.yml`-Zeilen raus.
+
+- **27.07.2026 — Nicht-finit-Härtung: Bars mit nicht-finiten Werten werden VOR
+  der Zählung verworfen.** Ursachen-Fix zum Health-Check (#51); dieser Eintrag
+  ist datiert, weil er die **Zähl-Definition berührt** — v1-Felder werden
+  dadurch **nicht umdefiniert**.
+  **Regel ab heute:** Eine Kurszeile ohne endlichen Schlusskurs (`NaN`/`±Inf`)
+  ist **kein Bar**. Sie wird direkt beim Parsen verworfen — **bevor** Pivots,
+  Zählungen, Zielzonen, Score oder Ratios entstehen — und je Ticker gezählt
+  (`market.diag.dropped_bars`, sichtbar im Lauf-Status). Eine Zeile mit
+  gültigem Kurs, aber unbrauchbarem **Volumen**, bleibt erhalten; nur ihr
+  Volumen wird `null` (`invalid_volume_bars`). Begründung: das Volumen ist ein
+  rein additives Messfeld ohne Score-Wirkung — die Zählung darf nicht von der
+  Volumen-Verfügbarkeit abhängen.
+  **Was vorher galt (und was daran still falsch war):** `df["Close"].dropna()`
+  entfernte NaN-Zeilen, aber die Datumsliste wurde nur **vorne** abgeschnitten.
+  Saß die Lücke in der **Mitte**, bekam jeder Kurs danach das Datum seines
+  Vorgängers — das verschob Pivot-Daten, `chart_points`, die Sparkline-Achsen
+  und die **point-in-time eingefrorenen** Pivots in der Sammlung. Zusätzlich
+  entfernte `dropna` **kein ±Inf**, und die Volumen stammten aus dem
+  **ungefilterten** Frame (zweiter Versatz). Alles drei lief ohne Fehlermeldung.
+  **Reifung (`mature_record`):** ein nicht endlicher Close ist ab jetzt ein
+  **fehlender Bar**, kein „kein Treffer". Vorher verlor er jeden Vergleich
+  (`nan <= inval` ist False) und zählte trotzdem als abgelaufener Handelstag —
+  er konnte also eine **Invalidierung verschlucken** und die Reifung
+  gleichzeitig vorantreiben. Jetzt: solche Bars werden übersprungen und in
+  `skipped_bars` ausgewiesen; gereift wird über **10 gültige** Bars (der
+  Fehlbar verzögert um einen Handelstag, er blockiert nicht — ein Record bleibt
+  nie still ewig offen). Alt-Records mit nicht endlichem Anlage-Wert werden mit
+  `unmeasurable: true` markiert statt weitergerechnet.
+  **POPULATIONS-VERGLEICH (Pflicht, belegt):** die Reifung wurde mit ALTEM und
+  NEUEM Code über **25 committete Sammlungs-Stände** (23.–27.07.) und
+  **341 Reifungs-Läufe** gerechnet und Feld für Feld verglichen —
+  `target_hit`, `invalidated`, `ext_hit`, `matured`, `bars_elapsed`,
+  `max_gain_10d`, `max_drawdown_10d`, `r_multiple`, `pre_reached_*`:
+  **0 Abweichungen.** Ebenso 0 Abweichungen bei Alternation (27 Records mit
+  eingefrorenen Pivots) und beim Invalidierungs-Bonus (10 Kandidaten des
+  aktuellen Laufs). **Die Population ändert sich durch diese Härtung nicht** —
+  die committeten Stände enthalten keinen einzigen nicht-finiten Wert. Die
+  Härtung wirkt also ausschließlich in die Zukunft, falls die Kursquelle je
+  löchrig liefert.
+  **Bewusst NICHT geändert:** Score-Formel, Gewichte, Ranking, Filter,
+  Erfolgs-Definition, `SCHEMA_VERSION` (bleibt 1 — alle neuen Felder additiv).
+  Revert = `scripts/numeric.py` + die `finite(...)`-Guards + `_extract_bars` +
+  der `skipped_bars`/`unmeasurable`-Zweig + die Diag-Felder raus.

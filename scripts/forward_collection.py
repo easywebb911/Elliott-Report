@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import config
+from numeric import all_finite, finite  # EIN Finit-Prädikat (siehe numeric.py)
 from zigzag import zigzag
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -125,7 +126,7 @@ def market_regimes(offline: bool) -> Dict[str, str]:
                 df.columns = df.columns.get_level_values(0)
             if "Close" not in df.columns:
                 continue
-            closes = [float(x) for x in df["Close"].dropna().tolist()]
+            closes = [float(x) for x in df["Close"].tolist() if finite(x)]
             out[mk] = compute_regime(closes)
         except Exception:  # noqa: BLE001 — fail-soft
             out[mk] = "unknown"
@@ -142,19 +143,47 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     Binär (long): target_hit = Basiszone (low) erreicht VOR Invalidierung;
     invalidated = Invalidierung zuerst gerissen; ext_hit = Extension-Zone (low)
     vor Invalidierung. Nach HORIZON_DAYS Handelstagen -> matured.
+
+    NICHT-FINIT-HÄRTUNG (27.07.2026, Ursachen-Fix zu #51): Ein nicht endlicher
+    Close ist ein **fehlender Bar**, kein „kein Treffer". Vorher verlor er
+    jeden Vergleich (``nan <= inval`` ist False, ``nan >= tlow`` ist False) und
+    zählte trotzdem als abgelaufener Handelstag — er konnte also eine
+    Invalidierung oder einen Treffer **verschlucken** und die Reifung
+    gleichzeitig vorantreiben. Das verzerrt die Validierungs-Population
+    lautlos. Jetzt: solche Bars werden aussortiert und in ``skipped_bars``
+    gezählt; die Reifung läuft mit den GÜLTIGEN Bars weiter (``bars_elapsed``
+    zählt gültige Bars) — ein Record bleibt also nie still ewig offen, sobald
+    genügend gültige Kurse nachkommen.
     """
     try:
         idx = list(dates).index(rec["first_seen_date"])
     except ValueError:
         return  # Einstiegstag (noch) nicht in den Daten -> diesen Lauf überspringen
-    fwd = list(closes)[idx + 1: idx + 1 + HORIZON_DAYS]
-    fwd_dates = list(dates)[idx + 1: idx + 1 + HORIZON_DAYS]
+    # HORIZON_DAYS **gültige** Bars einsammeln, nicht die ersten HORIZON_DAYS
+    # Zeilen. Ein fester Fenster-Schnitt würde einen Record mit einem kaputten
+    # Bar im Fenster NIE auf 10 gültige Bars bringen — er bliebe still ewig
+    # offen (genau das soll nicht passieren). Der Fehlbar VERZÖGERT die Reifung
+    # also um einen Handelstag, er blockiert sie nicht.
+    # Für gesunde Daten identisch: dort stoppt der Scan exakt bei idx+1+HORIZON.
+    pairs: List[Tuple[str, float]] = []
+    skipped = 0
+    for d, c in zip(list(dates)[idx + 1:], list(closes)[idx + 1:]):
+        if len(pairs) >= HORIZON_DAYS:
+            break
+        if finite(c):
+            pairs.append((d, float(c)))
+        else:
+            skipped += 1
+    fwd_dates = [d for d, _ in pairs]
+    fwd = [c for _, c in pairs]
     rec["last_update_utc"] = now_iso
     rec["bars_elapsed"] = len(fwd)
+    if skipped:
+        rec["skipped_bars"] = skipped     # additiv, nur wenn es etwas zu melden gibt
     # Kursverlauf NACH dem Einstieg (max HORIZON_DAYS Werte). Wird je Lauf aus
     # der vollen Historie neu aufgebaut -> deterministisch/idempotent.
-    rec["price_path"] = [{"date": d, "close": round(float(c), 4)}
-                         for d, c in zip(fwd_dates, fwd)]
+    rec["price_path"] = [{"date": d, "close": round(c, 4)}
+                         for d, c in pairs]
     if not fwd:
         rec["matured"] = False
         return
@@ -163,6 +192,15 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     inval = rec["invalidation_price"]
     tlow = rec["target_zone"]["low"]
     elow = rec["target_zone_extended"]["low"]
+    # Die Anlage-Werte stammen aus einem früheren Lauf. Ist einer davon nicht
+    # endlich (Alt-Record aus der Zeit vor dieser Härtung), ist der Record nicht
+    # bewertbar: markieren und NICHT weiterrechnen — ein NaN-Vergleich würde
+    # sonst jede Bedingung still auf False setzen.
+    if not all(finite(v) for v in (entry, inval, tlow, elow)):
+        rec["unmeasurable"] = True
+        rec["matured"] = False
+        return
+    rec.pop("unmeasurable", None)
 
     # PRU-Guard (2026-07-23, siehe docs/validation_registry.md): War der Kurs schon
     # BEI ANLAGE (entry_close) ≥ Zonen-Unterkante, ist ein späterer „Treffer" ein
@@ -206,10 +244,16 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
         rec["invalidated"] = 1 if (inval_day is not None and (target_day is None or inval_day <= target_day)) else 0
         rec["ext_hit"] = 0 if pre_reached_ext else ext_hit
 
-    rec["max_gain_10d"] = round((maxc - entry) / entry * 100.0, 4) if entry else None
-    rec["max_drawdown_10d"] = round((minc - entry) / entry * 100.0, 4) if entry else None
+    # `if entry` war truthy-Form: ein nicht endlicher entry ist truthy und hätte
+    # NaN-Kennzahlen erzeugt. Oben schon abgefangen — hier explizit, damit die
+    # Absicht an der Rechenstelle steht (0.0 bleibt wie bisher ausgeschlossen).
+    rec["max_gain_10d"] = (round((maxc - entry) / entry * 100.0, 4)
+                           if entry else None)
+    rec["max_drawdown_10d"] = (round((minc - entry) / entry * 100.0, 4)
+                               if entry else None)
     risk = entry - inval
-    rec["r_multiple"] = round((maxc - entry) / risk, 4) if risk > 0 else None
+    rec["r_multiple"] = (round((maxc - entry) / risk, 4)
+                         if finite(risk) and risk > 0 else None)
     rec["matured"] = matured
 
 
@@ -260,10 +304,14 @@ def observe_a_correction(rec: Dict, dates: Sequence[str], closes: Sequence[float
     fwd = list(closes)[idx + 1: idx + 1 + HORIZON_DAYS]
     if len(fwd) < HORIZON_DAYS:
         return  # sollte durch matured impliziert sein; defensiv
+    # Nicht-finit-Härtung: ein NaN im Fenster macht `max()` reihenfolge-abhaengig
+    # und jeden Folgevergleich still False -> lieber gar nicht messen.
+    if not all_finite(fwd) or not finite(p4):
+        return
     high = max(fwd)
     high_pos = fwd.index(high)                 # erstes Auftreten des Hochs
     w5_len = high - p4
-    if w5_len <= 0:
+    if not finite(w5_len) or w5_len <= 0:
         return  # W5-Strecke nicht interpretierbar (degeneriert) -> keine Messung
     trigger = high - A_RETRACE_MIN * w5_len    # 38,2 %-Rücklauf-Schwelle
     # A-Fenster: die Schlusskurse NACH dem Episoden-Hoch (bis A_OBSERVE_DAYS).
@@ -318,6 +366,11 @@ def _alternation_fields(chart_points: Optional[Sequence[Dict]],
         return out
 
     def retr(a: Dict, b: Dict, c: Dict) -> Optional[float]:
+        # Nicht-finit-Härtung: `den > 0` ist die negierte Form — mit einem
+        # nicht endlichen Pivot-Preis wäre `den` NaN, der Vergleich False, und
+        # das Feld hätte still `null` gemeldet statt „nicht messbar". Explizit.
+        if not all(finite(x.get("price")) for x in (a, b, c)):
+            return None
         den = abs(b["price"] - a["price"])
         return round(abs(c["price"] - b["price"]) / den * 100.0, 4) if den > 0 else None
 
@@ -331,7 +384,7 @@ def _alternation_fields(chart_points: Optional[Sequence[Dict]],
     w4b = bars(p[3], p[4])
     out.update(w2_retrace_pct=w2r, w4_retrace_pct=w4r, w2_bars=w2b, w4_bars=w4b)
 
-    diff = abs(w2r - w4r) if (w2r is not None and w4r is not None) else None
+    diff = abs(w2r - w4r) if (finite(w2r) and finite(w4r)) else None
     dur = None
     if w2b and w4b and min(w2b, w4b) > 0:
         dur = max(w2b, w4b) / min(w2b, w4b)
@@ -350,7 +403,9 @@ def _roc(closes: Sequence[float], pos: int, n: int) -> Optional[float]:
     if pos < n or pos >= len(closes):
         return None
     prev = closes[pos - n]
-    if prev == 0:
+    # Nicht-finit-Härtung: `prev == 0` ist gegen NaN wirkungslos (jeder
+    # Vergleich mit NaN ist False) -> das Momentum waere still NaN geworden.
+    if not finite(prev) or not finite(closes[pos]) or prev == 0:
         return None
     return round(closes[pos] / prev - 1.0, 6)
 
@@ -390,6 +445,8 @@ def observe_w5_divergence(rec: Dict, dates: Sequence[str], closes: Sequence[floa
     fwd = cl[idx + 1: idx + 1 + HORIZON_DAYS]
     if len(fwd) < HORIZON_DAYS:
         return  # defensiv (durch matured impliziert)
+    if not all_finite(fwd):
+        return  # Nicht-finit-Haertung (siehe observe_a_correction)
     high = max(fwd)
     high_pos = idx + 1 + fwd.index(high)
     mom_w3 = _roc(cl, w3_pos, MOMENTUM_ROC_BARS)
@@ -441,7 +498,7 @@ def observe_w5_structure(rec: Dict, dates: Sequence[str], closes: Sequence[float
     high = max(fwd)
     high_pos = idx + 1 + fwd.index(high)
     w5_len = high - p4
-    if w5_len <= 0:
+    if not finite(w5_len) or w5_len <= 0:
         return  # W5-Strecke nicht interpretierbar
     # Bestätigte ZigZag-Pivots NACH dem Episoden-Hoch, STRIKT im selben
     # A_OBSERVE_DAYS-Fenster wie die v1-Pendants (a_retrace_pct etc.) — True und
