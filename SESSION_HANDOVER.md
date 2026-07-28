@@ -2,13 +2,13 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **27.07.2026**,
-nach PR #52 (**NTFY_TOPIC-Verdrahtung**, gemerged; Test-Push live bestätigt);
-dieser PR: **Nicht-finit-Härtung** im Score-/Messpfad (Ursachen-Fix zu #51),
-offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
+nach PR #53 (**Nicht-finit-Härtung**, gemerged; Live-Lauf `e07649f`: dropped_bars 0, health ok); dieser PR: **Heartbeat-Push** (OK-Meldung als
+Herzschlag), offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
 Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
 Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`c942c28` = Merge von #52) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`11ec222` = täglicher Commit nach dem
+> #53-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -99,7 +99,8 @@ durchgängig ab #13.
 | #50 | `4c7b7d4` | **KI-Kommentar standardmäßig eingeklappt**: `agentBlock` rendert die Sektion als **`<details>` ohne `open`** — `<summary>` trägt kompakt „KI-Kommentar · heuristisch" + Chevron; Lesart/Gegenargument/Modell erst nach aktivem Öffnen. Squeeze-Muster: Chevron-Rotation per CSS über `[open]`, **kein animiertes height → kein Layout-Sprung**, `prefers-reduced-motion`-tolerant, Tap-Ziel `min-height:44px`. Zustand je Karte unabhängig, **keine Persistenz** über Reload. null-Fall unverändert: **gar keine Sektion**. Headless am ECHTEN Lauf belegt | self (CI grün), keine Screenshots |
 | #51 | `85589a5` | **Health-Check Stufe 2 — Plausibilitäts-Regeln mit Push**: sechs Regeln am Lauf-Ende (`scripts/health_check.py`), gebündelt in EINEN flankengetriggerten ntfy-Push. Kern: **Nicht-finit-Prüfung** (`math.isfinite`, rekursiv über Report **und** Sammlung, **vor** beiden Serialisierungen) — Lehre aus dem Schwester-Repo (NaN passiert `is not None`). Elliotts Schadensbild ist ein **hartes Frontend-Aus** (literales `NaN` = ungültiges JSON, `JSON.parse` wirft), empirisch belegt. Dazu Vollständigkeit / Fetch-Qualität + Tote-Ticker-Delta / Sammlungs-Fortschritt (#21-Netz) / Agent-Abdeckung. Flanke: neu oder verschlechtert → Push, unverändert still, `warn` erst nach 3 Läufen erneut, Marker `data/health_state.json`, Wochenend-/Feiertags-Gate. **Transparenz** ohne Push: additiver Block `report["health"]` in der Lauf-Status-Ansicht. **Grenzen bewiesen:** ändert nie Daten, bricht den Lauf nie ab, Report identisch bis auf den `health`-Schlüssel. **Regeln über die letzten 15 committeten Reports zurückgespielt: 0 Fehlalarme.** 48 neue Tests (312) | Guardian + manual, keine Screenshots |
 | #52 | `79375fb` | **NTFY_TOPIC-Verdrahtung**: das Secret war gesetzt und stellte real zu, aber der Step **Run pipeline** in `daily.yml` reichte es nicht durch (Actions vererbt Secrets NICHT in Steps) — beide Push-Zweige INNERHALB der Pipeline waren still: **Score-Alert >90 (#24) seit seinem Bau** und Health-Check (#51) von Anfang an; fail-soft, also ohne jede Fehlermeldung. Fix: eine Zeile (derselbe Name, dasselbe Mapping) + **Bestätigungs-Push** (`notify.py --mode selftest`, nur über den Dispatch-Schalter `push_selftest`, mit Secret-Diagnose ohne Leak) + Commit-Schritt nur auf `main` (ein Dispatch vom Feature-Branch färbte den Lauf sonst rot) + Regressionsnetz `tests/test_workflow_push_wiring.py`. **Live bestätigt:** Secret gesetzt (Länge 25) und `Push gesendet: Elliott: Push-Verdrahtung ok` | self (CI grün) |
-| #(dieser) | `(offen)` | **Nicht-finit-Härtung (Ursachen-Fix zu #51)**: EIN Prädikat `scripts/numeric.finite` für alle Zahlen-Guards (geteilt mit `health_check`). **Quelle:** `_extract_bars` filtert Bars ohne endlichen Close in EINEM ausgerichteten Durchgang — dabei fielen zwei stille Quell-Defekte auf: `dropna` schnitt die Datumsliste nur vorne ab (**eine Lücke in der Mitte verschob jedes Datum danach** — Pivot-Daten, `chart_points`, Sparkline-Achsen, eingefrorene Pivots) und die Volumen kamen aus dem **ungefilterten** Frame. **Reifung:** Fehlbar ist kein Treffer-Nein — er wird übersprungen und als `skipped_bars` ausgewiesen, gereift wird über 10 **gültige** Bars (kein ewig offener Record). **Messfelder** werden `null` statt still weiterzurechnen. **Population belegt unverändert:** ALT vs. NEU über 25 Sammlungs-Stände / 341 Reifungs-Läufe → **0 Abweichungen**. Registry datiert. 45 neue Tests (364) | Guardian (OK, Nit eingearbeitet) + manual, keine Screenshots |
+| #53 | `87ed590` | **Nicht-finit-Härtung (Ursachen-Fix zu #51)**: EIN Prädikat `scripts/numeric.finite` für alle Zahlen-Guards (geteilt mit `health_check`). **Quelle:** `_extract_bars` filtert Bars ohne endlichen Close in EINEM ausgerichteten Durchgang — dabei fielen zwei stille Quell-Defekte auf: `dropna` schnitt die Datumsliste nur vorne ab (**eine Lücke in der Mitte verschob jedes Datum danach** — Pivot-Daten, `chart_points`, Sparkline-Achsen, eingefrorene Pivots) und die Volumen kamen aus dem **ungefilterten** Frame. **Reifung:** Fehlbar ist kein Treffer-Nein — er wird übersprungen und als `skipped_bars` ausgewiesen, gereift wird über 10 **gültige** Bars (kein ewig offener Record). **Messfelder** werden `null` statt still weiterzurechnen. **Population belegt unverändert:** ALT vs. NEU über 25 Sammlungs-Stände / 341 Reifungs-Läufe → **0 Abweichungen**. Registry datiert. 45 neue Tests (364) | Guardian (OK, Nit eingearbeitet) + manual, keine Screenshots |
+| #(dieser) | `(offen)` | **Heartbeat-Push**: nach jedem ERFOLGREICHEN Werktags-Lauf auf `main` genau EIN leiser Push (`Elliott: Lauf ok`, prio `low`) mit echten Zahlen — Kandidaten je Markt, Top-Ticker + Score, Sammlung (gesammelt/gereift/auswertbar), plus Meilenstein-Hinweis beim Überschreiten eines Vielfachen von `HEARTBEAT_MILESTONE_STEP` (25). **Zweck ist der HERZSCHLAG, nicht das Lob:** bleibt der Puls aus, ist der Lauf ausgefallen — unabhängig vom Staleness-Wächter, der selbst am GitHub-Scheduler hängt (am 27.07. fiel der Werktags-Cron aus, ohne dass etwas meldete). **HARTE REGEL: nie zwei Pushes pro Lauf** — jeder Befund, auch ein reines `warn`, ersetzt den Herzschlag; auch ein still gewordener Dauer-Befund lässt ihn NICHT einspringen. Gates: Wochenende/Feiertag (bestehend) und **nur `main`** (`GITHUB_REF`), damit ein Test-Dispatch vom Branch keinen Puls erfindet. `HEARTBEAT_ENABLED` / `HEARTBEAT_FREQUENCY` (daily|weekly) als benannte Konstanten. Ohne Secret sauberer no-op. 26 neue Tests (390) | Guardian (OK, Nit eingearbeitet) + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -306,6 +307,50 @@ UI headless in allen Zuständen (ok/warn/crit/gated/legacy, XSS-Escaping,
 `data/health_state.json`).
 **Nach Merge:** `daily.yml` dispatchen → welche Regeln feuerten (Soll: keine),
 Laufzeit-Delta, NaN-Injektions-Beweislauf (Abschnitt 3).
+
+**✅ Heartbeat-Push — erledigt (dieser PR, `scripts/health_check.py`):**
+Bisher meldete sich das Tool NUR bei Problemen. Der OK-Push schließt die
+Lücke — und zwar als **Herzschlag**: bleibt er aus, ist der Lauf
+ausgefallen. Das ist bewusst NICHT dieselbe Mechanik wie der
+Staleness-Wächter: der läuft in einem eigenen Cron und hängt damit an
+derselben Infrastruktur wie das Bewachte — fällt der GitHub-Scheduler aus,
+schweigen beide (beobachtet 27.07.).
+**Genau EIN Push pro Lauf** (harte Regel, testgesichert): Befund-Meldung
+(prio high/default) ODER Herzschlag (prio low), nie beides. Ein anhaltender
+Befund, dessen Flanke schon gemeldet wurde, lässt den Herzschlag ebenfalls
+NICHT einspringen — sonst käme ausgerechnet bei einem laufenden Problem ein
+„Lauf ok".
+**Inhalt** (gegen den echten Lauf gegengerechnet): `🇺🇸 43 Kandidaten (Top
+AMAT 86) · 🇩🇪 23 Kandidaten (Top TKA.DE 77) · Sammlung 27 / 0 gereift / 0
+auswertbar — heuristisch · unvalidiert`, bei Meilenstein eine zweite Zeile.
+Der Vorbehalt steht an der Zahlen-Zeile (Projekt-Invariante: keine Zahl
+ohne ihn nach außen).
+**Gates:** Wochenende/Feiertag (bestehendes `push_gated`) **und nur `main`**
+(`GITHUB_REF == refs/heads/main`) — ein Test-Dispatch vom Feature-Branch
+darf keinen Puls erfinden, sonst ist „kein Push = Lauf ausgefallen" wertlos.
+Lokal (ohne `GITHUB_REF`) ebenfalls still.
+**Meilensteine:** Überschreiten eines Vielfachen von
+`HEARTBEAT_MILESTONE_STEP` (25) bei gesammelt/gereift/auswertbar. Der
+Zähler-Stand wird im bestehenden `health_state.json` fortgeschrieben — aber
+**nur wenn ein Herzschlag wirklich rausging**, sonst verschluckt ein
+übersprungener Lauf den Meilenstein für immer (Test).
+**Konstanten:** `HEARTBEAT_ENABLED` (true), `HEARTBEAT_FREQUENCY`
+(`daily`|`weekly`) + `HEARTBEAT_WEEKDAY`, `HEARTBEAT_MILESTONE_STEP`.
+Revert = `heartbeat_*`/`send_heartbeat`/`is_main_run` + der Herzschlag-Zweig
+in `run()` + der `HEARTBEAT_*`-Block in `config.py` + `counts=`-Durchreichung
+raus (rein additiv, der `heartbeat`-Schlüssel im State ist folgenlos).
+**Guardian-Nit eingearbeitet (28.07.):** Tages-Bremse — EIN Puls pro
+Kalendertag, nicht pro Lauf. Mehrere Dispatches am selben Tag sind ein
+vorgesehener Pfad (Retry, Recalculate-Button); ein Herzschlag, der bei
+jedem Tap erneut schlaegt, ist als Taktgeber wertlos. Die Bremse gilt NUR
+fuer den Puls: ein spaeterer echter Befund am selben Tag wird gemeldet.
+**Bekannte Systemgrenze (Guardian, bewusst nicht geaendert):** an dem
+einen Tag, an dem gleichzeitig ein Sammlungs-Meilenstein und der
+n>=100-Meilenstein aus #22 (`notify.py --mode daily`, eigener
+Workflow-Step) faellt, kommen zwei leise Pushes. Einmalig, kein
+Fehlsignal — eine Zusammenlegung wuerde die #22-Logik anfassen.
+**Nach Merge:** `daily.yml` von `main` dispatchen und den erzeugten
+Push-Text wörtlich nachtragen.
 
 **✅ Push-Paket Stufe 1 — erledigt (#22, `scripts/notify.py`):** ntfy, bewusst
 fast stumm. Anlässe: **Lauf-Fehlschlag** (`if: failure()` in daily.yml),

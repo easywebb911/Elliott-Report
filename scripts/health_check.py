@@ -37,6 +37,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import math
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -390,6 +391,124 @@ def push_body(findings: Sequence[Dict]) -> str:
     return " · ".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# 6b) HEARTBEAT — der OK-Push (ab 28.07.2026)
+# ---------------------------------------------------------------------------
+# Zweck ist NICHT das Lob, sondern der Herzschlag: bleibt er aus, ist der Lauf
+# ausgefallen. Deshalb hängt er am ERFOLG des Laufs, nicht an einem eigenen
+# Cron — ein Wächter, der dieselbe Infrastruktur braucht wie das Bewachte,
+# schweigt mit ihr zusammen (beobachtet am 27.07.: der Werktags-Cron fiel aus,
+# ohne dass etwas meldete).
+HEARTBEAT_ENABLED = getattr(config, "HEARTBEAT_ENABLED", True)
+HEARTBEAT_FREQUENCY = getattr(config, "HEARTBEAT_FREQUENCY", "daily")
+HEARTBEAT_WEEKDAY = getattr(config, "HEARTBEAT_WEEKDAY", 0)
+MILESTONE_STEP = getattr(config, "HEARTBEAT_MILESTONE_STEP", 25)
+
+
+def _top_candidate(market: Dict) -> Optional[Tuple[str, float]]:
+    """(Ticker, Score) des höchstbewerteten Kandidaten — oder None."""
+    best = None
+    for c in (market.get("candidates") or []):
+        if not isinstance(c, dict):
+            continue
+        s = c.get("score_heuristic")
+        if not isinstance(s, (int, float)) or isinstance(s, bool):
+            continue
+        if not math.isfinite(s):
+            continue
+        if best is None or s > best[1]:
+            best = (str(c.get("ticker", "?")), float(s))
+    return best
+
+
+def milestone_note(counts: Optional[Dict], prev: Optional[Dict],
+                   step: int = MILESTONE_STEP) -> Optional[str]:
+    """Hinweis, wenn ein Sammlungs-Zähler ein Vielfaches von ``step``
+    überschritten hat. ``prev`` = Stand des letzten Herzschlags.
+
+    Ohne Vorstand (erster Lauf) wird NICHT gemeldet — sonst wäre der erste
+    Herzschlag automatisch ein Meilenstein-Fehlalarm.
+    """
+    if not counts or not prev or step <= 0:
+        return None
+    labels = {"collected": "gesammelt", "matured": "gereift",
+              "evaluable": "auswertbar"}
+    hits = []
+    for key, label in labels.items():
+        now_v, old_v = counts.get(key), prev.get(key)
+        if not isinstance(now_v, int) or not isinstance(old_v, int):
+            continue
+        if now_v // step > old_v // step and now_v >= step:
+            hits.append(f"{(now_v // step) * step} {label}")
+    return " · ".join(hits) if hits else None
+
+
+def heartbeat_body(report: Dict, counts: Optional[Dict],
+                   milestone: Optional[str] = None) -> str:
+    """Kompakter OK-Text mit ECHTEN Zahlen — ein bis zwei Zeilen.
+
+    Trägt bewusst „heuristisch · unvalidiert": es werden Scores genannt, und
+    im ganzen Projekt darf keine Zahl ohne diesen Vorbehalt nach außen.
+    """
+    parts = []
+    for key in ("US", "DE"):
+        m = (report.get("markets") or {}).get(key)
+        if not isinstance(m, dict):
+            continue
+        # Flaggen aus notify — eine Quelle, damit Score-Alert und Herzschlag
+        # denselben Markt gleich benennen.
+        flag = getattr(notify, "_MARKET_FLAG", {}).get(key, key)
+        found = m.get("candidates_found")
+        top = _top_candidate(m)
+        seg = f"{flag} {found if found is not None else '?'} Kandidaten"
+        if top:
+            seg += f" (Top {top[0]} {top[1]:.0f})"
+        parts.append(seg)
+    line = " · ".join(parts)
+    if counts:
+        line += (f" · Sammlung {counts.get('collected', '?')} / "
+                 f"{counts.get('matured', '?')} gereift / "
+                 f"{counts.get('evaluable', '?')} auswertbar")
+    # Der Vorbehalt gehört an die ZAHLEN-Zeile, nicht ans Textende — sonst
+    # liest er sich wie eine Fußnote zum Meilenstein.
+    line += " — heuristisch · unvalidiert"
+    if milestone:
+        line += f"\n🎯 Meilenstein: {milestone}"
+    return line
+
+
+def heartbeat_due(now: _dt.datetime, frequency: str = HEARTBEAT_FREQUENCY,
+                  weekday: int = HEARTBEAT_WEEKDAY) -> bool:
+    """Ist heute ein Herzschlag fällig? (Frequenz-Wahl, kein Gate.)"""
+    if not HEARTBEAT_ENABLED:
+        return False
+    if frequency == "weekly":
+        return now.weekday() == weekday
+    return True
+
+
+def is_main_run() -> bool:
+    """Läuft das auf `main` in GitHub Actions?
+
+    Der Herzschlag darf NUR vom Produktions-Branch kommen — sonst erzeugt ein
+    Test-Dispatch von einem Feature-Branch einen Puls, den es gar nicht gab,
+    und das Signal „kein Push = Lauf ausgefallen" wird wertlos. Lokal (ohne
+    GITHUB_REF) ebenfalls kein Herzschlag.
+    """
+    return os.environ.get("GITHUB_REF", "") == "refs/heads/main"
+
+
+def send_heartbeat(topic: str, report: Dict, counts: Optional[Dict],
+                   milestone: Optional[str] = None) -> bool:
+    """EIN leiser OK-Push. Fail-soft via send_ntfy (leeres Topic → no-op)."""
+    return notify.send_ntfy(
+        topic, "Elliott: Lauf ok",
+        heartbeat_body(report, counts, milestone),
+        priority="low",          # Herzschlag, kein Alarm — darf nie vibrieren
+        tags="heartbeat",
+    )
+
+
 def send_findings(topic: str, findings: Sequence[Dict]) -> bool:
     """EIN gebündelter Push pro Lauf. Leere Liste → kein Push."""
     if not findings:
@@ -496,19 +615,28 @@ def run(report: Dict, prev_report: Optional[Dict],
         finite_findings: Sequence[Dict], sig_before: Optional[Dict],
         sig_after: Optional[Dict], has_agent_key: bool, topic: str,
         run_date: str, now_iso: str, now: _dt.datetime,
-        same_day_rerun: bool = False) -> Dict:
+        same_day_rerun: bool = False,
+        counts: Optional[Dict] = None) -> Dict:
     """Kompletter Health-Check-Durchlauf. Gibt die Befund-Liste zurück und
     hängt den Report-Block an. Push + State nur an Handelstagen.
 
     An gegateten Tagen (Wochenende/Feiertag) wird der State **bewusst nicht**
     fortgeschrieben: sonst gälte ein Befund als „schon gesehen" und der nächste
     Handelstag würde ihn verschlucken. Der Report-Block wird trotzdem gesetzt.
+
+    **GENAU EIN PUSH PRO LAUF** (harte Regel): entweder die Befund-Meldung
+    (prio high) ODER der Herzschlag (prio low) — nie beides. Der Herzschlag
+    kommt nur bei Status ``ok``; jeder Befund, auch ein reines ``warn``,
+    ersetzt ihn. ``counts`` = {collected, matured, evaluable} aus der
+    Forward-Sammlung (None, wenn der Sammel-Schritt scheiterte — dann nennt der
+    Herzschlag die Sammlung schlicht nicht).
     """
     findings = collect_findings(report, prev_report, finite_findings,
                                 sig_before, sig_after, has_agent_key,
                                 same_day_rerun)
     gated = push_gated(now)
     pushed = False
+    heartbeat = False
     if gated:
         _log(f"{len(findings)} Befund(e) — Push unterdrückt ({gated}), "
              f"State unverändert.")
@@ -516,10 +644,38 @@ def run(report: Dict, prev_report: Optional[Dict],
         state = load_state()
         to_push, new_state = evaluate_edges(findings, state, run_date)
         pushed = send_findings(topic, to_push)
+        # Herzschlag NUR wenn es gar nichts zu melden gab. Sonst hätte Easy
+        # zwei Pushes für denselben Lauf — und der stille Puls verlöre seine
+        # Aussage („kein Push = Lauf ausgefallen").
+        hb_prev = (state.get("heartbeat") or {}) if isinstance(state, dict) else {}
+        # Ein Puls pro TAG (Guardian-Nit 28.07.): mehrere Dispatches am selben
+        # Kalendertag sind ein vorgesehener Pfad (Retry, Recalculate-Button).
+        # Ohne diese Bremse käme pro Tap ein weiteres „Lauf ok" — ein
+        # Herzschlag, der stottert, ist als Taktgeber wertlos. Der Marker wird
+        # nur bei tatsächlich gesendetem Puls gesetzt, also blockiert er nie
+        # den ersten echten Herzschlag des Tages.
+        already_today = hb_prev.get("last_run_date") == run_date
+        milestone = None
+        if not findings and heartbeat_due(now) and is_main_run() and not already_today:
+            milestone = milestone_note(counts, hb_prev.get("counts"))
+            heartbeat = send_heartbeat(topic, report, counts, milestone)
+        elif not findings:
+            _log("Status ok, aber kein Herzschlag "
+                 f"(faellig={heartbeat_due(now)}, main={is_main_run()}, "
+                 f"heute_schon={already_today}).")
+        # Zähler-Stand für die nächste Meilenstein-Erkennung fortschreiben —
+        # nur wenn ein Herzschlag wirklich rausging, sonst würde ein
+        # übersprungener Lauf den Meilenstein verschlucken.
+        new_state["heartbeat"] = (
+            {"counts": counts, "last_run_date": run_date, "milestone": milestone}
+            if heartbeat else hb_prev)
         write_state(new_state, now_iso)
         _log(f"{len(findings)} Befund(e), davon {len(to_push)} auf der Flanke "
-             f"→ Push {'gesendet' if pushed else 'nicht gesendet'}.")
-    attach_to_report(report, findings, now_iso, pushed=pushed, gated=gated)
+             f"→ Befund-Push {'gesendet' if pushed else 'nicht gesendet'}, "
+             f"Herzschlag {'gesendet' if heartbeat else 'nein'}.")
+    attach_to_report(report, findings, now_iso, pushed=pushed or heartbeat,
+                     gated=gated)
+    report["health"]["heartbeat"] = heartbeat
     for f in findings:
         _log(f"  [{f['severity']}] {f['rule']}: {f['message']}")
     return report["health"]
