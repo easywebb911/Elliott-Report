@@ -275,3 +275,23 @@ HEALTH_AGENT_MIN_OK = 5          # < N von 10 Karten mit KI-Kommentar -> warn
 HEALTH_WARN_REPEAT_RUNS = 3      # warn wiederholt sich frühestens nach N Läufen
 # Flanken-Marker der Health-Pushes (wie die Sammlung von daily.yml committet).
 HEALTH_STATE_PATH = "data/health_state.json"
+
+# ---------------------------------------------------------------------------
+# HEARTBEAT-PUSH (ab 28.07.2026, siehe scripts/health_check.py)
+# ---------------------------------------------------------------------------
+# Bisher meldete sich das Tool NUR bei Problemen. Der OK-Push hat zwei Zwecke:
+# die positive Rückmeldung — und vor allem einen HERZSCHLAG. Bleibt er aus, ist
+# der Lauf ausgefallen. Das ist unabhängig vom Staleness-Wächter, der selbst am
+# GitHub-Scheduler hängt: am 27.07. fiel der Werktags-Cron aus, ohne dass etwas
+# meldete (der Wächter läuft in einem eigenen Cron — fällt der Scheduler aus,
+# schweigen beide). Ein AUSBLEIBENDER Herzschlag ist deshalb das ehrlichere
+# Signal als ein Wächter, der dieselbe Infrastruktur braucht.
+HEARTBEAT_ENABLED = True
+# "daily" = nach jedem erfolgreichen Werktags-Lauf; "weekly" = nur am
+# HEARTBEAT_WEEKDAY. Umstellen ändert NUR die Melde-Frequenz, nie eine Prüfung.
+HEARTBEAT_FREQUENCY = "daily"    # "daily" | "weekly"
+HEARTBEAT_WEEKDAY = 0            # 0 = Montag, nur bei FREQUENCY == "weekly"
+# Runde Meilensteine der Sammlung: bei jedem Überschreiten eines Vielfachen
+# dieser Schrittweite trägt der Herzschlag einen Hinweis. 25 passt zur
+# n>=100-Auswertungsschwelle (4 Etappen) ohne zu plaudern.
+HEARTBEAT_MILESTONE_STEP = 25

@@ -1790,6 +1790,9 @@ def main() -> int:
     # Sammlungs-„Stillstand" das korrekte Verhalten — Regel 4 schweigt.
     # VOR dem Update lesen: update_forward_collection setzt last_run_date neu.
     _hc_same_day = False
+    # Sammlungs-Zaehler fuer den Herzschlag (None = Sammel-Schritt gescheitert;
+    # dann nennt der OK-Push die Sammlung schlicht nicht, statt zu raten).
+    _hc_counts = None
     try:
         regimes = fc.market_regimes(fetcher is fetch_synthetic)
         coll = fc.load_collection()
@@ -1826,6 +1829,7 @@ def main() -> int:
             _log(f"[elliott] Score-Alert (>{config.SCORE_ALERT_THRESHOLD}): "
                  f"{len(edges)} neu — {', '.join(e['ticker'] for e in edges)}")
         n, matured, evaluable = fc.eval_counts(coll)
+        _hc_counts = {"collected": n, "matured": matured, "evaluable": evaluable}
         _log(f"[elliott] Forward-Sammlung: {n} gesammelt · {matured} gereift · "
              f"{evaluable} auswertbar (Auswertung ab n>={fc.EVAL_MIN_N}, PRU-Guard) "
              f"· Regime {regimes}")
@@ -1848,7 +1852,7 @@ def main() -> int:
             has_agent_key=bool(os.environ.get("ANTHROPIC_API_KEY", "")),
             topic=os.environ.get("NTFY_TOPIC", ""),
             run_date=run_date, now_iso=ts, now=datetime.now(timezone.utc),
-            same_day_rerun=_hc_same_day,
+            same_day_rerun=_hc_same_day, counts=_hc_counts,
         )
         write_report(report)
         _log(f"[elliott] Health-Check: Status {health['status']} "
