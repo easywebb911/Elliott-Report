@@ -24,12 +24,18 @@ def _capture(monkeypatch):
     return sent
 
 
-def _fixture_repo(tmp_path, monkeypatch, *, report_ts=None, matured=0, marker=False):
+def _fixture_repo(tmp_path, monkeypatch, *, report_ts=None, matured=0, marker=False,
+                  excluded=0):
+    """``matured`` = gereifte Records insgesamt, davon ``excluded`` per PRU-Guard
+    ausgeschlossen. AUSWERTBAR ist damit ``matured - excluded`` — genau die
+    Unterscheidung, an der die Meilenstein-Zählung hängt."""
     (tmp_path / "data").mkdir(parents=True, exist_ok=True)
     if report_ts is not None:
         (tmp_path / "data/report.json").write_text(
             json.dumps({"run_timestamp_utc": report_ts, "markets": {}}), encoding="utf-8")
     recs = [{"matured": True} for _ in range(matured)]
+    for rec in recs[:excluded]:
+        rec["pre_reached_target"] = True
     (tmp_path / "data/forward_collection.json").write_text(
         json.dumps({"records": recs}), encoding="utf-8")
     if marker:
@@ -101,6 +107,60 @@ def test_milestone_throttled_by_marker(tmp_path, monkeypatch):
     sent = _capture(monkeypatch)
     out = notify.run_daily(TOPIC, TUE)
     assert out["milestone"] is False and sent == []   # Marker -> kein Doppel-Push
+
+
+# --- ZÄHLWEISE: auswertbar, NICHT gereift -----------------------------------
+# Registry und Frontend beziehen n>=EVAL_MIN_N auf AUSWERTBAR (gereift UND nicht
+# per PRU-Guard ausgeschlossen). Die frühere Zählung nahm `gereift` — die
+# größere Menge — und hätte zu früh gefeuert. Der Marker macht den Push
+# einmalig, ein Fehlstart wäre also nicht nachholbar.
+def test_milestone_zaehlt_auswertbar_nicht_gereift(tmp_path, monkeypatch):
+    # 100 gereift, davon 5 ausgeschlossen -> 95 auswertbar -> Schwelle NICHT erreicht
+    _fixture_repo(tmp_path, monkeypatch, report_ts="2026-07-27T18:00:00Z",
+                  matured=100, excluded=5)
+    monkeypatch.setattr(notify, "SCORE_REVIEW_BY", "2027-01-01")   # Review aus
+    sent = _capture(monkeypatch)
+    out = notify.run_daily(TOPIC, TUE)
+    assert out["milestone"] is False and sent == []
+    # und der Marker darf NICHT gesetzt sein, sonst ginge der echte Meilenstein
+    # später verloren
+    assert not (tmp_path / "data/validation_milestone_fired.flag").exists()
+
+
+def test_milestone_feuert_bei_100_auswertbar_trotz_ausschluessen(tmp_path, monkeypatch):
+    # 105 gereift, davon 5 ausgeschlossen -> genau 100 auswertbar -> Push
+    _fixture_repo(tmp_path, monkeypatch, report_ts="2026-07-27T18:00:00Z",
+                  matured=105, excluded=5)
+    monkeypatch.setattr(notify, "SCORE_REVIEW_BY", "2027-01-01")
+    sent = _capture(monkeypatch)
+    out = notify.run_daily(TOPIC, TUE)
+    assert out["milestone"] is True and len(sent) == 1
+    # die gemeldete Zahl ist die auswertbare (100), nicht die gereifte (105)
+    assert "100" in sent[0]["body"] and "105" not in sent[0]["body"]
+    assert "auswertbar" in sent[0]["body"]
+    assert "auswertbar" in (tmp_path / "data/validation_milestone_fired.flag"
+                            ).read_text(encoding="utf-8")
+
+
+def test_evaluable_count_ohne_forward_collection_zaehlt_null(tmp_path, monkeypatch):
+    """Ohne forward_collection lieber kein Push als ein zu früher."""
+    _fixture_repo(tmp_path, monkeypatch, report_ts="2026-07-27T18:00:00Z",
+                  matured=200)
+    monkeypatch.setattr(notify, "_fc", None)
+    monkeypatch.setattr(notify, "SCORE_REVIEW_BY", "2027-01-01")
+    sent = _capture(monkeypatch)
+    out = notify.run_daily(TOPIC, TUE)
+    assert out["milestone"] is False and sent == []
+
+
+def test_evaluable_count_nutzt_eval_counts_der_registry_quelle():
+    """Kein zweiter Zähl-Pfad: notify zählt über forward_collection.eval_counts."""
+    import forward_collection as fc
+    coll = {"records": [{"matured": True} for _ in range(7)]
+                       + [{"matured": True, "pre_guard_contaminated": True}]
+                       + [{"matured": False}]}
+    assert fc.eval_counts(coll) == (9, 8, 7)
+    assert notify._evaluable_count(coll) == 7
 
 
 # ---------------------------------------------------------------------------
