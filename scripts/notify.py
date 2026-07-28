@@ -135,9 +135,13 @@ def send_score_alert(topic: str, edges, threshold) -> bool:
 # ---------------------------------------------------------------------------
 # PURE Prüf-Funktionen (deterministisch, kein I/O) — direkt unit-testbar
 # ---------------------------------------------------------------------------
-def milestone_reached(matured: int, marker_exists: bool, min_n=EVAL_MIN_N) -> bool:
-    """n≥min_n gereift UND noch nicht gemeldet (Marker fehlt)."""
-    return matured >= min_n and not marker_exists
+def milestone_reached(evaluable: int, marker_exists: bool, min_n=EVAL_MIN_N) -> bool:
+    """n≥min_n **auswertbar** UND noch nicht gemeldet (Marker fehlt).
+
+    ``auswertbar`` = gereift UND nicht per PRU-Guard ausgeschlossen. Registry
+    und Frontend zählen so; ``gereift`` ist die größere Menge und würde den
+    Push zu früh auslösen (siehe forward_collection.eval_counts)."""
+    return evaluable >= min_n and not marker_exists
 
 
 def review_due(review_by, now: _dt.datetime, weekday=STATUS_REVIEW_WEEKDAY) -> bool:
@@ -167,10 +171,25 @@ def _load_json(rel: str):
         return None
 
 
-def _matured_count(coll) -> int:
+def _evaluable_count(coll) -> int:
+    """AUSWERTBARE Records (gereift UND nicht per PRU-Guard ausgeschlossen).
+
+    Gezählt wird ausschließlich über ``forward_collection.eval_counts`` — keine
+    zweite Zähl-Implementierung, die von der Registry-Definition wegdriften
+    kann. Fehlt ``forward_collection``, wird 0 gemeldet (kein Push) statt auf
+    eine Ersatzzählung auszuweichen: ein verpasster Meilenstein ist harmlos,
+    ein zu früher nicht (der Marker macht ihn einmalig — und damit endgültig)."""
     if not coll or not isinstance(coll.get("records"), list):
         return 0
-    return sum(1 for r in coll["records"] if r and r.get("matured"))
+    if _fc is None or not hasattr(_fc, "eval_counts"):
+        _log("forward_collection nicht verfügbar — Meilenstein-Zählung "
+             "übersprungen (kein Push).")
+        return 0
+    try:
+        return _fc.eval_counts(coll)[2]
+    except Exception as exc:  # noqa: BLE001 — fail-soft, nie den Lauf reißen
+        _log(f"eval_counts fehlgeschlagen (fail-soft, kein Push): {exc}")
+        return 0
 
 
 def _run_url() -> str:
@@ -217,14 +236,14 @@ def run_daily(topic: str, now: _dt.datetime) -> dict:
     """
     out = {"milestone": False, "review": False}
     coll = _load_json(COLLECTION_PATH)
-    matured = _matured_count(coll)
+    evaluable = _evaluable_count(coll)
     marker = REPO_ROOT / MILESTONE_MARKER
 
-    if milestone_reached(matured, marker.exists()):
+    if milestone_reached(evaluable, marker.exists()):
         sent = send_ntfy(
             topic,
             "Elliott: Validierungs-Auswertung faellig",
-            f"n≥{EVAL_MIN_N} gereifte Setups erreicht ({matured}). "
+            f"n≥{EVAL_MIN_N} auswertbare Setups erreicht ({evaluable}). "
             f"Auswertung gemäß validation_registry.md fällig.",
             priority="high", tags="tada,white_check_mark",
         )
@@ -234,13 +253,13 @@ def run_daily(topic: str, now: _dt.datetime) -> dict:
         # Zustellgarantie). Kommentar im PR.
         try:
             marker.write_text(
-                f"milestone n>={EVAL_MIN_N} erreicht ({matured} gereift) "
+                f"milestone n>={EVAL_MIN_N} erreicht ({evaluable} auswertbar) "
                 f"am {now.strftime('%Y-%m-%dT%H:%M:%SZ')}\n", encoding="utf-8")
         except Exception as exc:  # noqa: BLE001
             _log(f"Marker konnte nicht geschrieben werden (fail-soft): {exc}")
         out["milestone"] = bool(sent)
     else:
-        _log(f"Meilenstein: {matured}/{EVAL_MIN_N} gereift, Marker "
+        _log(f"Meilenstein: {evaluable}/{EVAL_MIN_N} auswertbar, Marker "
              f"{'vorhanden' if marker.exists() else 'fehlt'} → kein Push.")
 
     if review_due(SCORE_REVIEW_BY, now):
