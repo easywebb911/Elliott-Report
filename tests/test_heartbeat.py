@@ -202,6 +202,52 @@ def test_no_heartbeat_locally_without_github_ref(tmp_path, monkeypatch):
     assert sent == []
 
 
+def test_only_one_pulse_per_calendar_day(tmp_path, monkeypatch):
+    """Guardian-Nit 28.07.: mehrere Dispatches am selben Tag sind ein
+    vorgesehener Pfad (Retry, Recalculate-Button). Ein Herzschlag, der bei
+    jedem Tap erneut schlägt, ist als Taktgeber wertlos."""
+    _sandbox(tmp_path, monkeypatch)
+    sent = _capture(monkeypatch)
+    for _ in range(3):                       # drei Läufe, selber Kalendertag
+        hc.run(_report(), None, [], None, None, has_agent_key=False,
+               topic=TOPIC, run_date=RUN_DATE, now_iso=NOW_ISO, now=MON,
+               counts=COUNTS)
+    assert len(sent) == 1, "ein Puls pro Tag, nicht pro Lauf"
+    # Neuer Tag -> wieder ein Puls.
+    hc.run(_report(), None, [], None, None, has_agent_key=False, topic=TOPIC,
+           run_date="2026-07-28", now_iso=NOW_ISO, now=TUE, counts=COUNTS)
+    assert len(sent) == 2
+
+
+def test_day_debounce_never_blocks_the_first_pulse(tmp_path, monkeypatch):
+    """Die Bremse darf den ERSTEN echten Herzschlag des Tages nie schlucken —
+    auch nicht, wenn am Vortag einer unterdrückt wurde."""
+    _sandbox(tmp_path, monkeypatch, on_main=False)     # Vortag: Branch, kein Puls
+    sent = _capture(monkeypatch)
+    hc.run(_report(), None, [], None, None, has_agent_key=False, topic=TOPIC,
+           run_date=RUN_DATE, now_iso=NOW_ISO, now=MON, counts=COUNTS)
+    assert sent == []
+    _sandbox(tmp_path, monkeypatch, on_main=True)      # selber Tag, jetzt main
+    hc.run(_report(), None, [], None, None, has_agent_key=False, topic=TOPIC,
+           run_date=RUN_DATE, now_iso=NOW_ISO, now=MON, counts=COUNTS)
+    assert len(sent) == 1, "der unterdrückte Branch-Lauf darf nicht blockieren"
+
+
+def test_findings_still_reported_after_a_pulse_the_same_day(tmp_path, monkeypatch):
+    """Die Tages-Bremse gilt NUR für den Herzschlag: taucht später am Tag ein
+    echter Befund auf, wird er gemeldet."""
+    _sandbox(tmp_path, monkeypatch)
+    sent = _capture(monkeypatch)
+    hc.run(_report(), None, [], None, None, has_agent_key=False, topic=TOPIC,
+           run_date=RUN_DATE, now_iso=NOW_ISO, now=MON, counts=COUNTS)
+    assert len(sent) == 1 and sent[0]["prio"] == "low"
+    rep = _report(us=0)
+    rep["markets"]["US"]["candidates_found"] = 0
+    hc.run(rep, None, [], None, None, has_agent_key=False, topic=TOPIC,
+           run_date=RUN_DATE, now_iso=NOW_ISO, now=MON, counts=COUNTS)
+    assert len(sent) == 2 and sent[1]["prio"] == "high"
+
+
 def test_is_main_run_predicate(monkeypatch):
     for ref, want in (("refs/heads/main", True),
                       ("refs/heads/claude/x", False),

@@ -648,13 +648,21 @@ def run(report: Dict, prev_report: Optional[Dict],
         # zwei Pushes für denselben Lauf — und der stille Puls verlöre seine
         # Aussage („kein Push = Lauf ausgefallen").
         hb_prev = (state.get("heartbeat") or {}) if isinstance(state, dict) else {}
+        # Ein Puls pro TAG (Guardian-Nit 28.07.): mehrere Dispatches am selben
+        # Kalendertag sind ein vorgesehener Pfad (Retry, Recalculate-Button).
+        # Ohne diese Bremse käme pro Tap ein weiteres „Lauf ok" — ein
+        # Herzschlag, der stottert, ist als Taktgeber wertlos. Der Marker wird
+        # nur bei tatsächlich gesendetem Puls gesetzt, also blockiert er nie
+        # den ersten echten Herzschlag des Tages.
+        already_today = hb_prev.get("last_run_date") == run_date
         milestone = None
-        if not findings and heartbeat_due(now) and is_main_run():
+        if not findings and heartbeat_due(now) and is_main_run() and not already_today:
             milestone = milestone_note(counts, hb_prev.get("counts"))
             heartbeat = send_heartbeat(topic, report, counts, milestone)
         elif not findings:
             _log("Status ok, aber kein Herzschlag "
-                 f"(faellig={heartbeat_due(now)}, main={is_main_run()}).")
+                 f"(faellig={heartbeat_due(now)}, main={is_main_run()}, "
+                 f"heute_schon={already_today}).")
         # Zähler-Stand für die nächste Meilenstein-Erkennung fortschreiben —
         # nur wenn ein Herzschlag wirklich rausging, sonst würde ein
         # übersprungener Lauf den Meilenstein verschlucken.
