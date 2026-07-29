@@ -562,3 +562,50 @@ vor n ≥ 100) gilt unverändert.
   `SCHEMA_VERSION` unberührt (belegt: rekursiver Report-Diff ALT/NEU über
   einen vollständigen Lauf → **nur** der `validation`-Block kommt hinzu).
   Revert = `report["validation"]` + der Frontend-Zweig + der Import raus.
+
+- **29.07.2026 — KLARSTELLUNG: Abruf-Robustheit und Ehrlichkeit der Ausgabe.
+  KEINE Änderung an „Auswertung v1".** Anlass war ein Trockenlauf des
+  Programms an der ECHTEN Sammlung (37 Records, 0 gereift) — read-only,
+  bevor es etwas zu sehen gibt. Population, Primär-Familie, Treffer-Definition,
+  Konstanten, Seed und die Sekundär-**Dimensionen** sind unverändert; belegt
+  durch einen Ergebnis-Vergleich an vollständigen Kunstdaten: `primaer`,
+  `holm`, `urteil`, `fazit_klartext`, `reproduzierbarkeit` und `definitionen`
+  **identisch** vor und nach der Änderung.
+  Drei Punkte, alle außerhalb der Auswertungs-Definition:
+  1. **Kursbasis-Abruf (`--kurse-holen`) scheitert jetzt sichtbar.** yfinance
+     meldet einen Fehlschlag **nicht** als Ausnahme, sondern als leeren
+     DataFrame. Der landete als gültig aussehender Eintrag mit 0 Bars in der
+     Datei, das Log meldete „Kursbasis geschrieben (4 Ticker)", der
+     Rückgabewert war 0 — der Fehler wäre erst bei der Auswertung aufgefallen.
+     Jetzt: leere oder in sich versetzte Antworten kommen **gar nicht erst** in
+     die Datei, `ticker_ohne_kurse` benennt die Fehlenden, das Log fasst
+     zusammen, und der Modus endet mit Rückgabewert **3**, sobald ein Ticker
+     fehlt. Die Auswertung selbst war nie gefährdet (unvollständige Kursbasis
+     ⇒ „nicht durchführbar" ⇒ nie „belegt") — sichtbar war der Fehler trotzdem
+     nicht.
+  2. **Jede beauftragte Sekundär-Dimension erscheint**, auch ohne einen
+     einzigen Fall (`hinweis: "keine Fälle"`). Vorher fiel eine leere Dimension
+     ersatzlos aus der Ausgabe: im Trockenlauf fehlte `momentum_divergenz`
+     komplett, weil das Feld bei allen Records `null` war. Wer die Ausgabe las,
+     sah nicht, dass die Dimension geprüft wurde. Die Dimensionsliste steht
+     jetzt fest in `SECONDARY_DIMS` (10 Einträge). Die Form je Dimension ist
+     dabei von „Gruppen-Dict" auf `{faelle_gesamt, gruppen, hinweis}`
+     gewechselt — reine Ausgabe-Form des **explorativen** Anhangs, keine
+     Messgröße.
+  3. **`ausgeschlossen_gruende` sind NENNUNGEN, keine Fälle.** Ein Record kann
+     mehrere Gründe tragen (`pre_reached_target` UND `pre_reached_ext`); im
+     Trockenlauf standen 13 Nennungen für 5 Fälle. Der neue Schlüssel
+     `ausgeschlossen_gruende_hinweis` sagt das ausdrücklich und nennt die Zahl
+     der betroffenen Fälle.
+  **BEKANNTE EIGENSCHAFT (offen, nicht geändert):** Die Zufallsziehungen des
+  Benchmarks stammen aus **demselben Zeitfenster** wie die echten Fälle und
+  **überlappen sich zeitlich** — sowohl untereinander als auch mit den echten
+  10-Tage-Horizonten. Ob das den Test **strenger oder milder** macht, ist
+  **offen**; es ist hier bewusst nicht geraten. Vor der ersten echten
+  Auswertung wird das an **Kunstdaten** geprüft (Null-Verteilung mit und ohne
+  Überlappung gegeneinander). Die Konstruktion selbst folgt der
+  Registry-Vorgabe „gleiche Aktien, zufällige Einstiegstage, **derselbe
+  Zeitraum**" und bleibt bis zu diesem Befund **unverändert** — eine etwaige
+  Anpassung wäre eine neue datierte Version, nicht eine stille Korrektur an v1.
+  Revert = die drei Punkte in `scripts/evaluate.py` zurücknehmen; kein
+  Datenstand wird ungültig.

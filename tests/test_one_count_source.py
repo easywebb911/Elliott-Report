@@ -72,6 +72,11 @@ def test_pipeline_ordnet_die_zahlen_zur_laufzeit_richtig_zu(tmp_path, monkeypatc
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setattr(pipe, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(fc, "REPO_ROOT", tmp_path)
+    # AUCH health_check umbiegen: `main()` ruft es lazy auf, und es schreibt
+    # `data/health_state.json`. Ohne diese Zeile hat der Test in die ECHTE
+    # Datei im Repo geschrieben (aufgefallen an einem dreckigen Arbeitsbaum,
+    # nicht am Test selbst) — ein Test darf niemals Repo-Daten verändern.
+    monkeypatch.setattr(hc, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(pipe.config, "MARKETS", {
         "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
         "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},
@@ -97,6 +102,25 @@ def test_validation_block_stimmt_mit_eval_counts_ueberein():
                 "eval_min_n": fc.EVAL_MIN_N}
     assert erwartet["evaluable"] <= erwartet["matured"] <= erwartet["collected"]
     assert erwartet["eval_min_n"] == 100
+
+
+def test_tests_fassen_die_echten_datendateien_nicht_an():
+    """Wächter: kein Test darf Repo-Daten verändern.
+
+    Der Laufzeit-Test oben ruft `main()` wirklich auf. Beim ersten Wurf war
+    `health_check.REPO_ROOT` nicht mit umgebogen — er schrieb in die ECHTE
+    `data/health_state.json`. Aufgefallen ist das an einem dreckigen
+    Arbeitsbaum, nicht am Test. Dieser Wächter macht daraus einen Testfall.
+    """
+    import subprocess
+    heikel = ["data/health_state.json", "data/report.json",
+              "data/forward_collection.json", "docs/data/report.json",
+              "docs/data/forward_collection.json"]
+    r = subprocess.run(["git", "status", "--porcelain", "--"] + heikel,
+                       cwd=ROOT, capture_output=True, text=True)
+    assert r.stdout.strip() == "", (
+        "Datendateien wurden verändert — vermutlich hat ein Test in das echte "
+        f"Repo geschrieben:\n{r.stdout}")
 
 
 def test_frontend_rechnet_die_aggregate_nicht_mehr_selbst():
