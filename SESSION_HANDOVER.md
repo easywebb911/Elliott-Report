@@ -2,11 +2,12 @@
 
 **Kanonische, allein tragfähige Projekt-Quelle.** Eine frische Code-Session soll
 allein mit diesem Dokument (plus Repo) weiterarbeiten können. Stand: **28.07.2026**,
-nach PR #56 (**Methodik-Dedupe**, gemerged); dieser PR: **Zählweise vereinheitlicht + Sprache auf der Methodik-Seite**, offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
+nach PR #57 (**Zählweise + Sprache**, gemerged); dieser PR: **Auswertungs-Programm v1** (blind gebaut bei 0 gereiften Fällen), offen. Das **EXZELLENZ-AUDIT P1–P4** ist mit #47 komplett.
 Alle Zahlen/Hashes sind gegen `git log` und den Code geprüft, nicht aus dem
 Gedächtnis.
 
-> **BRANCH-BASIS:** frisch von `main` (`eb2d873` = #56-Merge) abgezweigt.
+> **BRANCH-BASIS:** frisch von `main` (`211f704` = täglicher Commit nach
+> dem #57-Merge) abgezweigt.
 > Die stehenden Regeln „Rebase vor Ready-for-Review" **und** „Realdaten-Review nach
 > Strukturänderung" (Abschnitt 8) vor dem Ready-Setzen prüfen.
 
@@ -101,7 +102,8 @@ durchgängig ab #13.
 | #54 | `7393971` | **Heartbeat-Push**: nach jedem ERFOLGREICHEN Werktags-Lauf auf `main` genau EIN leiser Push (`Elliott: Lauf ok`, prio `low`) mit echten Zahlen — Kandidaten je Markt, Top-Ticker + Score, Sammlung (gesammelt/gereift/auswertbar), plus Meilenstein-Hinweis beim Überschreiten eines Vielfachen von `HEARTBEAT_MILESTONE_STEP` (25). **Zweck ist der HERZSCHLAG, nicht das Lob:** bleibt der Puls aus, ist der Lauf ausgefallen — unabhängig vom Staleness-Wächter, der selbst am GitHub-Scheduler hängt (am 27.07. fiel der Werktags-Cron aus, ohne dass etwas meldete). **HARTE REGEL: nie zwei Pushes pro Lauf** — jeder Befund, auch ein reines `warn`, ersetzt den Herzschlag; auch ein still gewordener Dauer-Befund lässt ihn NICHT einspringen. Gates: Wochenende/Feiertag (bestehend) und **nur `main`** (`GITHUB_REF`), damit ein Test-Dispatch vom Branch keinen Puls erfindet. `HEARTBEAT_ENABLED` / `HEARTBEAT_FREQUENCY` (daily|weekly) als benannte Konstanten. Ohne Secret sauberer no-op. 26 neue Tests (390) | Guardian (OK, Nit eingearbeitet) + manual, keine Screenshots |
 | #55 | `ba457cd` | **Validierungs-Seite in Klartext**: Die Ansicht war das komplette Register als Fließtext — fachlich korrekt, am Handy unbrauchbar. Jetzt oben **drei große Zahlen** (gesammelt / fertig beobachtet / auswertbar), **zwei Sätze** (was beobachtet wird, ab wann ausgewertet wird), ein **Fortschrittsbalken** statt Prozent-Rechnerei, der Stempel `heuristisch · unvalidiert`. Alles Fachliche inklusive des vollständigen Registers steckt zugeklappt in **Details für Nerds** (`<details>`-Muster wie beim KI-Kommentar, Tap-Ziel 44 px). Der Ausschluss-Hinweis erscheint nur, wenn es Ausschlüsse gibt — in Alltagssprache statt `pre_guard_contaminated`. **Nichts weggefallen, nur umsortiert.** Verifiziert @390 px: sichtbarer Teil endet bei 291 px (Panel 365 px) → kein Scrollen; **null Fachbegriffe** im sichtbaren Teil (Liste geprüft); Zahlen gegen die echten Daten gegengerechnet (32/0/0) **und** gegen einen befüllten Fall (60/45/40, Balken 40 %, 5 Ausschlüsse). Reines Frontend | self (CI grün) |
 | #56 | `5cd59f7` | **Methodik: doppelte Konfluenz-Erklärung entfernt**: „Konfluenz" stand zweimal auf der Methodik-Seite — einmal als **Legenden-Zeile** (kompakt, technisch: „±1 % … 52W-Hoch, 200-Tage-Linie, runde Zahl … kein Score-Einfluss") und einmal als **eigener Abschnitt „Konfluenz-Marken"**. **Bleibt: der Abschnitt** — er ist der verständlichere und der einzige, der das **Warum** trägt (Crowd-Marken wirken über Aufmerksamkeit, nicht über Ratio-Magie) und den fehlenden Score-Einfluss begründet. **Weicht: die Legenden-Zeile**, gekürzt auf einen Halbsatz mit Verweis — neuer Wortlaut: „Chips an Zielzone/Invalidierung, wenn dort eine breit beachtete Marke liegt — ausführlich unten unter **Konfluenz-Marken**." (119 statt 217 Zeichen). Eine Zeile geändert, sonst nichts; die 11 übrigen Legenden-Zeilen und der Abschnitt selbst sind unberührt. Verifiziert @390 px: kein Querscrollen, keine JS-Fehler, Verweis-Ziel existiert, „kein Score-Einfluss" weiterhin im Text. Reines Frontend/Text | self (CI grün), keine Screenshots |
-| #(dieser) | `(offen)` | **Zählweise vereinheitlicht + Klartext auf der Methodik-Seite**: (1) **Fehlerkorrektur** — `notify.run_daily` zählte für den Meilenstein-Push `gereift`, Registry und Frontend beziehen `n≥100` seit dem PRU-Guard (23.07.) aber auf **auswertbar** (gereift UND nicht ausgeschlossen). Der Push wäre also **zu früh** gekommen — und der Einmal-Marker hätte ihn danach **für immer** verbraucht. `_matured_count` → `_evaluable_count`, das ausschließlich über `forward_collection.eval_counts(...)[2]` zählt (kein zweiter Zähl-Pfad, der wegdriften kann); ohne `forward_collection` **0 statt Ersatzzählung** (verpasster Meilenstein ist harmlos, zu früher nicht). Push-Text, Marker-Text und Log sagen jetzt „auswertbar". **Keine Definitions-Änderung → keine Registry-Notiz**, die Registry war schon die Referenz. Regressionsnetz: 4 Tests, per Mutationsprobe belegt (alte Zählung eingesetzt → 3 davon rot). (2) **Sprache**: „self-fulfilling" und „Ratio-Magie" im Abschnitt *Konfluenz-Marken* durch Alltagssprache ersetzt — „Solche Level wirken, weil **viele Händler auf diese Marke schauen** und dort handeln — nicht, weil an der Zahl selbst etwas Besonderes wäre." Sinn unverändert (Wirkung über Aufmerksamkeit, nicht über die Zahl), „kein Score-Einfluss" bleibt. 394 Tests | Guardian + manual, keine Screenshots |
+| #57 | `89c5602` | **Zählweise vereinheitlicht + Klartext auf der Methodik-Seite**: (1) **Fehlerkorrektur** — `notify.run_daily` zählte für den Meilenstein-Push `gereift`, Registry und Frontend beziehen `n≥100` seit dem PRU-Guard (23.07.) aber auf **auswertbar** (gereift UND nicht ausgeschlossen). Der Push wäre also **zu früh** gekommen — und der Einmal-Marker hätte ihn danach **für immer** verbraucht. `_matured_count` → `_evaluable_count`, das ausschließlich über `forward_collection.eval_counts(...)[2]` zählt (kein zweiter Zähl-Pfad, der wegdriften kann); ohne `forward_collection` **0 statt Ersatzzählung** (verpasster Meilenstein ist harmlos, zu früher nicht). Push-Text, Marker-Text und Log sagen jetzt „auswertbar". **Keine Definitions-Änderung → keine Registry-Notiz**, die Registry war schon die Referenz. Regressionsnetz: 4 Tests, per Mutationsprobe belegt (alte Zählung eingesetzt → 3 davon rot). (2) **Sprache**: „self-fulfilling" und „Ratio-Magie" im Abschnitt *Konfluenz-Marken* durch Alltagssprache ersetzt — „Solche Level wirken, weil **viele Händler auf diese Marke schauen** und dort handeln — nicht, weil an der Zahl selbst etwas Besonderes wäre." Sinn unverändert (Wirkung über Aufmerksamkeit, nicht über die Zahl), „kein Score-Einfluss" bleibt. 394 Tests | Guardian + manual, keine Screenshots |
+| #(dieser) | `(offen)` | **Auswertungs-Programm v1** (`scripts/evaluate.py`): das Register in Code — **blind gebaut bei 0 gereiften Fällen**, damit die Auswertung nicht später an den Ergebnissen entlang gebogen wird. Eigenes Kommando, **nie im Tageslauf**, kein Push, schreibt nur seine Ergebnis-Datei. Population = `is_excluded` + Prüfung gegen `eval_counts[2]` (Drift ⇒ Abbruch); nur eingefrorene Felder (`FROZEN_FIELDS`, per Zugriffs-Protokoll bewiesen). Sperre unter n<100: nur `--vorschau`, alles als NICHT GÜLTIG gestempelt. Primär: Trefferquote gegen Zufalls-Benchmark (gleicher Ticker, zufälliger Tag, gleiche relative Abstände, gleicher Horizont, gleiche Treffer-Definition) + AUC mit Bootstrap-Intervall, **Holm** über beide. Sekundär explorativ mit Mindest-Fallzahl 30 („zu wenige Fälle" statt Zahl). Ausgabe zweiteilig: Klartext ohne Fachbegriffe + Zahlenanhang. **Vier Selbsttests mit bekannter Antwort** (Rauschen ⇒ kein Signal · starker Zusammenhang ⇒ erkannt · Punktzahl verkehrt ⇒ Untergrenze < 0,5 · Grenzfall 99/100) — sie fanden einen echten Fehler: eine selbstgeschriebene binäre Suche lieferte still AUC 0,5. 29 neue Tests (423) | Guardian + manual, keine Screenshots |
 
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
@@ -1225,6 +1227,24 @@ gleiche relative Ziel-/Stop-Distanzen) **Holm-korrigiert signifikant**, UND (2) 
   allein ist nie Bestätigung.
 - **Daten je forward-Kandidat (10 Handelstage):** `target_hit`, `ext_hit`,
   `invalidated` (binär), `max_gain_10d`, `max_drawdown_10d`, `r_multiple`.
+
+**AUSWERTUNGS-PROGRAMM (v1, 28.07.2026, blind gebaut):** `scripts/evaluate.py`
+setzt genau dieses Register um. Aufruf:
+
+```bash
+python3 scripts/evaluate.py                 # offiziell — verweigert unter n<100
+python3 scripts/evaluate.py --vorschau      # Zwischenstand, ausdrücklich NICHT gültig
+python3 scripts/evaluate.py --kurse-holen   # NUR die Kursbasis des Benchmarks holen
+```
+
+Standardpfade: Sammlung `data/forward_collection.json`, Kursbasis
+`data/eval_prices.json`, Ergebnis `data/evaluation/ergebnis.json`. Es läuft
+**nie** im Tageslauf, sendet **keinen** Push und schreibt weder Sammlung noch
+Report. Ohne Kursbasis meldet der Zufalls-Vergleich „nicht durchführbar“ —
+und ohne ihn kann ein Ergebnis nie „belegt“ lauten. Seed `20260728` fest,
+zwei Läufe ergeben dieselbe Datei. Details + die zwei bewusst getroffenen
+Operationalisierungen (Kursbasis, Holm auf ein Intervall-Kriterium) stehen im
+Registry-Eintrag vom 28.07.
 
 **Datumsanker:** Sammlungs-Beginn/`COLLECTION_START` **22.07.2026**; **Universums-
 Wechsel 23.07.2026** (99→361, Zählweise unverändert, im Register geloggt).
