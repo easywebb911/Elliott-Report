@@ -706,12 +706,6 @@ def update_forward_collection(
     return coll
 
 
-def counts(coll: Dict) -> Tuple[int, int]:
-    """(gesammelt, gereift)."""
-    records = coll.get("records", [])
-    return len(records), sum(1 for r in records if r.get("matured"))
-
-
 def is_excluded(rec: Dict) -> bool:
     """Aus der Auswertungs-POPULATION ausgeschlossen (PRU-Guard, 2026-07-23).
 

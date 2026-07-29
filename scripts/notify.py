@@ -50,13 +50,17 @@ except Exception:  # pragma: no cover
 import market_calendar as cal  # gemeinsamer Kalender (Gate + Staleness)  # noqa: E402
 
 NTFY_BASE = "https://ntfy.sh"
-REPORT_PATH = "data/report.json"
+# Pfade aus der config (health_check macht es bereits so) — ein zweiter,
+# hartkodierter Pfad ist eine stille Divergenz, sobald einer umzieht.
+REPORT_PATH = getattr(config, "REPORT_PATH", "data/report.json")
 COLLECTION_PATH = "data/forward_collection.json"
 MILESTONE_MARKER = "data/validation_milestone_fired.flag"
 
 # EVAL_MIN_N lebt in forward_collection (Single Source), NICHT in config —
 # von dort lesen, damit eine spätere Änderung hier nicht still divergiert.
 EVAL_MIN_N = getattr(_fc, "EVAL_MIN_N", getattr(config, "EVAL_MIN_N", 100))
+# Der Vorbehalt steht EINMAL in der config; keine Zweitfassung im Push-Text.
+CARD_STATUS = getattr(config, "CARD_STATUS", "heuristisch · unvalidiert")
 # Staleness-Entscheidung liegt komplett in market_calendar (kalenderbewusst) —
 # notify hält KEINE eigene Stunden-Schwelle mehr.
 SCORE_REVIEW_BY = getattr(config, "SCORE_REVIEW_BY", None)
@@ -115,7 +119,7 @@ def score_alert_body(edges) -> str:
         f"{e['score']:.0f}"
         for e in edges
     ]
-    return " · ".join(parts) + " — heuristisch · unvalidiert (kein Signal)"
+    return " · ".join(parts) + f" — {CARD_STATUS} (kein Signal)"
 
 
 def send_score_alert(topic: str, edges, threshold) -> bool:

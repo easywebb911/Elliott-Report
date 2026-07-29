@@ -538,3 +538,27 @@ vor n ≥ 100) gilt unverändert.
   **Bewusst NICHT geändert:** Score, Ranking, Filter, Reifung, Sammlung,
   `report.json`, `SCHEMA_VERSION`. Revert = `scripts/evaluate.py` +
   `tests/test_evaluate.py` + dieser Eintrag raus.
+
+- **29.07.2026 — KLARSTELLUNG (keine Definitionsänderung): „Auswertung v1"
+  verwendet den Setup-Typ der Sammlung wieder, statt ihn nachzubauen.**
+  `scripts/evaluate.py` trug eine wortgleiche eigene Fassung von
+  `_is_end_of_w4` — ausgerechnet in dem Modul, dessen Kernaussage
+  „wiederverwenden statt nachbauen" ist. Sie ist jetzt ein Import aus
+  `forward_collection`. **Verhalten unverändert:**
+  `tests/test_one_count_source.py` stellt die entfernte Fassung nach und prüft
+  über alle Rand- und Normalfälle (Ende-W4, Ende-W2, leere/fehlende Label,
+  `wave: None`, Mehrfach-Label), dass beide **dieselbe Gruppe** liefern.
+  **„Auswertung v1" bleibt inhaltlich unangetastet** — Population,
+  Primär-Familie, Konstanten, Seed und Sekundär-Dimensionen sind identisch;
+  dieser Eintrag dokumentiert ausschließlich, dass eine Doppelung im Code
+  aufgelöst wurde. Kein neuer Versionsstand, keine v2.
+  Im selben Zug, ebenfalls ohne Auswertungs-Wirkung: die Aggregate
+  (gesammelt/gereift/auswertbar) stehen ab jetzt als additiver Block
+  `report["validation"]` im Report und werden **nicht mehr im Frontend
+  nachgerechnet** — eine Quelle (`eval_counts`) statt zweier Sprachen. Der
+  PRU-Guard `_recExcluded` bleibt im Frontend, weil er JE FALL gebraucht wird
+  (Episoden-Status); ein Test hält seine Feldliste mit `is_excluded`
+  deckungsgleich. Score, Ranking, Filter, Reifung, Sammlung und
+  `SCHEMA_VERSION` unberührt (belegt: rekursiver Report-Diff ALT/NEU über
+  einen vollständigen Lauf → **nur** der `validation`-Block kommt hinzu).
+  Revert = `report["validation"]` + der Frontend-Zweig + der Import raus.

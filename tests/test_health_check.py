@@ -87,13 +87,12 @@ def _coll(n=2, last_seen=RUN_DATE):
 
 
 # ══ REGEL 1 — NICHT-FINIT (der wichtigste Punkt) ═══════════════════════════
-def test_finite_predicate_rejects_the_whole_class():
-    for bad in (None, NAN, INF, -INF, True, False, "3.5", [], {}):
-        assert hc._finite(bad) is False, f"_finite({bad!r}) müsste False sein"
-    for good in (0, -1, 3.5, 1e9):
-        assert hc._finite(good) is True
-
-
+# Das Prädikat selbst wird NICHT mehr hier geprüft: es ist seit dem 29.07.2026
+# `numeric.finite` (eine Implementierung statt zweier wortgleicher). Die
+# Werteliste stand hier doppelt zu `tests/test_finite_hardening.py` — zwei
+# Testsuiten für dieselbe Funktion. Geblieben ist, was NUR hier gilt: WARUM es
+# dieses Prädikat braucht, und dass `health_check` es wirklich benutzt
+# (Identitäts-Test in `tests/test_one_count_source.py`).
 def test_nan_would_pass_the_old_none_guard():
     """WARUM diese Prüfung nötig ist — die Guard-Klasse, an der das
     Schwester-Repo scheiterte, verhält sich hier identisch."""

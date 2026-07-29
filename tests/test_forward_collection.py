@@ -236,8 +236,12 @@ def test_open_record_matures_after_falling_out_of_top5():
 
 
 def test_counts_helper():
+    # `counts()` (gesammelt, gereift) ist am 29.07.2026 entfallen — es war die
+    # ALTE, engere Wahrheit neben `eval_counts` und im Produktivcode seit dem
+    # PRU-Guard ungenutzt. Genau ihre Weiterverwendung war der Fehler in #57.
+    # Die Zusicherung bleibt, sie hängt jetzt an der einen Quelle.
     coll = {"records": [{"matured": True}, {"matured": False}, {"matured": True}]}
-    assert fc.counts(coll) == (3, 2)
+    assert fc.eval_counts(coll)[:2] == (3, 2)
 
 
 # ---------------------------------------------------------------------------
@@ -635,7 +639,6 @@ def test_eval_counts_excludes_pre_reached_and_contaminated():
         {"matured": True, "pre_guard_contaminated": True},                         # ausgeschlossen
         {"matured": False},                                                        # nicht gereift
     ]}
-    assert fc.counts(coll) == (4, 3)
     assert fc.eval_counts(coll) == (4, 3, 1)   # gesammelt, gereift, auswertbar
     assert fc.is_excluded({"pre_reached_ext": True}) is True
     assert fc.is_excluded({"pre_guard_contaminated": True}) is True
