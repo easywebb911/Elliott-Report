@@ -147,10 +147,6 @@
       font-variant-numeric:tabular-nums; margin-top:2px; white-space:nowrap;
     }
     .chg-up { color:var(--grn); } .chg-down { color:var(--red); } .chg-flat { color:var(--txt-dim); }
-    .score-mini {
-      font-size:.72rem; font-weight:700; color:var(--accent);
-      font-variant-numeric:tabular-nums; margin-top:4px;
-    }
     /* Live-Quote-Indikator (portiert aus dem Squeeze-Poller). Standard grau;
        live = pulsierendes Grün, stale = statisches Grau, paused = gedimmt. */
     .live-row { display:flex; align-items:center; justify-content:flex-end; gap:5px; margin-top:5px; min-height:12px; }
@@ -361,7 +357,6 @@
     /* Sparkline ohne Animation (Easy-Wunsch): statische Kurve mit sichtbaren
        Pivot-Punkten (Wendepunkte), Endpunkt betont — Squeeze-TopTen-Optik. */
 
-    .card-foot { padding:0 12px 12px; }
     .badge {
       display:inline-block; padding:3px 9px; border-radius:6px;
       font-size:.62rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
@@ -1205,19 +1200,23 @@
 
     // Forward-Sammlung (Score-Validierung) — separates Datenfile, fail-soft.
     const COLLECTION_PATHS = ['data/forward_collection.json', '../data/forward_collection.json'];
-    const EVAL_MIN_N = 100;
+
+    // EINE ZÄHL-QUELLE (29.07.2026): die Aggregate kommen aus dem Report
+    // (`report.validation`, befüllt über `forward_collection.eval_counts`).
+    // Vorher standen sie hier ein zweites Mal als JS-Nachbau — dieselbe
+    // Registry-Regel in zwei Sprachen, die auseinanderlaufen können. Fehlt der
+    // Block (alter Report, abgebrochener Sammel-Schritt), bleiben die Zähler
+    // leer statt zu raten.
+    let _val = null;   // { collected, matured, evaluable, eval_min_n }
 
     // PRU-Guard (23.07.2026): aus der Auswertungs-Population ausgeschlossen —
-    // Kurs war schon bei Anlage über der Zone (`pre_reached_*`) oder vor dem Guard
-    // kontaminiert. Eine Quelle für Panel, Episoden-Liste und Methodik-Zähler.
+    // Kurs war schon bei Anlage über der Zone (`pre_reached_*`) oder vor dem
+    // Guard kontaminiert. Bleibt im Frontend, weil der Zustand JE FALL gebraucht
+    // wird (Episoden-Status, W5→A-Filter) — ein Aggregat kann das nicht
+    // ersetzen. `tests/test_one_count_source.py` prüft die Bedingung Zeichen für
+    // Zeichen gegen `forward_collection.is_excluded`.
     function _recExcluded(r) {
       return !!(r && (r.pre_reached_target || r.pre_reached_ext || r.pre_guard_contaminated));
-    }
-    function _evalCounts(records) {
-      const n = records.length;
-      const matured = records.filter(r => r && r.matured).length;
-      const evaluable = records.filter(r => r && r.matured && !_recExcluded(r)).length;
-      return { n, matured, evaluable, excluded: matured - evaluable };
     }
 
     async function loadCollection() {
@@ -1231,29 +1230,32 @@
       return null;  // fehlt/kaputt -> Panel bleibt verborgen
     }
 
-    function renderValidation(coll) {
+    function renderValidation() {
       const sec = document.getElementById('validation');
-      // Fail-soft: ohne valides File bleibt das Panel unsichtbar (kein Rauschen).
-      if (!coll || !Array.isArray(coll.records)) { sec.hidden = true; return; }
-      // PRU-Guard: „auswertbar" = gereift UND nicht ausgeschlossen. n≥EVAL_MIN_N
-      // bezieht sich auf DIESE Zahl. Siehe docs/validation_registry.md (23.07.2026).
-      const { n, matured, evaluable, excluded } = _evalCounts(coll.records);
+      // Fail-soft: ohne Zähler aus dem Report bleibt das Panel unsichtbar
+      // (kein Rauschen — und vor allem keine selbstgerechnete Ersatzzahl).
+      if (!_val) { sec.hidden = true; return; }
+      // „auswertbar" = gereift UND nicht per PRU-Guard ausgeschlossen; die
+      // n-Schwelle bezieht sich auf DIESE Zahl. Beides entschieden im Backend
+      // (`eval_counts`), siehe docs/validation_registry.md (23.07.2026).
+      const excluded = _val.matured - _val.evaluable;
       const cnt = document.getElementById('val-counts');
-      cnt.textContent = `${n} gesammelt · ${matured} gereift · ${evaluable} auswertbar`;
+      cnt.textContent = `${_val.collected} gesammelt · ${_val.matured} gereift `
+                      + `· ${_val.evaluable} auswertbar`;
       cnt.title = excluded > 0
         ? `${excluded} gereifte(r) Record(s) vom PRU-Guard ausgeschlossen `
           + `(Kurs schon bei Anlage über der Zielzone → „Treffer" wäre Look-ahead) — `
-          + `zählen nicht zur n≥${EVAL_MIN_N}-Auswertung.`
+          + `zählen nicht zur n≥${_val.eval_min_n}-Auswertung.`
         : '';
-      // WICHTIG: KEINE Trefferquoten/Zwischenergebnisse vor n>=100.
+      // WICHTIG: KEINE Trefferquoten/Zwischenergebnisse vor der Schwelle.
       document.getElementById('val-note').textContent =
-        `Auswertung ab n≥${EVAL_MIN_N} auswertbaren · heuristisch, unvalidiert`;
+        `Auswertung ab n≥${_val.eval_min_n} auswertbaren · heuristisch, unvalidiert`;
       sec.hidden = false;
     }
 
     // ── Backtesting-/Validierungs-Ansicht ────────────────────────────────
     // Reines Anzeige-Feature über forward_collection.json. Kein Aggregat
-    // (Trefferquote o. Ä.) solange gereift < EVAL_MIN_N (Registry-Sperre) —
+    // (Trefferquote o. Ä.) solange die Schwelle nicht erreicht ist —
     // stattdessen dieselben Zähler wie das Panel. Detail-Chart aus den
     // point-in-time eingefrorenen Pivots + price_path als Fortsetzung.
     const FLAG = { US: '🇺🇸', DE: '🇩🇪' };
@@ -1295,15 +1297,18 @@
         return;
       }
       const recs = coll.records.slice();
-      const { n, matured, evaluable } = _evalCounts(recs);
       // Neueste zuerst (nach Einstiegsdatum, dann Score).
       recs.sort((a, b) => (b.first_seen_date || '').localeCompare(a.first_seen_date || '')
                           || (b.score_heuristic || 0) - (a.score_heuristic || 0));
 
-      // Registry-Sperre: KEIN Aggregat < n=100 — nur die Zähler.
-      const counts =
-        `<b>${n}</b> gesammelt · <b>${matured}</b> gereift · <b>${evaluable}</b> auswertbar · `
-        + `Auswertung ab n≥${EVAL_MIN_N} · heuristisch, unvalidiert`;
+      // Registry-Sperre: KEIN Aggregat vor der Schwelle — nur die Zähler, und
+      // die kommen aus dem Report (eine Quelle). Fehlen sie, steht hier nichts
+      // statt einer zweiten Rechnung.
+      const counts = _val
+        ? `<b>${_val.collected}</b> gesammelt · <b>${_val.matured}</b> gereift `
+          + `· <b>${_val.evaluable}</b> auswertbar · `
+          + `Auswertung ab n≥${_val.eval_min_n} · heuristisch, unvalidiert`
+        : 'Zähler stehen im nächsten Lauf zur Verfügung · heuristisch, unvalidiert';
 
       let rows = '';
       recs.forEach((r, i) => {
@@ -1321,8 +1326,11 @@
       });
       body.innerHTML =
         `<p class="bt-counts">${counts}</p>`
-        + (n ? `<div class="ep-list">${rows}</div>`
-             : '<p class="empty">Noch keine gesammelten Episoden.</p>');
+        // Ob die LISTE erscheint, hängt an den geladenen Records — nicht am
+        // Report-Zähler. Beides kann kurzzeitig auseinanderliegen (Sammlung
+        // frisch, Report vom Vorlauf); die Liste zeigt, was sie wirklich hat.
+        + (recs.length ? `<div class="ep-list">${rows}</div>`
+                       : '<p class="empty">Noch keine gesammelten Episoden.</p>');
 
       // Sortierte Liste an die Buttons koppeln.
       body.querySelectorAll('.ep-row').forEach(btn => {
@@ -2865,28 +2873,28 @@
       // Nerds"; nichts ist weggefallen, es ist nur zugeklappt.
       let head = '';
       try {
-        const coll = await loadCollection();
-        if (coll && Array.isArray(coll.records)) {
-          const { n, matured, evaluable, excluded } = _evalCounts(coll.records);
+        if (_val) {
+          const { collected, matured, evaluable, eval_min_n } = _val;
+          const excluded = matured - evaluable;
           // Der Balken zeigt die Zahl, an der die Schwelle wirklich hängt:
-          // „auswertbar" (gereift UND nicht ausgeschlossen) — siehe _evalCounts.
+          // „auswertbar" — im Backend über `eval_counts` entschieden.
           const pct = Math.max(0, Math.min(100,
-            Math.round(evaluable / EVAL_MIN_N * 100)));
+            Math.round(evaluable / eval_min_n * 100)));
           const excl = excluded > 0
             ? `<p class="vsum-note">${excluded} Fälle zählen nicht mit: Der Kurs
                  war schon am Ziel, als sie auf die Liste kamen.</p>`
             : '';
           head =
             `<div class="vsum-hero">
-               <div class="vsum-num"><b>${n}</b><span>gesammelt</span></div>
+               <div class="vsum-num"><b>${collected}</b><span>gesammelt</span></div>
                <div class="vsum-num"><b>${matured}</b><span>fertig beobachtet</span></div>
                <div class="vsum-num"><b>${evaluable}</b><span>auswertbar</span></div>
              </div>
              <p class="vsum-say">Jede Empfehlung wird 10 Börsentage lang beobachtet:
                Wurde das Kursziel erreicht, bevor die Zählung ungültig wurde?</p>
              <div class="vsum-bar"><i style="width:${pct}%"></i></div>
-             <p class="vsum-say">Ausgewertet wird ab ${EVAL_MIN_N} auswertbaren Fällen —
-               vorher wären die Zahlen Zufall. Aktuell: ${evaluable} von ${EVAL_MIN_N}.</p>
+             <p class="vsum-say">Ausgewertet wird ab ${eval_min_n} auswertbaren Fällen —
+               vorher wären die Zahlen Zufall. Aktuell: ${evaluable} von ${eval_min_n}.</p>
              ${excl}
              <span class="vsum-stamp">heuristisch · unvalidiert</span>`;
         }
@@ -3142,9 +3150,13 @@
       renderWatchlist(r);  // Watchlist-Sektion (fail-soft, außer Konkurrenz)
       drawAllSparklines();
       startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
-      // Validierungs-Panel unabhängig laden — darf den Report NIE brechen.
+      // Zähler kommen aus dem Report (eine Quelle); die Records selbst weiterhin
+      // aus der Sammlung — für alles, was JE FALL gebraucht wird.
+      _val = (r && r.validation && typeof r.validation.evaluable === 'number')
+             ? r.validation : null;
+      renderValidation();
+      // Sammlung unabhängig laden — darf den Report NIE brechen.
       loadCollection().then(coll => {
-        renderValidation(coll);
         _wlColl = (coll && Array.isArray(coll.records)) ? coll.records : null;
         _wlInjectHistory();   // Top-5-Historie in die Watchlist-Kacheln einspielen
       }).catch(() => {});

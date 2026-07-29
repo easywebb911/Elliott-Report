@@ -45,6 +45,8 @@ from typing import Dict, List, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
+from numeric import finite  # EIN Finit-Prädikat (siehe numeric.py)  # noqa: E402
+
 try:
     import config  # noqa: E402
 except Exception:  # pragma: no cover — config immer vorhanden, defensiv
@@ -65,6 +67,9 @@ AGENT_MIN_OK = getattr(config, "HEALTH_AGENT_MIN_OK", 5)
 WARN_REPEAT_RUNS = getattr(config, "HEALTH_WARN_REPEAT_RUNS", 3)
 STATE_PATH = getattr(config, "HEALTH_STATE_PATH", "data/health_state.json")
 REPORT_PATH = getattr(config, "REPORT_PATH", "data/report.json")
+# Der Vorbehalt steht EINMAL in der config — im ganzen Projekt darf keine Zahl
+# ohne ihn nach außen, und er darf nicht in zwei Fassungen existieren.
+CARD_STATUS = getattr(config, "CARD_STATUS", "heuristisch · unvalidiert")
 
 CRIT = "crit"
 WARN = "warn"
@@ -83,16 +88,19 @@ def _log(msg: str) -> None:
 # ---------------------------------------------------------------------------
 # 0) Das Prädikat — der Kern der Lehre
 # ---------------------------------------------------------------------------
-def _finite(v) -> bool:
-    """Ist ``v`` eine echte, ENDLICHE Zahl?
-
-    Bewusst NICHT ``x is not None``: genau daran ist das Schwester-Repo
-    gescheitert. ``bool`` fällt raus (True/False sind keine Messwerte),
-    ``None``/``NaN``/``±Inf``/Strings ebenfalls.
-    """
-    if isinstance(v, bool) or not isinstance(v, (int, float)):
-        return False
-    return math.isfinite(v)
+# Ist ``v`` eine echte, ENDLICHE Zahl? Bewusst NICHT ``x is not None``: genau
+# daran ist das Schwester-Repo gescheitert. ``bool`` fällt raus (True/False sind
+# keine Messwerte), ``None``/``NaN``/``±Inf``/Strings ebenfalls.
+#
+# EINE Implementierung (29.07.2026): das Prädikat stand hier als wortgleiche
+# zweite Fassung neben `numeric.finite`, obwohl #53 es ausdrücklich als DAS eine
+# Prädikat eingeführt hat (die Sammlung importiert es längst von dort). Zwei
+# Fassungen desselben Guards können auseinanderlaufen, ohne dass es auffällt —
+# und dieser Guard ist der, der einen kaputten Report abfängt. Der Name
+# ``_finite`` bleibt als lokaler Alias stehen: er steht an ~20 Aufrufstellen und
+# liest sich hier richtig. `tests/test_one_count_source.py` prüft, dass es
+# wirklich dieselbe Funktion ist (Identität, nicht nur gleiches Verhalten).
+_finite = finite
 
 
 def non_finite_paths(obj, path: str = "") -> List[str]:
@@ -471,7 +479,7 @@ def heartbeat_body(report: Dict, counts: Optional[Dict],
                  f"{counts.get('evaluable', '?')} auswertbar")
     # Der Vorbehalt gehört an die ZAHLEN-Zeile, nicht ans Textende — sonst
     # liest er sich wie eine Fußnote zum Meilenstein.
-    line += " — heuristisch · unvalidiert"
+    line += f" — {CARD_STATUS}"
     if milestone:
         line += f"\n🎯 Meilenstein: {milestone}"
     return line

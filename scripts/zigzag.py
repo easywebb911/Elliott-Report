@@ -116,7 +116,3 @@ def zigzag(
                 p.date = dates[p.index]
     return pivots
 
-
-def pivot_prices(pivots: Sequence[Pivot]) -> List[float]:
-    """Nur die Preise (Hilfsfunktion für den Regel-Validator)."""
-    return [p.price for p in pivots]

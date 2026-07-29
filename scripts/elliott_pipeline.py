@@ -1830,6 +1830,18 @@ def main() -> int:
                  f"{len(edges)} neu — {', '.join(e['ticker'] for e in edges)}")
         n, matured, evaluable = fc.eval_counts(coll)
         _hc_counts = {"collected": n, "matured": matured, "evaluable": evaluable}
+        # EINE ZÄHL-QUELLE (29.07.2026). Die Aggregate stehen ab jetzt IM Report.
+        # Vorher rechnete das Frontend sie in JavaScript nach (`_evalCounts`) —
+        # dieselbe Registry-Regel ein zweites Mal, in einer zweiten Sprache.
+        # Genau daran ist `notify.py` schon einmal auseinandergelaufen (#57:
+        # zählte `gereift` statt `auswertbar`). Hier wird `eval_counts` nur
+        # DURCHGEREICHT, nicht kopiert — additiv, ohne Score-/Ranking-Wirkung.
+        report["validation"] = {
+            "collected": n,
+            "matured": matured,
+            "evaluable": evaluable,
+            "eval_min_n": fc.EVAL_MIN_N,
+        }
         _log(f"[elliott] Forward-Sammlung: {n} gesammelt · {matured} gereift · "
              f"{evaluable} auswertbar (Auswertung ab n>={fc.EVAL_MIN_N}, PRU-Guard) "
              f"· Regime {regimes}")
@@ -1854,11 +1866,22 @@ def main() -> int:
             run_date=run_date, now_iso=ts, now=datetime.now(timezone.utc),
             same_day_rerun=_hc_same_day, counts=_hc_counts,
         )
-        write_report(report)
         _log(f"[elliott] Health-Check: Status {health['status']} "
              f"({len(health['findings'])} Befund(e))")
     except Exception as exc:  # noqa: BLE001 — Selbstüberwachung nie den Lauf
         _log(f"[elliott] Health-Check übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
+
+    # ABSCHLUSS-SCHREIBVORGANG für die beiden additiven Blöcke `validation`
+    # (Sammlung) und `health` (Selbstüberwachung). Bewusst AUSSERHALB beider
+    # try-Blöcke: vorher hing das Schreiben am Health-Check — scheiterte der,
+    # fehlte auch alles andere Additive im File. Der vollständige Report liegt
+    # seit `written` ohnehin auf Platte; dieser Vorgang ERGÄNZT nur und kann
+    # nie weniger schreiben als vorher.
+    try:
+        write_report(report)
+    except Exception as exc:  # noqa: BLE001 — der Report von oben steht bereits
+        _log(f"[elliott] Nachtrag (validation/health) übersprungen (fail-soft): "
              f"{type(exc).__name__}: {exc}")
     return 0
 

@@ -400,8 +400,13 @@ def holm(pvalues: Dict[str, float], alpha: float = EVAL_ALPHA) -> Dict[str, Dict
 # ---------------------------------------------------------------------------
 # 4 · SEKUNDÄR — explorativ, NICHT beweisend
 # ---------------------------------------------------------------------------
-def _is_end_of_w4(rec: Dict) -> bool:
-    return any(l.get("wave") == 4 for l in (rec.get("count_wave_labels") or []))
+# Setup-Typ aus der Sammlung WIEDERVERWENDET, nicht nachgebaut (29.07.2026).
+# Hier stand eine wortgleiche eigene Fassung — ausgerechnet in dem Modul, dessen
+# Kernaussage „wiederverwenden statt nachbauen" ist. KEINE Definitionsänderung:
+# `tests/test_one_count_source.py` stellt die entfernte Fassung nach und prüft,
+# dass beide für dieselben Fälle dieselbe Gruppe liefern. „Auswertung v1" bleibt
+# inhaltlich unverändert.
+_is_end_of_w4 = fc._is_end_of_w4
 
 
 def _hat_konfluenz(rec: Dict) -> Optional[bool]:
