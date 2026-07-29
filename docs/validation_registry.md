@@ -456,3 +456,85 @@ vor n ≥ 100) gilt unverändert.
   Erfolgs-Definition, `SCHEMA_VERSION` (bleibt 1 — alle neuen Felder additiv).
   Revert = `scripts/numeric.py` + die `finite(...)`-Guards + `_extract_bars` +
   der `skipped_bars`/`unmeasurable`-Zweig + die Diag-Felder raus.
+
+- **28.07.2026 — AUSWERTUNG v1: das Auswertungs-Programm (`scripts/evaluate.py`)
+  als datierte Definition festgeschrieben.** **BLIND GEBAUT bei 0 gereiften
+  Fällen** — genau das ist der Zweck: wer die Auswertung erst schreibt, wenn er
+  die Ergebnisse kennt, biegt sie unbewusst zurecht. Das Programm **setzt dieses
+  Register um und definiert nichts neu**; wo es etwas operationalisieren musste,
+  steht das unten ausdrücklich.
+  **Harte Grenzen:** läuft **nie** im Tageslauf (kein Aufruf in
+  `.github/workflows/`, kein Import aus `elliott_pipeline`/`notify`/
+  `health_check` — per Test abgesichert), sendet **keinen** Push, schreibt
+  **nie** in `forward_collection.json` oder `report.json`. Reines Lesen + eine
+  Ergebnis-Datei.
+  - **Population:** gereift UND nicht per PRU-Guard ausgeschlossen. Das Prädikat
+    ist `forward_collection.is_excluded`, die Grösse wird gegen
+    `eval_counts(...)[2]` **geprüft** — Abweichung = Abbruch der Auswertung
+    (keine still abweichende Grundgesamtheit). Ausgeschlossene werden nach
+    Grund getrennt ausgewiesen, nie weggelassen.
+  - **Nur eingefrorene Felder** (`FROZEN_FIELDS`): der Ausgang kommt aus dem bei
+    der Reifung eingefrorenen `target_hit`, **nie** aus einer neuen Rechnung mit
+    heutigen Kursen. Ein Test protokolliert jeden Feldzugriff und schlägt fehl,
+    sobald ein Feld ausserhalb der Liste angefasst wird.
+  - **Sperre:** unter `EVAL_MIN_N` **auswertbaren** Fällen verweigert das
+    Programm das offizielle Ergebnis; es läuft dann nur mit `--vorschau`, und
+    jede Ausgabe trägt „VORSCHAU — NICHT GÜLTIG".
+  - **Primär-Familie** (vorregistriert, Reihenfolge fest):
+    (a) **Trefferquote gegen Zufalls-Benchmark** — je echtem Fall wird im
+    **selben Ticker** über den **selben Zeitraum** (frühestes bis spätestes
+    `first_seen_date` der Population) ein zufälliger Einstiegstag gezogen und
+    mit **denselben relativen** Abständen zu Zielzonen-Unterkante und
+    Ungültigkeitsmarke, **demselben Horizont** (`HORIZON_DAYS`) und **derselben
+    Treffer-Definition** gerechnet (Gleichstand am selben Tag = Ungültigkeit,
+    nie Treffer). `BENCH_DRAWS` Ziehungen ergeben die Null-Verteilung;
+    p = (1 + #{Ziehungen ≥ beobachtet}) / (Ziehungen + 1) — die Add-One-Form,
+    damit nie p = 0 behauptet wird.
+    (b) **Score-Trennschärfe** — AUC (Rang-Form, Gleichstände 0,5) mit
+    Perzentil-Bootstrap-Intervall; Kriterium ist die **Untergrenze > 0,5**.
+    Beide Tests werden **Holm-korrigiert** über die Familie.
+  - **Konstanten (Teil dieser Version):** `EVAL_SEED = 20260728` (fest, im
+    Ergebnis dokumentiert), `EVAL_ALPHA = 0.05`, `BENCH_DRAWS = 10000`,
+    `BOOTSTRAP_DRAWS = 10000`, `PERM_DRAWS = 10000`, `SECONDARY_MIN_N = 30`.
+    `HORIZON_DAYS`/`EVAL_MIN_N` werden aus `forward_collection` gelesen
+    (Single Source, keine Kopie).
+  - **Sekundär (explorativ, NICHT beweisend):** W2 gegen W4, Konfluenz ja/nein,
+    Volumen-Verhältnisse, Alternation, Momentum-Divergenz, Ambiguität v1 und v2,
+    Agent-Einwand. Je Gruppe wird die **Fallzahl** ausgewiesen; unter
+    `SECONDARY_MIN_N` erscheint **„zu wenige Fälle"** statt einer Quote.
+    Bewusst **ohne** p-Werte und Intervalle — diese Dimensionen sind nicht
+    vorregistriert, und jede Zahl mit Signifikanz-Anstrich wäre eine Einladung
+    zum nachträglichen Erzählen.
+  - **Ausgabe zweiteilig:** ein Klartext-Fazit in einfacher Sprache (ein Nein
+    steht dort so deutlich wie ein Ja: „Der Ansatz hat den Test nicht
+    bestanden") und ein Zahlenanhang (Fallzahlen, Quoten, Intervalle, p-Werte,
+    Seed, Datum, verwendete Definitionen).
+  - **ZWEI OPERATIONALISIERUNGEN, die dieses Register offen liess** (hier
+    festgeschrieben, damit sie nicht später still anders ausfallen):
+    1. **Kursbasis des Benchmarks.** Das Register verlangt „gleiche Aktien,
+       zufällige Einstiegstage", sagt aber nicht, woher deren Kurse kommen — in
+       der eingefrorenen Sammlung stehen sie nicht (dort liegen nur die Bars
+       NACH dem echten Einstieg). Umsetzung: eine **separate
+       Momentaufnahme-Datei**, erzeugt mit `--kurse-holen` (eigener Modus). Die
+       Auswertung selbst geht **nie** ins Netz; fehlt oder lückt die Datei, wird
+       der Benchmark als „nicht durchführbar" gemeldet und das Ergebnis kann
+       **nicht** „belegt" lauten. Die Prüfsumme der verwendeten Kursbasis steht
+       im Ergebnis.
+    2. **Holm auf ein Intervall-Kriterium.** Für die AUC nennt das Register
+       kein p-Kriterium, sondern eine Intervall-Untergrenze. Umsetzung: für die
+       AUC wird zusätzlich ein **Permutations-p-Wert** gebildet (Labels
+       gemischt), Holm läuft über beide p-Werte, und das Bootstrap-Intervall
+       wird auf **demselben Holm-Niveau** gebildet (bei zwei Tests: 97,5 %).
+       „Belegt" verlangt **beides**: Holm-Signifikanz **und** Untergrenze > 0,5.
+  - **Selbsttests mit bekannter Antwort** (der eigentliche Beleg, dass das
+    Programm taugt): reines Rauschen → **kein** Signal; eingebauter starker
+    Zusammenhang → Signal erkannt; Punktzahl ohne Trennschärfe → Untergrenze
+    unter 0,5; Grenzfall 99/100 an der Sperre. Ein realer Fund dabei: eine
+    selbstgeschriebene binäre Suche in der AUC war falsch herum und lieferte
+    still **0,5** — der Selbsttest „starker Zusammenhang" fing es, seither
+    `bisect` aus der Standardbibliothek.
+  **Spätere Änderungen erzeugen eine NEUE datierte Version (`Auswertung v2`);
+  v1 bleibt stehen** — dieselbe stehende Regel wie bei den Messfeldern.
+  **Bewusst NICHT geändert:** Score, Ranking, Filter, Reifung, Sammlung,
+  `report.json`, `SCHEMA_VERSION`. Revert = `scripts/evaluate.py` +
+  `tests/test_evaluate.py` + dieser Eintrag raus.
