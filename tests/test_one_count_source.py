@@ -51,6 +51,43 @@ def test_pipeline_schreibt_validation_block_aus_eval_counts():
     assert "fc.EVAL_MIN_N" in inhalt
 
 
+def test_pipeline_ordnet_die_zahlen_zur_laufzeit_richtig_zu(tmp_path, monkeypatch):
+    """LAUFZEIT-Beweis, nicht Quelltext-Nähe: `main()` wird wirklich ausgeführt.
+
+    `eval_counts` liefert hier drei UNTERSCHEIDBARE Zahlen (7/5/2). Nur so
+    fällt eine vertauschte Zuordnung auf — würde der Block `matured` in
+    `evaluable` schreiben, stünde hier 5 statt 2. Genau diese Verwechslung war
+    der Fehler in #57, und ein Test, der nur den Quelltext liest, fängt sie
+    nicht (Guardian-Mutationsprobe 29.07.: `evaluable` → `matured` blieb grün).
+    """
+    import elliott_pipeline as pipe
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "docs/data").mkdir(parents=True)
+    (tmp_path / "data/forward_collection.json").write_text(
+        json.dumps({"schema_version": 1, "records": []}), encoding="utf-8")
+
+    monkeypatch.setenv("ELLIOTT_OFFLINE", "1")
+    monkeypatch.delenv("NTFY_TOPIC", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr(pipe, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(fc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(pipe.config, "MARKETS", {
+        "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
+        "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},
+    })
+    monkeypatch.setattr(pipe, "load_watchlist", lambda: [])
+    # DREI unterscheidbare Zahlen — eine Vertauschung kann sich nicht verstecken.
+    monkeypatch.setattr(pipe.fc, "eval_counts", lambda coll: (7, 5, 2))
+
+    assert pipe.main() == 0
+    rep = json.loads((tmp_path / "data/report.json").read_text(encoding="utf-8"))
+    assert rep["validation"] == {
+        "collected": 7, "matured": 5, "evaluable": 2,
+        "eval_min_n": fc.EVAL_MIN_N,
+    }, rep.get("validation")
+
+
 def test_validation_block_stimmt_mit_eval_counts_ueberein():
     """Gegen den ECHTEN Sammlungsstand gegengerechnet."""
     coll = json.loads((ROOT / "data/forward_collection.json")
