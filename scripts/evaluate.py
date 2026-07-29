@@ -91,8 +91,10 @@ FROZEN_FIELDS = (
     "count_wave_labels", "confluence", "ambiguity_n", "ambiguity_n_v2",
     "agent_concern_level", "alternation_observed", "w5_momentum_divergence",
     "vol_ratio_w3_w1", "vol_ratio_w4_w3", "vol_ratio_w2_w1",
-    "invalidated", "ext_hit", "regime",
 )
+# Die Liste darf weder zu eng noch zu weit sein: ein Test prüft beides — kein
+# Zugriff ausserhalb, und kein Eintrag, der nie gelesen wird (eine zu breite
+# Allowlist gibt eine Sicherheit vor, die sie nicht hat).
 
 
 def _log(msg: str) -> None:

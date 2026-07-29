@@ -214,6 +214,33 @@ def test_selbsttest_grenzfall_sperre_99_verweigert():
     assert res["fazit_klartext"][0].startswith("VORSCHAU — NICHT GÜLTIG")
 
 
+def test_selbsttest_grenzfall_sperre_zaehlt_auswertbar_nicht_gereift():
+    """Der Fall, der real vorkommt: genug GEREIFTE, zu wenige AUSWERTBARE.
+
+    104 gereift, 10 davon per PRU-Guard ausgeschlossen -> 94 auswertbar. Die
+    Sperre muss greifen. Ohne diesen Test bliebe eine Sperre auf `gereift`
+    unentdeckt (Guardian-Mutationsprobe 28.07.) — und die Registry nennt
+    ausdrücklich `eval_counts(...)[2]`, weil PRU-Ausschlüsse (MET, D, PRU)
+    genau diese Lücke im Bestand erzeugt haben.
+    """
+    welt = _welt(seed=4)
+    coll = _n_faelle(ev.EVAL_MIN_N + 4, welt, seed=17)
+    for r in coll["records"][:10]:
+        r["pre_reached_target"] = True
+    assert fc.eval_counts(coll)[1] == 104      # gereift: über der Schwelle
+    assert fc.eval_counts(coll)[2] == 94       # auswertbar: darunter
+
+    with pytest.raises(RuntimeError) as exc:
+        _lauf(coll, welt)
+    assert "94" in str(exc.value)
+
+    res = _lauf(coll, welt, vorschau=True)
+    assert res["gueltig"] is False
+    assert res["zaehlwerk"]["gereift"] == 104
+    assert res["zaehlwerk"]["auswertbar"] == 94
+    assert res["urteil"]["belegt"] is False
+
+
 def test_selbsttest_grenzfall_sperre_100_offiziell():
     welt = _welt(seed=4)
     coll = _n_faelle(ev.EVAL_MIN_N, welt)
@@ -275,13 +302,29 @@ class _Wachhund(dict):
 
 
 def test_nur_eingefrorene_felder_gelesen():
+    """Kein Zugriff ausserhalb der Liste — UND kein toter Eintrag darin.
+
+    Die zweite Hälfte ist so wichtig wie die erste: eine Allowlist mit
+    Feldern, die nie gelesen werden, gibt eine Sicherheit vor, die sie nicht
+    hat (Guardian-Nit 28.07.).
+    """
     welt = _welt(seed=6)
     coll = _n_faelle(ev.EVAL_MIN_N, welt)
+    for i, r in enumerate(coll["records"]):        # alle Sekundär-Felder füllen
+        r["confluence"] = {"target": [], "invalidation": []}
+        r["ambiguity_n"] = r["ambiguity_n_v2"] = 1 + (i % 2)
+        r["agent_concern_level"] = ["none", "low", "high"][i % 3]
+        r["alternation_observed"] = bool(i % 2)
+        r["w5_momentum_divergence"] = bool(i % 2)
+        r["vol_ratio_w3_w1"] = r["vol_ratio_w4_w3"] = r["vol_ratio_w2_w1"] = 1.1
+        r["pre_guard_contaminated"] = False
     coll["records"] = [_Wachhund(r) for r in coll["records"]]
     _lauf(coll, welt)
     gelesen = set().union(*[r.gelesen for r in coll["records"]])
     unerlaubt = gelesen - set(ev.FROZEN_FIELDS)
     assert not unerlaubt, f"Feld ausserhalb der eingefrorenen Liste: {unerlaubt}"
+    tot = set(ev.FROZEN_FIELDS) - gelesen
+    assert not tot, f"Eintrag in FROZEN_FIELDS, der nie gelesen wird: {tot}"
 
 
 def test_kein_heutiger_kurs_im_ergebnis():
@@ -324,8 +367,24 @@ def test_benchmark_bei_luecken_in_der_kursbasis_nicht_durchfuehrbar():
 
 
 def test_simulate_hit_ist_die_reifungs_definition():
-    """Gleichstand am selben Tag zählt als Ungültigkeit — nie als Treffer."""
-    closes = [100.0] + [95.0] + [110.0] * 12       # Tag 1 reisst BEIDES
+    """Gleichstand am selben Tag zählt als Ungültigkeit — nie als Treffer.
+
+    Ein ECHTER Gleichstand (ein Bar erfüllt BEIDE Bedingungen) braucht bei
+    Schlusskurs-Daten eine künstliche Konstellation — Ziel unterhalb der
+    Ungültigkeitsmarke. In der echten Population kann das nicht auftreten
+    (Ziel liegt immer über dem Einstieg, die Marke darunter). Trotzdem wird
+    der Zweig hier geprüft: er ist die konservative Absicherung, und eine
+    frühere Fassung dieses Tests prüfte in Wahrheit nur zwei aufeinander
+    folgende Tage — die umgedrehte Gleichstands-Regel wäre unbemerkt
+    durchgegangen (Guardian-Mutationsprobe 28.07.).
+    """
+    ein_bar = [100.0] + [90.0] * 12
+    # 90 ist ≥ Ziel (85) UND ≤ Marke (95) — derselbe Bar, beide Bedingungen.
+    assert ev.simulate_hit(ein_bar, 0, 0.85, 0.95) == 0
+    # Gegenprobe: derselbe Bar, aber die Marke tiefer -> kein Gleichstand mehr
+    assert ev.simulate_hit(ein_bar, 0, 0.85, 0.80) == 1
+
+    closes = [100.0] + [95.0] + [110.0] * 12       # Marke einen Tag VOR dem Ziel
     assert ev.simulate_hit(closes, 0, 1.05, 0.95) == 0
     closes = [100.0] + [106.0] * 12                 # Ziel zuerst
     assert ev.simulate_hit(closes, 0, 1.05, 0.95) == 1
@@ -485,6 +544,45 @@ def test_evaluate_holt_im_auswertungs_modus_nie_kurse(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", wachhund)
     welt = _welt(seed=12)
     _lauf(_n_faelle(ev.EVAL_MIN_N, welt), welt)
+
+
+def test_kurse_holen_vertraegt_die_multiindex_spalten(tmp_path, monkeypatch, capsys):
+    """yfinance liefert bei manchen Aufrufen MultiIndex-Spalten.
+
+    Das ist die teuerste Lektion des Repos (`parse_download_df`). Der
+    Kursbasis-Modus muss sie vertragen, sonst steht der Zufalls-Vergleich
+    später ohne Daten da — genau dann, wenn er gebraucht wird.
+    """
+    import types
+
+    import pandas as pd
+
+    idx = pd.date_range("2026-01-05", periods=4, freq="B")
+    df = pd.DataFrame({("Close", "AAA"): [10.0, 11.0, 12.0, 13.0]}, index=idx)
+    df.columns = pd.MultiIndex.from_tuples(df.columns)
+    fake = types.SimpleNamespace(download=lambda *a, **k: df)
+    monkeypatch.setitem(sys.modules, "yfinance", fake)
+
+    out = tmp_path / "kurse.json"
+    payload = ev.fetch_prices({"records": [{"ticker": "AAA"}]}, out)
+    capsys.readouterr()
+    assert payload["kurse"]["AAA"]["closes"] == [10.0, 11.0, 12.0, 13.0]
+    assert payload["kurse"]["AAA"]["dates"][0] == "2026-01-05"
+    assert json.loads(out.read_text(encoding="utf-8"))["ticker"] == 1
+
+
+def test_kurse_holen_ist_fail_soft_je_ticker(tmp_path, monkeypatch, capsys):
+    import types
+
+    def kaputt(*a, **k):
+        raise RuntimeError("Netz weg")
+
+    monkeypatch.setitem(sys.modules, "yfinance",
+                        types.SimpleNamespace(download=kaputt))
+    payload = ev.fetch_prices({"records": [{"ticker": "AAA"}]},
+                              tmp_path / "kurse.json")
+    capsys.readouterr()
+    assert payload["kurse"] == {}          # kein Absturz, nur keine Daten
 
 
 # ---------------------------------------------------------------------------
