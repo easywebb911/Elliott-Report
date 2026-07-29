@@ -72,6 +72,15 @@ BENCH_DRAWS = 10_000          # Ziehungen für die Zufalls-Null-Verteilung
 BOOTSTRAP_DRAWS = 10_000      # Bootstrap-Wiederholungen für das AUC-Intervall
 PERM_DRAWS = 10_000           # Permutationen für den AUC-p-Wert
 SECONDARY_MIN_N = 30          # darunter: „zu wenige Fälle" statt einer Zahl
+# Die beauftragten Sekundär-Dimensionen, fest benannt. Sie erscheinen in der
+# Ausgabe IMMER — auch ohne einen einzigen Fall. Eine Dimension, die
+# stillschweigend fehlt, sieht aus wie eine, die nie vorgesehen war.
+SECONDARY_DIMS = (
+    "setup_typ", "konfluenz",
+    "volumen_w3_zu_w1", "volumen_w4_zu_w3", "volumen_w2_zu_w1",
+    "alternation", "momentum_divergenz",
+    "ambiguitaet_v1", "ambiguitaet_v2", "agent_einwand",
+)
 HORIZON_DAYS = fc.HORIZON_DAYS
 EVAL_MIN_N = fc.EVAL_MIN_N
 
@@ -144,8 +153,17 @@ def build_population(coll: Dict) -> Tuple[List[_Case], Dict]:
         "gesammelt": collected,
         "gereift": matured,
         "auswertbar": evaluable,
+        # FÄLLE (jeder Record genau einmal) …
         "ausgeschlossen_pru_guard": len(ausgeschlossen),
+        # … gegen NENNUNGEN: ein Record kann mehrere Gründe tragen
+        # (`pre_reached_target` UND `pre_reached_ext`). Die Summe der Gründe ist
+        # deshalb GRÖSSER als die Zahl der Fälle — im Trockenlauf standen 13
+        # Nennungen für 5 Fälle. Der Hinweis steht daneben, damit niemand
+        # addiert und sich verrechnet.
         "ausgeschlossen_gruende": _exclusion_reasons(ausgeschlossen),
+        "ausgeschlossen_gruende_hinweis": (
+            f"Nennungen, Mehrfachnennung möglich — "
+            f"{len(ausgeschlossen)} betroffene Fälle"),
         # Transparenz: markiert, aber noch nicht gereift — zählt heute nirgends
         # mit, wäre später aber auch nicht in der Population. Ausdrücklich
         # ausgewiesen, damit niemand die Zahlen gegeneinander verrechnen muss.
@@ -455,18 +473,28 @@ def secondary(cases: Sequence[_Case], min_n: int = SECONDARY_MIN_N) -> Dict:
     Bewusst ohne p-Werte und ohne Intervalle: diese Dimensionen sind nicht
     vorregistriert, jede Zahl mit Signifikanz-Anstrich wäre eine Einladung zum
     Nachträglich-Erzählen.
+
+    JEDE beauftragte Dimension erscheint — auch die ohne einen einzigen Fall
+    (29.07.2026). Vorher fiel eine leere Dimension ersatzlos aus der Ausgabe;
+    wer sie las, sah nicht, dass sie geprüft wurde und keine Daten hatte
+    (Trockenlauf: `momentum_divergenz` war komplett verschwunden). Abwesenheit
+    ist keine Aussage — „keine Fälle" ist eine.
     """
+    gefunden = _gruppen(cases)
     out: Dict[str, Dict] = {}
-    for dim, gruppen in sorted(_gruppen(cases).items()):
-        out[dim] = {}
+    for dim in SECONDARY_DIMS:
+        gruppen = gefunden.get(dim) or {}
+        eintrag: Dict = {"faelle_gesamt": sum(len(h) for h in gruppen.values()),
+                         "gruppen": {}, "hinweis": None}
+        if not gruppen:
+            eintrag["hinweis"] = "keine Fälle"
         for name, hits in sorted(gruppen.items()):
-            if len(hits) < min_n:
-                out[dim][name] = {"faelle": len(hits), "quote": None,
-                                  "hinweis": "zu wenige Fälle"}
-            else:
-                out[dim][name] = {"faelle": len(hits),
-                                  "quote": sum(hits) / len(hits),
-                                  "hinweis": None}
+            eintrag["gruppen"][name] = (
+                {"faelle": len(hits), "quote": None, "hinweis": "zu wenige Fälle"}
+                if len(hits) < min_n else
+                {"faelle": len(hits), "quote": sum(hits) / len(hits),
+                 "hinweis": None})
+        out[dim] = eintrag
     return out
 
 
@@ -646,29 +674,60 @@ def fetch_prices(coll: Dict, out_path: Path, *, jahre: int = 2) -> Dict:
     und geht nie selbst ins Netz. So bleibt ein Auswertungslauf offline,
     wiederholbar und prüfbar — und es ist jederzeit belegbar, WELCHE Kurse in
     den Benchmark geflossen sind (Prüfsumme im Ergebnis).
+
+    EIN GESCHEITERTER ABRUF MUSS SOFORT SICHTBAR SCHEITERN (29.07.2026). Der
+    Trockenlauf zeigte das Gegenteil: yfinance meldet einen Fehlschlag **nicht**
+    als Ausnahme, sondern als leeren DataFrame. Der landete als gültig
+    aussehender Eintrag mit 0 Bars in der Datei, das Log meldete „Kursbasis
+    geschrieben (4 Ticker)" und der Rückgabewert war 0 — der Fehler wäre erst
+    Monate später beim Auswerten aufgefallen. Jetzt: leere Antworten kommen
+    **gar nicht erst** in die Datei, am Ende steht eine Zusammenfassung, und
+    der Modus endet mit einem Rückgabewert ungleich 0, sobald auch nur ein
+    Ticker fehlt.
     """
     import yfinance as yf  # lokal: nur dieser Modus braucht die Abhängigkeit
 
     ticker = sorted({r.get("ticker") for r in (coll.get("records") or [])
                      if r.get("ticker")})
     daten: Dict[str, Dict] = {}
+    ohne: List[str] = []
     for t in ticker:
         try:
             df = yf.download(t, period=f"{jahre}y", interval="1d",
                              auto_adjust=True, progress=False, threads=False)
             closes = [float(x) for x in df["Close"].to_numpy().ravel().tolist()]
             dates = [d.strftime("%Y-%m-%d") for d in df.index]
-            daten[t] = {"dates": dates, "closes": closes}
-            _log(f"{t}: {len(dates)} Bars")
-        except Exception as exc:  # noqa: BLE001 — fail-soft je Ticker
+        except Exception as exc:  # noqa: BLE001 — je Ticker gefangen, aber gezählt
             _log(f"{t}: keine Kurse ({exc})")
+            ohne.append(t)
+            continue
+        if not dates or not closes:
+            _log(f"{t}: keine Kurse (leere Antwort — kein Eintrag geschrieben)")
+            ohne.append(t)
+            continue
+        if len(dates) != len(closes):
+            # Versatz zwischen Datum und Kurs ist der Defekt, der in #53 die
+            # Pivots verschoben hat — hier gar nicht erst hineinlassen.
+            _log(f"{t}: verworfen — {len(dates)} Daten vs. {len(closes)} Kurse")
+            ohne.append(t)
+            continue
+        daten[t] = {"dates": dates, "closes": closes}
+        _log(f"{t}: {len(dates)} Bars")
+
     payload = {"erstellt_utc": _dt.datetime.now(_dt.timezone.utc)
                                   .strftime("%Y-%m-%dT%H:%M:%SZ"),
-               "jahre": jahre, "ticker": len(daten), "kurse": daten}
+               "jahre": jahre, "ticker": len(daten),
+               "ticker_angefragt": len(ticker),
+               "ticker_ohne_kurse": ohne, "kurse": daten}
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1),
                         encoding="utf-8")
-    _log(f"Kursbasis geschrieben: {out_path} ({len(daten)} Ticker)")
+    _log(f"Kursbasis geschrieben: {out_path} — "
+         f"{len(daten)} von {len(ticker)} Tickern mit Kursen")
+    if ohne:
+        _log(f"OHNE KURSE: {len(ohne)} von {len(ticker)} — {', '.join(ohne)}")
+        _log("Die Kursbasis ist damit UNVOLLSTÄNDIG; der Zufalls-Vergleich "
+             "wäre nicht durchführbar. Abruf wiederholen.")
     return payload
 
 
@@ -720,8 +779,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     coll = json.loads(coll_path.read_text(encoding="utf-8"))
 
     if args.kurse_holen:
-        fetch_prices(coll, REPO_ROOT / args.kurse)
-        return 0
+        payload = fetch_prices(coll, REPO_ROOT / args.kurse)
+        # Rückgabewert ungleich 0, sobald ein Ticker fehlt: ein unvollständiger
+        # Abruf darf nicht wie ein geglückter aussehen (auch nicht in einem
+        # Workflow-Schritt, der nur auf den Exit-Code schaut).
+        return 3 if payload["ticker_ohne_kurse"] else 0
 
     prices_payload = None
     kurse_path = REPO_ROOT / args.kurse

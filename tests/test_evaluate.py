@@ -430,9 +430,9 @@ def test_sekundaer_meldet_zu_wenige_faelle_statt_einer_zahl():
         r["confluence"] = ({"target": ["52W-Hoch"], "invalidation": []}
                            if i < 5 else None)
     sek = _lauf(coll, welt)["sekundaer_explorativ"]
-    assert sek["konfluenz"]["mit"]["faelle"] == 5
-    assert sek["konfluenz"]["mit"]["quote"] is None
-    assert sek["konfluenz"]["mit"]["hinweis"] == "zu wenige Fälle"
+    assert sek["konfluenz"]["gruppen"]["mit"]["faelle"] == 5
+    assert sek["konfluenz"]["gruppen"]["mit"]["quote"] is None
+    assert sek["konfluenz"]["gruppen"]["mit"]["hinweis"] == "zu wenige Fälle"
 
 
 def test_sekundaer_meldet_quote_ab_mindestfallzahl():
@@ -443,9 +443,9 @@ def test_sekundaer_meldet_quote_ab_mindestfallzahl():
                            if i < ev.SECONDARY_MIN_N else {"target": [],
                                                            "invalidation": []})
     sek = _lauf(coll, welt)["sekundaer_explorativ"]
-    assert sek["konfluenz"]["mit"]["faelle"] == ev.SECONDARY_MIN_N
-    assert sek["konfluenz"]["mit"]["quote"] is not None
-    assert sek["konfluenz"]["mit"]["hinweis"] is None
+    assert sek["konfluenz"]["gruppen"]["mit"]["faelle"] == ev.SECONDARY_MIN_N
+    assert sek["konfluenz"]["gruppen"]["mit"]["quote"] is not None
+    assert sek["konfluenz"]["gruppen"]["mit"]["hinweis"] is None
 
 
 def test_sekundaer_deckt_die_beauftragten_dimensionen_ab():
@@ -462,10 +462,7 @@ def test_sekundaer_deckt_die_beauftragten_dimensionen_ab():
         r["vol_ratio_w4_w3"] = 0.9 + 0.4 * (i % 2)
         r["vol_ratio_w2_w1"] = 0.9 + 0.4 * (i % 2)
     sek = _lauf(coll, welt)["sekundaer_explorativ"]
-    for dim in ("setup_typ", "konfluenz", "volumen_w3_zu_w1", "volumen_w4_zu_w3",
-                "volumen_w2_zu_w1", "alternation", "momentum_divergenz",
-                "ambiguitaet_v1", "ambiguitaet_v2", "agent_einwand"):
-        assert dim in sek, dim
+    assert set(sek) == set(ev.SECONDARY_DIMS)
 
 
 # ---------------------------------------------------------------------------
@@ -583,6 +580,162 @@ def test_kurse_holen_ist_fail_soft_je_ticker(tmp_path, monkeypatch, capsys):
                               tmp_path / "kurse.json")
     capsys.readouterr()
     assert payload["kurse"] == {}          # kein Absturz, nur keine Daten
+    assert payload["ticker_ohne_kurse"] == ["AAA"]
+
+
+# ---------------------------------------------------------------------------
+# EIN GESCHEITERTER ABRUF MUSS SICHTBAR SCHEITERN (29.07.2026)
+# Der Trockenlauf zeigte: yfinance meldet einen Fehlschlag als LEEREN
+# DataFrame, nicht als Ausnahme. Der landete als Schein-Eintrag mit 0 Bars in
+# der Datei, das Log meldete Erfolg, der Rückgabewert war 0.
+# ---------------------------------------------------------------------------
+def _yf_mit(antworten):
+    """Fake-yfinance: Ticker -> DataFrame (oder leer)."""
+    import types
+
+    import pandas as pd
+
+    def download(t, *a, **k):
+        n = antworten.get(t, 0)
+        if not n:
+            return pd.DataFrame()                      # genau der reale Fehlschlag
+        idx = pd.date_range("2026-01-05", periods=n, freq="B")
+        return pd.DataFrame({"Close": [100.0 + i for i in range(n)]}, index=idx)
+
+    return types.SimpleNamespace(download=download)
+
+
+def test_kurse_holen_schreibt_keine_scheineintraege(tmp_path, monkeypatch, capsys):
+    """ALLE Abrufe leer → keine Datei mit Schein-Tickern, Rückgabewert ≠ 0."""
+    monkeypatch.setitem(sys.modules, "yfinance", _yf_mit({}))
+    monkeypatch.setattr(ev, "REPO_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/forward_collection.json").write_text(
+        json.dumps({"records": [{"ticker": "AAA"}, {"ticker": "BBB.DE"}]}),
+        encoding="utf-8")
+
+    rc = ev.main(["--kurse-holen", "--kurse", "data/kurse.json"])
+    text = capsys.readouterr().out
+    assert rc != 0, "ein komplett gescheiterter Abruf darf nicht mit 0 enden"
+
+    snap = json.loads((tmp_path / "data/kurse.json").read_text(encoding="utf-8"))
+    assert snap["kurse"] == {}, "kein Schein-Eintrag mit 0 Bars"
+    assert snap["ticker"] == 0 and snap["ticker_angefragt"] == 2
+    assert sorted(snap["ticker_ohne_kurse"]) == ["AAA", "BBB.DE"]
+    assert "OHNE KURSE: 2 von 2" in text and "UNVOLLSTÄNDIG" in text
+
+
+def test_kurse_holen_meldet_den_einen_fehlenden_ticker_namentlich(
+        tmp_path, monkeypatch, capsys):
+    """Ein Ticker leer, Rest voll → Fehlliste namentlich, Rückgabewert ≠ 0."""
+    monkeypatch.setitem(sys.modules, "yfinance",
+                        _yf_mit({"AAA": 300, "BBB.DE": 300, "CCC": 0}))
+    monkeypatch.setattr(ev, "REPO_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/forward_collection.json").write_text(
+        json.dumps({"records": [{"ticker": t} for t in ("AAA", "BBB.DE", "CCC")]}),
+        encoding="utf-8")
+
+    rc = ev.main(["--kurse-holen", "--kurse", "data/kurse.json"])
+    text = capsys.readouterr().out
+    assert rc != 0
+    snap = json.loads((tmp_path / "data/kurse.json").read_text(encoding="utf-8"))
+    assert snap["ticker_ohne_kurse"] == ["CCC"]
+    assert set(snap["kurse"]) == {"AAA", "BBB.DE"}      # die guten bleiben drin
+    assert "CCC" in text and "OHNE KURSE: 1 von 3" in text
+
+
+def test_kurse_holen_endet_mit_null_wenn_alles_da_ist(tmp_path, monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "yfinance",
+                        _yf_mit({"AAA": 300, "BBB.DE": 300}))
+    monkeypatch.setattr(ev, "REPO_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/forward_collection.json").write_text(
+        json.dumps({"records": [{"ticker": "AAA"}, {"ticker": "BBB.DE"}]}),
+        encoding="utf-8")
+
+    rc = ev.main(["--kurse-holen", "--kurse", "data/kurse.json"])
+    capsys.readouterr()
+    assert rc == 0
+    snap = json.loads((tmp_path / "data/kurse.json").read_text(encoding="utf-8"))
+    assert snap["ticker_ohne_kurse"] == [] and snap["ticker"] == 2
+
+
+def test_kurse_holen_verwirft_versatz_zwischen_datum_und_kurs(
+        tmp_path, monkeypatch, capsys):
+    """Datum/Kurs unterschiedlich lang — der Defekt aus #53 kommt nicht rein."""
+    import types
+
+    import pandas as pd
+
+    class Schief(pd.DataFrame):
+        @property
+        def index(self):                                # zu wenige Daten
+            return pd.date_range("2026-01-05", periods=2, freq="B")
+
+    df = Schief({"Close": [1.0, 2.0, 3.0, 4.0]})
+    monkeypatch.setitem(sys.modules, "yfinance",
+                        types.SimpleNamespace(download=lambda *a, **k: df))
+    payload = ev.fetch_prices({"records": [{"ticker": "AAA"}]},
+                              tmp_path / "kurse.json")
+    text = capsys.readouterr().out
+    assert payload["kurse"] == {} and payload["ticker_ohne_kurse"] == ["AAA"]
+    assert "verworfen" in text
+
+
+# ---------------------------------------------------------------------------
+# ABWESENHEIT IST KEINE AUSSAGE — jede beauftragte Dimension erscheint
+# ---------------------------------------------------------------------------
+def test_alle_dimensionen_erscheinen_auch_ohne_faelle():
+    welt = _welt(seed=16)
+    coll = _n_faelle(ev.EVAL_MIN_N, welt)      # nur count_wave_labels vorhanden
+    sek = _lauf(coll, welt)["sekundaer_explorativ"]
+
+    assert set(sek) == set(ev.SECONDARY_DIMS)
+    # setup_typ hat Daten, alles andere nicht — und sagt das auch
+    assert sek["setup_typ"]["faelle_gesamt"] == ev.EVAL_MIN_N
+    assert sek["setup_typ"]["hinweis"] is None
+    for dim in ev.SECONDARY_DIMS:
+        if dim == "setup_typ":
+            continue
+        assert sek[dim]["faelle_gesamt"] == 0, dim
+        assert sek[dim]["hinweis"] == "keine Fälle", dim
+        assert sek[dim]["gruppen"] == {}, dim
+    # der Fall aus dem Trockenlauf, namentlich
+    assert sek["momentum_divergenz"]["hinweis"] == "keine Fälle"
+
+
+def test_dimension_mit_daten_traegt_keinen_keine_faelle_hinweis():
+    welt = _welt(seed=16)
+    coll = _n_faelle(ev.EVAL_MIN_N, welt)
+    for i, r in enumerate(coll["records"]):
+        r["w5_momentum_divergence"] = bool(i % 2)
+    sek = _lauf(coll, welt)["sekundaer_explorativ"]
+    assert sek["momentum_divergenz"]["hinweis"] is None
+    assert sek["momentum_divergenz"]["faelle_gesamt"] == ev.EVAL_MIN_N
+    assert set(sek["momentum_divergenz"]["gruppen"]) == {"ja", "nein"}
+
+
+# ---------------------------------------------------------------------------
+# NENNUNGEN ≠ FÄLLE
+# ---------------------------------------------------------------------------
+def test_ausschluss_gruende_sind_als_nennungen_beschriftet():
+    """Ein Record kann mehrere Gründe tragen — die Summe ist größer als die
+    Fallzahl. Im Trockenlauf standen 13 Nennungen für 5 Fälle."""
+    welt = _welt(seed=17)
+    coll = _n_faelle(ev.EVAL_MIN_N, welt)
+    doppelt = copy.deepcopy(coll["records"][:3])
+    for i, r in enumerate(doppelt):
+        r["episode_id"] = f"D{i}"
+        r["pre_reached_target"] = True
+        r["pre_reached_ext"] = True            # ZWEI Gründe, EIN Fall
+    coll["records"].extend(doppelt)
+
+    z = _lauf(coll, welt, vorschau=True)["zaehlwerk"]
+    assert z["ausgeschlossen_pru_guard"] == 3                     # FÄLLE
+    assert sum(z["ausgeschlossen_gruende"].values()) == 6         # NENNUNGEN
+    assert z["ausgeschlossen_gruende_hinweis"] == (
+        "Nennungen, Mehrfachnennung möglich — 3 betroffene Fälle")
 
 
 # ---------------------------------------------------------------------------
