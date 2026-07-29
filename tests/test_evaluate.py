@@ -462,7 +462,7 @@ def test_sekundaer_deckt_die_beauftragten_dimensionen_ab():
         r["vol_ratio_w4_w3"] = 0.9 + 0.4 * (i % 2)
         r["vol_ratio_w2_w1"] = 0.9 + 0.4 * (i % 2)
     sek = _lauf(coll, welt)["sekundaer_explorativ"]
-    assert set(sek) == set(ev.SECONDARY_DIMS)
+    assert sorted(sek) == DIMENSIONEN_LAUT_AUFTRAG
 
 
 # ---------------------------------------------------------------------------
@@ -686,12 +686,29 @@ def test_kurse_holen_verwirft_versatz_zwischen_datum_und_kurs(
 # ---------------------------------------------------------------------------
 # ABWESENHEIT IST KEINE AUSSAGE — jede beauftragte Dimension erscheint
 # ---------------------------------------------------------------------------
+# UNABHÄNGIGE Referenzliste — bewusst ausgeschrieben, NICHT aus
+# ev.SECONDARY_DIMS abgeleitet. Ein Vergleich der Konstante mit sich selbst ist
+# tautologisch: er hätte ein stilles Entfernen nicht bemerkt (Guardian-Nit
+# 29.07.). Wer hier eine Dimension streicht oder ergänzt, muss es zweimal tun —
+# und merkt es dabei.
+DIMENSIONEN_LAUT_AUFTRAG = [
+    "agent_einwand", "alternation", "ambiguitaet_v1", "ambiguitaet_v2",
+    "konfluenz", "momentum_divergenz", "setup_typ",
+    "volumen_w2_zu_w1", "volumen_w3_zu_w1", "volumen_w4_zu_w3",
+]
+
+
+def test_dimensionsliste_deckt_sich_mit_dem_auftrag():
+    assert sorted(ev.SECONDARY_DIMS) == DIMENSIONEN_LAUT_AUFTRAG
+    assert len(ev.SECONDARY_DIMS) == 10
+
+
 def test_alle_dimensionen_erscheinen_auch_ohne_faelle():
     welt = _welt(seed=16)
     coll = _n_faelle(ev.EVAL_MIN_N, welt)      # nur count_wave_labels vorhanden
     sek = _lauf(coll, welt)["sekundaer_explorativ"]
 
-    assert set(sek) == set(ev.SECONDARY_DIMS)
+    assert sorted(sek) == DIMENSIONEN_LAUT_AUFTRAG
     # setup_typ hat Daten, alles andere nicht — und sagt das auch
     assert sek["setup_typ"]["faelle_gesamt"] == ev.EVAL_MIN_N
     assert sek["setup_typ"]["hinweis"] is None
