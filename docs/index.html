@@ -525,6 +525,74 @@
     .menu-fs-btn:disabled { opacity:.4; cursor:default; }
     .menu-fs-btn:disabled:hover { background:transparent; }
 
+    /* ── Trade-Journal (eigene Handels-Aufzeichnung) ─────────────────────
+       Eigenes Praefix `tj-`: neue Klassennamen kollidieren still (Lehre #55).
+       Elliott-Farbwelt, KEINE Erfolgs-Optik — das Journal bewertet nichts. */
+    .tj-add {
+      -webkit-appearance:none; appearance:none; cursor:pointer;
+      display:inline-flex; align-items:center; justify-content:center; gap:6px;
+      width:100%; min-height:44px; margin-top:10px; padding:8px 12px;
+      background:transparent; color:var(--txt-sub);
+      border:1px solid var(--brd); border-radius:10px;
+      font-size:.75rem; font-weight:600; letter-spacing:.01em;
+    }
+    .tj-add:hover { color:var(--grn); border-color:rgba(34,197,94,.45); }
+    .tj-add svg { width:14px; height:14px; fill:none; stroke:currentColor;
+      stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+    .tj-hinweis {
+      margin:0 0 12px; padding:8px 10px; border-radius:10px;
+      background:rgba(148,163,184,.08); border:1px solid var(--brd);
+      font-size:.72rem; line-height:1.5; color:var(--txt-sub);
+    }
+    .tj-sum { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+    .tj-sum-box {
+      flex:1 1 40%; min-width:120px; padding:8px 10px; border-radius:10px;
+      background:var(--bg-card); border:1px solid var(--brd);
+    }
+    .tj-sum-num { display:block; font-size:1.15rem; font-weight:800;
+      color:var(--txt); font-variant-numeric:tabular-nums; }
+    .tj-sum-lbl { display:block; font-size:.64rem; color:var(--txt-dim);
+      text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+    .tj-group { font-size:.7rem; text-transform:uppercase; letter-spacing:.05em;
+      color:var(--txt-dim); font-weight:700; margin:16px 0 8px; }
+    .tj-row {
+      background:var(--bg-card); border:1px solid var(--brd); border-radius:12px;
+      padding:10px 12px; margin-bottom:8px;
+    }
+    .tj-row-top { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+    .tj-tk { font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-weight:700; color:var(--txt); }
+    .tj-state { font-size:.64rem; padding:2px 7px; border-radius:999px;
+      border:1px solid var(--brd); color:var(--txt-dim); }
+    .tj-state.tj-open { color:var(--accent); border-color:rgba(96,165,250,.45); }
+    .tj-pct { margin-left:auto; font-weight:700; font-variant-numeric:tabular-nums; }
+    .tj-pct.tj-plus { color:var(--grn); } .tj-pct.tj-minus { color:var(--red); }
+    .tj-meta { font-size:.68rem; color:var(--txt-sub); margin-top:5px;
+      line-height:1.55; }
+    .tj-frozen { font-size:.64rem; color:var(--txt-dim); margin-top:4px;
+      line-height:1.5; }
+    .tj-note { font-size:.7rem; color:var(--txt-sub); margin-top:5px;
+      white-space:pre-wrap; word-break:break-word; }
+    .tj-acts { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+    .tj-btn {
+      -webkit-appearance:none; appearance:none; cursor:pointer;
+      min-height:44px; padding:6px 12px; border-radius:9px;
+      background:transparent; border:1px solid var(--brd); color:var(--txt-sub);
+      font-size:.7rem; font-weight:600;
+    }
+    .tj-btn:hover { color:var(--txt); }
+    .tj-btn-danger:hover { color:var(--red); border-color:rgba(239,68,68,.5); }
+    .tj-form { margin-top:8px; display:grid; gap:6px; }
+    .tj-form label { font-size:.64rem; color:var(--txt-dim);
+      text-transform:uppercase; letter-spacing:.04em; }
+    .tj-form input, .tj-form textarea, .tj-form select {
+      width:100%; box-sizing:border-box; min-height:44px; padding:8px 10px;
+      background:var(--bg); color:var(--txt); border:1px solid var(--brd);
+      border-radius:9px; font-size:.8rem; font-family:inherit;
+    }
+    .tj-form textarea { min-height:66px; resize:vertical; }
+    .tj-empty { color:var(--txt-dim); font-size:.8rem; padding:14px 2px; }
+
     /* ── Token-Modals (Master-Passwort-Krypto, portiert aus Aktien-Update) ── */
     .tok-modal-overlay {
       position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.55);
@@ -1008,6 +1076,16 @@
     <div class="bt-body" id="info-body"></div>
   </div>
 
+  <!-- Trade-Journal (Overlay, gleiche Technik wie Backtesting/Info) -->
+  <div class="bt-overlay" id="tj-overlay" hidden role="dialog"
+       aria-modal="true" aria-label="Trade-Journal">
+    <div class="bt-head">
+      <button class="bt-back" id="tj-back" type="button">‹ Zurück</button>
+      <span class="bt-title">Journal</span>
+    </div>
+    <div class="bt-body" id="tj-body"></div>
+  </div>
+
   <!-- Hamburger-Menü (Dropdown) -->
   <div class="menu-overlay" id="menu-overlay" hidden></div>
   <!-- Struktur Squeeze-analog (Reload oben, Sperren abgesetzt am Fuß), aber NUR
@@ -1033,6 +1111,10 @@
     <button class="menu-item" id="mi-validierung" type="button" role="menuitem">
       <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
       <span class="mi-label">Validierung</span>
+    </button>
+    <button class="menu-item" id="mi-journal" type="button" role="menuitem">
+      <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/><path d="M8 14h8"/><path d="M8 18h5"/></svg></span>
+      <span class="mi-label">Journal</span>
     </button>
     <button class="menu-item" id="mi-laufstatus" type="button" role="menuitem">
       <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
@@ -1918,7 +2000,21 @@
           </div>
           <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-dates="${esc(JSON.stringify((c.chart_points || []).map(p => p.date || '')))}" data-inval="${c.invalidation_price ?? ''}" data-waves="${esc(JSON.stringify(c.count_wave_labels || []))}"></div>
         </div>
+        ${tjAddBtn(c, c.market || '')}
       </article>`;
+    }
+
+    // „ins Journal" — EINE Funktion fuer Markt- und Watchlist-Karten. Die
+    // Kartenwerte reisen als data-Attribut mit; geklickt wird delegiert.
+    // KEIN Pflichtfeld: was die Karte liefert, reicht.
+    const TJ_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v6h6"/><path d="M8 14h8"/></svg>';
+    function tjAddBtn(c, market) {
+      if (c.close == null) return '';        // ohne Kurs kein Eintrag
+      const v = { ticker: c.ticker, market: market || '', direction: c.direction || 'long',
+                  close: c.close, setup: c.count_label || '', score: c.score_heuristic ?? null,
+                  target_zone: c.target_zone || null, invalidation: c.invalidation_price ?? null };
+      return `<button class="tj-add" type="button" data-tj="${esc(JSON.stringify(v))}"
+        title="In die eigene Handels-Aufzeichnung übernehmen">${TJ_ICON}ins Journal</button>`;
     }
 
     // Sammlungs-Beginn (Präregistrierung, siehe validation_registry.md). Vor
@@ -2008,6 +2104,7 @@
           <div class="card-right">${right}</div>
         </div>
         <div class="wl-note${isErr ? ' wl-note-err' : ''}">${esc(c.note || '')}${c.reason ? ` <span style="opacity:.7">(${esc(c.reason)})</span>` : ''}</div>
+        ${isErr ? '' : tjAddBtn(c, c.market || '')}
         ${tfPanel(c.timeframes, c.structure, c.close)}
         ${spark}
       </article>`;
@@ -2251,35 +2348,46 @@
       _ensureToken((token) => { _wlDoPut(token); });   // gesperrt -> Dialog (fail-soft)
     }
 
-    // Der eigentliche PUT (Contents-API), Snapshot-basiert. Portiert aus
-    // aktien-update/app.html (wlSave). 409/422 -> sha frisch holen, 1× retry.
+    // EINE SYNC-MECHANIK fuer Watchlist UND Journal (29.07.2026). Vorher lag der
+    // GitHub-PUT nur hier; das Journal haette ihn nachbauen muessen — zwei
+    // Fassungen desselben 409-Retrys waeren genau die Doppelung, die wir gerade
+    // erst an drei Stellen aufgeloest haben. Jetzt: EINE Funktion, zwei Nutzer.
+    // Snapshot-basiert, 409/422 -> sha frisch holen, GENAU 1x retry (kein Sturm).
+    // `shaBox` traegt den sha je Datei (Aufrufer haelt ihn).
+    async function _ghPutFile(token, path, snapshot, message, shaBox) {
+      const base = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`;
+      const H = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28' };
+      const getR = await fetch(`${base}?ref=${GH_BRANCH}`, { headers: H });
+      if (getR.ok) { shaBox.sha = (await getR.json()).sha; }
+      else if (getR.status === 404) { shaBox.sha = null; }
+      const _put = (sha) => {
+        const body = { message, branch: GH_BRANCH,
+                       content: btoa(unescape(encodeURIComponent(snapshot))) };
+        if (sha) body.sha = sha;
+        return fetch(base, { method: 'PUT',
+          headers: { ...H, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body) });
+      };
+      let r = await _put(shaBox.sha);
+      if (r.status === 409 || r.status === 422) {
+        const rf = await fetch(`${base}?ref=${GH_BRANCH}`, { headers: H });
+        if (rf.ok) { shaBox.sha = (await rf.json()).sha; r = await _put(shaBox.sha); }
+      }
+      if (r.ok) { shaBox.sha = (await r.json()).content?.sha || null; }
+      return r;
+    }
+
+    // Der eigentliche PUT der Watchlist — nutzt jetzt die gemeinsame Mechanik.
     async function _wlDoPut(token) {
       const snapshot = JSON.stringify(_wlArr);        // exakt DAS wird gesynct
       _wlSyncing = true;
       try {
-        // aktuelle sha holen (falls Datei existiert)
-        const getR = await fetch(
-          `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
-          { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
-        if (getR.ok) { _wlGhSha = (await getR.json()).sha; }
-        else if (getR.status === 404) { _wlGhSha = null; }
-        const _put = (sha) => {
-          const body = { message: 'Update watchlist_personal.json', branch: GH_BRANCH,
-            content: btoa(unescape(encodeURIComponent(snapshot))) };
-          if (sha) body.sha = sha;
-          return fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}`,
-            { method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json',
-              'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        };
-        let r = await _put(_wlGhSha);
-        if ((r.status === 409 || r.status === 422)) {
-          // sha-Konflikt -> sha neu holen, GENAU 1× retry (Squeeze-Muster, kein Sturm)
-          const rf = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${WL_GH_PATH}?ref=${GH_BRANCH}`,
-            { headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' } });
-          if (rf.ok) { _wlGhSha = (await rf.json()).sha; r = await _put(_wlGhSha); }
-        }
+        const box = { sha: _wlGhSha };
+        const r = await _ghPutFile(token, WL_GH_PATH, snapshot,
+                                   'Update watchlist_personal.json', box);
+        _wlGhSha = box.sha;
         if (r.ok) {
-          _wlGhSha = (await r.json()).content?.sha || null;
           _wlSyncedJson = snapshot;                   // Idempotenz-Marker
           showToast('✓ Watchlist gesynct');           // dezenter Mini-Erfolg
         } else if (r.status === 401 || r.status === 403) {
@@ -2317,6 +2425,273 @@
     // KRYPTO exakt wie im Vorbild: PBKDF2-SHA256, 600.000 Iterationen, Salt
     // 16 B, IV 12 B, AES-GCM-256. Master-Passwort wird NIE persistiert; nur
     // der verschlüsselte Blob liegt in localStorage. Kein Token/Secret im Code.
+    // ══════════════════════════════════════════════════════════════════════
+    // TRADE-JOURNAL — eigene Handels-Aufzeichnung, NICHT Teil der Validierung
+    // ══════════════════════════════════════════════════════════════════════
+    // STRIKT GETRENNT: die Pipeline liest diese Datei NIE. Sie beeinflusst
+    // Score, Ranking, Filter, Reifung und forward_collection nicht — das
+    // Journal bildet EIGENE Entscheidungen ab, die Validierung misst das
+    // Werkzeug. Wuerde beides vermischt, misse man die eigene Auswahl.
+    //
+    // KEINE BETRAEGE, KEINE STUECKZAHLEN — weder Eingabe noch Speicherung.
+    // Das Repo ist oeffentlich; Kurse und Prozente sind ohnehin oeffentlich,
+    // Positionsgroessen waeren es nicht.
+    const TJ_KEY = 'elliott_trade_journal_v1';
+    const TJ_SYNC_DEBOUNCE_MS = 3000;
+    // Kanonische Datei + Spiegel unter /docs (nur der Spiegel ist ueber Pages
+    // erreichbar). Beide schreibt das Frontend selbst — die Pipeline fasst die
+    // Datei auch nicht kopierend an.
+    const TJ_GH_PATHS = ['data/trade_journal.json', 'docs/data/trade_journal.json'];
+    const TJ_FETCH_PATHS = ['data/trade_journal.json', '../data/trade_journal.json'];
+
+    let _tjArr = null;            // aktuelle (lokale) Eintraege
+    let _tjSha = {};              // sha je Repo-Pfad
+    let _tjSyncedJson = null;     // zuletzt erfolgreich gesyncter Stand
+    let _tjSyncTimer = null;
+    let _tjSyncing = false;
+    let _tjEdit = null;           // id des gerade bearbeiteten Eintrags
+    // `_lastReportTs` (Report-Stand) lebt bereits weiter unten beim
+    // Recalc-Poller — das Journal LIEST ihn nur zum Einfrieren mit.
+
+    function _tjLocal() {
+      try { const a = JSON.parse(localStorage.getItem(TJ_KEY) || 'null');
+            return Array.isArray(a) ? a : null; }
+      catch (_) { return null; }
+    }
+    function _tjPersistLocal() {
+      try { localStorage.setItem(TJ_KEY, JSON.stringify(_tjArr)); } catch (_) {}
+    }
+
+    // Fail-soft: Datei fehlt/kaputt -> leeres Journal, KEIN Fehler. Lokale
+    // Eintraege gewinnen, solange sie noch nicht gesynct sind (gesperrte
+    // Session -> nichts geht verloren, genau wie bei der Watchlist).
+    async function _tjLoad() {
+      let remote = null;
+      for (const p of TJ_FETCH_PATHS) {
+        try {
+          const r = await fetch(p + '?t=' + Date.now(), { cache: 'no-store' });
+          if (r.ok) { const j = await r.json(); if (Array.isArray(j)) { remote = j; break; } }
+        } catch (_) { /* naechster Pfad */ }
+      }
+      const local = _tjLocal();
+      if (local && (!remote || JSON.stringify(local) !== JSON.stringify(remote))) {
+        _tjArr = local;                       // lokal ist neuer -> behalten
+        _tjSyncedJson = remote ? JSON.stringify(remote) : null;
+      } else {
+        _tjArr = remote || [];
+        _tjSyncedJson = JSON.stringify(_tjArr);
+      }
+      _tjPersistLocal();
+    }
+
+    function _tjScheduleSync() {
+      if (_tjSyncTimer) clearTimeout(_tjSyncTimer);
+      _tjSyncTimer = setTimeout(() => { _tjSyncTimer = null; _tjSyncNow(); },
+                                TJ_SYNC_DEBOUNCE_MS);
+    }
+    function _tjSyncNow() {
+      if (!Array.isArray(_tjArr)) return;
+      if (JSON.stringify(_tjArr) === _tjSyncedJson) return;   // idempotent
+      if (_tjSyncing) { _tjScheduleSync(); return; }
+      _ensureToken((token) => { _tjDoPut(token); });   // gesperrt -> Dialog
+    }
+
+    async function _tjDoPut(token) {
+      const snapshot = JSON.stringify(_tjArr, null, 1);
+      _tjSyncing = true;
+      try {
+        let letzte = null;
+        for (const p of TJ_GH_PATHS) {
+          const box = { sha: _tjSha[p] || null };
+          letzte = await _ghPutFile(token, p, snapshot, 'Update trade_journal.json', box);
+          _tjSha[p] = box.sha;
+          if (!letzte.ok) break;             // erster Fehler -> nicht weitermachen
+        }
+        if (letzte && letzte.ok) {
+          _tjSyncedJson = snapshot;
+          showToast('✓ Journal gesynct');
+        } else if (letzte && (letzte.status === 401 || letzte.status === 403)) {
+          showToast(`Nicht gesynct (HTTP ${letzte.status}) — Token braucht „Contents: write". Bleibt lokal.`, 'error');
+        } else {
+          showToast(`Nicht gesynct (HTTP ${letzte ? letzte.status : '?'}) — bleibt lokal.`, 'error');
+        }
+      } catch (e) {
+        showToast('Offline — Journal noch nicht gesynct, bleibt lokal.', 'error');
+      } finally {
+        _tjSyncing = false;
+        if (JSON.stringify(_tjArr) !== _tjSyncedJson) _tjScheduleSync();
+      }
+    }
+
+    // --- Eintrag anlegen (Uebernahme von einer Karte) ----------------------
+    function _tjNeu(v) {
+      const heute = new Date().toISOString().slice(0, 10);
+      return {
+        id: 'tj_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        ticker: v.ticker, market: v.market || '', direction: v.direction || 'long',
+        entry_date: heute, entry_price: v.close ?? null,
+        status: 'offen', exit_date: null, exit_price: null, note: '',
+        // EINGEFROREN beim Anlegen: was das Werkzeug in diesem Moment sagte.
+        // Spaetere Laeufe aendern das nie — sonst waere nicht mehr verortbar,
+        // worauf die Entscheidung beruhte.
+        tool: {
+          setup: v.setup || '', score: v.score ?? null,
+          target_zone: v.target_zone || null, invalidation: v.invalidation ?? null,
+          report_utc: _lastReportTs || null,
+        },
+      };
+    }
+    function tjUebernehmen(v) {
+      if (!Array.isArray(_tjArr)) _tjArr = _tjLocal() || [];
+      const e = _tjNeu(v);
+      if (e.entry_price == null) { showToast('Kein Kurs auf der Karte — nicht übernommen.', 'error'); return; }
+      _tjArr.unshift(e);
+      _tjPersistLocal();
+      _tjScheduleSync();
+      showToast(`✓ ${e.ticker} ins Journal`);
+      if (!document.getElementById('tj-overlay').hidden) _tjRender();
+    }
+
+    // --- Ergebnis in Prozent: BERECHNET, nie eingegeben --------------------
+    function _tjPct(e) {
+      const a = Number(e.entry_price), b = Number(e.exit_price);
+      if (!isFinite(a) || !isFinite(b) || a <= 0) return null;
+      const roh = (b - a) / a * 100;
+      return e.direction === 'short' ? -roh : roh;
+    }
+    function _tjPctHtml(e) {
+      const p = _tjPct(e);
+      if (p == null) return '';
+      const cls = p >= 0 ? 'tj-plus' : 'tj-minus';
+      return `<span class="tj-pct ${cls}">${p >= 0 ? '+' : ''}${p.toFixed(2)} %</span>`;
+    }
+
+    // --- Ansicht ----------------------------------------------------------
+    function openJournal() {
+      closeMenu();
+      document.getElementById('tj-overlay').hidden = false;
+      document.body.style.overflow = 'hidden';
+      document.getElementById('tj-body').innerHTML = '<div class="ep-list-loading">lädt …</div>';
+      (Array.isArray(_tjArr) ? Promise.resolve() : _tjLoad()).then(() => _tjRender());
+    }
+    function closeJournal() {
+      document.getElementById('tj-overlay').hidden = true;
+      document.body.style.overflow = '';
+      _tjEdit = null;
+    }
+
+    function _tjZeile(e) {
+      const offen = e.status !== 'geschlossen';
+      const zone = e.tool && e.tool.target_zone
+        ? `${fmt(e.tool.target_zone.low)}–${fmt(e.tool.target_zone.high)}` : '–';
+      const bearbeiten = _tjEdit === e.id;
+      const form = bearbeiten ? `
+        <div class="tj-form">
+          <label for="tj-xd-${e.id}">Ausstiegsdatum</label>
+          <input id="tj-xd-${e.id}" type="date" value="${esc(e.exit_date || '')}">
+          <label for="tj-xp-${e.id}">Ausstiegskurs</label>
+          <input id="tj-xp-${e.id}" type="number" step="any" inputmode="decimal"
+                 value="${e.exit_price ?? ''}" placeholder="z. B. 123.45">
+          <label for="tj-nt-${e.id}">Notiz — keine Beträge, keine Stückzahlen</label>
+          <textarea id="tj-nt-${e.id}" placeholder="Warum ein-/ausgestiegen? (Repo ist öffentlich — keine Beträge)">${esc(e.note || '')}</textarea>
+          <div class="tj-acts">
+            <button class="tj-btn" data-tj-save="${e.id}" type="button">Speichern</button>
+            <button class="tj-btn" data-tj-cancel="1" type="button">Abbrechen</button>
+            <button class="tj-btn tj-btn-danger" data-tj-del="${e.id}" type="button">Löschen</button>
+          </div>
+        </div>` : `
+        <div class="tj-acts">
+          <button class="tj-btn" data-tj-edit="${e.id}" type="button">Bearbeiten</button>
+        </div>`;
+      return `<div class="tj-row">
+        <div class="tj-row-top">
+          <span class="tj-tk">${esc(e.ticker)}</span>
+          <span class="tj-state${offen ? ' tj-open' : ''}">${offen ? 'offen' : 'geschlossen'}</span>
+          ${_tjPctHtml(e)}
+        </div>
+        <div class="tj-meta">Einstieg ${esc(e.entry_date || '?')} · ${fmt(e.entry_price)}${
+          offen ? '' : ` &nbsp;→&nbsp; Ausstieg ${esc(e.exit_date || '?')} · ${fmt(e.exit_price)}`}</div>
+        <div class="tj-frozen">Beim Anlegen: ${esc(e.tool && e.tool.setup || '–')}
+          · Score ${e.tool && e.tool.score != null ? fmt(e.tool.score) : '–'}
+          · Zielzone ${zone}
+          · Invalidierung ${e.tool && e.tool.invalidation != null ? fmt(e.tool.invalidation) : '–'}
+          · Stand ${esc(e.tool && e.tool.report_utc || '–')}</div>
+        ${e.note && !bearbeiten ? `<div class="tj-note">${esc(e.note)}</div>` : ''}
+        ${form}
+      </div>`;
+    }
+
+    function _tjRender() {
+      const body = document.getElementById('tj-body');
+      const arr = Array.isArray(_tjArr) ? _tjArr : [];
+      const offen = arr.filter(e => e.status !== 'geschlossen');
+      const zu = arr.filter(e => e.status === 'geschlossen');
+      const pcts = zu.map(_tjPct).filter(p => p != null);
+      const plus = pcts.filter(p => p > 0).length;
+      const mittel = pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null;
+
+      const hinweis = `<p class="tj-hinweis"><b>Eigene Handels-Aufzeichnung, nicht Teil
+        der Validierung.</b> Was hier steht, bildet <b>deine Entscheidungen</b> ab —
+        wann du ein- und ausgestiegen bist. Es sagt nichts über die Güte des Werkzeugs
+        aus; dafür ist allein die Validierung zuständig. Keine Beträge, keine
+        Stückzahlen.</p>`;
+
+      const summe = `<div class="tj-sum">
+        <div class="tj-sum-box"><span class="tj-sum-num">${offen.length}</span><span class="tj-sum-lbl">offen</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${zu.length}</span><span class="tj-sum-lbl">geschlossen</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${pcts.length ? plus : '–'}</span><span class="tj-sum-lbl">davon im Plus</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${mittel == null ? '–' : (mittel >= 0 ? '+' : '') + mittel.toFixed(2) + ' %'}</span><span class="tj-sum-lbl">mittlere Veränderung</span></div>
+      </div>`;
+
+      const liste = !arr.length
+        ? '<p class="tj-empty">Noch nichts im Journal. Auf einer Karte „ins Journal" tippen.</p>'
+        : `${offen.length ? '<div class="tj-group">Offen</div>' + offen.map(_tjZeile).join('') : ''}
+           ${zu.length ? '<div class="tj-group">Geschlossen</div>' + zu.map(_tjZeile).join('') : ''}`;
+
+      body.innerHTML = hinweis + summe + liste;
+    }
+
+    // Delegierte Klicks im Journal (Overlay wird neu gerendert -> keine
+    // Einzel-Listener, die ins Leere zeigen).
+    function _tjClick(ev) {
+      const t = ev.target.closest('button');
+      if (!t) return;
+      if (t.dataset.tjEdit) { _tjEdit = t.dataset.tjEdit; _tjRender(); return; }
+      if (t.dataset.tjCancel) { _tjEdit = null; _tjRender(); return; }
+      if (t.dataset.tjDel) {
+        _tjArr = _tjArr.filter(e => e.id !== t.dataset.tjDel);
+        _tjEdit = null; _tjPersistLocal(); _tjScheduleSync(); _tjRender();
+        showToast('Eintrag gelöscht'); return;
+      }
+      if (t.dataset.tjSave) {
+        const id = t.dataset.tjSave;
+        const e = _tjArr.find(x => x.id === id);
+        if (!e) return;
+        const xd = document.getElementById('tj-xd-' + id).value.trim();
+        const xpRaw = document.getElementById('tj-xp-' + id).value.trim();
+        const nt = document.getElementById('tj-nt-' + id).value;
+        const xp = xpRaw === '' ? null : Number(xpRaw);
+        if (xp != null && !isFinite(xp)) { showToast('Ausstiegskurs ist keine Zahl.', 'error'); return; }
+        e.exit_date = xd || null;
+        e.exit_price = xp;
+        e.note = nt;
+        // Geschlossen ist ein Eintrag erst, wenn BEIDES steht — sonst bliebe
+        // die Prozentrechnung ohne Grundlage.
+        e.status = (e.exit_date && e.exit_price != null) ? 'geschlossen' : 'offen';
+        _tjEdit = null; _tjPersistLocal(); _tjScheduleSync(); _tjRender();
+        showToast('✓ gespeichert');
+      }
+    }
+
+    // „ins Journal" auf Markt- UND Watchlist-Karten (delegiert).
+    function _tjAddClick(ev) {
+      const b = ev.target.closest('.tj-add');
+      if (!b) return;
+      ev.preventDefault();
+      try { tjUebernehmen(JSON.parse(b.dataset.tj)); }
+      catch (_) { showToast('Übernahme fehlgeschlagen.', 'error'); }
+    }
+
     const GH_OWNER = 'easywebb911';
     const GH_REPO = 'Elliott-Report';
     const GH_WORKFLOW = 'daily.yml';       // workflow_dispatch: {} (keine Inputs)
@@ -3297,7 +3672,15 @@
     });
     document.getElementById('mi-methodik').addEventListener('click', openMethodik);
     document.getElementById('mi-validierung').addEventListener('click', openValidierung);
+    document.getElementById('mi-journal').addEventListener('click', openJournal);
     document.getElementById('mi-laufstatus').addEventListener('click', openLaufStatus);
+    document.getElementById('tj-back').addEventListener('click', closeJournal);
+    document.getElementById('tj-body').addEventListener('click', _tjClick);
+    // „ins Journal" delegiert am Dokument: die Karten werden neu gerendert.
+    document.addEventListener('click', _tjAddClick);
+    // Journal fruehzeitig laden (fail-soft) — der Uebernahme-Knopf soll nicht
+    // auf einen Netz-Roundtrip warten muessen.
+    _tjLoad().catch(() => { _tjArr = _tjLocal() || []; });
     document.getElementById('mi-recalc').addEventListener('click', triggerRecalc);
     document.getElementById('mi-lock').addEventListener('click', _sessionLock);
 
