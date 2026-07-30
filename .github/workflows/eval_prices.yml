@@ -1,0 +1,93 @@
+# Kursbasis für den Zufalls-Vergleich der Auswertung holen.
+#
+# NUR MANUELL. Absichtlich kein `schedule`, kein `push`, kein `workflow_run` —
+# dieser Lauf hat im Tageslauf nichts zu suchen: er holt eine Momentaufnahme für
+# EINE Auswertung, keine Projektdaten.
+#
+# WARUM ÜBERHAUPT EIN WORKFLOW: `evaluate.py --kurse-holen` braucht Netz. Ohne
+# diesen Schritt liesse sich der Abruf nirgends ausführen, und der erste Versuch
+# fiele in den Moment, in dem die Auswertung gebraucht wird (n≥100). Lieber
+# jetzt einmal drücken und wissen, ob Yahoo für alle Ticker inklusive `.DE`
+# liefert.
+#
+# DAS ERGEBNIS WIRD NICHT COMMITTET. Es ist eine Momentaufnahme, keine
+# Projektdatei — sie liegt als Lauf-Artefakt bereit und wird bewusst nicht Teil
+# der Repo-Historie (die Auswertung ist reproduzierbar über die Prüfsumme, die
+# im Ergebnis steht).
+name: Kursbasis holen (manuell)
+
+on:
+  workflow_dispatch:
+    inputs:
+      jahre:
+        description: "Historie in Jahren (Default 2)"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read        # nur lesen — dieser Lauf schreibt nichts ins Repo
+
+concurrency:
+  group: eval-prices
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # KEIN `continue-on-error`, KEIN `|| true`: `evaluate.py --kurse-holen`
+      # endet mit Rückgabewert 3, sobald ein Ticker ohne Kurse zurückkommt.
+      # Genau das soll den Lauf ROT machen — ein unvollständiger Abruf darf
+      # nicht wie ein geglückter aussehen.
+      - name: Kursbasis holen (rot bei fehlenden Tickern)
+        run: |
+          python scripts/evaluate.py --kurse-holen \
+            --kurse eval_prices_snapshot.json
+          echo "--- Umfang ---"
+          python - <<'PY'
+          import json
+          d = json.load(open("eval_prices_snapshot.json"))
+          print("angefragt:", d.get("ticker_angefragt"),
+                "| mit Kursen:", d.get("ticker"),
+                "| ohne Kurse:", len(d.get("ticker_ohne_kurse") or []))
+          for t, v in sorted((d.get("kurse") or {}).items()):
+              print(f"  {t}: {len(v['dates'])} Bars "
+                    f"{v['dates'][0]} .. {v['dates'][-1]}")
+          PY
+
+      # Auch bei rotem Abruf hochladen: die Teil-Datei ist die Diagnose.
+      - name: Kursbasis als Artefakt behalten
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-prices-snapshot
+          path: eval_prices_snapshot.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      # Sicherheitsnetz gegen ein späteres Versehen: dieser Lauf darf NIE
+      # etwas committen. Bleibt der Arbeitsbaum sauber, ist alles in Ordnung.
+      - name: Beweis — nichts ins Repo geschrieben
+        if: always()
+        run: |
+          git status --porcelain -- . ':!eval_prices_snapshot.json' > /tmp/dirty
+          if [ -s /tmp/dirty ]; then
+            echo "::error::Dieser Lauf hat Repo-Dateien verändert:"
+            cat /tmp/dirty
+            exit 1
+          fi
+          echo "Arbeitsbaum sauber — keine Repo-Datei angefasst."

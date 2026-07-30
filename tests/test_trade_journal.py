@@ -97,10 +97,17 @@ def test_pipeline_lauf_mit_journal_datei_aendert_nichts(tmp_path, monkeypatch):
     assert json.loads(p.read_text(encoding="utf-8"))[0]["ticker"] == "AAPL"
 
 
-def test_journal_dateien_sind_leere_listen_im_repo():
-    """Ausgangszustand: beide Ablagen existieren und sind leer (kein 404)."""
-    for p in ("data/trade_journal.json", "docs/data/trade_journal.json"):
-        assert json.loads((ROOT / p).read_text(encoding="utf-8")) == []
+def test_es_gibt_genau_EINE_journal_ablage():
+    """EIN Commit pro Änderung (30.07.2026): nur die Datei, die die Seite lädt.
+
+    Die kanonische Kopie unter `data/` ist entfallen — sie hatte keinen Leser
+    (per Netzwerk-Mitschnitt belegt: die Seite fragt genau
+    `data/trade_journal.json` relativ zu /docs ab, also den docs-Spiegel).
+    """
+    gelesen = ROOT / "docs/data/trade_journal.json"
+    assert json.loads(gelesen.read_text(encoding="utf-8")) == []
+    assert not (ROOT / "data/trade_journal.json").exists(), \
+        "die kanonische Kopie ist wieder da — das wären zwei Commits pro Änderung"
 
 
 # ---------------------------------------------------------------------------
@@ -176,9 +183,14 @@ def test_es_gibt_nur_eine_github_put_mechanik():
         assert "method: 'PUT'" not in block, f"{nutzer} baut den PUT nach"
 
 
-def test_journal_schreibt_beide_ablagen():
-    assert "const TJ_GH_PATHS = ['data/trade_journal.json', " \
-           "'docs/data/trade_journal.json'];" in HTML
+def test_journal_schreibt_genau_einen_pfad():
+    assert "const TJ_GH_PATH = 'docs/data/trade_journal.json';" in HTML
+    assert "const TJ_FETCH_PATH = 'data/trade_journal.json';" in HTML
+    assert "TJ_GH_PATHS" not in HTML and "TJ_FETCH_PATHS" not in HTML
+    # genau EIN PUT pro Sync — keine Schleife über mehrere Ablagen
+    block = re.search(r"async function _tjDoPut\(.*?\n    \}", HTML, re.S).group(0)
+    assert block.count("_ghPutFile(") == 1, "mehr als ein PUT pro Journal-Sync"
+    assert "for (const p of" not in block
 
 
 # ---------------------------------------------------------------------------
@@ -201,5 +213,8 @@ def _hash(p: Path) -> str:
 
 
 def test_der_testlauf_fasst_die_repo_journal_datei_nicht_an():
-    vorher = _hash(ROOT / "data/trade_journal.json")
-    assert vorher == _hash(ROOT / "docs/data/trade_journal.json")
+    import subprocess
+    r = subprocess.run(["git", "status", "--porcelain", "--",
+                        "docs/data/trade_journal.json"],
+                       cwd=ROOT, capture_output=True, text=True)
+    assert r.stdout.strip() == "", f"Journal-Datei verändert:\n{r.stdout}"

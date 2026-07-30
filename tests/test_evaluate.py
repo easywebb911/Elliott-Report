@@ -520,13 +520,50 @@ def test_ohne_vorschau_verweigert_das_programm_am_echten_stand(tmp_path, capsys)
 
 
 def test_laeuft_nicht_im_tageslauf():
-    """Kein Workflow ruft es auf, kein Lauf-Modul importiert es."""
-    for wf in (ROOT / ".github/workflows").glob("*.yml"):
-        assert "evaluate" not in wf.read_text(encoding="utf-8"), wf.name
+    """Kein AUTOMATISCHER Lauf ruft es auf, kein Lauf-Modul importiert es.
+
+    Seit dem 30.07.2026 gibt es einen ausdrücklich MANUELLEN Workflow für den
+    Kursbasis-Abruf. Der Test wurde deshalb präzisiert statt aufgeweicht: ein
+    Workflow, der `evaluate` nennt, muss **dispatch-only** sein — kein
+    `schedule`, kein `push`, kein `workflow_run`, und er darf nichts committen.
+    """
+    def ohne_kommentare(s: str) -> str:
+        """Nur wirksames YAML — ein Kommentar, der ein Verbot BENENNT, ist keiner
+        seiner Verstösse (`# KEIN continue-on-error` hat den Test erst genarrt)."""
+        return "\n".join(z for z in s.splitlines()
+                          if not z.lstrip().startswith("#"))
+
+    for wf in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        roh = wf.read_text(encoding="utf-8")
+        text = ohne_kommentare(roh)
+        if "evaluate" not in text:
+            continue
+        # Nur die Trigger-Sektion betrachten (Kommentare erwähnen die Wörter).
+        trigger = text[text.index("\non:"):text.index("\njobs:")]
+        assert "workflow_dispatch" in trigger, wf.name
+        for verboten in ("schedule:", "push:", "workflow_run:", "pull_request:"):
+            assert verboten not in trigger, f"{wf.name} feuert automatisch: {verboten}"
+        for verboten in ("git commit", "git push", "git add"):
+            assert verboten not in text, f"{wf.name} schreibt ins Repo: {verboten}"
+        assert "continue-on-error" not in text, \
+            f"{wf.name} würde einen gescheiterten Abruf gruen faerben"
+    # Der TAGESLAUF selbst nennt es nirgends.
+    daily = (ROOT / ".github/workflows/daily.yml").read_text(encoding="utf-8")
+    assert "evaluate" not in daily
     for mod in ("elliott_pipeline.py", "notify.py", "health_check.py",
                 "forward_collection.py"):
         src = (ROOT / "scripts" / mod).read_text(encoding="utf-8")
         assert not re.search(r"^\s*import evaluate|from evaluate", src, re.M), mod
+
+
+def test_manueller_abruf_workflow_existiert_und_ist_dispatch_only():
+    wf = ROOT / ".github/workflows/eval_prices.yml"
+    assert wf.exists(), "der manuelle Kursbasis-Workflow fehlt"
+    text = wf.read_text(encoding="utf-8")
+    assert "--kurse-holen" in text
+    # Das Ergebnis ist ein Artefakt, KEINE Projektdatei.
+    assert "upload-artifact" in text
+    assert "permissions:\n  contents: read" in text
 
 
 def test_evaluate_holt_im_auswertungs_modus_nie_kurse(monkeypatch):

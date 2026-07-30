@@ -78,6 +78,74 @@ def test_source_drops_non_finite_bars_and_counts_them(bad):
     assert all(finite(c) for c in got)
 
 
+# ---------------------------------------------------------------------------
+# DIAGNOSE DER VERWORFENEN ZEILEN (30.07.2026) — Datum UND Position.
+# Der Zweck der Erweiterung ist die Unterscheidung „unfertige Tages-Zeile" von
+# „echte Lücke in der Reihe". Genau die war zuerst durch KEINEN Test belegt:
+# Guardians Mutationsprobe entfernte den `dropped_mid`-Zweig, und die ganze
+# Suite blieb grün. Diese Tests schliessen das.
+# ---------------------------------------------------------------------------
+def test_diagnose_unterscheidet_letzte_zeile_von_mitte():
+    closes = [10.0 + i for i in range(60)]
+    closes[7] = NAN            # mitten in der Reihe
+    closes[-1] = NAN           # letzte Zeile (der DE-Verdachtsfall)
+    out = pipe.parse_download_df(_df(closes), min_bars=10)
+
+    assert out.dropped_bars == 2
+    assert out.dropped_mid_row == 1, "Lücke in der Mitte nicht erkannt"
+    assert out.dropped_last_row == 1, "letzte Zeile nicht erkannt"
+    # Die DATEN sagen, WANN es war — Reihe startet 2026-01-01, Tagesschritt.
+    assert out.dropped_dates == ("2026-01-08", "2026-03-01")
+
+
+def test_diagnose_nur_letzte_zeile_ist_der_tagesfall():
+    closes = [10.0 + i for i in range(60)]
+    closes[-1] = NAN
+    out = pipe.parse_download_df(_df(closes), min_bars=10)
+    assert (out.dropped_last_row, out.dropped_mid_row) == (1, 0)
+    assert out.dropped_dates == ("2026-03-01",)
+
+
+def test_diagnose_gesunde_reihe_meldet_nichts():
+    out = pipe.parse_download_df(_df([10.0 + i for i in range(60)]), min_bars=10)
+    assert out.dropped_dates == () and out.dropped_bars == 0
+    assert (out.dropped_last_row, out.dropped_mid_row) == (0, 0)
+
+
+def test_diagnose_landet_im_report_und_ist_gekappt(monkeypatch):
+    """Markt-Histogramm + Kappung je Ticker — die ANZAHL bleibt vollständig."""
+    n_bad = pipe.MAX_DROPPED_DATES + 3
+
+    def loechrig(ticker):
+        closes = [10.0 + i for i in range(80)]
+        for i in range(3, 3 + n_bad):
+            closes[i] = NAN
+        return pipe.parse_download_df(
+            pd.DataFrame({"Close": closes, "Volume": [1000.0] * len(closes)},
+                         index=pd.date_range("2026-01-01", periods=len(closes),
+                                             freq="D")),
+            min_bars=10)
+
+    monkeypatch.setattr(pipe.config, "MARKETS", {
+        "US": {"label": "USA", "universe": ["AAA", "BBB"]},
+        "DE": {"label": "Deutschland", "universe": ["CCC.DE"]},
+    })
+    monkeypatch.setattr(pipe, "load_watchlist", lambda: [])
+    report = pipe.build_report(loechrig, NOW, loechrig, loechrig)
+
+    d = report["markets"]["US"]["diag"]
+    assert d["dropped_bars"] == 2 * n_bad          # Anzahl vollständig
+    assert d["dropped_mid_row"] == 2 * n_bad       # alle mitten in der Reihe
+    assert d["dropped_last_row"] == 0
+    # Histogramm: je Datum die Zahl der betroffenen Ticker (hier 2 US-Ticker)
+    assert set(d["dropped_bar_dates"].values()) == {2}
+    assert len(d["dropped_bar_dates"]) == n_bad
+    # Je Ticker gekappt — sonst bläht ein systemischer Ausfall den Report auf.
+    for b in d["bad_bar_tickers"]:
+        assert len(b["dropped_dates"]) == pipe.MAX_DROPPED_DATES
+        assert b["dropped"] == n_bad               # die ANZAHL bleibt ungekappt
+
+
 def test_source_keeps_dates_aligned_after_a_hole():
     """DER eigentliche Quell-Bug: ``dropna`` entfernte die Zeile, das Datum
     wurde aber nur vorne abgeschnitten — jeder Close nach dem Loch bekam das
