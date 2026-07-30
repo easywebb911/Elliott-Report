@@ -691,24 +691,50 @@ def fetch_prices(coll: Dict, out_path: Path, *, jahre: int = 2) -> Dict:
                      if r.get("ticker")})
     daten: Dict[str, Dict] = {}
     ohne: List[str] = []
+    luecken: List[Dict] = []      # Ticker MIT Kursen, aber mit Löchern
     for t in ticker:
         try:
             df = yf.download(t, period=f"{jahre}y", interval="1d",
                              auto_adjust=True, progress=False, threads=False)
-            closes = [float(x) for x in df["Close"].to_numpy().ravel().tolist()]
-            dates = [d.strftime("%Y-%m-%d") for d in df.index]
+            roh_closes = df["Close"].to_numpy().ravel().tolist()
+            roh_dates = list(df.index)
         except Exception as exc:  # noqa: BLE001 — je Ticker gefangen, aber gezählt
             _log(f"{t}: keine Kurse ({exc})")
             ohne.append(t)
             continue
-        if not dates or not closes:
-            _log(f"{t}: keine Kurse (leere Antwort — kein Eintrag geschrieben)")
+        # UNBRAUCHBARE ZEILEN VERWERFEN — wie die Pipeline (30.07.2026).
+        # Vorher wanderte ein nicht endlicher Kurs unverändert durch: die Datei
+        # enthielt dann literales `NaN` (kein gültiges JSON — genau die Klasse
+        # aus #51; Python liest es klaglos zurück, der Standard kennt es nicht),
+        # und der Abruf meldete trotzdem Erfolg. Jetzt: Zeile fliegt raus, Datum
+        # bleibt ausgerichtet, der Ticker wird namentlich als lückenhaft
+        # ausgewiesen. Die Auswertung war nie gefährdet (`_eligible_starts` und
+        # `simulate_hit` prüfen `finite`) — die MOMENTAUFNAHME war es.
+        # ROH-Längen ZUERST vergleichen: `zip` würde eine Ungleichheit still
+        # abschneiden und den Versatz-Guard damit wirkungslos machen (genau das
+        # hat der bestehende Test gefangen). Ein Versatz zwischen Datum und Kurs
+        # ist der Defekt aus #53 — er darf hier gar nicht hineinkommen.
+        if len(roh_dates) != len(roh_closes):
+            _log(f"{t}: verworfen — {len(roh_dates)} Daten vs. "
+                 f"{len(roh_closes)} Kurse")
             ohne.append(t)
             continue
-        if len(dates) != len(closes):
-            # Versatz zwischen Datum und Kurs ist der Defekt, der in #53 die
-            # Pivots verschoben hat — hier gar nicht erst hineinlassen.
-            _log(f"{t}: verworfen — {len(dates)} Daten vs. {len(closes)} Kurse")
+        dates, closes, verworfen = [], [], 0
+        for d_roh, c_roh in zip(roh_dates, roh_closes):
+            if not finite(c_roh):
+                verworfen += 1
+                continue
+            try:
+                dates.append(d_roh.strftime("%Y-%m-%d"))
+            except Exception:  # noqa: BLE001 — Index ohne Datum: Bar unbrauchbar
+                verworfen += 1
+                continue
+            closes.append(float(c_roh))
+        if verworfen:
+            _log(f"{t}: {verworfen} unbrauchbare Zeile(n) verworfen")
+            luecken.append({"ticker": t, "verworfen": verworfen})
+        if not dates or not closes:
+            _log(f"{t}: keine Kurse (leere Antwort — kein Eintrag geschrieben)")
             ohne.append(t)
             continue
         daten[t] = {"dates": dates, "closes": closes}
@@ -718,12 +744,16 @@ def fetch_prices(coll: Dict, out_path: Path, *, jahre: int = 2) -> Dict:
                                   .strftime("%Y-%m-%dT%H:%M:%SZ"),
                "jahre": jahre, "ticker": len(daten),
                "ticker_angefragt": len(ticker),
-               "ticker_ohne_kurse": ohne, "kurse": daten}
+               "ticker_ohne_kurse": ohne,
+               "ticker_mit_luecken": luecken, "kurse": daten}
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1),
                         encoding="utf-8")
     _log(f"Kursbasis geschrieben: {out_path} — "
          f"{len(daten)} von {len(ticker)} Tickern mit Kursen")
+    if luecken:
+        _log("MIT LUECKEN: " + ", ".join(
+            f"{x['ticker']}(-{x['verworfen']})" for x in luecken))
     if ohne:
         _log(f"OHNE KURSE: {len(ohne)} von {len(ticker)} — {', '.join(ohne)}")
         _log("Die Kursbasis ist damit UNVOLLSTÄNDIG; der Zufalls-Vergleich "
@@ -783,7 +813,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # Rückgabewert ungleich 0, sobald ein Ticker fehlt: ein unvollständiger
         # Abruf darf nicht wie ein geglückter aussehen (auch nicht in einem
         # Workflow-Schritt, der nur auf den Exit-Code schaut).
-        return 3 if payload["ticker_ohne_kurse"] else 0
+        # Rueckgabewert ungleich 0 auch bei LUECKEN: ein Abruf, der stumm
+        # Zeilen verloren hat, darf nicht wie ein vollstaendiger aussehen.
+        return 3 if (payload["ticker_ohne_kurse"]
+                     or payload["ticker_mit_luecken"]) else 0
 
     prices_payload = None
     kurse_path = REPO_ROOT / args.kurse

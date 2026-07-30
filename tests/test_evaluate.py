@@ -682,6 +682,58 @@ def test_kurse_holen_meldet_den_einen_fehlenden_ticker_namentlich(
     assert "CCC" in text and "OHNE KURSE: 1 von 3" in text
 
 
+def test_kurse_holen_verwirft_unbrauchbare_zeilen_und_meldet_sie(
+        tmp_path, monkeypatch, capsys):
+    """Loecher raus, Ticker namentlich, Rueckgabewert != 0, Datei gueltiges JSON.
+
+    Vorher wanderte ein nicht endlicher Kurs unveraendert in die Datei: sie
+    enthielt literales `NaN` — kein gueltiges JSON nach Standard (Python liest
+    es klaglos zurueck, deshalb faellt es nicht auf) — und der Abruf meldete
+    trotzdem Erfolg. Das betrifft den ABRUF, nicht die Auswertungs-Definition.
+    """
+    import types
+
+    import pandas as pd
+
+    def download(t, *a, **k):
+        closes = [100.0 + i for i in range(40)]
+        if t == "LOCH.DE":
+            closes[7] = float("nan")      # mitten in der Reihe
+            closes[-1] = float("inf")     # und die letzte Zeile
+        idx = pd.date_range("2026-01-05", periods=len(closes), freq="B")
+        return pd.DataFrame({"Close": closes}, index=idx)
+
+    monkeypatch.setitem(sys.modules, "yfinance",
+                        types.SimpleNamespace(download=download))
+    monkeypatch.setattr(ev, "REPO_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/forward_collection.json").write_text(
+        json.dumps({"records": [{"ticker": "GUT"}, {"ticker": "LOCH.DE"}]}),
+        encoding="utf-8")
+
+    rc = ev.main(["--kurse-holen", "--kurse", "data/kurse.json"])
+    text = capsys.readouterr().out
+    assert rc != 0, "ein Abruf mit Loechern darf nicht mit 0 enden"
+
+    roh = (tmp_path / "data/kurse.json").read_text(encoding="utf-8")
+    # GUELTIGES JSON — kein literales NaN/Infinity mehr.
+    def streng(x):
+        raise AssertionError(f"ungueltige JSON-Konstante in der Datei: {x}")
+    snap = json.loads(roh, parse_constant=streng)
+    assert "NaN" not in roh and "Infinity" not in roh
+
+    assert snap["ticker_mit_luecken"] == [{"ticker": "LOCH.DE", "verworfen": 2}]
+    assert snap["ticker_ohne_kurse"] == []
+    # Die Zeilen fehlen wirklich — und Datum/Kurs bleiben ausgerichtet.
+    loch = snap["kurse"]["LOCH.DE"]
+    assert len(loch["closes"]) == 38 == len(loch["dates"])
+    assert all(isinstance(c, float) and c == c and abs(c) != float("inf")
+               for c in loch["closes"])
+    assert "2026-01-14" not in loch["dates"]        # die verworfene Mitte
+    assert snap["kurse"]["GUT"]["closes"][-1] == 139.0
+    assert "MIT LUECKEN: LOCH.DE(-2)" in text
+
+
 def test_kurse_holen_endet_mit_null_wenn_alles_da_ist(tmp_path, monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "yfinance",
                         _yf_mit({"AAA": 300, "BBB.DE": 300}))
