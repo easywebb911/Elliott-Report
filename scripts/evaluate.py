@@ -684,9 +684,12 @@ def _close_spalte(df) -> Tuple[Optional[List], Optional[str]]:
 
     Rückgabe: (roh_closes, None) im Normalfall, (None, grund) sonst.
     """
-    # Lokaler Import wie `yfinance`: nur dieser Modus braucht ihn. Der
-    # Auswertungs-Modus bleibt damit frei von der Pipeline (die ihrerseits
-    # `notify` zieht) — die Auswertung darf nie in die Nähe eines Pushes kommen.
+    # Lokaler Import wie `yfinance`: nur dieser Modus braucht ihn, also zieht
+    # der Auswertungs-Modus die Pipeline gar nicht mit herein. Das ist eine
+    # Stil-Entscheidung, KEINE Sicherheitsmaßnahme — `notify` importiert
+    # `requests` selbst erst im Sendepfad, ein Modul-Import könnte also auch
+    # nichts senden (Guardian-Nit 30.07.: die frühere Begründung hier war
+    # stärker als die Sache).
     from elliott_pipeline import _normalize_columns  # noqa: PLC0415
 
     if df is None or getattr(df, "empty", True):
