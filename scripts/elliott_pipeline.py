@@ -1293,6 +1293,7 @@ def _scan_market(
         first_samples: erste 3 Skips (ticker, reason, detail) fürs Log
         dead_tickers: (ticker, reason) für JEDEN empty_data/fetch_error —
             Listen-Hygiene: benennt tote/fehlerhafte Symbole namentlich.
+        letztes_bar: jüngster gültiger Handelstag im Markt (informativ)
         bad_bars: (ticker, dropped, bad_vol, dropped_dates, last, mid) je Ticker mit
             nicht-finiten Rohdaten (Nicht-finit-Härtung, 27.07.2026).
     """
@@ -1305,6 +1306,12 @@ def _scan_market(
     # eine löchrige Kursquelle und landet im Lauf-Status.
     # (ticker, dropped, bad_vol, dropped_dates, dropped_last_row, dropped_mid_row)
     bad_bars: List[Tuple[str, int, int, Tuple[str, ...], int, int]] = []
+    # Jüngster Handelstag, der in diesem Markt ÜBERHAUPT als gültiger Bar
+    # angekommen ist (30.07.2026, rein informativ). Er kann zwischen den
+    # Märkten abweichen — abhängig davon, was die Quelle zum Abrufzeitpunkt
+    # liefert. Ohne diese Angabe war nur aus `price_path` rekonstruierbar, von
+    # welchem Tag die Preise stammen. Ändert NICHTS an der Zählung.
+    letztes_bar: Optional[str] = None
     MAX_SAMPLES = 3
 
     def _record_skip(tk: str, reason: str, detail: str) -> None:
@@ -1340,6 +1347,8 @@ def _scan_market(
             continue
 
         dates, closes = outcome.data
+        if dates and (letztes_bar is None or dates[-1] > letztes_bar):
+            letztes_bar = dates[-1]
         # Kursdaten für die Forward-Sammlung mitnehmen (kein Re-Fetch): ALLE
         # erfolgreich geladenen Ticker, damit auch aus Top-5 gefallene Records
         # ausreifen können.
@@ -1355,7 +1364,8 @@ def _scan_market(
             continue
         candidates.append(entry)
 
-    return candidates, reason_counts, first_samples, dead_tickers, bad_bars
+    return (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
+            letztes_bar)
 
 
 def build_market(
@@ -1377,7 +1387,8 @@ def build_market(
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
 
-    candidates, reason_counts, first_samples, dead_tickers, bad_bars = _scan_market(
+    (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
+     _letztes_bar) = _scan_market(
         universe, fetcher, price_sink, volume_sink)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
@@ -1467,6 +1478,10 @@ def build_market(
             # Markt-Ebene: EIN Blick genügt. Ein einziges Datum mit der Anzahl
             # betroffener Ticker = unfertige Tages-Zeile; verstreute Daten oder
             # `dropped_mid_row > 0` = echte Lücken in der Quelle.
+            # Von WELCHEM Handelstag stammen die Preise dieses Marktes?
+            # Rein informativ und additiv (30.07.2026). Die Märkte können hier
+            # auseinanderliegen — siehe Registry-Notiz vom 30.07.
+            "last_bar_date": _letztes_bar,
             "dropped_bar_dates": dict(sorted(_dropped_dates.items())),
             "dropped_last_row": _dropped_last,
             "dropped_mid_row": _dropped_mid,

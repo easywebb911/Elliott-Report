@@ -55,7 +55,7 @@ def test_build_candidate_short_excluded():
 def test_scan_market_mixed_only_longs_and_counter():
     universe = ["L1", "L2", "L3", "S1", "S2"]
     mapping = {"L1": "long", "L2": "long", "L3": "long", "S1": "short", "S2": "short"}
-    candidates, reason_counts, _samples, _dead, _bad = pipe._scan_market(universe, _mixed_fetcher(mapping))
+    candidates, reason_counts, _samples, _dead, _bad, _lb = pipe._scan_market(universe, _mixed_fetcher(mapping))
 
     # Nur Long-Kandidaten im Output.
     assert len(candidates) == 3
@@ -94,7 +94,7 @@ def test_scan_market_collects_dead_tickers_by_name():
     # too_few_pivots/no_valid_count NICHT (die sind keine toten Symbole).
     universe = ["OK1", "DEADX", "OK2", "BOOMX"]
     mapping = {"OK1": "ok", "DEADX": "empty", "OK2": "ok", "BOOMX": "boom"}
-    candidates, reason_counts, _samples, dead, _bad = pipe._scan_market(
+    candidates, reason_counts, _samples, dead, _bad, _lb = pipe._scan_market(
         universe, _dead_fetcher(mapping))
     dead_map = dict(dead)
     assert dead_map == {"DEADX": pipe.EMPTY_DATA, "BOOMX": pipe.FETCH_ERROR}

@@ -83,7 +83,7 @@ def _mixed_fetcher(mapping):
 def test_scan_market_excludes_exceeded_and_counts():
     universe = ["A", "B", "C", "X1", "X2"]
     mapping = {"A": "ok", "B": "ok", "C": "ok", "X1": "exceeded", "X2": "exceeded"}
-    candidates, reason_counts, _s, _d, _b = pipe._scan_market(universe, _mixed_fetcher(mapping))
+    candidates, reason_counts, _s, _d, _b, _lb = pipe._scan_market(universe, _mixed_fetcher(mapping))
     assert len(candidates) == 3                       # nur die handelbaren
     assert reason_counts[pipe.TARGET_EXCEEDED] == 2   # exakt die 2 über Zone
     for r in (pipe.FETCH_ERROR, pipe.EMPTY_DATA, pipe.TOO_FEW_PIVOTS,
@@ -101,7 +101,7 @@ def test_nachruecker_fills_top5_no_empty_slots():
     mapping = {t: ("exceeded" if t.startswith("EX") else "ok") for t in universe}
     # leichte Score-Spreizung, damit sort deterministisch bleibt (gleiche Reihe ->
     # gleicher Score -> Tie-Break per Ticker); Top-N greift auf die 7 OK zu.
-    candidates, reason_counts, _s, _d, _b = pipe._scan_market(universe, _mixed_fetcher(mapping))
+    candidates, reason_counts, _s, _d, _b, _lb = pipe._scan_market(universe, _mixed_fetcher(mapping))
     top = sorted(candidates, key=lambda e: (-e["score_heuristic"], e["ticker"]))[:config.TOP_N]
     assert len(top) == config.TOP_N == 5              # voll besetzt
     assert reason_counts[pipe.TARGET_EXCEEDED] == 2
@@ -116,7 +116,7 @@ def test_collection_never_sees_exceeded_market_setup():
     # (und damit in die Sammlung) kommen. build_report liest load_watchlist() für
     # die Watchlist; wir testen den Markt-Zweig über _scan_market.
     universe = ["A", "EX1"]
-    candidates, _rc, _s, _d, _b = pipe._scan_market(universe, _mixed_fetcher(
+    candidates, _rc, _s, _d, _b, _lb = pipe._scan_market(universe, _mixed_fetcher(
         {"A": "ok", "EX1": "exceeded"}))
     report = {"markets": {"US": {"candidates": candidates}}}
     coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}

@@ -609,3 +609,49 @@ vor n ≥ 100) gilt unverändert.
   Anpassung wäre eine neue datierte Version, nicht eine stille Korrektur an v1.
   Revert = die drei Punkte in `scripts/evaluate.py` zurücknehmen; kein
   Datenstand wird ungültig.
+
+- **30.07.2026 — BEKANNTE EIGENSCHAFT: der letzte Handelstag kann zwischen den
+  Märkten um einen Tag abweichen.** Keine Änderung an „Auswertung v1", keine
+  Änderung an Population, Zählweise, Score, Ranking, Filter oder Reifung —
+  dies ist eine **Notiz**, jetzt festgehalten und nicht erst zur Auswertung.
+  - **Was ist der Fall.** Je Lauf hängt es vom **Abrufzeitpunkt** ab, welchen
+    letzten Handelstag die Kursquelle je Markt schon geschlossen liefert. Am
+    29.07.2026 endete die US-Reihe auf dem 29.07., die DE-Reihe auf dem
+    28.07. — die deutsche Schlusszeile des laufenden Tages war zum
+    Abrufzeitpunkt noch nicht endlich (`NaN`) und wurde von der Härtung
+    verworfen. Es ist **kein fester Versatz**: ein späterer Lauf am selben Tag
+    (18:14 UTC) legte `ADS.DE` mit `first_seen_date = 2026-07-29` an, während
+    der Lauf um 03:55 UTC genau diese Zeile verworfen hatte.
+  - **Warum es zählt.** Der letzte Schlusskurs (`closes[-1]`) geht ein in den
+    **Score** (Bonus über die Distanz zur Invalidierung, bis +15), in den
+    **`target_exceeded`-Filter**, in die **Anzeige** und in `entry_close` /
+    `first_seen_date` neu angelegter Episoden. **Innerhalb** eines Marktes ist
+    das konsistent (alle Ticker desselben Marktes werden am gleichen Stand
+    gemessen), **zwischen** den Märkten nicht.
+  - **Ursache read-only belegt.** Ein Bündel-Abruf ist **ausgeschlossen**:
+    `elliott_pipeline.fetch_yfinance` und `evaluate.fetch_prices` holen beide
+    **je Ticker**. Der Unterschied lag allein in der fehlenden
+    Endlichkeitsprüfung im Kurs-Abruf der Auswertung — offline reproduziert:
+    dieselbe Reihe, Pipeline verwirft eine Zeile und endet einen Tag früher,
+    der Abruf behielt das `NaN` und schrieb es als literales `NaN` in die
+    Datei (ungültiges JSON, das Python still zurücklas).
+  - **Bewusst NICHT geändert:** der **Abrufzeitpunkt** und ein Abschneiden der
+    **letzten Zeile**. Beides würde die Population verschieben (welche Ticker
+    gefunden werden, welche Episoden entstehen) — genau das soll diese Notiz
+    vermeiden. Geändert wurde nur: (a) der Kurs-Abruf der Auswertung verwirft
+    nicht-endliche Schlusskurse **mit passendem Datum**, benennt die
+    betroffenen Ticker in `ticker_mit_luecken` und endet rot (Rückgabewert 3) —
+    Abruf-Robustheit, nicht Auswertungs-Definition; (b) `markets[].last_bar_date`
+    steht **additiv** im Report und im Lauf-Status („Kurse vom"), damit der
+    Stand ablesbar ist statt aus `price_path` rekonstruiert werden zu müssen.
+    Belegt durch rekursiven Report-Diff ALT/NEU über einen vollständigen Lauf:
+    **nur** `last_bar_date` kommt hinzu.
+  - **Für die Auswertung heißt das:** Der Vergleich echter Fälle gegen den
+    Benchmark läuft je Fall auf **derselben** Kursreihe wie die Erfassung; ein
+    markt-übergreifender Vergleich einzelner Schlusskurse auf denselben
+    Kalendertag ist damit **nicht** zulässig. Sollte sich zeigen, dass der
+    Versatz die Messung berührt, ist das eine neue **datierte** Version — nicht
+    eine stille Korrektur an v1.
+  Revert = `last_bar_date` (Pipeline + Frontend) und die Endlichkeitsprüfung in
+  `evaluate.fetch_prices` zurücknehmen; kein Datenstand wird ungültig, diese
+  Notiz bleibt gültig.
