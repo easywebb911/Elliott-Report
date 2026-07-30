@@ -773,6 +773,129 @@ def test_kurse_holen_verwirft_versatz_zwischen_datum_und_kurs(
 
 
 # ---------------------------------------------------------------------------
+# KURSSPALTEN: EINE NORMALFORM, KEINE STILLE VERFORMUNG (30.07.2026)
+# Der offene Nit aus #63: `df["Close"].to_numpy().ravel().tolist()` trug nur,
+# solange je Ticker genau EINE Close-Spalte zurückkam. `ravel()` macht jede
+# Form flach — zwei Spalten wären zeilenweise verschränkt als „Kursreihe" in
+# die Momentaufnahme gewandert.
+# ---------------------------------------------------------------------------
+def _mehrspaltig():
+    """Ein Download mit ZWEI Tickern — die Form, die `ravel()` verformt hätte."""
+    import pandas as pd
+
+    idx = pd.date_range("2026-01-05", periods=4, freq="B")
+    df = pd.DataFrame(
+        {("Close", "AAA"): [10.0, 11.0, 12.0, 13.0],
+         ("Close", "BBB"): [90.0, 91.0, 92.0, 93.0]}, index=idx)
+    df.columns = pd.MultiIndex.from_tuples(df.columns)
+    return df
+
+
+def test_kurse_holen_verformt_mehrspaltige_antwort_nicht_still(
+        tmp_path, monkeypatch, capsys):
+    """Mehrdeutige Spaltenform → Ticker NAMENTLICH ohne Kurse, keine Zahlen."""
+    import types
+
+    df = _mehrspaltig()
+    # Gegenprobe: der ALTE Ausdruck hätte hier 8 verschränkte Werte geliefert.
+    alt = df["Close"].to_numpy().ravel().tolist()
+    assert alt == [10.0, 90.0, 11.0, 91.0, 12.0, 92.0, 13.0, 93.0], (
+        "Vorbedingung: genau diese Verschränkung soll nicht mehr passieren")
+
+    monkeypatch.setitem(sys.modules, "yfinance",
+                        types.SimpleNamespace(download=lambda *a, **k: df))
+    out = tmp_path / "kurse.json"
+    payload = ev.fetch_prices({"records": [{"ticker": "AAA"}]}, out)
+    text = capsys.readouterr().out
+
+    assert payload["kurse"] == {}, "keine verformten Zahlen in der Datei"
+    assert payload["ticker_ohne_kurse"] == ["AAA"]           # namentlich
+    assert "AAA" in text and "mehrdeutige Close-Spalte" in text
+    # Und die verschränkten Zahlen stehen NIRGENDS in der Datei.
+    roh = out.read_text(encoding="utf-8")
+    assert "90.0" not in roh and "91.0" not in roh
+
+
+def test_kurse_holen_faellt_bei_mehrspaltiger_antwort_rot_aus(
+        tmp_path, monkeypatch, capsys):
+    """Rückgabewert wie gehabt ungleich 0 — der Lauf faerbt rot.
+
+    Der Rückgabewert allein genügt hier NICHT als Beleg: der Roh-Längen-Guard
+    aus #63 fängt zwei Close-Spalten schon (8 Kurse gegen 4 Daten) und macht
+    den Lauf auch ohne diese Änderung rot. Deshalb wird zusätzlich der GRUND
+    geprüft — sonst wäre das wieder ein Test auf Anwesenheit statt auf Wert
+    (die Lehre aus #63).
+    """
+    import types
+
+    monkeypatch.setattr(ev, "REPO_ROOT", tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data/forward_collection.json").write_text(
+        json.dumps({"records": [{"ticker": "AAA"}]}), encoding="utf-8")
+    monkeypatch.setitem(
+        sys.modules, "yfinance",
+        types.SimpleNamespace(download=lambda *a, **k: _mehrspaltig()))
+
+    rc = ev.main(["--kurse-holen", "--kurse", str(tmp_path / "k.json")])
+    text = capsys.readouterr().out
+    assert rc != 0, "eine mehrdeutige Spaltenform darf nicht gruen aussehen"
+    assert "mehrdeutige Close-Spalte" in text, (
+        "der Lauf ist rot, aber aus dem falschen Grund — die Meldung muss die "
+        "Spaltenform nennen, nicht einen Längenversatz")
+    assert "Daten vs." not in text, (
+        "die Spaltenform wird als Längenversatz gemeldet — irreführend")
+
+
+def test_kurse_holen_normalfall_ist_bit_fuer_bit_wie_vorher(
+        tmp_path, monkeypatch, capsys):
+    """EINE Close-Spalte → exakt dasselbe Ergebnis wie vor der Absicherung.
+
+    Der Vergleichswert wird hier mit dem ALTEN Ausdruck
+    (`df["Close"].to_numpy().ravel().tolist()`) an denselben Beispieldaten
+    berechnet — beide Formen, die yfinance real liefert: flach UND MultiIndex.
+    Das ist eine echte Gegenrechnung, keine Wiederholung der neuen Zusage.
+    """
+    import types
+
+    import pandas as pd
+
+    idx = pd.date_range("2026-01-05", periods=6, freq="B")
+    werte = [101.5, 102.25, 99.875, 103.0, 104.125, 100.5]
+
+    flach = pd.DataFrame({"Close": list(werte)}, index=idx)
+    multi = pd.DataFrame({("Close", "AAA"): list(werte)}, index=idx)
+    multi.columns = pd.MultiIndex.from_tuples(multi.columns)
+
+    for label, df in (("flach", flach), ("multiindex", multi)):
+        erwartet = df["Close"].to_numpy().ravel().tolist()   # der ALTE Weg
+        monkeypatch.setitem(sys.modules, "yfinance",
+                            types.SimpleNamespace(download=lambda *a, **k: df))
+        payload = ev.fetch_prices({"records": [{"ticker": "AAA"}]},
+                                  tmp_path / f"kurse_{label}.json")
+        capsys.readouterr()
+        eintrag = payload["kurse"]["AAA"]
+        assert eintrag["closes"] == erwartet, label
+        assert eintrag["dates"] == [d.strftime("%Y-%m-%d") for d in idx], label
+        assert payload["ticker_ohne_kurse"] == [] and not payload[
+            "ticker_mit_luecken"], label
+
+
+def test_es_gibt_nur_EINE_spalten_normalform():
+    """Wiederverwendet, nicht nachgebaut — sonst driftet es wie in #57/#59."""
+    import elliott_pipeline as pipe
+
+    src = (ROOT / "scripts/evaluate.py").read_text(encoding="utf-8")
+    assert "from elliott_pipeline import _normalize_columns" in src
+    # Kein eigener Nachbau: die Reduktion auf Ebene 0 steht NUR in der Pipeline.
+    assert "get_level_values" not in src, \
+        "evaluate baut die Normalform nach statt sie zu benutzen"
+    # Und es ist wirklich dieselbe Funktion, nicht nur derselbe Name.
+    from evaluate import _close_spalte  # noqa: PLC0415
+    assert _close_spalte.__module__ == "evaluate"
+    assert pipe._normalize_columns.__module__ == "elliott_pipeline"
+
+
+# ---------------------------------------------------------------------------
 # ABWESENHEIT IST KEINE AUSSAGE — jede beauftragte Dimension erscheint
 # ---------------------------------------------------------------------------
 # UNABHÄNGIGE Referenzliste — bewusst ausgeschrieben, NICHT aus
