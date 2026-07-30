@@ -667,6 +667,45 @@ def run(coll: Dict, prices: Optional[Dict] = None, *, seed: int = EVAL_SEED,
 # ---------------------------------------------------------------------------
 # KURSBASIS (getrennter Modus — die Auswertung selbst holt NIE Daten)
 # ---------------------------------------------------------------------------
+def _close_spalte(df) -> Tuple[Optional[List], Optional[str]]:
+    """Die EINE Close-Spalte eines Ticker-Downloads — oder ein Grund (30.07.2026).
+
+    Vorher stand hier `df["Close"].to_numpy().ravel().tolist()`. Das trug nur,
+    solange je Ticker genau EINE Close-Spalte zurückkam: `ravel()` macht jede
+    Form flach, also hätte es zwei Spalten **zeilenweise ineinander
+    verschränkt** und die verformten Zahlen als gültige Kursreihe in die
+    Momentaufnahme geschrieben — die Datei, die später der einzige Beleg dafür
+    ist, WELCHE Kurse in den Benchmark geflossen sind.
+
+    Deshalb: erst die Spalten auf die Normalform der Pipeline bringen
+    (`_normalize_columns`, dieselbe Funktion, kein Nachbau), dann prüfen, dass
+    genau eine Close-Spalte übrig ist. Alles andere ist ein GRUND, den Ticker
+    namentlich als „ohne Kurse" auszuweisen — nicht etwas, das man flach macht.
+
+    Rückgabe: (roh_closes, None) im Normalfall, (None, grund) sonst.
+    """
+    # Lokaler Import wie `yfinance`: nur dieser Modus braucht ihn. Der
+    # Auswertungs-Modus bleibt damit frei von der Pipeline (die ihrerseits
+    # `notify` zieht) — die Auswertung darf nie in die Nähe eines Pushes kommen.
+    from elliott_pipeline import _normalize_columns  # noqa: PLC0415
+
+    if df is None or getattr(df, "empty", True):
+        return None, "leere Antwort"
+    df = _normalize_columns(df)
+    spalten = list(getattr(df, "columns", []))
+    if "Close" not in spalten:
+        return None, f"keine 'Close'-Spalte; Spalten={spalten}"
+    spalte = df["Close"]
+    # ndim != 1 heisst: mehrere gleichnamige Close-Spalten (z. B. ein Download
+    # mit mehreren Tickern). Genau der Fall, den `ravel()` still verformt hätte.
+    if getattr(spalte, "ndim", 1) != 1:
+        return None, (f"mehrdeutige Close-Spalte: shape="
+                      f"{getattr(spalte, 'shape', None)}, Spalten={spalten}")
+    # KEIN `ravel()` mehr: die Spalte ist hier nachweislich eindimensional,
+    # und ein Flachmacher, der nie greifen darf, ist nur eine stille Falle.
+    return spalte.to_numpy().tolist(), None
+
+
 def fetch_prices(coll: Dict, out_path: Path, *, jahre: int = 2) -> Dict:
     """Momentaufnahme der Kurshistorie je Ticker der Population.
 
@@ -696,10 +735,14 @@ def fetch_prices(coll: Dict, out_path: Path, *, jahre: int = 2) -> Dict:
         try:
             df = yf.download(t, period=f"{jahre}y", interval="1d",
                              auto_adjust=True, progress=False, threads=False)
-            roh_closes = df["Close"].to_numpy().ravel().tolist()
-            roh_dates = list(df.index)
+            roh_closes, grund = _close_spalte(df)
+            roh_dates = list(getattr(df, "index", []))
         except Exception as exc:  # noqa: BLE001 — je Ticker gefangen, aber gezählt
             _log(f"{t}: keine Kurse ({exc})")
+            ohne.append(t)
+            continue
+        if roh_closes is None:
+            _log(f"{t}: keine Kurse ({grund})")
             ohne.append(t)
             continue
         # UNBRAUCHBARE ZEILEN VERWERFEN — wie die Pipeline (30.07.2026).
