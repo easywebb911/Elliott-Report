@@ -72,6 +72,11 @@ SKIP_REASONS = (
 )
 
 
+# Verworfene-Bar-Daten je Ticker im Report: gekappt, damit ein systemischer
+# Ausfall den Report nicht aufblaeht. Die ANZAHL bleibt vollstaendig.
+MAX_DROPPED_DATES = 5
+
+
 @dataclass
 class FetchOutcome:
     """Ergebnis eines Abrufs. Trägt bei Misserfolg den Grund + ein Detail.
@@ -94,6 +99,13 @@ class FetchOutcome:
     # Rein diagnostisch — Skip-Entscheidung und `data` bleiben unberührt.
     dropped_bars: int = 0
     invalid_volume_bars: int = 0
+    # Nur Diagnose (30.07.2026): WELCHE Zeilen verworfen wurden. Ein Muster
+    # „immer der letzte Bar" ist eine unfertige Tages-Zeile; ein Datum mitten in
+    # der Reihe ist eine echte Lücke in der Quelle. Ohne diese Angabe war beides
+    # nicht unterscheidbar (DE-Lauf 29.07.: 116 verworfene Bars, Ursache offen).
+    dropped_dates: Tuple[str, ...] = ()
+    dropped_last_row: int = 0
+    dropped_mid_row: int = 0
 
 
 # Ein Fetcher liefert ein FetchOutcome (Daten ODER Skip-Grund + Detail).
@@ -232,7 +244,8 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
             detail=f"keine 'Close'-Spalte; columns={list(df.columns)}",
         )
 
-    dates, closes, volumes, dropped, bad_vol = _extract_bars(df)
+    (dates, closes, volumes, dropped, bad_vol,
+     dropped_dates, dropped_last, dropped_mid) = _extract_bars(df)
     if len(closes) < mb:
         return FetchOutcome(
             reason=EMPTY_DATA,
@@ -243,9 +256,14 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
             ),
             dropped_bars=dropped,
             invalid_volume_bars=bad_vol,
+            dropped_dates=tuple(dropped_dates),
+            dropped_last_row=dropped_last, dropped_mid_row=dropped_mid,
         )
     return FetchOutcome(data=(dates, closes), volumes=volumes,
-                        dropped_bars=dropped, invalid_volume_bars=bad_vol)
+                        dropped_bars=dropped, invalid_volume_bars=bad_vol,
+                        dropped_dates=tuple(dropped_dates),
+                        dropped_last_row=dropped_last,
+                        dropped_mid_row=dropped_mid)
 
 
 def _extract_bars(df):
@@ -289,6 +307,22 @@ def _extract_bars(df):
     closes: List[float] = []
     volumes: List[Optional[float]] = []
     dropped = bad_vol = 0
+    # Diagnose (30.07.2026): Datum und Position der verworfenen Zeilen. Ändert
+    # NICHTS am Verwerfen selbst — nur die Auskunft darüber.
+    dropped_dates: List[str] = []
+    dropped_last = dropped_mid = 0
+    letzte = len(close_col) - 1
+
+    def _merke_verworfen(i: int) -> None:
+        nonlocal dropped_last, dropped_mid
+        try:
+            dropped_dates.append(idx[i].strftime("%Y-%m-%d"))
+        except Exception:  # noqa: BLE001 — Index ohne Datum: ehrlich als „?"
+            dropped_dates.append("?")
+        if i == letzte:
+            dropped_last += 1
+        else:
+            dropped_mid += 1
 
     for i, raw_close in enumerate(close_col):
         try:
@@ -297,11 +331,13 @@ def _extract_bars(df):
             c = float("nan")
         if not finite(c):
             dropped += 1
+            _merke_verworfen(i)
             continue                      # kein gültiger Preis = kein Bar
         try:
             dates.append(idx[i].strftime("%Y-%m-%d"))
         except Exception:  # noqa: BLE001 — Index ohne strftime: Bar unbrauchbar
             dropped += 1
+            _merke_verworfen(i)
             continue
         closes.append(c)
         if vol_col is None:
@@ -316,7 +352,8 @@ def _extract_bars(df):
             volumes.append(None)          # Messfeld fehlt ehrlich, statt 0.0
             bad_vol += 1
 
-    return dates, closes, (volumes if has_vol else None), dropped, bad_vol
+    return (dates, closes, (volumes if has_vol else None), dropped, bad_vol,
+            dropped_dates, dropped_last, dropped_mid)
 
 
 def fetch_synthetic(ticker: str) -> FetchOutcome:
@@ -1256,7 +1293,7 @@ def _scan_market(
         first_samples: erste 3 Skips (ticker, reason, detail) fürs Log
         dead_tickers: (ticker, reason) für JEDEN empty_data/fetch_error —
             Listen-Hygiene: benennt tote/fehlerhafte Symbole namentlich.
-        bad_bars: (ticker, dropped_bars, invalid_volume_bars) je Ticker mit
+        bad_bars: (ticker, dropped, bad_vol, dropped_dates, last, mid) je Ticker mit
             nicht-finiten Rohdaten (Nicht-finit-Härtung, 27.07.2026).
     """
     candidates: List[Dict] = []
@@ -1266,7 +1303,8 @@ def _scan_market(
     # Nicht-finit-Härtung (27.07.2026): je Ticker die beim Parsen verworfenen
     # Bars. Soll im Normalbetrieb LEER sein — jeder Eintrag ist ein Hinweis auf
     # eine löchrige Kursquelle und landet im Lauf-Status.
-    bad_bars: List[Tuple[str, int, int]] = []        # (ticker, dropped, bad_vol)
+    # (ticker, dropped, bad_vol, dropped_dates, dropped_last_row, dropped_mid_row)
+    bad_bars: List[Tuple[str, int, int, Tuple[str, ...], int, int]] = []
     MAX_SAMPLES = 3
 
     def _record_skip(tk: str, reason: str, detail: str) -> None:
@@ -1292,7 +1330,10 @@ def _scan_market(
         # übersprungen wird (gerade dann ist die Zahl interessant).
         if outcome.dropped_bars or outcome.invalid_volume_bars:
             bad_bars.append((ticker, outcome.dropped_bars,
-                             outcome.invalid_volume_bars))
+                             outcome.invalid_volume_bars,
+                             outcome.dropped_dates,
+                             outcome.dropped_last_row,
+                             outcome.dropped_mid_row))
 
         if outcome.data is None:
             _record_skip(ticker, outcome.reason or FETCH_ERROR, outcome.detail)
@@ -1377,12 +1418,24 @@ def build_market(
         _log(f"[elliott][diag] {market_key} Listen-Hygiene: "
              f"{len(dead_tickers)} tote/fehlerhafte Ticker -> {names}")
     # Nicht-finit-Härtung: verworfene Bars namentlich. Soll 0 sein.
-    _dropped_total = sum(d for _, d, _ in bad_bars)
-    _badvol_total = sum(v for _, _, v in bad_bars)
+    _dropped_total = sum(b[1] for b in bad_bars)
+    _badvol_total = sum(b[2] for b in bad_bars)
+    # Wo lagen die verworfenen Zeilen? Das Datums-Histogramm ist die Antwort auf
+    # „aktueller Tag oder echte Lücke": steht dort EIN Datum mit der Anzahl der
+    # betroffenen Ticker, ist es eine unfertige Tages-Zeile.
+    _dropped_dates: Dict[str, int] = {}
+    for b in bad_bars:
+        for d in b[3]:
+            _dropped_dates[d] = _dropped_dates.get(d, 0) + 1
+    _dropped_last = sum(b[4] for b in bad_bars)
+    _dropped_mid = sum(b[5] for b in bad_bars)
     if bad_bars:
         _log(f"[elliott][diag] {market_key} nicht-finite Rohdaten: "
              f"{_dropped_total} Bars verworfen, {_badvol_total} ohne Volumen "
-             f"-> " + ", ".join(f"{tk}(-{d}/{v})" for tk, d, v in bad_bars))
+             f"-> " + ", ".join(f"{b[0]}(-{b[1]}/{b[2]})" for b in bad_bars))
+        _log(f"[elliott][diag] {market_key} verworfene Bars nach Datum: "
+             f"{dict(sorted(_dropped_dates.items()))} "
+             f"(letzte Zeile {_dropped_last}, mitten in der Reihe {_dropped_mid})")
 
     return {
         "label": cfg["label"],
@@ -1404,9 +1457,19 @@ def build_market(
             "dropped_bars": _dropped_total,
             "invalid_volume_bars": _badvol_total,
             "bad_bar_tickers": [
-                {"ticker": tk, "dropped": d, "invalid_volume": v}
-                for tk, d, v in bad_bars
+                {"ticker": b[0], "dropped": b[1], "invalid_volume": b[2],
+                 # Nur Diagnose (30.07.2026), gekappt: die ersten Daten reichen,
+                 # um „aktueller Tag" von „Lücke in der Mitte" zu unterscheiden.
+                 "dropped_dates": list(b[3][:MAX_DROPPED_DATES]),
+                 "dropped_last_row": b[4], "dropped_mid_row": b[5]}
+                for b in bad_bars
             ],
+            # Markt-Ebene: EIN Blick genügt. Ein einziges Datum mit der Anzahl
+            # betroffener Ticker = unfertige Tages-Zeile; verstreute Daten oder
+            # `dropped_mid_row > 0` = echte Lücken in der Quelle.
+            "dropped_bar_dates": dict(sorted(_dropped_dates.items())),
+            "dropped_last_row": _dropped_last,
+            "dropped_mid_row": _dropped_mid,
         },
     }
 

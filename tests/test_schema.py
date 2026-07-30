@@ -330,7 +330,11 @@ def test_market_diag_present_and_shaped():
                           "dead_tickers",
                           # Nicht-finit-Haertung (27.07.2026)
                           "dropped_bars", "invalid_volume_bars",
-                          "bad_bar_tickers"}
+                          "bad_bar_tickers",
+                          # Diagnose-Erweiterung (30.07.2026): WO lagen die
+                          # verworfenen Zeilen? Rein additiv, kein Verhalten.
+                          "dropped_bar_dates", "dropped_last_row",
+                          "dropped_mid_row"}
         # Gesunde (synthetische) Daten: nichts verworfen.
         assert d["dropped_bars"] == 0 and d["invalid_volume_bars"] == 0
         assert d["bad_bar_tickers"] == []

@@ -525,6 +525,9 @@
     .menu-fs-btn:disabled { opacity:.4; cursor:default; }
     .menu-fs-btn:disabled:hover { background:transparent; }
 
+    /* Zusatzzeile im Lauf-Status (verworfene Bars: wo?). */
+    .lauf-zusatz { color:var(--txt-dim); font-size:.66rem; line-height:1.5; }
+
     /* ── Trade-Journal (eigene Handels-Aufzeichnung) ─────────────────────
        Eigenes Praefix `tj-`: neue Klassennamen kollidieren still (Lehre #55).
        Elliott-Farbwelt, KEINE Erfolgs-Optik — das Journal bewertet nichts. */
@@ -2438,11 +2441,16 @@
     // Positionsgroessen waeren es nicht.
     const TJ_KEY = 'elliott_trade_journal_v1';
     const TJ_SYNC_DEBOUNCE_MS = 3000;
-    // Kanonische Datei + Spiegel unter /docs (nur der Spiegel ist ueber Pages
-    // erreichbar). Beide schreibt das Frontend selbst — die Pipeline fasst die
-    // Datei auch nicht kopierend an.
-    const TJ_GH_PATHS = ['data/trade_journal.json', 'docs/data/trade_journal.json'];
-    const TJ_FETCH_PATHS = ['data/trade_journal.json', '../data/trade_journal.json'];
+    // EINE Ablage, EIN Commit pro Änderung (30.07.2026). Vorher wurden zwei
+    // Dateien geschrieben (kanonisch + Spiegel) — das waren zwei Commits pro
+    // Änderung, und die kanonische Kopie hatte keinen einzigen Leser: die
+    // Webseite lädt nachweislich `data/trade_journal.json` RELATIV zur
+    // ausgelieferten Wurzel, und das ist `docs/data/trade_journal.json` (per
+    // Netzwerk-Mitschnitt belegt: genau ein Abruf, HTTP 200; der frühere
+    // Fallback `../data/...` wurde nie angefragt). Die Pipeline fasst die Datei
+    // ohnehin nie an — auch nicht kopierend.
+    const TJ_GH_PATH = 'docs/data/trade_journal.json';   // Repo-Pfad fuer den PUT
+    const TJ_FETCH_PATH = 'data/trade_journal.json';     // relativ zu /docs
 
     let _tjArr = null;            // aktuelle (lokale) Eintraege
     let _tjSha = {};              // sha je Repo-Pfad
@@ -2467,12 +2475,10 @@
     // Session -> nichts geht verloren, genau wie bei der Watchlist).
     async function _tjLoad() {
       let remote = null;
-      for (const p of TJ_FETCH_PATHS) {
-        try {
-          const r = await fetch(p + '?t=' + Date.now(), { cache: 'no-store' });
-          if (r.ok) { const j = await r.json(); if (Array.isArray(j)) { remote = j; break; } }
-        } catch (_) { /* naechster Pfad */ }
-      }
+      try {
+        const r = await fetch(TJ_FETCH_PATH + '?t=' + Date.now(), { cache: 'no-store' });
+        if (r.ok) { const j = await r.json(); if (Array.isArray(j)) remote = j; }
+      } catch (_) { /* fail-soft: fehlt/kaputt -> leeres Journal */ }
       const local = _tjLocal();
       if (local && (!remote || JSON.stringify(local) !== JSON.stringify(remote))) {
         _tjArr = local;                       // lokal ist neuer -> behalten
@@ -2500,13 +2506,10 @@
       const snapshot = JSON.stringify(_tjArr, null, 1);
       _tjSyncing = true;
       try {
-        let letzte = null;
-        for (const p of TJ_GH_PATHS) {
-          const box = { sha: _tjSha[p] || null };
-          letzte = await _ghPutFile(token, p, snapshot, 'Update trade_journal.json', box);
-          _tjSha[p] = box.sha;
-          if (!letzte.ok) break;             // erster Fehler -> nicht weitermachen
-        }
+        const box = { sha: _tjSha[TJ_GH_PATH] || null };
+        const letzte = await _ghPutFile(token, TJ_GH_PATH, snapshot,
+                                        'Update trade_journal.json', box);
+        _tjSha[TJ_GH_PATH] = box.sha;
         if (letzte && letzte.ok) {
           _tjSyncedJson = snapshot;
           showToast('✓ Journal gesynct');
@@ -3397,8 +3400,31 @@
         const parts = [];
         if (dropped) parts.push(`${dropped} Bar(s) verworfen`);
         if (badVol) parts.push(`${badVol} ohne Volumen`);
+        // WO lagen die verworfenen Zeilen? (30.07.2026) Ein einziges Datum mit
+        // der Anzahl betroffener Ticker heisst: unfertige Tages-Zeile. Verstreute
+        // Daten oder „mitten in der Reihe" heisst: echte Luecke in der Quelle.
+        // Diese Unterscheidung war vorher nicht ablesbar.
+        let wo = '';
+        const nachDatum = d.dropped_bar_dates;
+        if (nachDatum && typeof nachDatum === 'object') {
+          const tage = Object.keys(nachDatum).sort();
+          if (tage.length === 1) {
+            wo = `alle am ${esc(tage[0])}`;
+          } else if (tage.length > 1) {
+            wo = tage.slice(0, 3).map(x => `${esc(x)}: ${nachDatum[x]}`).join(' · ')
+               + (tage.length > 3 ? ` (+${tage.length - 3} weitere Tage)` : '');
+          }
+        }
+        const letzte = Number(d.dropped_last_row || 0);
+        const mitte = Number(d.dropped_mid_row || 0);
+        const lage = [];
+        if (letzte) lage.push(`${letzte}× letzte Zeile`);
+        if (mitte) lage.push(`${mitte}× mitten in der Reihe`);
+        const zusatz = [wo, lage.join(', ')].filter(Boolean).join(' — ');
         return `<span class="k">Rohdaten</span><span class="v">${parts.join(' · ')}` +
-               (who ? ` (${who})` : '') + `</span>`;
+               (who ? ` (${who})` : '') +
+               (zusatz ? `<br><span class="lauf-zusatz">${zusatz}</span>` : '') +
+               `</span>`;
       }
 
       const FLAGS = { US: '🇺🇸', DE: '🇩🇪' };
