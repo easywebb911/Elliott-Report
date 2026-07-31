@@ -698,3 +698,45 @@ vor n ≥ 100) gilt unverändert.
   gelesenen Felder (`FROZEN_FIELDS`) sind unberührt; einziges betroffenes Feld
   ist `score_alert_fired`, die Buchführung des Alarms selbst, und die liest die
   Auswertung nicht. Diese Notiz bleibt in jedem Fall gültig.
+
+- **31.07.2026 — BEKANNTE EIGENSCHAFT: ein Lauf führt ab jetzt den AKTUELLEN
+  Zweig-Stand aus, nicht den beim Auslösen eingefrorenen Commit.** Berührt weder
+  Population noch Score, Ranking, Filter oder Reifung — der Report wird bei
+  jedem Lauf ohnehin vollständig neu erzeugt. Hier festgehalten, weil sich damit
+  ändert, WELCHER Code einen Datenstand erzeugt hat.
+  - **Anlass.** Lauf `30626433741` (11:16 UTC) schlug fehl: zwei Dispatches
+    33 Sekunden auseinander. Die `concurrency`-Warteschlange hat korrekt
+    serialisiert (der zweite Job wurde **eine Sekunde nach** dem Ende des ersten
+    angelegt), aber `actions/checkout` nimmt ohne `ref` den beim Auslösen
+    eingefrorenen `github.sha`. Der wartende Lauf rechnete deshalb auf dem
+    **alten** Stand, und sein `git pull --rebase` kollidierte in fünf
+    Datendateien mit dem Commit des Laufs davor. **Die Analyse selbst war
+    fehlerfrei** — nur der Push scheiterte; die Zahlen kamen vier Minuten später
+    vollständig aus einem dritten Lauf.
+  - **Was sich ändert.** `actions/checkout` bekommt `ref: ${{ github.ref_name }}`.
+    Ein wartender Lauf setzt damit auf dem Stand auf, der beim **Start** gilt —
+    auch wenn dazwischen ein Feature-PR gemergt wurde. Das ist gewollt und der
+    Kern der Behebung, aber es heißt: **der Commit, der einen Lauf auslöst, muss
+    nicht der Commit sein, dessen Code läuft.** Wer später einen Datenstand einem
+    Code-Stand zuordnet, liest ihn aus `report.json`/der Sammlung und dem
+    Lauf-Log, nicht aus dem auslösenden Commit.
+  - **Nicht geändert:** Cron-Zeit (`45 21 * * 1-5`), Warteschlange
+    (`daily-elliott`, `cancel-in-progress: false` — ein laufender Cron darf
+    **nie** von einem Hand-Tap abgebrochen werden), Pipeline, Score, Sammlung,
+    Report-Inhalte, Alarm-Logik. Bewusst **keine** Konflikt-Gewinner-Regel
+    (`-X ours`): sie würde still entscheiden, welcher Datenstand überlebt.
+  - **Nebenbefund, ebenfalls behoben:** die Push-Wiederholungen waren keine.
+    Nach dem ersten Konflikt bleibt der Arbeitsbaum mit unmerged files stehen,
+    und Versuche 2 und 3 brachen sofort mit „Pulling is not possible because you
+    have unmerged files" ab. Ein `git rebase --abort` vor jedem Versuch macht sie
+    wieder zu echten Versuchen.
+  - **Und der Alarm sagt jetzt, was kaputt war:** scheiterte NUR der Daten-Push
+    bei fehlerfreier Analyse, kommt „Daten-Push-Konflikt — Analyse lief
+    fehlerfrei, Daten kommen im nächsten Lauf" mit Priorität `default` und ohne
+    Sirene. Ein echter Ausfall (Pipeline oder Validierung rot) bleibt
+    unverändert `high` mit Sirene. Ein Alarm, der dreimal ohne Anlass kommt, wird
+    beim vierten Mal ignoriert — genau dann fehlt er.
+  Revert = `ref:` aus dem Checkout-Schritt entfernen (dann gilt wieder der
+  eingefrorene Dispatch-SHA und der Konflikt kann wiederkehren), den
+  `rebase --abort` und die Fallunterscheidung im Fehlschlag-Push zurücknehmen;
+  **kein Datenstand wird ungültig**, diese Notiz bleibt gültig.
