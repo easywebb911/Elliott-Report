@@ -180,3 +180,141 @@ def test_der_konflikt_fall_bleibt_leise():
 
 def test_cron_zeit_unangetastet():
     assert 'cron: "45 21 * * 1-5"' in DAILY
+
+
+def test_der_curl_aufruf_nutzt_die_variablen_und_keine_literale():
+    """Guardian-Nit 31.07.: die Fallunterscheidung kann richtig sein und
+    trotzdem wirkungslos, wenn der `curl`-Aufruf darunter feste Werte sendet.
+
+    Genau diese Mutation blieb über alle 15 Tests grün — geprüft wurde nur der
+    if/else-Block, nie die Zeile, die den Alarm wirklich absetzt.
+    """
+    block = re.search(r"- name: Push bei Lauf-Fehlschlag\n(.*)", DAILY, re.S).group(1)
+    aufruf = block[block.index("curl -s -m 10"):]
+    aufruf = aufruf[:aufruf.index("https://ntfy.sh/")]
+    for stueck in ('-H "Title: ${TITEL}"', '-H "Priority: ${PRIO}"',
+                   '-H "Tags: ${TAGS}"', '-d "${TEXT}"'):
+        assert stueck in aufruf, f"curl sendet nicht {stueck}"
+    # Und ausdrücklich KEIN festverdrahteter Wert mehr im Aufruf selbst.
+    for literal in ("Elliott-Lauf fehlgeschlagen", "rotating_light", "high",
+                    "information_source", "default"):
+        assert literal not in aufruf, (
+            f"{literal!r} steht fest im curl-Aufruf — die Fallunterscheidung "
+            f"darüber wäre wirkungslos")
+
+
+# ---------------------------------------------------------------------------
+# DIE MECHANIK SELBST — an echtem git nachgestellt, nicht behauptet
+# ---------------------------------------------------------------------------
+# Der Workflow verlässt sich auf zwei Eigenschaften von git. Sie hier
+# auszuführen macht die Begründung des PRs dauerhaft nachprüfbar, statt sie
+# nur in Prosa zu behaupten (Guardian-Nit 31.07.).
+import subprocess  # noqa: E402
+
+
+def _git(*args, cwd, pruefen=True):
+    r = subprocess.run(("git",) + args, cwd=cwd, capture_output=True, text=True)
+    if pruefen:
+        assert r.returncode == 0, f"{args}: {r.stderr}"
+    return r
+
+
+def _welt(tmp_path):
+    """Fern-Repo + ein Lauf, der seinen Daten-Commit schon gepusht hat."""
+    fern = tmp_path / "fern.git"
+    _git("init", "-q", "--bare", str(fern), cwd=tmp_path)
+    seed = tmp_path / "seed"
+    _git("init", "-q", str(seed), cwd=tmp_path)
+    for k, v in (("user.email", "s@x"), ("user.name", "S")):
+        _git("config", k, v, cwd=seed)
+    _git("checkout", "-q", "-b", "main", cwd=seed)
+    (seed / "report.json").write_text('{"stand":"basis"}\n')
+    _git("add", "report.json", cwd=seed)
+    _git("commit", "-qm", "basis", cwd=seed)
+    _git("remote", "add", "origin", str(fern), cwd=seed)
+    _git("push", "-q", "origin", "main", cwd=seed)
+    _git("symbolic-ref", "HEAD", "refs/heads/main", cwd=fern)
+    basis = _git("rev-parse", "HEAD", cwd=seed).stdout.strip()
+
+    lauf1 = tmp_path / "lauf1"
+    _git("clone", "-q", str(fern), str(lauf1), cwd=tmp_path)
+    for k, v in (("user.email", "1@x"), ("user.name", "L1")):
+        _git("config", k, v, cwd=lauf1)
+    (lauf1 / "report.json").write_text('{"stand":"lauf1"}\n')
+    _git("commit", "-qam", "chore(data) lauf 1", cwd=lauf1)
+    _git("push", "-q", "origin", "main", cwd=lauf1)
+    neu = _git("rev-parse", "HEAD", cwd=lauf1).stdout.strip()
+    return fern, basis, neu
+
+
+def _lauf2(tmp_path, fern, ziel, name):
+    """Ein zweiter Lauf, der `ziel` auscheckt und seinen Daten-Commit pusht."""
+    wd = tmp_path / name
+    _git("clone", "-q", str(fern), str(wd), cwd=tmp_path)
+    for k, v in (("user.email", "2@x"), ("user.name", "L2")):
+        _git("config", k, v, cwd=wd)
+    _git("checkout", "-q", ziel, cwd=wd)
+    kopf = _git("rev-parse", "HEAD", cwd=wd).stdout.strip()
+    (wd / "report.json").write_text('{"stand":"lauf2"}\n')
+    _git("add", "report.json", cwd=wd)
+    _git("commit", "-qm", "chore(data) lauf 2", cwd=wd)
+    _git("rebase", "--abort", cwd=wd, pruefen=False)
+    zog = _git("pull", "--rebase", "origin", "main", cwd=wd, pruefen=False)
+    ok = zog.returncode == 0 and _git(
+        "push", "origin", "HEAD:main", cwd=wd, pruefen=False).returncode == 0
+    _git("rebase", "--abort", cwd=wd, pruefen=False)
+    return kopf, ok
+
+
+def test_zweig_checkout_vermeidet_den_konflikt_den_der_sha_checkout_ausloest(tmp_path):
+    """Der Kern von A, an echtem git: ALTER Stand kollidiert, AKTUELLER nicht.
+
+    Genau der Vorfall vom 31.07. (Lauf 30626433741) — und seine Behebung.
+    """
+    fern, basis, neu = _welt(tmp_path)
+
+    kopf_sha, ok_sha = _lauf2(tmp_path, fern, basis, "wie_bisher")
+    assert kopf_sha == basis, "Vorbedingung: der SHA-Checkout nimmt den ALTEN Stand"
+    assert not ok_sha, "der alte Weg müsste am Rebase-Konflikt scheitern"
+
+    # Stand zurücksetzen und denselben Fall mit Zweig-Checkout fahren.
+    _git("update-ref", "refs/heads/main", neu, cwd=fern)
+    kopf_zweig, ok_zweig = _lauf2(tmp_path, fern, "main", "mit_ref")
+    assert kopf_zweig == neu, "der Zweig-Checkout muss den AKTUELLEN Stand nehmen"
+    assert ok_zweig, "mit dem aktuellen Stand darf kein Konflikt entstehen"
+
+
+def test_rebase_abort_macht_den_naechsten_versuch_wieder_moeglich(tmp_path):
+    """Der Kern von B: ohne `abort` ist der zweite Versuch keiner."""
+    fern, basis, _neu = _welt(tmp_path)
+    wd = tmp_path / "lauf2"
+    _git("clone", "-q", str(fern), str(wd), cwd=tmp_path)
+    for k, v in (("user.email", "2@x"), ("user.name", "L2")):
+        _git("config", k, v, cwd=wd)
+    _git("checkout", "-q", basis, cwd=wd)
+    (wd / "report.json").write_text('{"stand":"lauf2"}\n')
+    _git("add", "report.json", cwd=wd)
+    _git("commit", "-qm", "chore(data) lauf 2", cwd=wd)
+    eigener = _git("rev-parse", "HEAD", cwd=wd).stdout.strip()
+
+    erst = _git("pull", "--rebase", "origin", "main", cwd=wd, pruefen=False)
+    assert erst.returncode != 0
+    assert (wd / ".git/rebase-merge").exists() or (wd / ".git/rebase-apply").exists()
+
+    # OHNE abort: der zweite Versuch scheitert am hängenden Zustand, nicht am Inhalt.
+    zweit = _git("pull", "--rebase", "origin", "main", cwd=wd, pruefen=False)
+    assert "unmerged files" in (zweit.stderr + zweit.stdout)
+
+    _git("rebase", "--abort", cwd=wd)
+    assert not (wd / ".git/rebase-merge").exists()
+    assert not (wd / ".git/rebase-apply").exists()
+    assert _git("status", "--porcelain", cwd=wd).stdout.strip() == ""
+    assert _git("rev-parse", "HEAD", cwd=wd).stdout.strip() == eigener, \
+        "der eigene Daten-Commit muss den Abbruch überleben"
+
+    # MIT abort davor: der Versuch läuft wieder echt (und meldet den ECHTEN Grund).
+    dritt = _git("pull", "--rebase", "origin", "main", cwd=wd, pruefen=False)
+    text = dritt.stdout + dritt.stderr
+    assert "unmerged files" not in text
+    assert "CONFLICT" in text, "der Versuch muss den Inhalt erreichen, nicht am Zustand hängen"
+    _git("rebase", "--abort", cwd=wd, pruefen=False)
