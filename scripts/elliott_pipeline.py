@@ -1898,14 +1898,14 @@ def main() -> int:
         # kommt erst NACH dem Schreiben: die Einmaligkeit (Flag) ist dann schon
         # gesichert und ein Push-Fehler kann sie nicht rückgängig machen
         # (Einmaligkeit vor Zustellgarantie — wie beim Meilenstein-Marker).
-        edges = fc.score_alert_edges(coll, report, config.SCORE_ALERT_THRESHOLD,
-                                     run_date)
+        edges = fc.score_alert_edges(coll, report, run_date)
         fc.write_collection(coll)
         if edges:
-            notify.send_score_alert(os.environ.get("NTFY_TOPIC", ""), edges,
-                                    config.SCORE_ALERT_THRESHOLD)
-            _log(f"[elliott] Score-Alert (>{config.SCORE_ALERT_THRESHOLD}): "
-                 f"{len(edges)} neu — {', '.join(e['ticker'] for e in edges)}")
+            notify.send_score_alert(os.environ.get("NTFY_TOPIC", ""), edges)
+            _log("[elliott] Score-Alert (typ-relativ): "
+                 f"{len(edges)} neu — " + ", ".join(
+                     f"{e['ticker']} {e['score']:.2f}>={e['threshold']:.2f}"
+                     f" ({e['setup'] or 'Typ offen'})" for e in edges))
         n, matured, evaluable = fc.eval_counts(coll)
         _hc_counts = {"collected": n, "matured": matured, "evaluable": evaluable}
         # EINE ZÄHL-QUELLE (29.07.2026). Die Aggregate stehen ab jetzt IM Report.

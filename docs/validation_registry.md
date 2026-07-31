@@ -655,3 +655,46 @@ vor n ≥ 100) gilt unverändert.
   Revert = `last_bar_date` (Pipeline + Frontend) und die Endlichkeitsprüfung in
   `evaluate.fetch_prices` zurücknehmen; kein Datenstand wird ungültig, diese
   Notiz bleibt gültig.
+
+- **31.07.2026 — BEKANNTE EIGENSCHAFT: der Score-Alarm war vom 23.07. bis zum
+  31.07.2026 konstruktiv unerreichbar. Die Stille in diesem Zeitraum ist KEINE
+  Aussage über die Lage.** Berührt weder Population noch Score, Ranking, Filter
+  oder Reifung — der Alarm ist eine reine Benachrichtigungs-Ebene. Hier
+  festgehalten, weil ein Schweigen sonst später als Befund gelesen wird.
+  - **Was der Fall war.** Der Score ist die Summe von drei **gedeckelten**
+    Komponenten: Setup-Basis + Fibonacci-Nähe (max. 20) + Invalidierungs-Abstand
+    (max. 15). Das erreichbare Maximum ist damit typabhängig — `end_of_w4`
+    **90,00**, `end_of_w2` **80,00**, `end_of_c` **75,00**. Die Alarm-Schwelle
+    war eine feste `90` mit dem Vergleich **strikt größer**. Für `end_of_w4` lag
+    sie also **exakt auf** dem Maximum, für die anderen Typen **darüber**: der
+    Alarm konnte nie auslösen, für keinen Kandidaten, an keinem Tag.
+  - **Empirie.** Über 53 committete Report-Stände (500 Einzel-Scores) lag der
+    Höchststand bei **89,84** — 0,16 Punkte unter dem Deckel. Kein einziger Wert
+    ≥ 90. Die Cluster liegen jeweils **am** Typ-Deckel (`end_of_w4` max. 89,84
+    von 90,00; `end_of_w2` max. 79,55 von 80,00), nicht darunter.
+  - **Der Denkfehler war dokumentiert, aber falsch gelesen.** Der Kommentar an
+    der Konstante nannte die Empirie korrekt („Höchststand 89.84") und schloss
+    daraus „bewusst fast stumm". Richtig war „unmöglich". Empirische Stille und
+    konstruktive Unmöglichkeit sehen im Log gleich aus — das ist die eigentliche
+    Lehre.
+  - **Behoben ab 31.07.2026:** die Schwelle wird zur **Laufzeit** aus denselben
+    Konstanten berechnet, je Setup-Typ (`SCORE_ALERT_FRACTION = 0,98` × Typ-
+    Maximum → **88,20 / 78,40 / 73,50**), und der Vergleich ist `>=`. Ein Test
+    erzwingt für **jeden** Typ „Schwelle < Typ-Maximum"; eine künftige
+    Konstanten-Änderung, die den Alarm erneut tötet, wird rot.
+  - **Nebenbefund für die Score-Überprüfung (`SCORE_REVIEW_BY`, 07.12.2026):**
+    der Invalidierungs-Bonus steht bei **55,4 %** aller Kandidaten am Anschlag,
+    bei den Spitzenkandidaten praktisch immer. Zwei der drei Komponenten sind
+    dort also konstant — die gesamte Streuung an der Spitze kommt allein aus dem
+    Fibonacci-Bonus. Der Score diskriminiert oben deutlich schwächer, als drei
+    Komponenten vermuten lassen. Das ist **nicht** mit diesem Eintrag geändert
+    worden, nur festgehalten.
+  - **Ebenfalls nur festgehalten:** `end_of_c` steht in den Konstanten, wird von
+    `classify_setup` aber **nie erzeugt** (first-fit über `end_of_w4` und
+    `end_of_w2`). Seine Schwelle ist heute rein theoretisch.
+  Revert = die typ-relative Schwelle zurücknehmen und die feste `90`
+  wiederherstellen — dann ist der Alarm wieder tot, aber **kein Datenstand wird
+  ungültig**: Score, Ranking, Filter, Reifung und alle von der Auswertung
+  gelesenen Felder (`FROZEN_FIELDS`) sind unberührt; einziges betroffenes Feld
+  ist `score_alert_fired`, die Buchführung des Alarms selbst, und die liest die
+  Auswertung nicht. Diese Notiz bleibt in jedem Fall gültig.

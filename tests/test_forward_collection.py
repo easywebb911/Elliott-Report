@@ -13,11 +13,18 @@ import forward_collection as fc
 NOW = "2026-07-22T00:00:00Z"
 
 
+# Der Setup-Typ steckt im `count_label` — seit 31.07.2026 haengt die
+# Alarm-Schwelle daran. Default ist W4 (die strengste Schwelle, 88.2).
+LABEL_W4 = "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)"
+LABEL_W2 = "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)"
+
+
 def _entry(ticker, close=100.0, score=70.0, tlow=120.0, thigh=130.0,
-           elow=140.0, ehigh=150.0, inval=90.0):
+           elow=140.0, ehigh=150.0, inval=90.0, label=LABEL_W4):
     return {
         "ticker": ticker,
         "close": close,
+        "count_label": label,
         "score_heuristic": score,
         "target_zone": {"low": tlow, "high": thigh},
         "target_zone_extended": {"low": elow, "high": ehigh},
@@ -447,7 +454,13 @@ def test_annotate_is_ranking_neutral():
 # Jede Flanke über echte update_forward_collection-Läufe durchgespielt (KEIN
 # Parallel-State), plus Bündelung, Stumm-Beweis und report.json-Neutralität.
 # ---------------------------------------------------------------------------
-THRESH = 90
+# Die Schwellen sind typ-relativ und kommen aus config — hier NACHGERECHNET
+# ausgeschrieben, damit der Test nicht dieselbe Formel wiederholt wie der Code:
+#   W4: (55 + 20 + 15) * 0.98 = 88.20
+#   W2: (45 + 20 + 15) * 0.98 = 78.40
+#   C : (40 + 20 + 15) * 0.98 = 73.50
+SCHWELLE_W4 = 88.20
+SCHWELLE_W2 = 78.40
 
 
 def _run(coll, report, run_date, price=None):
@@ -458,7 +471,7 @@ def _run(coll, report, run_date, price=None):
                       for t in [c["ticker"] for c in m["candidates"]]}
     fc.update_forward_collection(coll, report, price, {"US": "risk_on", "DE": "risk_on"},
                                  run_date, NOW)
-    return fc.score_alert_edges(coll, report, THRESH, run_date)
+    return fc.score_alert_edges(coll, report, run_date)
 
 
 def _fresh_coll():
@@ -475,11 +488,59 @@ def test_score_alert_fires_when_newly_over_threshold():
     assert coll["records"][0]["score_alert_fired"] == "2026-07-01"
 
 
-def test_score_alert_silent_at_or_below_threshold():
-    coll = _fresh_coll()
-    # exakt 90 ist NICHT > 90 (strikt) und 85 klar darunter -> beide stumm.
-    assert _run(coll, _report(_entry("AAPL", score=90.0)), "2026-07-01") == []
-    assert _run(_fresh_coll(), _report(_entry("MSFT", score=85.0)), "2026-07-01") == []
+def test_score_alert_kennt_den_rand_je_setup_typ():
+    """Knapp DARUNTER stumm, GENAU auf der Schwelle feuert (>=), je Typ.
+
+    Von Hand nachgerechnet: W4 88.20, W2 78.40. Ein W2-Kandidat mit 80 liegt
+    ueber SEINER Schwelle — unter der alten festen 90 haette er nie feuern
+    koennen, egal wie perfekt er war.
+    """
+    knapp_drunter = round(SCHWELLE_W4 - 0.01, 2)          # 88.19
+    assert _run(_fresh_coll(), _report(_entry("A", score=knapp_drunter)),
+                "2026-07-01") == []
+    genau = _run(_fresh_coll(), _report(_entry("B", score=SCHWELLE_W4)),
+                 "2026-07-01")
+    assert [e["ticker"] for e in genau] == ["B"]
+    assert genau[0]["setup"] == "end_of_w4" and genau[0]["threshold"] == 88.2
+
+    # W2: 78.39 stumm, 78.40 feuert — und 80.0 ebenfalls (alte Schwelle: nie).
+    assert _run(_fresh_coll(),
+                _report(_entry("C", score=round(SCHWELLE_W2 - 0.01, 2),
+                               label=LABEL_W2)), "2026-07-01") == []
+    w2 = _run(_fresh_coll(), _report(_entry("D", score=80.0, label=LABEL_W2)),
+              "2026-07-01")
+    assert [e["ticker"] for e in w2] == ["D"]
+    assert w2[0]["setup"] == "end_of_w2" and w2[0]["threshold"] == 78.4
+
+    # Derselbe Score 80.0 als W4 gelesen bleibt stumm (unter 88.2).
+    assert _run(_fresh_coll(), _report(_entry("E", score=80.0)),
+                "2026-07-01") == []
+
+
+def test_die_schwelle_im_edge_behaelt_zwei_nachkommastellen(monkeypatch):
+    """Guardian-Nit 31.07.: `round(schwelle, 2)` -> `round(..., 1)` blieb gruen,
+    weil 88.2 / 78.4 / 73.5 zufaellig schon auf EINE Stelle glatt sind. Mit
+    einem Anteil, der zwei Stellen erzwingt, wird der Unterschied sichtbar:
+    0.977 * 90.00 = 87.93 (nicht 87.9).
+    """
+    monkeypatch.setattr(fc.config, "SCORE_ALERT_FRACTION", 0.977)
+    edges = _run(_fresh_coll(), _report(_entry("P", score=88.0)), "2026-07-01")
+    assert [e["ticker"] for e in edges] == ["P"]
+    assert edges[0]["threshold"] == 87.93, edges[0]["threshold"]
+
+
+def test_score_alert_ohne_lesbaren_typ_faellt_auf_die_strengste_schwelle():
+    """Unbekanntes Label darf den Alarm NICHT still toeten (die 90er-Lehre)."""
+    ohne = _entry("X", score=89.0)
+    ohne["count_label"] = "irgendein neues Format"
+    edges = _run(_fresh_coll(), _report(ohne), "2026-07-01")
+    assert [e["ticker"] for e in edges] == ["X"]          # feuert weiterhin
+    assert edges[0]["setup"] is None
+    assert edges[0]["threshold"] == 88.2                  # die strengste
+    # ... aber konservativ: knapp darunter bleibt es stumm.
+    zu_tief = _entry("Y", score=88.0)
+    zu_tief["count_label"] = "irgendein neues Format"
+    assert _run(_fresh_coll(), _report(zu_tief), "2026-07-01") == []
 
 
 def test_score_alert_silent_when_staying_over_threshold():
@@ -529,11 +590,29 @@ def test_score_alert_bundles_multiple_tickers_one_batch():
 
 
 def test_score_alert_silent_run_produces_no_edges():
-    # Stumm-Beweis: ein Lauf ohne >90-Flanke feuert NULL.
+    """Stumm-Beweis: ein Lauf ohne Flanke feuert NULL.
+
+    Bewusst mit Werten UNTER den jeweiligen Typ-Schwellen. Der frühere
+    Stumm-Beweis nutzte 89.84 (den realen Hoechststand) — der liegt jetzt
+    ueber der W4-Schwelle 88.20 und feuert zu Recht.
+    """
     coll = _fresh_coll()
     report = {"markets": {"US": {"candidates": [
-        _entry("A", score=89.84), _entry("B", score=80.0)]}}}  # Höchststand-nah, aber <90
+        _entry("A", score=88.0),                       # W4: unter 88.20
+        _entry("B", score=78.0, label=LABEL_W2)]}}}    # W2: unter 78.40
     assert _run(coll, report, "2026-07-01") == []
+
+
+def test_der_reale_hoechststand_haette_jetzt_gefeuert():
+    """89.84 war der Hoechststand ueber 53 Report-Staende — und blieb stumm.
+
+    Genau das war der Defekt: die alte Schwelle 90 lag AUF dem erreichbaren
+    Maximum, der Vergleich war strikt groesser. Jetzt feuert derselbe Wert.
+    """
+    edges = _run(_fresh_coll(), _report(_entry("REKORD", score=89.84)),
+                 "2026-07-01")
+    assert [e["ticker"] for e in edges] == ["REKORD"]
+    assert edges[0]["threshold"] == 88.2
 
 
 def test_score_alert_excludes_watchlist():
@@ -553,8 +632,8 @@ def test_score_alert_is_idempotent_within_run():
     report = _report(_entry("AAPL", score=93.0))
     fc.update_forward_collection(coll, report, {"AAPL": _series("d", [101])},
                                  {"US": "risk_on"}, "2026-07-01", NOW)
-    assert len(fc.score_alert_edges(coll, report, THRESH, "2026-07-01")) == 1
-    assert fc.score_alert_edges(coll, report, THRESH, "2026-07-01") == []
+    assert len(fc.score_alert_edges(coll, report, "2026-07-01")) == 1
+    assert fc.score_alert_edges(coll, report, "2026-07-01") == []
 
 
 def test_score_alert_does_not_mutate_report_scores():
@@ -564,7 +643,7 @@ def test_score_alert_does_not_mutate_report_scores():
                                                 "MSFT": _series("d", [101])},
                                  {"US": "risk_on"}, "2026-07-01", NOW)
     snap = json.dumps(report, sort_keys=True)
-    fc.score_alert_edges(coll, report, THRESH, "2026-07-01")
+    fc.score_alert_edges(coll, report, "2026-07-01")
     assert json.dumps(report, sort_keys=True) == snap  # Report unangetastet
 
 

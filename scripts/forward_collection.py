@@ -562,7 +562,7 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         # Score-Alert-Flanke: das Lauf-Datum, an dem diese Episode ZUERST über
         # die Alert-Schwelle stieg (None = noch nie). Rein additiv, einmalig je
         # Episode gesetzt; berührt Score/Ranking/Reifung nicht. Siehe
-        # score_alert_edges + config.SCORE_ALERT_THRESHOLD.
+        # score_alert_edges + config.score_alert_threshold(typ).
         "score_alert_fired": None,
         "created_utc": now_iso,
         "bars_elapsed": 0,
@@ -766,11 +766,36 @@ def annotate_appearance_counts(coll: Dict, report: Dict) -> None:
 # Score-Alert-Flanke (EINMALIG je Episode) — an die vorhandene Episoden-Logik
 # gekoppelt, KEIN zweites Episoden-System.
 # ---------------------------------------------------------------------------
-def score_alert_edges(coll: Dict, report: Dict, threshold: float,
-                      run_date: str) -> List[Dict]:
-    """Kandidaten, die in IHRER Episode NEU über ``threshold`` steigen (Flanke,
-    nicht Zustand). Setzt je Episode einmalig ``score_alert_fired`` und gibt die
-    neu-überschrittenen Kandidaten für EINEN gebündelten Push zurück.
+def setup_typ_aus_label(label) -> Optional[str]:
+    """Setup-Typ eines Report-Kandidaten aus seinem ``count_label``.
+
+    Der Report führt den Typ nicht als eigenes Feld, und er soll auch keins
+    bekommen — eine Alarm-Justierung darf den Report nicht verändern. Die
+    Marker stehen in ``config.SETUP_LABEL_MARKER``; ein Laufzeit-Test schickt
+    echte ``classify_setup``-Ausgaben hier durch, damit Beschriftung und
+    Marker nicht auseinanderlaufen können.
+
+    None = nicht bestimmbar. Der Aufrufer faellt dann auf die STRENGSTE
+    Schwelle zurueck, nicht auf „kein Alarm" (siehe score_alert_edges).
+    """
+    if not isinstance(label, str):
+        return None
+    for typ, marker in config.SETUP_LABEL_MARKER.items():
+        if marker in label:
+            return typ
+    return None
+
+
+def score_alert_edges(coll: Dict, report: Dict, run_date: str) -> List[Dict]:
+    """Kandidaten, die in IHRER Episode NEU die Schwelle ihres Setup-TYPS
+    erreichen (Flanke, nicht Zustand). Setzt je Episode einmalig
+    ``score_alert_fired`` und gibt sie für EINEN gebündelten Push zurück.
+
+    Die Schwelle kommt aus ``config.score_alert_threshold(typ)`` und wird zur
+    LAUFZEIT aus den Score-Deckeln berechnet (31.07.2026). Vorher stand hier
+    eine feste 90 — bei einem erreichbaren Maximum von exakt 90.00 und einem
+    Vergleich `> 90` war der Alarm damit unerreichbar. Ein Typ-Maximum von 80
+    (``end_of_w2``) haette den Alarm ohnehin nie ausloesen koennen.
 
     MUSS NACH ``update_forward_collection`` laufen: danach trägt der Record der
     heutigen Erscheinung ``last_seen_top5_date == run_date`` — das ist eindeutig
@@ -779,7 +804,7 @@ def score_alert_edges(coll: Dict, report: Dict, threshold: float,
     die Flanke auf DASSELBE Episoden-System wie der N×-Zähler; kein Parallel-State.
 
     Verhalten (Flanke, nicht Zustand):
-      - Neu über Schwelle in einer Episode -> Flag None -> feuert, Flag = run_date.
+      - Neu an der Schwelle in einer Episode -> Flag None -> feuert, Flag = run_date.
       - Bleibt über Schwelle (Folgetage, gleiche Episode) -> Flag gesetzt -> stumm.
       - Fällt unter, steigt in DERSELBEN Episode wieder über -> Flag bleibt -> stumm.
       - Neue Episode (Ticker war weg, kommt >Schwelle zurück) -> neuer Record,
@@ -795,7 +820,12 @@ def score_alert_edges(coll: Dict, report: Dict, threshold: float,
     for mk, market in report.get("markets", {}).items():
         for entry in market.get("candidates", []):
             score = entry.get("score_heuristic")
-            if not isinstance(score, (int, float)) or score <= threshold:
+            if not isinstance(score, (int, float)):
+                continue
+            typ = setup_typ_aus_label(entry.get("count_label"))
+            schwelle = (config.score_alert_threshold(typ) if typ
+                        else config.score_alert_threshold_max())
+            if score < schwelle:
                 continue
             # Record der HEUTIGEN Episode: eindeutig der mit last_seen == run_date
             # (update_forward_collection setzt genau diesen für jeden Top-5-Ticker).
@@ -811,5 +841,6 @@ def score_alert_edges(coll: Dict, report: Dict, threshold: float,
                 continue  # in dieser Episode bereits gemeldet -> stumm (Flanke)
             rec["score_alert_fired"] = run_date
             fired.append({"ticker": entry["ticker"], "market": mk,
-                          "score": float(score)})
+                          "score": float(score), "setup": typ,
+                          "threshold": round(schwelle, 2)})
     return fired
