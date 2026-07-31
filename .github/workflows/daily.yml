@@ -35,7 +35,27 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
+        # DEN ZWEIG auschecken, nicht den beim Auslösen eingefrorenen SHA
+        # (31.07.2026, Lauf 30626433741). Ohne `ref` nimmt actions/checkout
+        # `github.sha` — und der steht schon fest, wenn der Lauf in der
+        # concurrency-Warteschlange steht. Ein wartender Lauf rechnete deshalb
+        # auf dem ALTEN Stand, und sein `git pull --rebase` kollidierte
+        # anschliessend mit dem Daten-Commit des Laufs davor.
+        #
+        # Die Warteschlange allein reicht also nicht: sie serialisiert die
+        # Läufe korrekt (belegt: der zweite Job wurde EINE Sekunde nach dem
+        # Ende des ersten angelegt), aber sie aktualisiert den Stand nicht.
+        #
+        # `github.ref_name` statt hart "main": ein Dispatch von einem
+        # Feature-Branch (Push-Verdrahtungstest) bleibt auf SEINEM Branch.
+        #
+        # BEWUSSTE FOLGE: ein Lauf führt ab jetzt den AKTUELLEN Zweig-Stand
+        # aus, der neuer sein kann als der auslösende Commit (Registry-Notiz
+        # vom 31.07.). Genau das ist gewollt — der Report wird ohnehin bei
+        # jedem Lauf neu erzeugt.
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -49,6 +69,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run pipeline
+        id: pipeline
         env:
           # Agent-Kommentar v1 (rein additiv). Fehlt das Secret, ist der Schritt
           # ein no-op — der Lauf verhält sich exakt wie vorher.
@@ -66,6 +87,7 @@ jobs:
         run: python scripts/elliott_pipeline.py
 
       - name: Validate report JSON
+        id: validate
         run: |
           python - <<'PY'
           import json, sys
@@ -123,6 +145,7 @@ jobs:
       # mit den Datenfiles, und der daraus folgende Fehlschlag-Push ist ein
       # reiner Fehlalarm (beobachtet am 27.07., Run 30304607999).
       - name: Commit report + collection if changed
+        id: commit
         if: github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
@@ -149,12 +172,20 @@ jobs:
             # fehl (fail-soft: kein Teil-Push).
             pushed=""
             for i in 1 2 3; do
+              # Einen haengengebliebenen Rebase ZUERST aufloesen. Ohne das
+              # waren Versuche 2 und 3 keine Versuche: der erste Konflikt
+              # laesst den Arbeitsbaum mit unmerged files stehen, und jeder
+              # weitere `git pull` bricht sofort mit "Pulling is not possible
+              # because you have unmerged files" ab (beobachtet 31.07.2026,
+              # Lauf 30626433741). Beim ersten Durchgang ist es ein no-op.
+              git rebase --abort >/dev/null 2>&1 || true
               if git pull --rebase origin main && git push; then
                 pushed="yes"; break
               fi
               echo "Push-Versuch $i fehlgeschlagen — neuer Versuch."
               sleep $((i * 3))
             done
+            git rebase --abort >/dev/null 2>&1 || true
             if [ -z "$pushed" ]; then
               echo "::error::Daten-Push nach 3 Versuchen fehlgeschlagen."
               exit 1
@@ -168,14 +199,40 @@ jobs:
         if: failure()
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          # Schritt-Ergebnisse als Klartext — die Fallunterscheidung passiert
+          # in der Shell, damit es EIN curl-Aufruf bleibt.
+          PIPELINE: ${{ steps.pipeline.outcome }}
+          VALIDATE: ${{ steps.validate.outcome }}
+          COMMIT: ${{ steps.commit.outcome }}
         run: |
           if [ -z "$NTFY_TOPIC" ]; then
             echo "kein NTFY_TOPIC → kein Push (graceful)."; exit 0
           fi
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          HEUTE="$(date -u +%Y-%m-%d)"
+          # ZWEI verschiedene Lagen, zwei verschiedene Texte (31.07.2026):
+          #   (1) Analyse fehlerfrei, NUR der Daten-Push scheiterte -> die
+          #       Zahlen stimmen, sie kommen im naechsten Lauf. Kein Notfall,
+          #       also keine Sirene und Prioritaet "default".
+          #   (2) Alles andere -> echter Ausfall, unveraendert "high" + Sirene.
+          # Ohne diese Trennung sah ein reiner Push-Konflikt aus wie ein
+          # kaputter Lauf — und ein Alarm, der dreimal ohne Anlass kommt,
+          # wird beim vierten Mal ignoriert.
+          if [ "$PIPELINE" = "success" ] && [ "$VALIDATE" = "success" ] \
+             && [ "$COMMIT" = "failure" ]; then
+            TITEL="Elliott: Daten-Push-Konflikt"
+            PRIO="default"
+            TAGS="information_source"
+            TEXT="Daten-Push-Konflikt · ${HEUTE} · Analyse lief fehlerfrei, Daten kommen im nächsten Lauf · ${RUN_URL}"
+          else
+            TITEL="Elliott-Lauf fehlgeschlagen"
+            PRIO="high"
+            TAGS="rotating_light"
+            TEXT="Elliott-Lauf fehlgeschlagen · ${HEUTE} · ${RUN_URL}"
+          fi
           curl -s -m 10 \
-            -H "Title: Elliott-Lauf fehlgeschlagen" \
-            -H "Priority: high" -H "Tags: rotating_light" \
-            -d "Elliott-Lauf fehlgeschlagen · $(date -u +%Y-%m-%d) · ${RUN_URL}" \
+            -H "Title: ${TITEL}" \
+            -H "Priority: ${PRIO}" -H "Tags: ${TAGS}" \
+            -d "${TEXT}" \
             "https://ntfy.sh/${NTFY_TOPIC}" || echo "ntfy-Push fehlgeschlagen (fail-soft)"
           exit 0
