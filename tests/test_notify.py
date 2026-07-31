@@ -222,8 +222,12 @@ def test_send_is_failsoft(monkeypatch):
 # ---------------------------------------------------------------------------
 # Score-Alert-Push (>Schwelle): Bündelung, Ehrlichkeit, kein Leak, Fail-soft
 # ---------------------------------------------------------------------------
-_EDGES = [{"ticker": "XYZ", "market": "US", "score": 93.2},
-          {"ticker": "ABC", "market": "DE", "score": 91.0}]
+# Seit 31.07.2026 tragen die Edges Setup-Typ und die KONKRETE Schwelle —
+# die Schwelle ist typ-relativ, eine nackte Zahl waere ohne Bezug irrefuehrend.
+_EDGES = [{"ticker": "XYZ", "market": "US", "score": 93.2,
+           "setup": "end_of_w4", "threshold": 88.2},
+          {"ticker": "ABC", "market": "DE", "score": 91.0,
+           "setup": "end_of_w2", "threshold": 78.4}]
 
 
 def test_score_alert_body_bundles_and_is_honest():
@@ -234,23 +238,39 @@ def test_score_alert_body_bundles_and_is_honest():
     assert "🇺🇸" in body and "🇩🇪" in body            # Markt im Text
 
 
+def test_score_alert_body_nennt_setup_typ_und_schwelle():
+    """Ohne Bezug ist die Zahl irrefuehrend: 89 ist an der W4-Schwelle knapp,
+    an der W2-Schwelle weit darueber."""
+    body = notify.score_alert_body(_EDGES)
+    assert "Ende W4" in body and "Ende W2" in body
+    assert "Schwelle 88.2" in body and "Schwelle 78.4" in body
+
+
+def test_score_alert_body_vertraegt_unbekannten_typ():
+    """Rueckfall-Fall (Label nicht lesbar): Text bleibt lesbar, kein Crash."""
+    body = notify.score_alert_body(
+        [{"ticker": "Q", "market": "US", "score": 89.0,
+          "setup": None, "threshold": 88.2}])
+    assert "Q" in body and "Typ offen" in body and "Schwelle 88.2" in body
+
+
 def test_score_alert_single_push_for_multiple_tickers(tmp_path, monkeypatch):
     sent = _capture(monkeypatch)
-    assert notify.send_score_alert(TOPIC, _EDGES, 90) is True
+    assert notify.send_score_alert(TOPIC, _EDGES) is True
     assert len(sent) == 1                             # EIN Push, egal wie viele Ticker
     assert "XYZ" in sent[0]["body"] and "ABC" in sent[0]["body"]
-    assert ">90" in sent[0]["title"]
+    assert "Typ-Schwelle" in sent[0]["title"]
 
 
 def test_score_alert_empty_edges_is_silent(tmp_path, monkeypatch):
     sent = _capture(monkeypatch)
-    assert notify.send_score_alert(TOPIC, [], 90) is False
+    assert notify.send_score_alert(TOPIC, []) is False
     assert sent == []                                 # keine Flanke -> kein Push
 
 
 def test_score_alert_empty_topic_never_posts(tmp_path, monkeypatch):
     sent = _capture(monkeypatch)
-    assert notify.send_score_alert("", _EDGES, 90) is False
+    assert notify.send_score_alert("", _EDGES) is False
     assert sent == []                                 # leeres Topic -> kein Netzaufruf
 
 
@@ -258,7 +278,7 @@ def test_score_alert_is_failsoft(monkeypatch):
     monkeypatch.setattr(notify, "_post",
                         lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
     # Push-Fehler -> False, kein Crash (Lauf darf nie brechen).
-    assert notify.send_score_alert(TOPIC, _EDGES, 90) is False
+    assert notify.send_score_alert(TOPIC, _EDGES) is False
 
 
 def test_main_always_returns_zero(tmp_path, monkeypatch):

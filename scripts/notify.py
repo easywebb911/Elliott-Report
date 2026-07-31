@@ -8,8 +8,8 @@ Meldet sich NUR, wenn etwas kaputt ist oder eine Entscheidung fällig wird:
   - Meilenstein n≥100 → einmaliger Push, Marker-Datei gegen Wiederholung.
   - Review-Wecker    → überfälliges `review_by` erinnert ~1×/Woche (Wochentag-
                        gedrosselt, KEIN State — Squeeze-Muster).
-  - Score-Alert >90  → EINMALIGER Push je Episode, wenn ein Kandidat NEU über
-                       SCORE_ALERT_THRESHOLD steigt (`send_score_alert`, aus dem
+  - Score-Alert      → EINMALIGER Push je Episode, wenn ein Kandidat NEU die
+                       TYP-Schwelle erreicht (`send_score_alert`, aus dem
                        Daily-Lauf; Flanke, nicht Zustand — die Kopplung an die
                        Episoden-Logik liegt in forward_collection.score_alert_edges).
                        Ausdrücklich ein Aufmerksamkeits-Hinweis, KEIN Signal.
@@ -110,26 +110,37 @@ _MARKET_FLAG = {"US": "🇺🇸", "DE": "🇩🇪"}
 def score_alert_body(edges) -> str:
     """Gebündelter Alert-Text aus den neu-überschrittenen Kandidaten.
 
-    ``edges`` = Liste {ticker, market, score} (aus forward_collection.
-    score_alert_edges). EIN Push pro Lauf, egal wie viele Ticker neu über der
-    Schwelle sind — Markt steht im Text. Trägt bewusst „heuristisch ·
-    unvalidiert": ein Aufmerksamkeits-Hinweis, KEIN Signal."""
-    parts = [
-        f"{e['ticker']} ({_MARKET_FLAG.get(e['market'], e['market'])}) "
-        f"{e['score']:.0f}"
-        for e in edges
-    ]
+    ``edges`` = Liste {ticker, market, score, setup, threshold} (aus
+    forward_collection.score_alert_edges). EIN Push pro Lauf, egal wie viele
+    Ticker neu an ihrer Schwelle sind — Markt steht im Text. Trägt bewusst
+    „heuristisch · unvalidiert": ein Aufmerksamkeits-Hinweis, KEIN Signal.
+
+    Seit 31.07.2026 nennt der Text den SETUP-TYP und die KONKRETE Schwelle:
+    die Schwelle ist typ-relativ, eine Zahl ohne ihren Bezug wäre irreführend
+    (89 ist an der W4-Schwelle knapp, an der W2-Schwelle weit darüber)."""
+    parts = []
+    for e in edges:
+        markt = _MARKET_FLAG.get(e.get("market"), e.get("market"))
+        typ = config.SETUP_LABEL_MARKER.get(e.get("setup"), "Typ offen")
+        schwelle = e.get("threshold")
+        stueck = f"{e['ticker']} ({markt}) {e['score']:.0f} · {typ}"
+        if isinstance(schwelle, (int, float)):
+            stueck += f" (Schwelle {schwelle:.1f})"
+        parts.append(stueck)
     return " · ".join(parts) + f" — {CARD_STATUS} (kein Signal)"
 
 
-def send_score_alert(topic: str, edges, threshold) -> bool:
-    """EIN gebündelter Push für die heute NEU über die Schwelle gestiegenen
-    Kandidaten. Leere Liste -> kein Push. Fail-soft via send_ntfy."""
+def send_score_alert(topic: str, edges) -> bool:
+    """EIN gebündelter Push für die heute NEU an ihrer Schwelle angekommenen
+    Kandidaten. Leere Liste -> kein Push. Fail-soft via send_ntfy.
+
+    Die Schwelle steht seit 31.07.2026 JE KANDIDAT im Edge (typ-relativ), nicht
+    mehr als ein Wert im Titel — deshalb ist der Parameter entfallen."""
     if not edges:
         return False
     return send_ntfy(
         topic,
-        f"Elliott: Score >{threshold}",
+        "Elliott: Score an der Typ-Schwelle",
         score_alert_body(edges),
         priority="default",  # Aufmerksamkeit, kein Alarm — Elliott bleibt fast stumm
         tags="chart_with_upwards_trend",

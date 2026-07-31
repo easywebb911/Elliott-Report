@@ -247,14 +247,64 @@ STALENESS_HOURS = 30
 SCORE_REVIEW_BY = "2026-12-07"   # ISO-Datum oder None
 STATUS_REVIEW_WEEKDAY = 0        # 0 = Montag; Drossel ~1x/Woche (Daily läuft 1x/Tag)
 
-# Score-Alert: EINMALIGER Push, wenn ein Kandidat in SEINER Episode NEU über
-# diese Schwelle steigt (Flanke, nicht Zustand — siehe forward_collection.
-# score_alert_edges). Bewusst fast stumm: über die gesamte committete
-# Report-Historie (Universum 361) erreichte KEIN Kandidat je >90 (Höchststand
-# 89.84). Schwelle als benannte Konstante, damit sie an EINER Stelle justierbar
-# ist. Watchlist-Karten sind ausgenommen (eigene Auswahl, nicht Teil der
-# gerankten Population). Bewusst ein Aufmerksamkeits-Hinweis, KEIN Signal.
-SCORE_ALERT_THRESHOLD = 90       # strikt größer als (>90) löst aus
+# Score-Alert: EINMALIGER Push, wenn ein Kandidat in SEINER Episode NEU die
+# Schwelle SEINES Setup-TYPS erreicht (Flanke, nicht Zustand — siehe
+# forward_collection.score_alert_edges). Watchlist-Karten sind ausgenommen
+# (eigene Auswahl, nicht Teil der gerankten Population). Bewusst ein
+# Aufmerksamkeits-Hinweis, KEIN Signal.
+#
+# BERICHTIGUNG 31.07.2026 — die alte feste Schwelle 90 war KONSTRUKTIV TOT.
+# Der Score ist die Summe dreier gedeckelter Komponenten; das erreichbare
+# Maximum ist SETUP_BASE_POINTS[typ] + FIB_PROXIMITY_MAX_BONUS +
+# INVALIDATION_DISTANCE_MAX_BONUS — für den besten Typ (end_of_w4) also exakt
+# 90.00, und der Vergleich lautete `> 90`. Über 53 committete Report-Stände
+# (500 Einzel-Scores) lag der Höchststand bei 89.84. Der frühere Kommentar hier
+# las das als „bewusst fast stumm"; richtig war „unmöglich". Die Stille vom
+# 22.07. bis 31.07. ist deshalb KEINE Aussage über die Lage.
+#
+# Jetzt wird die Schwelle ZUR LAUFZEIT aus denselben Konstanten berechnet, je
+# Setup-Typ. Ändert jemand einen Deckel, wandert die Schwelle mit — es gibt
+# keine zweite Zahl, die still veralten kann. Der Anteil ist die EINZIGE neue
+# Konstante.
+SCORE_ALERT_FRACTION = 0.98      # Anteil des erreichbaren Typ-Maximums (>= löst aus)
+
+
+def score_max(setup_type: str) -> float:
+    """Erreichbares Maximum des Scores für diesen Setup-Typ.
+
+    Summe der drei gedeckelten Komponenten. Bewusst hier und nicht in der
+    Pipeline: die Schwelle und die Deckel sollen aus DERSELBEN Datei kommen.
+    """
+    return (SETUP_BASE_POINTS[setup_type] + FIB_PROXIMITY_MAX_BONUS
+            + INVALIDATION_DISTANCE_MAX_BONUS)
+
+
+def score_alert_threshold(setup_type: str) -> float:
+    """Alarm-Schwelle dieses Typs — ausgelöst wird ab ``score >= threshold``."""
+    return SCORE_ALERT_FRACTION * score_max(setup_type)
+
+
+def score_alert_threshold_max() -> float:
+    """Die STRENGSTE Schwelle über alle Typen.
+
+    Rückfall, wenn der Setup-Typ eines Kandidaten nicht bestimmbar ist (z. B.
+    ein Report aus einer älteren Fassung). Bewusst nicht „dann kein Alarm":
+    genau daran ist der Alarm schon einmal still gestorben. Konservativ heißt
+    hier: es feuert weiterhin, nur erst ganz oben.
+    """
+    return max(score_alert_threshold(t) for t in SETUP_BASE_POINTS)
+
+
+# Woran der Setup-Typ im `count_label` eines Report-Kandidaten wiedererkannt
+# wird. Der Report führt den Typ NICHT als eigenes Feld — und bekommt hier auch
+# keins: eine Alarm-Justierung darf den Report nicht verändern. Ein
+# LAUFZEIT-Test schickt echte `classify_setup`-Ausgaben durch diese Zuordnung,
+# damit Beschriftung und Marker nicht auseinanderlaufen können.
+SETUP_LABEL_MARKER = {
+    "end_of_w4": "Ende W4",
+    "end_of_w2": "Ende W2",
+    "end_of_c": "Ende C",
+}
 
 # ---------------------------------------------------------------------------
 # HEALTH-CHECK STUFE 2 (ab 27.07.2026, siehe scripts/health_check.py)
