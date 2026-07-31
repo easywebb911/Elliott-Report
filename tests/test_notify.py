@@ -240,10 +240,16 @@ def test_score_alert_body_bundles_and_is_honest():
 
 def test_score_alert_body_nennt_setup_typ_und_schwelle():
     """Ohne Bezug ist die Zahl irrefuehrend: 89 ist an der W4-Schwelle knapp,
-    an der W2-Schwelle weit darueber."""
+    an der W2-Schwelle weit darueber.
+
+    EXAKT geprueft, nicht per Teilstring (Guardian-Nit 31.07.): `"Schwelle
+    88.2" in body` matcht auch `Schwelle 88.20` — eine Formatierungs-Aenderung
+    waere unbemerkt durchgerutscht. Der ganze Baustein steht hier woertlich.
+    """
     body = notify.score_alert_body(_EDGES)
-    assert "Ende W4" in body and "Ende W2" in body
-    assert "Schwelle 88.2" in body and "Schwelle 78.4" in body
+    assert body == ("XYZ (🇺🇸) 93 · Ende W4 (Schwelle 88.2)"
+                    " · ABC (🇩🇪) 91 · Ende W2 (Schwelle 78.4)"
+                    " — heuristisch · unvalidiert (kein Signal)")
 
 
 def test_score_alert_body_vertraegt_unbekannten_typ():

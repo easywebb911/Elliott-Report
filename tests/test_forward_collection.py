@@ -517,6 +517,18 @@ def test_score_alert_kennt_den_rand_je_setup_typ():
                 "2026-07-01") == []
 
 
+def test_die_schwelle_im_edge_behaelt_zwei_nachkommastellen(monkeypatch):
+    """Guardian-Nit 31.07.: `round(schwelle, 2)` -> `round(..., 1)` blieb gruen,
+    weil 88.2 / 78.4 / 73.5 zufaellig schon auf EINE Stelle glatt sind. Mit
+    einem Anteil, der zwei Stellen erzwingt, wird der Unterschied sichtbar:
+    0.977 * 90.00 = 87.93 (nicht 87.9).
+    """
+    monkeypatch.setattr(fc.config, "SCORE_ALERT_FRACTION", 0.977)
+    edges = _run(_fresh_coll(), _report(_entry("P", score=88.0)), "2026-07-01")
+    assert [e["ticker"] for e in edges] == ["P"]
+    assert edges[0]["threshold"] == 87.93, edges[0]["threshold"]
+
+
 def test_score_alert_ohne_lesbaren_typ_faellt_auf_die_strengste_schwelle():
     """Unbekanntes Label darf den Alarm NICHT still toeten (die 90er-Lehre)."""
     ohne = _entry("X", score=89.0)
