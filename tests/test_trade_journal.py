@@ -105,7 +105,11 @@ def test_es_gibt_genau_EINE_journal_ablage():
     `data/trade_journal.json` relativ zu /docs ab, also den docs-Spiegel).
     """
     gelesen = ROOT / "docs/data/trade_journal.json"
-    assert json.loads(gelesen.read_text(encoding="utf-8")) == []
+    # BERICHTIGT 31.07.2026: hier stand `== []`. Das war eine Aussage über den
+    # INHALT, nicht über die Ablage — und sie wurde rot, sobald Easy den ersten
+    # echten Eintrag anlegte (Commit „Update trade_journal.json"). Geprüft wird
+    # jetzt, was der Test meint: EINE Datei, gültige Liste, keine zweite Ablage.
+    assert isinstance(json.loads(gelesen.read_text(encoding="utf-8")), list)
     assert not (ROOT / "data/trade_journal.json").exists(), \
         "die kanonische Kopie ist wieder da — das wären zwei Commits pro Änderung"
 
@@ -151,22 +155,31 @@ def test_keine_waehrungssymbole_in_den_journal_labels():
 
 def test_der_eintrag_kennt_nur_die_erlaubten_felder():
     """Die Feldliste des angelegten Eintrags — ausgeschrieben, nicht abgeleitet."""
-    block = re.search(r"function _tjNeu\(v\) \{(.*?)\n    \}", HTML, re.S).group(1)
+    block = re.search(r"function _tjNeu\(v, eingabe\) \{(.*?)\n    \}", HTML, re.S).group(1)
     # ALLE Schlüssel im Block, nicht nur die am Zeilenanfang.
     felder = set(re.findall(r"(?:^\s*|[{,]\s*)([a-z_]+):", block, re.M))
     erlaubt = {
         "id", "ticker", "market", "direction", "entry_date", "entry_price",
-        "status", "exit_date", "exit_price", "note", "tool",
+        # `note` ist das Altfeld aus #61 und bleibt im Schema, damit
+        # bestehende Einträge nichts verlieren; `these`/`lesson` sind der
+        # Lebenszyklus (31.07.2026).
+        "status", "exit_date", "exit_price", "note", "these", "lesson", "tool",
         "setup", "score", "target_zone", "invalidation", "report_utc",
     }
     assert felder == erlaubt, f"Feldliste weicht ab: {sorted(felder ^ erlaubt)}"
 
 
 def test_kein_eingabefeld_fuer_betraege_im_formular():
-    form = re.search(r'const form = bearbeiten \? `(.*?)`', HTML, re.S).group(1)
-    ids = re.findall(r'id="tj-([a-z]+)-', form)
-    assert sorted(set(ids)) == ["nt", "xd", "xp"], \
-        f"unerwartete Eingabefelder: {sorted(set(ids))}"
+    """Beide Formulare — Eröffnen und Schließen — kennen NUR diese Eingaben."""
+    schliessen = re.search(r"function _tjFormular\(e, offen\) \{(.*?)\n    \}",
+                           HTML, re.S).group(1)
+    ids = sorted(set(re.findall(r'id="tj-([a-z]+)-\$\{e\.id\}"', schliessen)))
+    assert ids == ["le", "th", "xd", "xp"], f"Schließen-Formular: {ids}"
+
+    eroeffnen = re.search(r"function _tjEntwurfBlock\(\) \{(.*?)\n    \}",
+                          HTML, re.S).group(1)
+    neu = sorted(set(re.findall(r'id="(tj-ne-[a-z])"', eroeffnen)))
+    assert neu == ["tj-ne-d", "tj-ne-p", "tj-ne-t"], f"Eröffnen-Formular: {neu}"
 
 
 # ---------------------------------------------------------------------------
@@ -218,3 +231,234 @@ def test_der_testlauf_fasst_die_repo_journal_datei_nicht_an():
                         "docs/data/trade_journal.json"],
                        cwd=ROOT, capture_output=True, text=True)
     assert r.stdout.strip() == "", f"Journal-Datei verändert:\n{r.stdout}"
+
+
+# ---------------------------------------------------------------------------
+# 5 · LEBENSZYKLUS (31.07.2026): Eröffnen → Schließen, These/Lesson, Statistik
+# ---------------------------------------------------------------------------
+def _tj_block() -> str:
+    """Der Journal-Abschnitt des Frontends (ohne den Token-Teil dahinter)."""
+    i = HTML.index("TRADE-JOURNAL — eigene Handels-Aufzeichnung")
+    return HTML[i:HTML.index("const GH_OWNER", i)]
+
+
+# Felder, die der Nutzer selbst tippt. Alles davon landet in der Anzeige und
+# muss dort escaped werden — `these`/`lesson` sind neu, `ticker`/`note` waren
+# es schon. Die Liste steht ausgeschrieben: wer ein Feld ergänzt, muss sie
+# anfassen und merkt es dabei.
+NUTZERFELDER = ["these", "lesson", "note"]
+
+
+def test_jede_ausgabe_von_freitext_ist_escaped():
+    """XSS: KEINE Interpolation eines Freitextfeldes ohne `esc(...)`.
+
+    Geprüft wird jede Stelle im Journal-Block, an der `e.<feld>` oder
+    `_tjEntwurf.<feld>` in ein Template-Literal wandert — sie muss innerhalb
+    von `esc(` stehen. Ein Test auf „irgendwo steht esc" hätte eine einzelne
+    vergessene Stelle nicht gefunden.
+    """
+    block = _tj_block()
+    offen = []
+    for feld in NUTZERFELDER + ["ticker"]:
+        for m in re.finditer(r"\$\{([^{}]*\b(?:e|_tjEntwurf|v|b)\."
+                             + feld + r"\b[^{}]*)\}", block):
+            if "esc(" not in m.group(1):
+                offen.append(m.group(0))
+    assert not offen, f"Freitext ohne esc(): {offen}"
+
+
+def test_freitext_ist_auf_500_zeichen_begrenzt():
+    block = _tj_block()
+    assert "const TJ_TEXT_MAX = 500;" in block
+    assert block.count('maxlength="500"') == 3, \
+        "jedes der drei Freitextfelder braucht die Browser-Grenze"
+    # ... und die Grenze gilt auch ohne Browser (eingefügter Text, altes Feld).
+    assert "slice(0, TJ_TEXT_MAX)" in block
+    for feld in ("these", "lesson"):
+        assert re.search(rf"e\.{feld} = _tjTxt\(", block), feld
+
+
+def test_status_verlangt_datum_UND_kurs():
+    """Halb geschlossen gibt es nicht — sonst rechnete die Statistik ins Leere."""
+    block = _tj_block()
+    assert ("e.status = (e.exit_date && e.exit_price != null) "
+            "? 'geschlossen' : 'offen';") in block
+
+
+def test_statistik_rechnet_ueber_die_GEFILTERTE_menge():
+    """Die Kennzahlen hängen an der gefilterten Liste, nicht am Gesamtbestand."""
+    block = _tj_block()
+    render = re.search(r"function _tjRender\(\) \{(.*?)\n    \}", block, re.S).group(1)
+    assert "const zu = _tjGefiltert(" in render
+    assert "const s = _tjStats(zu);" in render, \
+        "Statistik muss die gefilterte Liste bekommen"
+    # Offene Einträge werden SEPARAT gezählt (ungefiltert) — wie bisher.
+    assert "const offen = arr.filter(e => e.status !== 'geschlossen');" in render
+
+
+def test_prozent_kennt_die_kanten():
+    """entry ≤ 0, nicht-numerisch, fehlend → kein Ergebnis statt Unsinn."""
+    fn = re.search(r"function _tjPct\(e\) \{(.*?)\n    \}", HTML, re.S).group(1)
+    assert "if (!isFinite(a) || !isFinite(b) || a <= 0) return null;" in fn
+
+
+def test_datum_hat_EINEN_parser_fuer_beide_schreibweisen():
+    block = _tj_block()
+    iso = re.search(r"function _tjISO\(s\) \{(.*?)\n    \}", block, re.S).group(1)
+    assert r"/^\d{4}-\d{2}-\d{2}$/" in iso, "ISO fehlt"
+    assert r"/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/" in iso, "TT.MM.JJJJ fehlt"
+    # Dauer und Zeitfilter gehen über DENSELBEN Parser — und zwar an JEDER
+    # Stelle. Ein bloßes „_tjISO kommt darin vor" reichte nicht: die Mutation
+    # „Zeitfilter nimmt `e.exit_date` roh" blieb damit grün, weil der Sortier-
+    # Vergleich weiter unten den Parser noch benutzte (die #63-Lehre).
+    for fn in ("_tjTage", "_tjGefiltert"):
+        koerper = re.search(rf"function {fn}\(.*?\) \{{(.*?)\n    \}}",
+                            block, re.S).group(1)
+        roh = [m.start() for m in re.finditer(r"\b[a-z]\.exit_date\b", koerper)
+               if not koerper[max(0, m.start() - 7):m.start()].endswith("_tjISO(")]
+        assert not roh, f"{fn} liest ein Datum am gemeinsamen Parser vorbei"
+        assert "_tjISO(" in koerper, f"{fn} parst am gemeinsamen Parser vorbei"
+    # `_tjTage` bekommt zwei Rohwerte herein — BEIDE müssen durch den Parser.
+    tage = re.search(r"function _tjTage\(a, b\) \{(.*?)\n    \}",
+                     block, re.S).group(1)
+    assert "_tjISO(a)" in tage and "_tjISO(b)" in tage, \
+        "eine der beiden Datumsangaben umgeht den Parser"
+
+
+def test_eingaben_werden_vor_jedem_neu_rendern_gesichert():
+    """Ein Validierungs-Fehler darf getippten Text nicht verwerfen."""
+    block = _tj_block()
+    klick = re.search(r"function _tjClick\(ev\) \{(.*?)\n    \}", block, re.S).group(1)
+    # Vor jedem `_tjRender()` im Fehlerzweig steht das Einlesen des Formulars.
+    assert klick.count("_tjLeseEntwurf();") >= 3
+    assert "_tjLeseEdit(id);" in klick
+    speichern = klick[klick.index("if (t.dataset.tjSave)"):]
+    assert speichern.index("_tjLeseEdit(id);") < speichern.index("showToast("), \
+        "Eingaben werden erst nach der ersten Fehlermeldung gesichert"
+
+
+def test_alt_eintraege_ohne_neue_felder_bleiben_lesbar():
+    """Fehlende `these`/`lesson`/`note` → leerer Text, nie `undefined`.
+
+    Zwei zulässige Formen: ein Rückfall (`e.x || ''`) für Werte, die in ein
+    Eingabefeld wandern, oder eine Bedingung (`e.x ? … : ''`) für Blöcke, die
+    ohne Inhalt gar nicht erst erscheinen. Ungeschützt darf kein Feld sein.
+    """
+    block = _tj_block()
+    for feld in NUTZERFELDER:
+        rueckfall = re.search(rf"e\.{feld} \|\| ''", block)
+        bedingung = re.search(rf"e\.{feld} \?", block)
+        assert rueckfall or bedingung, \
+            f"{feld} ungeschützt — Alt-Einträge zeigten `undefined`"
+    # Die beiden Felder, die in ein Formular geschrieben werden, brauchen den
+    # Rückfall zwingend: `undefined` stünde sonst sichtbar im Textfeld.
+    for feld in ("these", "lesson"):
+        assert re.search(rf"{feld}: e\.{feld} \|\| ''", block), feld
+
+
+# ---------------------------------------------------------------------------
+# 6 · DIE KENNZAHLEN SELBST — WERTE, NICHT ANWESENHEIT
+# ---------------------------------------------------------------------------
+# Guardian-Nit 31.07.2026: die Statistik hatte nur einen „wird mit der
+# gefilterten Liste aufgerufen"-Test. FÜNF Mutationen blieben grün —
+# Breakeven als Gewinner, Schlechtester/Bester vertauscht, `>= 50` zu `> 50`,
+# Score-Korrelation vertauscht, Zeitfilter-Randtag. Genau die Kennzahlen aus
+# dem Auftrag könnten also still falsch sein. Zwei Netze dagegen:
+#   (a) die entscheidenden Vergleiche stehen als LITERAL fest — läuft überall,
+#   (b) die Funktionen werden mit node WIRKLICH AUSGEFÜHRT, wenn eins da ist.
+# (a) allein fängt alle fünf; (b) prüft zusätzlich das Verhalten und überlebt
+# ein Umformulieren des Codes.
+import shutil          # noqa: E402
+import subprocess      # noqa: E402
+
+
+def _tj_fn(name: str) -> str:
+    """Eine Funktion aus dem Frontend herausschneiden (Einrückung als Klammer)."""
+    start = HTML.index(f"    function {name}(")
+    ende = HTML.index("\n    }", start) + len("\n    }")
+    return HTML[start:ende]
+
+
+def test_die_entscheidenden_vergleiche_stehen_fest():
+    """Ein stiller Dreher an einem dieser Zeichen kippt eine Kennzahl."""
+    stats = _tj_fn("_tjStats")
+    # Breakeven (p == 0) ist WEDER Gewinner NOCH Verlierer.
+    assert "const win = paare.filter(x => x.p > 0), los = paare.filter(x => x.p < 0);" in stats
+    # Bester ist das Maximum, Schlechtester das Minimum — nicht umgekehrt.
+    assert "if (!best || x.p > best.p) best = x;" in stats
+    assert "if (!mies || x.p < mies.p) mies = x;" in stats
+    # Score-Korrelation: Gewinner-Score aus den Gewinnern, nicht vertauscht.
+    assert "scoreWin: score(win), scoreLos: score(los)," in stats
+    # Trefferquote: 50 % ist noch grün (so steht es im Auftrag).
+    render = _tj_fn("_tjRender")
+    assert "s.quote >= 50 ? ' tj-hit tj-good' : ' tj-hit tj-bad'" in render
+    # Zeitfilter: der Randtag gehört noch dazu.
+    gef = _tj_fn("_tjGefiltert")
+    assert "Date.parse(iso + 'T00:00:00Z') >= grenze" in gef
+
+
+_NODE = shutil.which("node") or shutil.which("nodejs")
+
+
+def _js(script: str):
+    """Die Journal-Rechenkerne in node ausführen und JSON zurückgeben.
+
+    Bewusst OHNE feste Node-Abhängigkeit für die Suite: fehlt node, bleibt der
+    Literal-Test oben als vollständiges Netz. Deshalb skip statt Fehler.
+    """
+    if not _NODE:
+        import pytest
+        pytest.skip("kein node vorhanden — der Literal-Test deckt dieselben Fälle")
+    prelude = ("let _tjFZeit = 'alle', _tjFErg = 'alle';\n"
+               "Date.now = () => Date.parse('2026-07-31T12:00:00Z');\n")
+    quelle = "\n".join(_tj_fn(n) for n in
+                       ("_tjPct", "_tjISO", "_tjTage", "_tjStats", "_tjGefiltert"))
+    r = subprocess.run([_NODE, "-e", prelude + quelle + "\n" + script],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+def _rec(ticker, entry, exit_, score, exit_date="2026-07-30"):
+    return {"ticker": ticker, "direction": "long", "entry_price": entry,
+            "exit_price": exit_, "entry_date": "2026-07-01",
+            "exit_date": exit_date, "status": "geschlossen",
+            "tool": {"score": score}}
+
+
+def test_statistik_rechnet_die_beispielliste_richtig():
+    """Feste Liste, von Hand nachgerechnet — inklusive Breakeven."""
+    liste = [_rec("A", 100, 120, 90),     # +20 %
+             _rec("B", 100, 90, 60),      # -10 %
+             _rec("C", 100, 100, 70),     # ±0  -> weder noch
+             _rec("D", 50, 55, 80)]       # +10 %
+    s = _js("console.log(JSON.stringify(_tjStats(%s)))" % json.dumps(liste))
+    assert s["n"] == 4
+    # Gewinner A und D, Verlierer B, C zählt zu keinem von beiden.
+    assert round(s["quote"], 4) == 50.0
+    assert round(s["avg"], 4) == 5.0            # (20 - 10 + 0 + 10) / 4
+    assert round(s["avgWin"], 4) == 15.0        # (20 + 10) / 2
+    assert round(s["avgLos"], 4) == -10.0
+    assert s["best"]["t"] == "A" and round(s["best"]["p"], 4) == 20.0
+    assert s["mies"]["t"] == "B" and round(s["mies"]["p"], 4) == -10.0
+    assert round(s["scoreWin"], 4) == 85.0      # (90 + 80) / 2
+    assert round(s["scoreLos"], 4) == 60.0
+
+
+def test_zeitfilter_nimmt_den_randtag_mit():
+    """Genau 30 Tage her → gehört noch dazu; 31 Tage → nicht mehr."""
+    liste = [_rec("RAND", 100, 110, 80, exit_date="2026-07-01"),   # 30 Tage
+             _rec("DRAUSSEN", 100, 110, 80, exit_date="2026-06-30")]  # 31 Tage
+    tk = _js("_tjFZeit = '30';"
+             "console.log(JSON.stringify(_tjGefiltert(%s).map(e => e.ticker)))"
+             % json.dumps(liste))
+    assert tk == ["RAND"], tk
+
+
+def test_geschlossene_liste_ist_neueste_zuerst():
+    liste = [_rec("ALT", 100, 110, 80, exit_date="2026-05-01"),
+             _rec("NEU", 100, 110, 80, exit_date="2026-07-20"),
+             _rec("MITTE", 100, 110, 80, exit_date="2026-06-10")]
+    tk = _js("console.log(JSON.stringify(_tjGefiltert(%s).map(e => e.ticker)))"
+             % json.dumps(liste))
+    assert tk == ["NEU", "MITTE", "ALT"], tk
