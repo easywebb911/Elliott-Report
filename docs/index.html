@@ -595,6 +595,33 @@
     }
     .tj-form textarea { min-height:66px; resize:vertical; }
     .tj-empty { color:var(--txt-dim); font-size:.8rem; padding:14px 2px; }
+    /* Lebenszyklus (31.07.2026): Filterleiste, Statistik, Details-Klappe.
+       Weiterhin eigenes `tj-`-Praefix — neue Klassennamen kollidieren still. */
+    .tj-filters { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; }
+    .tj-chip {
+      font:inherit; font-size:.66rem; padding:5px 10px; min-height:30px;
+      border-radius:999px; border:1px solid var(--line); background:transparent;
+      color:var(--txt-dim); cursor:pointer;
+    }
+    .tj-chip.tj-on { color:var(--txt); border-color:var(--accent); }
+    .tj-hit.tj-good { color:var(--grn); }
+    .tj-hit.tj-bad { color:var(--red); }
+    .tj-det { margin-top:6px; display:grid; gap:6px; }
+    .tj-these, .tj-lesson {
+      font-size:.72rem; line-height:1.45; padding:7px 9px; border-radius:8px;
+      white-space:pre-wrap; overflow-wrap:anywhere;
+    }
+    .tj-these { color:var(--txt-sub); background:rgba(96,165,250,.10);
+                border-left:3px solid rgba(96,165,250,.55); }
+    .tj-lesson { color:var(--txt-sub); background:rgba(234,179,8,.10);
+                 border-left:3px solid rgba(234,179,8,.55); }
+    .tj-det-lbl { display:block; font-size:.6rem; text-transform:uppercase;
+                  letter-spacing:.06em; color:var(--txt-dim); margin-bottom:3px; }
+    .tj-form .tj-fest {
+      font-size:.68rem; color:var(--txt-sub); background:rgba(148,163,184,.08);
+      border-radius:8px; padding:6px 8px; white-space:pre-wrap;
+      overflow-wrap:anywhere;
+    }
 
     /* ── Token-Modals (Master-Passwort-Krypto, portiert aus Aktien-Update) ── */
     .tok-modal-overlay {
@@ -2458,6 +2485,14 @@
     let _tjSyncTimer = null;
     let _tjSyncing = false;
     let _tjEdit = null;           // id des gerade bearbeiteten Eintrags
+    // Lebenszyklus (31.07.2026): Entwurf beim Eroeffnen, Puffer beim
+    // Schliessen. Beide halten die GETIPPTEN Werte — das Overlay rendert sich
+    // komplett neu, und ein Re-Render darf nie Text verwerfen.
+    let _tjEntwurf = null;        // {v, entry_price, entry_date, these}
+    let _tjBuf = null;            // {exit_date, exit_price, these, lesson}
+    let _tjFZeit = 'alle';        // Zeitfilter (nach Ausstiegsdatum)
+    let _tjFErg = 'alle';         // Ergebnisfilter
+    const _tjDetailOffen = new Set();   // ids mit aufgeklappten Details
     // `_lastReportTs` (Report-Stand) lebt bereits weiter unten beim
     // Recalc-Poller — das Journal LIEST ihn nur zum Einfrieren mit.
 
@@ -2526,14 +2561,50 @@
       }
     }
 
+    // --- Freitext: begrenzt, nie Zahlen mit Bedeutung ---------------------
+    // These und Lesson sind der eigentliche Zweck des Journals: was habe ich
+    // erwartet, was habe ich gelernt. Begrenzt auf 500 Zeichen, damit die
+    // Datei im oeffentlichen Repo klein und lesbar bleibt.
+    const TJ_TEXT_MAX = 500;
+    function _tjTxt(s) { return String(s == null ? '' : s).slice(0, TJ_TEXT_MAX); }
+
+    // --- Datum: EIN Parser fuer beide Schreibweisen ------------------------
+    // `<input type="date">` liefert ISO; von Hand gepflegte oder aeltere
+    // Eintraege koennen `31.07.2026` tragen. GESPEICHERT wird immer ISO —
+    // sonst haengt Dauer-Rechnung und Zeitfilter an der Schreibweise.
+    function _tjISO(s) {
+      const v = String(s == null ? '' : s).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+      const m = v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+      if (!m) return null;
+      const p2 = (x) => String(x).padStart(2, '0');
+      return `${m[3]}-${p2(m[2])}-${p2(m[1])}`;
+    }
+    function _tjDat(s) {                 // Anzeige: TT.MM.JJJJ
+      const iso = _tjISO(s);
+      if (!iso) return s ? String(s) : '–';
+      const p = iso.split('-');
+      return `${p[2]}.${p[1]}.${p[0]}`;
+    }
+    function _tjTage(a, b) {
+      const x = _tjISO(a), y = _tjISO(b);
+      if (!x || !y) return null;
+      const ms = Date.parse(y + 'T00:00:00Z') - Date.parse(x + 'T00:00:00Z');
+      return isFinite(ms) ? Math.round(ms / 86400000) : null;
+    }
+    function _tjHeute() { return new Date().toISOString().slice(0, 10); }
+
     // --- Eintrag anlegen (Uebernahme von einer Karte) ----------------------
-    function _tjNeu(v) {
-      const heute = new Date().toISOString().slice(0, 10);
+    function _tjNeu(v, eingabe) {
       return {
         id: 'tj_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
         ticker: v.ticker, market: v.market || '', direction: v.direction || 'long',
-        entry_date: heute, entry_price: v.close ?? null,
-        status: 'offen', exit_date: null, exit_price: null, note: '',
+        entry_date: eingabe.entry_date, entry_price: eingabe.entry_price,
+        status: 'offen', exit_date: null, exit_price: null,
+        // `note` ist das Feld der ersten Fassung (#61) und bleibt im Schema,
+        // damit bestehende Eintraege nichts verlieren. Neu geschrieben wird es
+        // nicht mehr — dafuer gibt es jetzt `these` und `lesson`.
+        note: '', these: eingabe.these, lesson: '',
         // EINGEFROREN beim Anlegen: was das Werkzeug in diesem Moment sagte.
         // Spaetere Laeufe aendern das nie — sonst waere nicht mehr verortbar,
         // worauf die Entscheidung beruhte.
@@ -2544,15 +2615,40 @@
         },
       };
     }
+
+    // Uebernahme oeffnet jetzt ein Formular, statt sofort anzulegen: Kurs und
+    // Datum sind vorbefuellt, aber editierbar (nachgetragener Einstieg), und
+    // die These will im Moment der Entscheidung geschrieben werden.
     function tjUebernehmen(v) {
-      if (!Array.isArray(_tjArr)) _tjArr = _tjLocal() || [];
-      const e = _tjNeu(v);
-      if (e.entry_price == null) { showToast('Kein Kurs auf der Karte — nicht übernommen.', 'error'); return; }
-      _tjArr.unshift(e);
-      _tjPersistLocal();
-      _tjScheduleSync();
-      showToast(`✓ ${e.ticker} ins Journal`);
-      if (!document.getElementById('tj-overlay').hidden) _tjRender();
+      if (v.close == null) {
+        showToast('Kein Kurs auf der Karte — nicht übernommen.', 'error'); return;
+      }
+      _tjEntwurf = { v: v, entry_price: String(v.close),
+                     entry_date: _tjHeute(), these: '' };
+      _tjEdit = null; _tjBuf = null;
+      openJournal();
+    }
+
+    // Eingaben aus dem DOM in den Puffer holen — IMMER bevor neu gerendert
+    // wird. Sonst verwirft eine fehlgeschlagene Pruefung den getippten Text.
+    function _tjLeseEntwurf() {
+      if (!_tjEntwurf) return;
+      const p = document.getElementById('tj-ne-p');
+      const d = document.getElementById('tj-ne-d');
+      const h = document.getElementById('tj-ne-t');
+      if (p) _tjEntwurf.entry_price = p.value;
+      if (d) _tjEntwurf.entry_date = d.value;
+      if (h) _tjEntwurf.these = h.value;
+    }
+    function _tjLeseEdit(id) {
+      const g = (k) => {
+        const el = document.getElementById('tj-' + k + '-' + id);
+        return el ? el.value : null;
+      };
+      const b = { exit_date: g('xd'), exit_price: g('xp'),
+                  these: g('th'), lesson: g('le') };
+      if (b.exit_date === null && b.exit_price === null) return;  // nicht offen
+      _tjBuf = b;
     }
 
     // --- Ergebnis in Prozent: BERECHNET, nie eingegeben --------------------
@@ -2568,6 +2664,58 @@
       const cls = p >= 0 ? 'tj-plus' : 'tj-minus';
       return `<span class="tj-pct ${cls}">${p >= 0 ? '+' : ''}${p.toFixed(2)} %</span>`;
     }
+    function _tjProz(x) {
+      return x == null ? '–' : (x >= 0 ? '+' : '') + x.toFixed(2) + ' %';
+    }
+
+    // --- Statistik ueber die GEFILTERTEN Trades ---------------------------
+    // Gewinner ist p > 0, Verlierer p < 0; genau 0 zaehlt zu keinem von beiden
+    // (fliesst aber in Trades und mittlere Rendite ein).
+    function _tjStats(liste) {
+      const paare = liste.map(e => ({ e: e, p: _tjPct(e) })).filter(x => x.p != null);
+      const mit = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+      const win = paare.filter(x => x.p > 0), los = paare.filter(x => x.p < 0);
+      const score = (arr) => mit(arr.map(x => x.e.tool && x.e.tool.score)
+                                   .filter(s => s != null && isFinite(Number(s)))
+                                   .map(Number));
+      let best = null, mies = null;
+      paare.forEach(x => {
+        if (!best || x.p > best.p) best = x;
+        if (!mies || x.p < mies.p) mies = x;
+      });
+      return {
+        n: paare.length,
+        quote: paare.length ? win.length / paare.length * 100 : null,
+        avg: mit(paare.map(x => x.p)),
+        avgWin: mit(win.map(x => x.p)), avgLos: mit(los.map(x => x.p)),
+        best: best ? { t: best.e.ticker, p: best.p } : null,
+        mies: mies ? { t: mies.e.ticker, p: mies.p } : null,
+        scoreWin: score(win), scoreLos: score(los),
+      };
+    }
+
+    // --- Filter -----------------------------------------------------------
+    const TJ_ZEITEN = [['alle', 'Alle'], ['7', '7 Tage'], ['30', '30 Tage'],
+                       ['90', '90 Tage'], ['365', '365 Tage']];
+    const TJ_ERGEBNISSE = [['alle', 'Alle'], ['plus', 'nur Gewinner'],
+                           ['minus', 'nur Verlierer']];
+    function _tjGefiltert(zu) {
+      let out = zu.slice();
+      if (_tjFZeit !== 'alle') {
+        const grenze = Date.now() - Number(_tjFZeit) * 86400000;
+        out = out.filter(e => {
+          const iso = _tjISO(e.exit_date);
+          // Ohne lesbares Ausstiegsdatum laesst sich das Zeitfenster nicht
+          // entscheiden — dann faellt der Eintrag heraus, statt still
+          // mitgezaehlt zu werden.
+          return iso ? Date.parse(iso + 'T00:00:00Z') >= grenze : false;
+        });
+      }
+      if (_tjFErg === 'plus') out = out.filter(e => { const p = _tjPct(e); return p != null && p > 0; });
+      if (_tjFErg === 'minus') out = out.filter(e => { const p = _tjPct(e); return p != null && p < 0; });
+      return out.sort((a, b) => String(_tjISO(b.exit_date) || '')
+                        .localeCompare(String(_tjISO(a.exit_date) || '')));
+    }
 
     // --- Ansicht ----------------------------------------------------------
     function openJournal() {
@@ -2580,58 +2728,141 @@
     function closeJournal() {
       document.getElementById('tj-overlay').hidden = true;
       document.body.style.overflow = '';
-      _tjEdit = null;
+      _tjEdit = null; _tjBuf = null; _tjEntwurf = null;
     }
 
-    function _tjZeile(e) {
-      const offen = e.status !== 'geschlossen';
+    function _tjFrozenZeile(e) {
       const zone = e.tool && e.tool.target_zone
         ? `${fmt(e.tool.target_zone.low)}–${fmt(e.tool.target_zone.high)}` : '–';
-      const bearbeiten = _tjEdit === e.id;
-      const form = bearbeiten ? `
-        <div class="tj-form">
-          <label for="tj-xd-${e.id}">Ausstiegsdatum</label>
-          <input id="tj-xd-${e.id}" type="date" value="${esc(e.exit_date || '')}">
-          <label for="tj-xp-${e.id}">Ausstiegskurs</label>
-          <input id="tj-xp-${e.id}" type="number" step="any" inputmode="decimal"
-                 value="${e.exit_price ?? ''}" placeholder="z. B. 123.45">
-          <label for="tj-nt-${e.id}">Notiz — keine Beträge, keine Stückzahlen</label>
-          <textarea id="tj-nt-${e.id}" placeholder="Warum ein-/ausgestiegen? (Repo ist öffentlich — keine Beträge)">${esc(e.note || '')}</textarea>
-          <div class="tj-acts">
-            <button class="tj-btn" data-tj-save="${e.id}" type="button">Speichern</button>
-            <button class="tj-btn" data-tj-cancel="1" type="button">Abbrechen</button>
-            <button class="tj-btn tj-btn-danger" data-tj-del="${e.id}" type="button">Löschen</button>
-          </div>
-        </div>` : `
-        <div class="tj-acts">
-          <button class="tj-btn" data-tj-edit="${e.id}" type="button">Bearbeiten</button>
-        </div>`;
-      return `<div class="tj-row">
-        <div class="tj-row-top">
-          <span class="tj-tk">${esc(e.ticker)}</span>
-          <span class="tj-state${offen ? ' tj-open' : ''}">${offen ? 'offen' : 'geschlossen'}</span>
-          ${_tjPctHtml(e)}
-        </div>
-        <div class="tj-meta">Einstieg ${esc(e.entry_date || '?')} · ${fmt(e.entry_price)}${
-          offen ? '' : ` &nbsp;→&nbsp; Ausstieg ${esc(e.exit_date || '?')} · ${fmt(e.exit_price)}`}</div>
-        <div class="tj-frozen">Beim Anlegen: ${esc(e.tool && e.tool.setup || '–')}
+      return `<div class="tj-frozen">Beim Anlegen: ${esc(e.tool && e.tool.setup || '–')}
           · Score ${e.tool && e.tool.score != null ? fmt(e.tool.score) : '–'}
           · Zielzone ${zone}
           · Invalidierung ${e.tool && e.tool.invalidation != null ? fmt(e.tool.invalidation) : '–'}
-          · Stand ${esc(e.tool && e.tool.report_utc || '–')}</div>
-        ${e.note && !bearbeiten ? `<div class="tj-note">${esc(e.note)}</div>` : ''}
-        ${form}
+          · Stand ${esc(e.tool && e.tool.report_utc || '–')}</div>`;
+    }
+
+    // Details: nur wenn es etwas zu zeigen gibt. `note` ist das Altfeld aus
+    // #61 — es wird nicht mehr geschrieben, aber nie verschwiegen.
+    function _tjDetails(e) {
+      const hat = (e.these || e.lesson || e.note);
+      if (!hat) return '';
+      const auf = _tjDetailOffen.has(e.id);
+      const inhalt = !auf ? '' : `<div class="tj-det">
+        ${e.these ? `<div class="tj-these"><span class="tj-det-lbl">These beim Einstieg</span>${esc(e.these)}</div>` : ''}
+        ${e.lesson ? `<div class="tj-lesson"><span class="tj-det-lbl">Lesson beim Schließen</span>${esc(e.lesson)}</div>` : ''}
+        ${e.note ? `<div class="tj-note"><span class="tj-det-lbl">Notiz (frühere Fassung)</span>${esc(e.note)}</div>` : ''}
       </div>`;
+      return `<div class="tj-acts"><button class="tj-btn" data-tj-det="${e.id}"
+        type="button">${auf ? 'Details ausblenden' : 'Details anzeigen'}</button></div>${inhalt}`;
+    }
+
+    function _tjFormular(e, offen) {
+      const b = _tjBuf || {
+        exit_date: e.exit_date || _tjHeute(),
+        exit_price: e.exit_price == null ? '' : String(e.exit_price),
+        these: e.these || '', lesson: e.lesson || '',
+      };
+      return `<div class="tj-form">
+        <label for="tj-xp-${e.id}">Ausstiegskurs</label>
+        <input id="tj-xp-${e.id}" type="number" step="any" inputmode="decimal"
+               value="${esc(b.exit_price)}" placeholder="z. B. 123.45">
+        <label for="tj-xd-${e.id}">Ausstiegsdatum</label>
+        <input id="tj-xd-${e.id}" type="date" value="${esc(_tjISO(b.exit_date) || '')}">
+        <label for="tj-th-${e.id}">These beim Einstieg — halte sie gegen das Ergebnis</label>
+        <textarea id="tj-th-${e.id}" maxlength="500"
+          placeholder="Warum jetzt? Setup, Trigger, erwarteter Verlauf.">${esc(b.these)}</textarea>
+        <label for="tj-le-${e.id}">Lesson — keine Beträge, keine Stückzahlen (max. 500 Zeichen)</label>
+        <textarea id="tj-le-${e.id}" maxlength="500"
+          placeholder="Was hat getragen, was nicht? Was machst du beim nächsten Mal anders?">${esc(b.lesson)}</textarea>
+        ${e.note ? `<div class="tj-fest">Notiz (frühere Fassung): ${esc(e.note)}</div>` : ''}
+        <div class="tj-acts">
+          <button class="tj-btn" data-tj-save="${e.id}" type="button">${offen ? 'Schließen' : 'Speichern'}</button>
+          <button class="tj-btn" data-tj-cancel="1" type="button">Abbrechen</button>
+          <button class="tj-btn tj-btn-danger" data-tj-del="${e.id}" type="button">Löschen</button>
+        </div>
+      </div>`;
+    }
+
+    function _tjZeileOffen(e) {
+      const bearbeiten = _tjEdit === e.id;
+      return `<div class="tj-row">
+        <div class="tj-row-top">
+          <span class="tj-tk">${esc(e.ticker)}</span>
+          <span class="tj-state tj-open">offen</span>
+        </div>
+        <div class="tj-meta">Einstieg ${esc(_tjDat(e.entry_date))} · ${fmt(e.entry_price)}</div>
+        ${_tjFrozenZeile(e)}
+        ${bearbeiten ? '' : _tjDetails(e)}
+        ${bearbeiten ? _tjFormular(e, true) : `<div class="tj-acts">
+          <button class="tj-btn" data-tj-edit="${e.id}" type="button">Schließen</button>
+        </div>`}
+      </div>`;
+    }
+
+    function _tjZeileZu(e) {
+      const bearbeiten = _tjEdit === e.id;
+      const tage = _tjTage(e.entry_date, e.exit_date);
+      return `<div class="tj-row">
+        <div class="tj-row-top">
+          <span class="tj-tk">${esc(e.ticker)}</span>
+          <span class="tj-state">${esc(_tjDat(e.entry_date))} → ${esc(_tjDat(e.exit_date))}</span>
+          <span class="tj-state">${tage == null ? '–' : tage + (tage === 1 ? ' Tag' : ' Tage')}</span>
+          ${_tjPctHtml(e)}
+        </div>
+        <div class="tj-meta">${fmt(e.entry_price)} &nbsp;→&nbsp; ${fmt(e.exit_price)}
+          · Score ${e.tool && e.tool.score != null ? fmt(e.tool.score) : '–'}
+          (${esc(e.tool && e.tool.setup || '–')})</div>
+        ${bearbeiten ? '' : _tjDetails(e)}
+        ${bearbeiten ? _tjFormular(e, false) : `<div class="tj-acts">
+          <button class="tj-btn" data-tj-edit="${e.id}" type="button">Bearbeiten</button>
+        </div>`}
+      </div>`;
+    }
+
+    function _tjEntwurfBlock() {
+      if (!_tjEntwurf) return '';
+      const v = _tjEntwurf.v;
+      const zone = v.target_zone ? `${fmt(v.target_zone.low)}–${fmt(v.target_zone.high)}` : '–';
+      return `<div class="tj-row">
+        <div class="tj-row-top">
+          <span class="tj-tk">${esc(v.ticker)}</span>
+          <span class="tj-state tj-open">eröffnen</span>
+        </div>
+        <div class="tj-frozen">Wird eingefroren: ${esc(v.setup || '–')}
+          · Score ${v.score != null ? fmt(v.score) : '–'}
+          · Zielzone ${zone}
+          · Invalidierung ${v.invalidation != null ? fmt(v.invalidation) : '–'}</div>
+        <div class="tj-form">
+          <label for="tj-ne-p">Einstiegskurs</label>
+          <input id="tj-ne-p" type="number" step="any" inputmode="decimal"
+                 value="${esc(_tjEntwurf.entry_price)}">
+          <label for="tj-ne-d">Einstiegsdatum</label>
+          <input id="tj-ne-d" type="date" value="${esc(_tjISO(_tjEntwurf.entry_date) || '')}">
+          <label for="tj-ne-t">These — keine Beträge, keine Stückzahlen (max. 500 Zeichen)</label>
+          <textarea id="tj-ne-t" maxlength="500"
+            placeholder="Warum jetzt? Setup, Trigger, erwarteter Verlauf. Beim Schließen wird das vorbefüllt — du kannst es dann ergänzen.">${esc(_tjEntwurf.these)}</textarea>
+          <div class="tj-acts">
+            <button class="tj-btn" data-tj-open-save="1" type="button">Eröffnen</button>
+            <button class="tj-btn" data-tj-open-cancel="1" type="button">Abbrechen</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function _tjChips() {
+      const reihe = (paare, aktiv, attr) => paare.map(([w, lab]) =>
+        `<button class="tj-chip${w === aktiv ? ' tj-on' : ''}" type="button"
+          ${attr}="${w}">${esc(lab)}</button>`).join('');
+      return `<div class="tj-filters">${reihe(TJ_ZEITEN, _tjFZeit, 'data-tj-zeit')}</div>
+              <div class="tj-filters">${reihe(TJ_ERGEBNISSE, _tjFErg, 'data-tj-erg')}</div>`;
     }
 
     function _tjRender() {
       const body = document.getElementById('tj-body');
       const arr = Array.isArray(_tjArr) ? _tjArr : [];
       const offen = arr.filter(e => e.status !== 'geschlossen');
-      const zu = arr.filter(e => e.status === 'geschlossen');
-      const pcts = zu.map(_tjPct).filter(p => p != null);
-      const plus = pcts.filter(p => p > 0).length;
-      const mittel = pcts.length ? pcts.reduce((a, b) => a + b, 0) / pcts.length : null;
+      const zu = _tjGefiltert(arr.filter(e => e.status === 'geschlossen'));
+      const s = _tjStats(zu);
 
       const hinweis = `<p class="tj-hinweis"><b>Eigene Handels-Aufzeichnung, nicht Teil
         der Validierung.</b> Was hier steht, bildet <b>deine Entscheidungen</b> ab —
@@ -2639,19 +2870,29 @@
         aus; dafür ist allein die Validierung zuständig. Keine Beträge, keine
         Stückzahlen.</p>`;
 
+      const quoteCls = s.quote == null ? '' : (s.quote >= 50 ? ' tj-hit tj-good' : ' tj-hit tj-bad');
+      const zahl = (x) => x == null ? '–' : x;
       const summe = `<div class="tj-sum">
         <div class="tj-sum-box"><span class="tj-sum-num">${offen.length}</span><span class="tj-sum-lbl">offen</span></div>
-        <div class="tj-sum-box"><span class="tj-sum-num">${zu.length}</span><span class="tj-sum-lbl">geschlossen</span></div>
-        <div class="tj-sum-box"><span class="tj-sum-num">${pcts.length ? plus : '–'}</span><span class="tj-sum-lbl">davon im Plus</span></div>
-        <div class="tj-sum-box"><span class="tj-sum-num">${mittel == null ? '–' : (mittel >= 0 ? '+' : '') + mittel.toFixed(2) + ' %'}</span><span class="tj-sum-lbl">mittlere Veränderung</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${s.n}</span><span class="tj-sum-lbl">Trades</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num${quoteCls}">${s.quote == null ? '–' : s.quote.toFixed(0) + ' %'}</span><span class="tj-sum-lbl">Trefferquote</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${_tjProz(s.avg)}</span><span class="tj-sum-lbl">Ø Rendite</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${_tjProz(s.avgWin)}</span><span class="tj-sum-lbl">Ø Gewinner</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${_tjProz(s.avgLos)}</span><span class="tj-sum-lbl">Ø Verlierer</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${s.best ? esc(s.best.t) + ' ' + _tjProz(s.best.p) : '–'}</span><span class="tj-sum-lbl">Bester</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${s.mies ? esc(s.mies.t) + ' ' + _tjProz(s.mies.p) : '–'}</span><span class="tj-sum-lbl">Schlechtester</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${zahl(s.scoreWin == null ? null : s.scoreWin.toFixed(1))}</span><span class="tj-sum-lbl">Ø Score Gewinner</span></div>
+        <div class="tj-sum-box"><span class="tj-sum-num">${zahl(s.scoreLos == null ? null : s.scoreLos.toFixed(1))}</span><span class="tj-sum-lbl">Ø Score Verlierer</span></div>
       </div>`;
 
-      const liste = !arr.length
+      const liste = (!arr.length && !_tjEntwurf)
         ? '<p class="tj-empty">Noch nichts im Journal. Auf einer Karte „ins Journal" tippen.</p>'
-        : `${offen.length ? '<div class="tj-group">Offen</div>' + offen.map(_tjZeile).join('') : ''}
-           ${zu.length ? '<div class="tj-group">Geschlossen</div>' + zu.map(_tjZeile).join('') : ''}`;
+        : `${offen.length ? '<div class="tj-group">Offen</div>' + offen.map(_tjZeileOffen).join('') : ''}
+           ${zu.length ? '<div class="tj-group">Geschlossen</div>' + zu.map(_tjZeileZu).join('')
+             : (arr.some(e => e.status === 'geschlossen')
+                ? '<div class="tj-group">Geschlossen</div><p class="tj-empty">Keine geschlossenen Einträge im gewählten Zeitraum.</p>' : '')}`;
 
-      body.innerHTML = hinweis + summe + liste;
+      body.innerHTML = hinweis + _tjEntwurfBlock() + summe + _tjChips() + liste;
     }
 
     // Delegierte Klicks im Journal (Overlay wird neu gerendert -> keine
@@ -2659,30 +2900,71 @@
     function _tjClick(ev) {
       const t = ev.target.closest('button');
       if (!t) return;
-      if (t.dataset.tjEdit) { _tjEdit = t.dataset.tjEdit; _tjRender(); return; }
-      if (t.dataset.tjCancel) { _tjEdit = null; _tjRender(); return; }
+      if (t.dataset.tjZeit) { _tjLeseEntwurf(); _tjFZeit = t.dataset.tjZeit; _tjRender(); return; }
+      if (t.dataset.tjErg) { _tjLeseEntwurf(); _tjFErg = t.dataset.tjErg; _tjRender(); return; }
+      if (t.dataset.tjDet) {
+        const id = t.dataset.tjDet;
+        if (_tjDetailOffen.has(id)) _tjDetailOffen.delete(id); else _tjDetailOffen.add(id);
+        _tjRender(); return;
+      }
+      if (t.dataset.tjOpenCancel) { _tjEntwurf = null; _tjRender(); return; }
+      if (t.dataset.tjOpenSave) {
+        _tjLeseEntwurf();
+        if (!_tjEntwurf) return;
+        const roh = String(_tjEntwurf.entry_price == null ? '' : _tjEntwurf.entry_price).trim();
+        const preis = roh === '' ? null : Number(roh);
+        if (preis == null || !isFinite(preis) || preis <= 0) {
+          showToast('Einstiegskurs fehlt oder ist keine positive Zahl.', 'error');
+          _tjRender(); return;                    // Text bleibt im Entwurf stehen
+        }
+        const datum = _tjISO(_tjEntwurf.entry_date);
+        if (!datum) {
+          showToast('Einstiegsdatum nicht lesbar (TT.MM.JJJJ oder JJJJ-MM-TT).', 'error');
+          _tjRender(); return;
+        }
+        if (!Array.isArray(_tjArr)) _tjArr = _tjLocal() || [];
+        const tk = _tjEntwurf.v.ticker;
+        _tjArr.unshift(_tjNeu(_tjEntwurf.v, {
+          entry_price: preis, entry_date: datum, these: _tjTxt(_tjEntwurf.these),
+        }));
+        _tjEntwurf = null;
+        _tjPersistLocal(); _tjScheduleSync(); _tjRender();
+        showToast(`✓ ${tk} ins Journal`);
+        return;
+      }
+      if (t.dataset.tjEdit) { _tjLeseEntwurf(); _tjEdit = t.dataset.tjEdit; _tjBuf = null; _tjRender(); return; }
+      if (t.dataset.tjCancel) { _tjEdit = null; _tjBuf = null; _tjRender(); return; }
       if (t.dataset.tjDel) {
         _tjArr = _tjArr.filter(e => e.id !== t.dataset.tjDel);
-        _tjEdit = null; _tjPersistLocal(); _tjScheduleSync(); _tjRender();
+        _tjEdit = null; _tjBuf = null; _tjPersistLocal(); _tjScheduleSync(); _tjRender();
         showToast('Eintrag gelöscht'); return;
       }
       if (t.dataset.tjSave) {
         const id = t.dataset.tjSave;
         const e = _tjArr.find(x => x.id === id);
         if (!e) return;
-        const xd = document.getElementById('tj-xd-' + id).value.trim();
-        const xpRaw = document.getElementById('tj-xp-' + id).value.trim();
-        const nt = document.getElementById('tj-nt-' + id).value;
-        const xp = xpRaw === '' ? null : Number(xpRaw);
-        if (xp != null && !isFinite(xp)) { showToast('Ausstiegskurs ist keine Zahl.', 'error'); return; }
-        e.exit_date = xd || null;
-        e.exit_price = xp;
-        e.note = nt;
+        _tjLeseEdit(id);                 // Eingaben sichern, BEVOR etwas scheitern kann
+        const b = _tjBuf || {};
+        const roh = String(b.exit_price == null ? '' : b.exit_price).trim();
+        const preis = roh === '' ? null : Number(roh);
+        if (roh !== '' && !isFinite(preis)) {
+          showToast('Ausstiegskurs ist keine Zahl.', 'error'); _tjRender(); return;
+        }
+        const datum = _tjISO(b.exit_date);
+        if (String(b.exit_date || '').trim() !== '' && !datum) {
+          showToast('Ausstiegsdatum nicht lesbar (TT.MM.JJJJ oder JJJJ-MM-TT).', 'error');
+          _tjRender(); return;
+        }
+        e.exit_date = datum;
+        e.exit_price = preis;
+        e.these = _tjTxt(b.these);
+        e.lesson = _tjTxt(b.lesson);
         // Geschlossen ist ein Eintrag erst, wenn BEIDES steht — sonst bliebe
         // die Prozentrechnung ohne Grundlage.
         e.status = (e.exit_date && e.exit_price != null) ? 'geschlossen' : 'offen';
-        _tjEdit = null; _tjPersistLocal(); _tjScheduleSync(); _tjRender();
-        showToast('✓ gespeichert');
+        _tjEdit = null; _tjBuf = null;
+        _tjPersistLocal(); _tjScheduleSync(); _tjRender();
+        showToast(e.status === 'geschlossen' ? '✓ geschlossen' : '✓ gespeichert');
       }
     }
 
