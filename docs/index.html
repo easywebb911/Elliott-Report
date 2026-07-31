@@ -2661,7 +2661,10 @@
     function _tjPctHtml(e) {
       const p = _tjPct(e);
       if (p == null) return '';
-      const cls = p >= 0 ? 'tj-plus' : 'tj-minus';
+      // Genau 0 ist weder Gewinn noch Verlust — und zaehlt in der Statistik
+      // auch zu keinem von beiden. Also faerbt es hier auch nicht (Guardian-
+      // Nit 31.07.: gruen bei 0 widersprach der eigenen Zaehlweise).
+      const cls = p > 0 ? 'tj-plus' : (p < 0 ? 'tj-minus' : '');
       return `<span class="tj-pct ${cls}">${p >= 0 ? '+' : ''}${p.toFixed(2)} %</span>`;
     }
     function _tjProz(x) {
@@ -2702,7 +2705,11 @@
     function _tjGefiltert(zu) {
       let out = zu.slice();
       if (_tjFZeit !== 'alle') {
-        const grenze = Date.now() - Number(_tjFZeit) * 86400000;
+        // Ab MITTERNACHT rechnen, nicht ab der aktuellen Uhrzeit: sonst
+        // faellt ein Trade, der genau vor N Tagen geschlossen wurde, je
+        // nach Tageszeit mal rein und mal raus (Testfall „Randtag").
+        const heute0 = Math.floor(Date.now() / 86400000) * 86400000;
+        const grenze = heute0 - Number(_tjFZeit) * 86400000;
         out = out.filter(e => {
           const iso = _tjISO(e.exit_date);
           // Ohne lesbares Ausstiegsdatum laesst sich das Zeitfenster nicht

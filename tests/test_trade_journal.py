@@ -354,3 +354,111 @@ def test_alt_eintraege_ohne_neue_felder_bleiben_lesbar():
     # Rückfall zwingend: `undefined` stünde sonst sichtbar im Textfeld.
     for feld in ("these", "lesson"):
         assert re.search(rf"{feld}: e\.{feld} \|\| ''", block), feld
+
+
+# ---------------------------------------------------------------------------
+# 6 · DIE KENNZAHLEN SELBST — WERTE, NICHT ANWESENHEIT
+# ---------------------------------------------------------------------------
+# Guardian-Nit 31.07.2026: die Statistik hatte nur einen „wird mit der
+# gefilterten Liste aufgerufen"-Test. FÜNF Mutationen blieben grün —
+# Breakeven als Gewinner, Schlechtester/Bester vertauscht, `>= 50` zu `> 50`,
+# Score-Korrelation vertauscht, Zeitfilter-Randtag. Genau die Kennzahlen aus
+# dem Auftrag könnten also still falsch sein. Zwei Netze dagegen:
+#   (a) die entscheidenden Vergleiche stehen als LITERAL fest — läuft überall,
+#   (b) die Funktionen werden mit node WIRKLICH AUSGEFÜHRT, wenn eins da ist.
+# (a) allein fängt alle fünf; (b) prüft zusätzlich das Verhalten und überlebt
+# ein Umformulieren des Codes.
+import shutil          # noqa: E402
+import subprocess      # noqa: E402
+
+
+def _tj_fn(name: str) -> str:
+    """Eine Funktion aus dem Frontend herausschneiden (Einrückung als Klammer)."""
+    start = HTML.index(f"    function {name}(")
+    ende = HTML.index("\n    }", start) + len("\n    }")
+    return HTML[start:ende]
+
+
+def test_die_entscheidenden_vergleiche_stehen_fest():
+    """Ein stiller Dreher an einem dieser Zeichen kippt eine Kennzahl."""
+    stats = _tj_fn("_tjStats")
+    # Breakeven (p == 0) ist WEDER Gewinner NOCH Verlierer.
+    assert "const win = paare.filter(x => x.p > 0), los = paare.filter(x => x.p < 0);" in stats
+    # Bester ist das Maximum, Schlechtester das Minimum — nicht umgekehrt.
+    assert "if (!best || x.p > best.p) best = x;" in stats
+    assert "if (!mies || x.p < mies.p) mies = x;" in stats
+    # Score-Korrelation: Gewinner-Score aus den Gewinnern, nicht vertauscht.
+    assert "scoreWin: score(win), scoreLos: score(los)," in stats
+    # Trefferquote: 50 % ist noch grün (so steht es im Auftrag).
+    render = _tj_fn("_tjRender")
+    assert "s.quote >= 50 ? ' tj-hit tj-good' : ' tj-hit tj-bad'" in render
+    # Zeitfilter: der Randtag gehört noch dazu.
+    gef = _tj_fn("_tjGefiltert")
+    assert "Date.parse(iso + 'T00:00:00Z') >= grenze" in gef
+
+
+_NODE = shutil.which("node") or shutil.which("nodejs")
+
+
+def _js(script: str):
+    """Die Journal-Rechenkerne in node ausführen und JSON zurückgeben.
+
+    Bewusst OHNE feste Node-Abhängigkeit für die Suite: fehlt node, bleibt der
+    Literal-Test oben als vollständiges Netz. Deshalb skip statt Fehler.
+    """
+    if not _NODE:
+        import pytest
+        pytest.skip("kein node vorhanden — der Literal-Test deckt dieselben Fälle")
+    prelude = ("let _tjFZeit = 'alle', _tjFErg = 'alle';\n"
+               "Date.now = () => Date.parse('2026-07-31T12:00:00Z');\n")
+    quelle = "\n".join(_tj_fn(n) for n in
+                       ("_tjPct", "_tjISO", "_tjTage", "_tjStats", "_tjGefiltert"))
+    r = subprocess.run([_NODE, "-e", prelude + quelle + "\n" + script],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout)
+
+
+def _rec(ticker, entry, exit_, score, exit_date="2026-07-30"):
+    return {"ticker": ticker, "direction": "long", "entry_price": entry,
+            "exit_price": exit_, "entry_date": "2026-07-01",
+            "exit_date": exit_date, "status": "geschlossen",
+            "tool": {"score": score}}
+
+
+def test_statistik_rechnet_die_beispielliste_richtig():
+    """Feste Liste, von Hand nachgerechnet — inklusive Breakeven."""
+    liste = [_rec("A", 100, 120, 90),     # +20 %
+             _rec("B", 100, 90, 60),      # -10 %
+             _rec("C", 100, 100, 70),     # ±0  -> weder noch
+             _rec("D", 50, 55, 80)]       # +10 %
+    s = _js("console.log(JSON.stringify(_tjStats(%s)))" % json.dumps(liste))
+    assert s["n"] == 4
+    # Gewinner A und D, Verlierer B, C zählt zu keinem von beiden.
+    assert round(s["quote"], 4) == 50.0
+    assert round(s["avg"], 4) == 5.0            # (20 - 10 + 0 + 10) / 4
+    assert round(s["avgWin"], 4) == 15.0        # (20 + 10) / 2
+    assert round(s["avgLos"], 4) == -10.0
+    assert s["best"]["t"] == "A" and round(s["best"]["p"], 4) == 20.0
+    assert s["mies"]["t"] == "B" and round(s["mies"]["p"], 4) == -10.0
+    assert round(s["scoreWin"], 4) == 85.0      # (90 + 80) / 2
+    assert round(s["scoreLos"], 4) == 60.0
+
+
+def test_zeitfilter_nimmt_den_randtag_mit():
+    """Genau 30 Tage her → gehört noch dazu; 31 Tage → nicht mehr."""
+    liste = [_rec("RAND", 100, 110, 80, exit_date="2026-07-01"),   # 30 Tage
+             _rec("DRAUSSEN", 100, 110, 80, exit_date="2026-06-30")]  # 31 Tage
+    tk = _js("_tjFZeit = '30';"
+             "console.log(JSON.stringify(_tjGefiltert(%s).map(e => e.ticker)))"
+             % json.dumps(liste))
+    assert tk == ["RAND"], tk
+
+
+def test_geschlossene_liste_ist_neueste_zuerst():
+    liste = [_rec("ALT", 100, 110, 80, exit_date="2026-05-01"),
+             _rec("NEU", 100, 110, 80, exit_date="2026-07-20"),
+             _rec("MITTE", 100, 110, 80, exit_date="2026-06-10")]
+    tk = _js("console.log(JSON.stringify(_tjGefiltert(%s).map(e => e.ticker)))"
+             % json.dumps(liste))
+    assert tk == ["NEU", "MITTE", "ALT"], tk
