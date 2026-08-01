@@ -48,6 +48,27 @@ ERWARTETE_FAELLE = [
 ]
 
 
+def _historie_ist_flach() -> bool:
+    """Flacher Klon = die Historie fehlt, der Replay kann nichts finden.
+
+    ``actions/checkout`` klont per Default mit ``fetch-depth: 1``. Genau daran
+    sind diese Tests am 01.08.2026 in der CI gescheitert, während sie lokal
+    grün waren: `git log` fand EINEN Stand, `finde_splits` lieferte [], und die
+    Beweise wären stumm leer gewesen. `ci.yml` holt jetzt die volle Historie;
+    dieser Wächter sorgt dafür, dass ein Rückfall als **Skip mit Grund**
+    sichtbar wird und nicht als grüner Haken über nichts.
+    """
+    out = subprocess.run(["git", "rev-parse", "--is-shallow-repository"],
+                         cwd=ROOT, capture_output=True, text=True)
+    return out.stdout.strip() == "true"
+
+
+braucht_historie = pytest.mark.skipif(
+    _historie_ist_flach(),
+    reason="flacher Klon — der Replay über die committeten Stände braucht die "
+           "volle Historie (ci.yml: fetch-depth: 0)")
+
+
 # ---------------------------------------------------------------------------
 # 1) finde_splits als reine Funktion — Soll von Hand
 # ---------------------------------------------------------------------------
@@ -150,6 +171,7 @@ def test_die_vorgaenger_wahl_ist_NIE_mehrdeutig():
             if t["key"] == ("X", "2026-07-31T22:40:00Z")] == []
 
 
+@braucht_historie
 def test_die_vorgaenger_wahl_ist_auch_REAL_nie_mehrdeutig(echte_staende):
     """Dieselbe Eigenschaft über die 44 committeten Stände: jeder der zehn
     Treffer hat GENAU EIN Kandidaten-Datum."""
@@ -162,11 +184,11 @@ def test_die_vorgaenger_wahl_ist_auch_REAL_nie_mehrdeutig(echte_staende):
             f"Entscheidung, dann braucht sie einen Wert-Test")
 
 
-def test_der_marker_traegt_die_diagnose_NICHT(echte_staende):
+def test_der_marker_traegt_die_diagnose_NICHT():
     """`kandidaten_last_seen` ist Diagnose, kein Marker-Inhalt — sonst stünde
     ein Implementierungsdetail dauerhaft in der Sammlung."""
     coll = _unmarkierter_bestand()
-    mes.setze_marker(coll, mes.finde_splits(echte_staende), "2026-08-01")
+    mes.setze_marker(coll, treffer_aus_erwartung(), "2026-08-01")
     for r in coll["records"]:
         if mes.MARKER in r:
             assert set(r[mes.MARKER]) == {
@@ -187,9 +209,40 @@ def test_record_key_haelt_kollidierende_episode_ids_auseinander():
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def echte_staende():
-    return mes.committete_staende(ROOT)
+    staende = mes.committete_staende(ROOT)
+    assert len(staende) >= 44, (
+        f"nur {len(staende)} committete Stände gefunden — die Historie ist "
+        f"unvollständig, der Replay wäre stumm")
+    return staende
 
 
+def treffer_aus_erwartung() -> list:
+    """Die zehn Fälle OHNE Git — aus ``ERWARTETE_FAELLE`` und den Record-Keys
+    des ausgelieferten Bestands.
+
+    Damit hängen die Marker-MECHANIK-Tests (ändert nur das Marker-Feld,
+    idempotent, Rückweg byte-identisch) nicht an der Git-Historie: sie prüfen
+    Eigenschaften des Setzens, nicht die Herkunft der Liste. Dass die Liste
+    stimmt, prüfen die Replay-Tests weiter oben — die brauchen die Historie.
+    """
+    coll = json.loads(SAMMLUNG.read_text(encoding="utf-8"))
+    nach_ticker_lauf = {}
+    for r in coll["records"]:
+        m = r.get(mes.MARKER)
+        if m:
+            nach_ticker_lauf[(r["ticker"], m["run_date"])] = mes.record_key(r)
+    treffer = []
+    for ticker, run_date, neue_episode, vorgaenger in ERWARTETE_FAELLE:
+        key = nach_ticker_lauf.get((ticker, run_date))
+        assert key is not None, f"{ticker}/{run_date} fehlt im Bestand"
+        treffer.append({"key": key, "ticker": ticker, "run_date": run_date,
+                        "neue_episode": neue_episode,
+                        "would_have_extended": vorgaenger,
+                        "kandidaten_last_seen": ["(aus der Erwartung)"]})
+    return treffer
+
+
+@braucht_historie
 def test_der_replay_findet_die_zehn_echten_faelle(echte_staende):
     treffer = mes.finde_splits(echte_staende)
     gefunden = [(t["ticker"], t["run_date"], t["neue_episode"],
@@ -197,6 +250,7 @@ def test_der_replay_findet_die_zehn_echten_faelle(echte_staende):
     assert gefunden == ERWARTETE_FAELLE
 
 
+@braucht_historie
 def test_jeder_gefundene_fall_liegt_wirklich_in_der_sammlung(echte_staende):
     coll = json.loads(SAMMLUNG.read_text(encoding="utf-8"))
     vorhanden = {mes.record_key(r) for r in coll["records"]}
@@ -204,6 +258,7 @@ def test_jeder_gefundene_fall_liegt_wirklich_in_der_sammlung(echte_staende):
         assert t["key"] in vorhanden, f"{t['ticker']} nicht im aktuellen Stand"
 
 
+@braucht_historie
 def test_die_reale_historie_hat_KEINEN_ein_lauf_tag(echte_staende):
     """Ehrlich festgehalten (01.08.2026): der Äquivalenz-Beweis „über die
     Ein-Lauf-Tage der realen Historie" wäre LEER — jeder der neun Kalendertage
@@ -223,6 +278,7 @@ def test_die_reale_historie_hat_KEINEN_ein_lauf_tag(echte_staende):
         f"docs/validation_registry.md nachziehen, der Beweis wird nicht-leer")
 
 
+@braucht_historie
 def test_AEQUIVALENZ_beim_ersten_lauf_eines_tages(echte_staende):
     """Der Fix darf normale Tage NICHT verändern — über die echte Historie.
 
@@ -264,6 +320,7 @@ def test_AEQUIVALENZ_beim_ersten_lauf_eines_tages(echte_staende):
     assert geprueft >= 197, f"nur {geprueft} Ticker-Vergleiche — Beweis zu dünn"
 
 
+@braucht_historie
 def test_die_vorbedingung_des_aequivalenz_beweises_gilt_real(echte_staende):
     """Kein committeter Stand trägt ein ``last_seen_top5_date`` NACH seinem
     eigenen ``last_run_date`` — sonst wäre der zusätzliche Anker nicht inert."""
@@ -295,10 +352,10 @@ def _unmarkierter_bestand() -> dict:
     return coll
 
 
-def test_marker_aendert_ausschliesslich_das_marker_feld(echte_staende):
+def test_marker_aendert_ausschliesslich_das_marker_feld():
     coll = _unmarkierter_bestand()
     vorher = copy.deepcopy(coll)
-    treffer = mes.finde_splits(echte_staende)
+    treffer = treffer_aus_erwartung()
     n = mes.setze_marker(coll, treffer, "2026-08-01")
     assert n == len(ERWARTETE_FAELLE) == 10
 
@@ -314,9 +371,9 @@ def test_marker_aendert_ausschliesslich_das_marker_feld(echte_staende):
         (t, d) for t, d, _, _ in ERWARTETE_FAELLE)
 
 
-def test_marker_inhalt_ist_von_hand_nachgerechnet(echte_staende):
+def test_marker_inhalt_ist_von_hand_nachgerechnet():
     coll = _unmarkierter_bestand()
-    mes.setze_marker(coll, mes.finde_splits(echte_staende), "2026-08-01")
+    mes.setze_marker(coll, treffer_aus_erwartung(), "2026-08-01")
     g1a = [r for r in coll["records"]
            if r["ticker"] == "G1A.DE" and mes.MARKER in r]
     assert len(g1a) == 1
@@ -328,9 +385,9 @@ def test_marker_inhalt_ist_von_hand_nachgerechnet(echte_staende):
     }
 
 
-def test_markieren_ist_idempotent(echte_staende):
+def test_markieren_ist_idempotent():
     coll = _unmarkierter_bestand()
-    treffer = mes.finde_splits(echte_staende)
+    treffer = treffer_aus_erwartung()
     assert mes.setze_marker(coll, treffer, "2026-08-01") == 10
     zwischenstand = copy.deepcopy(coll)
     assert mes.setze_marker(coll, treffer, "2026-08-01") == 0
@@ -363,7 +420,7 @@ def _basis_ohne_marker(tmp_path: Path) -> dict:
     return basis
 
 
-def test_purge_stellt_byte_identitaet_her(tmp_path, echte_staende):
+def test_purge_stellt_byte_identitaet_her(tmp_path):
     """Marker setzen, dann entfernen -> BYTE-identisch zur Basis.
 
     Die Schreibform ist dieselbe wie in ``write_collection`` (indent=2,
@@ -385,7 +442,7 @@ def test_purge_stellt_byte_identitaet_her(tmp_path, echte_staende):
             f"{rel}: Rückweg nicht byte-identisch"
 
 
-def test_der_ausgelieferte_bestand_traegt_die_zehn_marker(echte_staende):
+def test_der_ausgelieferte_bestand_traegt_die_zehn_marker():
     """Gegenstück zur Normalisierung: die eingecheckte Datei IST markiert.
 
     Sonst wäre der Rückweg-Test grün, ohne dass je ein Marker im Repo stünde.
@@ -445,7 +502,7 @@ def test_evaluate_v1_ist_byte_identisch():
                    "3b513fc"), "evaluate.py wurde verändert — Auswertung v1 ist eingefroren"
 
 
-def test_die_auswertung_v1_sieht_den_marker_NICHT(echte_staende):
+def test_die_auswertung_v1_sieht_den_marker_NICHT():
     """Gegenprobe zur Hash-Pinnung, an der ECHTEN Population.
 
     ``build_population`` ist der Eingang der Auswertung. Mit und ohne Marker
@@ -457,7 +514,7 @@ def test_die_auswertung_v1_sieht_den_marker_NICHT(echte_staende):
     coll = json.loads(SAMMLUNG.read_text(encoding="utf-8"))
     faelle_ohne, diag_ohne = ev.build_population(coll)
 
-    mes.setze_marker(coll, mes.finde_splits(echte_staende), "2026-08-01")
+    mes.setze_marker(coll, treffer_aus_erwartung(), "2026-08-01")
     faelle_mit, diag_mit = ev.build_population(coll)
 
     assert diag_ohne == diag_mit
