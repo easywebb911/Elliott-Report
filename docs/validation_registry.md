@@ -740,3 +740,63 @@ vor n ≥ 100) gilt unverändert.
   eingefrorene Dispatch-SHA und der Konflikt kann wiederkehren), den
   `rebase --abort` und die Fallunterscheidung im Fehlschlag-Push zurücknehmen;
   **kein Datenstand wird ungültig**, diese Notiz bleibt gültig.
+
+- **2026-08-01 — Episoden-Anschluss zählt KALENDERTAGE, nicht Läufe
+  (Präzisierung, keine Umdefinition).** Die stehende Regel „konsekutive
+  Top-5-Tage verlängern dieselbe Episode" bleibt unverändert gültig. Präzisiert
+  wird, was **Tag** heißt: der Kalendertag, unabhängig davon, wie viele Läufe an
+  ihm stattfinden.
+  - **Was falsch war.** Der Anschluss hing an `coll["last_run_date"]` — dem
+    Datum des letzten **Laufs**. Bei einem Lauf pro Tag ist das dasselbe; bei
+    mehreren nicht. Der erste Lauf eines Tages setzte das Datum bereits auf
+    heute, und ein Record von gestern fand im zweiten Lauf desselben Tages
+    keinen Anschluss mehr: er wurde zu einer **zweiten Episode zerschnitten**,
+    obwohl der Ticker an zwei konsekutiven Kalendertagen in den Top 5 stand.
+  - **Wie oft real.** Ein Replay über die 44 committeten Sammlungs-Stände seit
+    dem 23.07.2026 findet **zehn** zerschnittene Records: HAG.DE (24.07.),
+    ADS.DE (25.07., 29.07., 30.07.), MTX.DE (28.07., 31.07.), ANET (28.07.),
+    EVK.DE (29.07.), KKR und G1A.DE (31.07.). **Alle zehn an
+    Mehrfach-Lauf-Tagen** — keine einzige Abweichung an einem ersten Lauf des
+    Tages.
+  - **Was sich ändert.** `episode_anchor_dates` liefert zwei Anker: das heutige
+    Lauf-Datum **und** das jüngste davorliegende Lauf-Datum mit anderem
+    Kalenderdatum (neues Sammlungs-Feld `prev_distinct_run_date`, additiv,
+    Schema v1). Eine **Unterbrechung bleibt Unterbrechung**: wer am letzten
+    Lauf-Kalendertag nicht in den Top 5 war, bekommt weiterhin eine neue
+    Episode. Fr→Mo und Feiertags-Brücken tragen unverändert. Dieselben Anker
+    benutzt der N×-Zähler `appearance_count`, der sonst am zweiten Lauf eines
+    Tages doppelt gezählt hätte (wirkt nur vorwärts; der Zähler wird bei jedem
+    Lauf neu in den Report geschrieben, nie gespeichert).
+  - **Einfrier-Invariante.** Eine Verlängerung schreibt ausschließlich
+    `last_seen_top5_date`. Der **erste** Lauf eines Tages friert die
+    Anlage-Felder ein (`entry_close`, `score_heuristic`, Zonen, Pivots,
+    Konfluenz); jeder weitere Lauf desselben Tages lässt sie unberührt.
+  - **Wirkung auf den Score-Alarm.** Eine korrekt verlängerte Episode erbt
+    `score_alert_fired`. Der Weg zum Doppel-Alarm (Flanke gesetzt → Ticker fehlt
+    im Zwischenlauf → neuer Record ohne Flanke → zweiter Push) ist damit zu.
+  - **Alt-Records: MARKIERT, NIEMALS GEHEILT** (wie MET/D und der PRU-Guard).
+    Die zehn zerschnittenen Records werden nicht zusammengeführt, nicht
+    gelöscht, kein bestehendes Feld wird geändert. Sie tragen additiv
+    `episode_split_suspect` (`marked_date`, `reason`, `run_date`,
+    `would_have_extended`). Der Marker hat **jetzt keine Zählwirkung**:
+    `evaluate.py` ist als Auswertung v1 eingefroren und wird nicht angefasst
+    (Hash im Test gepinnt). Ob und wie die Auswertung markierte Records
+    behandelt, ist eine **spätere, datierte Entscheidung vor der ersten echten
+    Auswertung** (n≥100) — nicht diese hier.
+  - **Ehrlich zur Beweislage.** Die reale Historie enthält **keinen einzigen
+    Ein-Lauf-Tag**: jeder der neun Kalendertage seit dem 23.07. trägt zwei bis
+    sieben Lauf-Stände. Der Äquivalenz-Beweis „alte vs. neue Regel an
+    Ein-Lauf-Tagen" wäre also leer. Geführt wird er stattdessen über die acht
+    **ersten Läufe eines Kalendertags** — das ist dieselbe Lage — mit 197
+    Ticker-Vergleichen, alle deckungsgleich. Der strukturelle Grund: vor dem
+    ersten Lauf eines Tages kann kein Record `last_seen == run_date` tragen, der
+    zusätzliche Anker ist dort wirkungslos.
+  - **Migration.** Fehlt `prev_distinct_run_date` (Stände von vor dem 01.08.)
+    und lief heute bereits ein Lauf, bleibt nur das heutige Datum als Anker —
+    exakt das alte Verhalten, keine Verschlechterung. Ab dem ersten Lauf an
+    einem neuen Kalendertag ist das Feld gesetzt.
+  Revert = die Anschluss-Regel per PR-Revert zurücknehmen (dann gilt wieder
+  `last_run_date` und der Schnitt kann wiederkehren); die Marker entfernt
+  `python scripts/mark_episode_splits.py --purge --live` byte-identisch.
+  **Kein Datenstand wird ungültig**, keine gemessene Zahl ändert sich, diese
+  Notiz bleibt gültig.
