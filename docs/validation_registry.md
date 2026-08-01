@@ -800,3 +800,47 @@ vor n ≥ 100) gilt unverändert.
   `python scripts/mark_episode_splits.py --purge --live` byte-identisch.
   **Kein Datenstand wird ungültig**, keine gemessene Zahl ändert sich, diese
   Notiz bleibt gültig.
+
+- **2026-08-01 — zwei Pushes waren still tot: `notify.py` fand `config` beim
+  Skript-Start nicht.** `config.py` liegt im **Repo-Root**, `notify.py` legte
+  aber nur `REPO_ROOT/"scripts"` auf `sys.path`. Beim Start ALS SKRIPT
+  (`python scripts/notify.py --mode daily`, so ruft `daily.yml` es auf) setzt
+  Python `sys.path[0]` auf das **Skript-Verzeichnis**, nicht auf das
+  Arbeitsverzeichnis — der Repo-Root stand nirgends auf dem Pfad.
+  - **Was ausfiel.** `import config` scheiterte, und weil
+    `forward_collection` seinerseits `config` importiert, scheiterte auch der.
+    Beide Importe sind in `try/except` gekapselt: es war **still**. Folge (a)
+    `_evaluable_count` lieferte dauerhaft 0 → der **Meilenstein-Push bei
+    n≥EVAL_MIN_N konnte nie feuern**. Folge (b) `SCORE_REVIEW_BY` fiel auf
+    `None` zurück → der **Review-Wecker war ebenfalls tot** (`review_due(None,
+    …)` ist immer False). Im Actions-Log vom 31.07. steht wörtlich
+    `review_by=None`, obwohl in `config.py` der 07.12.2026 steht.
+  - **Warum es niemandem auffiel.** Die Pipeline importiert `notify` als
+    **Modul** und legt beide Verzeichnisse selbst auf den Pfad — der
+    Score-Alarm war deshalb nie betroffen. Und jede lokale Nachstellung über
+    `python -c` hat das Arbeitsverzeichnis auf dem Pfad, dort tritt der Fehler
+    nicht auf. Die übrigen Rückfallwerte (`REPORT_PATH`, `CARD_STATUS`,
+    `EVAL_MIN_N`) stimmten **zufällig** mit den echten überein; nur die zwei
+    Werte ohne passenden Rückfall fielen aus.
+  - **Was sich ändert.** `notify.py` legt jetzt **beide** Verzeichnisse auf den
+    Pfad, genau wie `elliott_pipeline.py`. Die „nicht verfügbar"-Logzeile nennt
+    zusätzlich den **Import-Fehler** — fail-soft bleibt fail-soft, aber eine
+    stille Fehlstelle darf nicht noch einmal acht Tage unbemerkt bleiben.
+  - **Sicherheits-Prüfung (der Fix erweckt zwei Pushes).** Am Stand vom
+    01.08.2026: 50 gesammelt, **0 gereift, 0 auswertbar** bei Schwelle 100 →
+    `milestone_reached` bleibt False, der **Einmal-Marker
+    `data/validation_milestone_fired.flag` existiert nicht und wird nicht
+    angelegt** (an einem echten Skript-Lauf nachgemessen). Der Review-Wecker
+    ist erst fällig, wenn `review_by` überschritten **und** Montag ist — der
+    07.12. ist selbst ein Montag, aber noch nicht „überschritten"; erster
+    wirklicher Auslöser ist **Montag, 14.12.2026**.
+  - **Score im Alarm-Push jetzt mit EINER Dezimale.** Ganzzahlig gerundet
+    ergaben sich Texte, die dem Alarm widersprachen: ein Score von 88,34 wurde
+    zu „88" und stand neben „Schwelle 88.2" scheinbar **unter** seiner eigenen
+    Schwelle. Das Fenster 88,20–88,49 ist der Bereich direkt über der
+    W4-Schwelle, also der **häufigste** Alarm-Fall. Am 31.07. folgenlos, weil
+    QIA.DE bei 88,69 lag. Der Vergleich lief immer auf den **Rohwerten**; es
+    war ausschließlich ein Anzeige-Widerspruch, keine Fehlauslösung.
+  Revert = PR zurücknehmen. Dann sind beide Pushes wieder tot und der
+  Alarm-Text wieder ganzzahlig; **kein Datenstand wird ungültig**, keine
+  gemessene Zahl ändert sich, diese Notiz bleibt gültig.

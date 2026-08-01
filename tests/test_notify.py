@@ -6,6 +6,8 @@ Kein Netz: `notify._post` wird ersetzt und die Pushes werden mitgeschnitten.
 import datetime as _dt
 import json
 
+import pytest
+
 import notify
 
 
@@ -233,7 +235,7 @@ _EDGES = [{"ticker": "XYZ", "market": "US", "score": 93.2,
 def test_score_alert_body_bundles_and_is_honest():
     body = notify.score_alert_body(_EDGES)
     assert "XYZ" in body and "ABC" in body           # beide Ticker im EINEN Text
-    assert "93" in body and "91" in body             # Scores (ganzzahlig gerundet)
+    assert "93.2" in body and "91.0" in body         # Scores mit EINER Dezimale
     assert "heuristisch · unvalidiert" in body       # Ehrlichkeit: kein Signal
     assert "🇺🇸" in body and "🇩🇪" in body            # Markt im Text
 
@@ -245,11 +247,57 @@ def test_score_alert_body_nennt_setup_typ_und_schwelle():
     EXAKT geprueft, nicht per Teilstring (Guardian-Nit 31.07.): `"Schwelle
     88.2" in body` matcht auch `Schwelle 88.20` — eine Formatierungs-Aenderung
     waere unbemerkt durchgerutscht. Der ganze Baustein steht hier woertlich.
+
+    Seit 01.08.2026 traegt der SCORE eine Dezimale (vorher ganzzahlig) — siehe
+    test_score_alert_body_widerspricht_dem_alarm_nicht.
     """
     body = notify.score_alert_body(_EDGES)
-    assert body == ("XYZ (🇺🇸) 93 · Ende W4 (Schwelle 88.2)"
-                    " · ABC (🇩🇪) 91 · Ende W2 (Schwelle 78.4)"
+    assert body == ("XYZ (🇺🇸) 93.2 · Ende W4 (Schwelle 88.2)"
+                    " · ABC (🇩🇪) 91.0 · Ende W2 (Schwelle 78.4)"
                     " — heuristisch · unvalidiert (kein Signal)")
+
+
+def test_score_alert_body_widerspricht_dem_alarm_nicht():
+    """Der Grund fuer die Dezimale (Befund 31.07.2026).
+
+    Ganzzahlig gerundet ergaben sich Texte, die dem Alarm WIDERSPRACHEN: ein
+    Score von 88,34 liegt UEBER der W4-Schwelle 88,20 — der Alarm feuert zu
+    Recht. Als `88` neben `Schwelle 88.2` gelesen, sah der Push aus, als laege
+    der Wert DARUNTER. Von Hand nachgerechnet: 88,34 -> "88.3", und 88.3 > 88.2
+    ist auch im Text wahr.
+
+    Der Fall ist real erreichbar: 88,20 <= score < 88,50 ist genau das Fenster
+    direkt ueber der Schwelle, also der HAEUFIGSTE Alarm-Fall, nicht der
+    seltenste. Am 31.07. blieb er folgenlos, weil QIA.DE bei 88,69 lag.
+    """
+    body = notify.score_alert_body(
+        [{"ticker": "QIA.DE", "market": "DE", "score": 88.34,
+          "setup": "end_of_w4", "threshold": 88.2}])
+    assert body == ("QIA.DE (🇩🇪) 88.3 · Ende W4 (Schwelle 88.2)"
+                    " — heuristisch · unvalidiert (kein Signal)")
+    # Und die Kern-Eigenschaft explizit: die gezeigte Zahl liegt ueber der
+    # gezeigten Schwelle. Mit `.0f` waere hier "88" gestanden -> 88 < 88.2.
+    gezeigt = float(body.split(") ")[1].split(" ·")[0])
+    schwelle = float(body.split("Schwelle ")[1].split(")")[0])
+    assert gezeigt >= schwelle, f"Text zeigt {gezeigt} unter Schwelle {schwelle}"
+
+
+@pytest.mark.parametrize("score, erwartet", [
+    (88.20, "88.2"), (88.25, "88.2"), (88.34, "88.3"), (88.49, "88.5"),
+    (88.69, "88.7"), (93.0, "93.0"),
+])
+def test_score_dezimale_von_hand_nachgerechnet(score, erwartet):
+    """Sollwerte ausgeschrieben, nicht aus dem Formatstring abgeleitet.
+
+    88,25 -> "88.2" ist Pythons Bankers Rounding (haelftig auf die gerade
+    Ziffer) und KEIN Tippfehler; 88,49 -> "88.5" rundet auf. Beides ist fuer
+    den Alarm unschaedlich, weil die Schwelle selbst nur eine Dezimale hat und
+    der Vergleich im Code auf den ROHWERTEN laeuft, nicht auf dem Text.
+    """
+    body = notify.score_alert_body(
+        [{"ticker": "T", "market": "US", "score": score,
+          "setup": "end_of_w4", "threshold": 88.2}])
+    assert f"T (🇺🇸) {erwartet} · Ende W4" in body
 
 
 def test_score_alert_body_vertraegt_unbekannten_typ():

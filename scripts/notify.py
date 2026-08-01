@@ -35,17 +35,39 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+# BEIDE Verzeichnisse — genau wie elliott_pipeline.py es tut: `config.py` liegt
+# im Repo-ROOT, die übrigen Module in `scripts/`.
+#
+# Warum das hier stand und fehlte (Befund 01.08.2026): beim Start ALS SKRIPT
+# (`python scripts/notify.py --mode daily`) setzt Python `sys.path[0]` auf das
+# SKRIPT-Verzeichnis, nicht auf das Arbeitsverzeichnis. Der Repo-Root stand
+# damit nirgends auf dem Pfad, `import config` scheiterte — und weil
+# `forward_collection` seinerseits `import config` macht, scheiterte auch der.
+# Beide Fehler sind gekapselt, also war es STILL: `_evaluable_count` lieferte
+# dauerhaft 0, der Meilenstein-Push bei n>=EVAL_MIN_N konnte NIE feuern.
+# Dieselbe Klasse wie der tote Score-Alarm vor #66. Die Pipeline merkte nichts,
+# weil sie `notify` als MODUL importiert und beide Pfade selbst setzt; „lokal
+# geht es" täuschte, weil `python -c` das Arbeitsverzeichnis auf dem Pfad hat.
+for _p in (str(REPO_ROOT), str(REPO_ROOT / "scripts")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+# Import-Fehler MERKEN statt verschlucken: fail-soft bleibt fail-soft, aber die
+# Log-Zeile soll sagen, WORAN es lag. Ein stiller Rückfall auf 0 hat den
+# Meilenstein-Push acht Tage lang unbemerkt totgestellt.
+_IMPORT_FEHLER = {}
 
 try:
     import config  # noqa: E402
-except Exception:  # pragma: no cover — config immer vorhanden, defensiv
+except Exception as exc:  # pragma: no cover — config immer vorhanden, defensiv
     config = None
+    _IMPORT_FEHLER["config"] = f"{type(exc).__name__}: {exc}"
 
 try:
     import forward_collection as _fc  # kanonische Quelle für EVAL_MIN_N  # noqa: E402
-except Exception:  # pragma: no cover
+except Exception as exc:  # pragma: no cover
     _fc = None
+    _IMPORT_FEHLER["forward_collection"] = f"{type(exc).__name__}: {exc}"
 
 import market_calendar as cal  # gemeinsamer Kalender (Gate + Staleness)  # noqa: E402
 
@@ -117,13 +139,19 @@ def score_alert_body(edges) -> str:
 
     Seit 31.07.2026 nennt der Text den SETUP-TYP und die KONKRETE Schwelle:
     die Schwelle ist typ-relativ, eine Zahl ohne ihren Bezug wäre irreführend
-    (89 ist an der W4-Schwelle knapp, an der W2-Schwelle weit darüber)."""
+    (89 ist an der W4-Schwelle knapp, an der W2-Schwelle weit darüber).
+
+    Seit 01.08.2026 steht der Score mit EINER Dezimale — wie die Schwelle.
+    Ganzzahlig gerundet ergaben sich Texte, die dem Alarm widersprachen: ein
+    Score von 88,34 wurde zu „88" und stand damit neben „Schwelle 88.2"
+    scheinbar UNTER seiner eigenen Schwelle, obwohl er sie überschritten hat.
+    Beide Zahlen tragen jetzt dieselbe Genauigkeit und bleiben vergleichbar."""
     parts = []
     for e in edges:
         markt = _MARKET_FLAG.get(e.get("market"), e.get("market"))
         typ = config.SETUP_LABEL_MARKER.get(e.get("setup"), "Typ offen")
         schwelle = e.get("threshold")
-        stueck = f"{e['ticker']} ({markt}) {e['score']:.0f} · {typ}"
+        stueck = f"{e['ticker']} ({markt}) {e['score']:.1f} · {typ}"
         if isinstance(schwelle, (int, float)):
             stueck += f" (Schwelle {schwelle:.1f})"
         parts.append(stueck)
@@ -197,8 +225,12 @@ def _evaluable_count(coll) -> int:
     if not coll or not isinstance(coll.get("records"), list):
         return 0
     if _fc is None or not hasattr(_fc, "eval_counts"):
-        _log("forward_collection nicht verfügbar — Meilenstein-Zählung "
-             "übersprungen (kein Push).")
+        grund = _IMPORT_FEHLER.get(
+            "forward_collection",
+            "Modul geladen, aber ohne eval_counts" if _fc is not None
+            else "Grund nicht festgehalten")
+        _log(f"forward_collection nicht verfügbar ({grund}) — Meilenstein-"
+             f"Zählung übersprungen (kein Push).")
         return 0
     try:
         return _fc.eval_counts(coll)[2]
