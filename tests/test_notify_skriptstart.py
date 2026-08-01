@@ -56,9 +56,18 @@ def _starte(*args: str) -> subprocess.CompletedProcess:
 def tempdir_neutral() -> str:
     """Bewusst NICHT das Repo-Root als Arbeitsverzeichnis.
 
-    Sonst läge der Repo-Root über ``''``/cwd ohnehin auf dem Pfad und der Test
-    wäre blind für genau den Fehler, den er sucht. notify löst alle Pfade über
-    ``REPO_ROOT`` auf, ist also nicht auf das Arbeitsverzeichnis angewiesen.
+    BERICHTIGUNG (Guardian-Nit 01.08.2026): für den SKRIPT-Start ist das kein
+    Wirkfaktor — bei ``python <skript>`` ist ``sys.path[0]`` **immer** das
+    Skript-Verzeichnis, nie das Arbeitsverzeichnis. Der Defekt trat also auch
+    mit ``cwd=REPO_ROOT`` auf, genau wie in `daily.yml`. Das fremde
+    Arbeitsverzeichnis beweist hier etwas anderes, ebenfalls Nützliches:
+    notify löst alle Pfade über ``REPO_ROOT`` auf und ist nicht auf das
+    Arbeitsverzeichnis angewiesen.
+
+    Für die Negativ-Kontrolle unten ist das Arbeitsverzeichnis dagegen sehr
+    wohl entscheidend: dort läuft ``python -c``, und da IST ``sys.path[0]``
+    das Arbeitsverzeichnis (``''``). Stünde der Test im Repo-Root, wäre er
+    blind für den Fehler, den er nachstellen soll.
     """
     return str(Path(sys.prefix))
 
@@ -134,6 +143,64 @@ def test_notify_legt_BEIDE_verzeichnisse_auf_den_pfad():
 # ---------------------------------------------------------------------------
 # 2) Die stille Fehlstelle ist nicht mehr still
 # ---------------------------------------------------------------------------
+class _Blockiert:
+    """Meta-Path-Finder, der genau EIN Modul unimportierbar macht."""
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def find_spec(self, name, path=None, target=None):
+        if name == self.name:
+            raise ImportError(f"Testfall: {self.name} nicht importierbar")
+        return None
+
+
+@pytest.mark.parametrize("blockiert", ["forward_collection", "config"])
+def test_der_ECHTE_import_fehlerpfad_haelt_den_grund_fest(blockiert):
+    """Die ``except``-Zweige in notify.py werden WIRKLICH ausgelöst.
+
+    Guardian-Nit 01.08.2026: `_IMPORT_FEHLER["forward_collection"] = …` durch
+    `pass` zu ersetzen ließ alle 45 Notify-Tests grün — die beiden Grund-Tests
+    setzen das Dict direkt, statt die Zuweisung auszulösen. Damit war
+    ausgerechnet die **Diagnose-Hälfte** des Fixes ungeschützt: ihr Zweck ist
+    ja, dass im Log steht, WORAN es lag. Beim Nachziehen zeigte sich, dass der
+    ``config``-Zweig dieselbe Lücke hatte — beide sind jetzt abgedeckt.
+
+    Der Import wird echt zum Scheitern gebracht (Meta-Path-Finder) und
+    ``notify`` neu geladen; der Zweig läuft, und was er festhält, wird geprüft.
+    Wird ``config`` blockiert, fällt ``forward_collection`` mit — es importiert
+    ``config`` seinerseits. Genau diese Kette war der reale Defekt.
+    """
+    import contextlib
+    import importlib
+    import io
+
+    blocker = _Blockiert(blockiert)
+    gemerkt = {n: sys.modules.pop(n, None)
+               for n in ("config", "forward_collection")}
+    sys.meta_path.insert(0, blocker)
+    try:
+        neu = importlib.reload(notify)
+        assert neu._fc is None, "der Blocker hat nicht gegriffen"
+        assert blockiert in neu._IMPORT_FEHLER, \
+            f"der echte except-Zweig für {blockiert} hält den Grund NICHT fest"
+        assert f"Testfall: {blockiert} nicht importierbar" \
+            in neu._IMPORT_FEHLER[blockiert]
+        # ... und die Logzeile trägt einen echten Grund nach draußen.
+        puffer = io.StringIO()
+        with contextlib.redirect_stdout(puffer):
+            assert neu._evaluable_count({"records": [{"matured": True}]}) == 0
+        assert neu._IMPORT_FEHLER["forward_collection"] in puffer.getvalue()
+    finally:
+        sys.meta_path.remove(blocker)
+        for n, mod in gemerkt.items():
+            if mod is not None:
+                sys.modules[n] = mod
+        importlib.reload(notify)
+    # Sauber wiederhergestellt — sonst verseucht dieser Test die ganze Suite.
+    assert notify._fc is not None and notify._IMPORT_FEHLER == {}
+
+
 def test_die_fehlzeile_nennt_jetzt_den_grund(monkeypatch, capsys):
     monkeypatch.setattr(notify, "_fc", None)
     monkeypatch.setattr(notify, "_IMPORT_FEHLER",
