@@ -353,6 +353,40 @@ def test_bei_zerschnittenen_alt_episoden_gewinnt_der_juengste_record():
     assert fc._open_episode(coll["records"], "MTX.DE", anker)["episode_id"] == "jung"
 
 
+def test_bei_GLEICHSTAND_gewinnt_der_zuerst_angelegte_record():
+    """Der Tie-Break, den der Docstring verspricht — und der ohne diesen Test
+    ungeprüft war (Guardian-Fund 01.08.2026: `>` zu `>=` blieb grün).
+
+    Zwei offene Records desselben Tickers mit IDENTISCHEM last_seen: es gewinnt
+    der erste in der Liste, also der zuerst angelegte. Das ist die Ordnung, die
+    das frühere `next(...)` hatte — sie muss erhalten bleiben, sonst würde eine
+    Verlängerung still auf einen anderen Record wandern.
+    """
+    coll = leere_sammlung()
+    coll["last_run_date"] = "2026-07-30"
+    coll["records"] = [
+        {"ticker": "AAA", "matured": False, "episode_id": "erster",
+         "last_seen_top5_date": "2026-07-30"},
+        {"ticker": "AAA", "matured": False, "episode_id": "zweiter",
+         "last_seen_top5_date": "2026-07-30"},
+    ]
+    anker = fc.episode_anchor_dates(coll, "2026-07-31")
+    assert fc._open_episode(coll["records"], "AAA", anker)["episode_id"] == "erster"
+    coll["records"].reverse()
+    assert fc._open_episode(coll["records"], "AAA", anker)["episode_id"] == "zweiter"
+
+
+def test_run_date_VOR_dem_letzten_lauf_wird_wie_ein_tageswechsel_behandelt():
+    """Uhr zurückgestellt / Nachlauf eines alten Reports: `run_date` liegt VOR
+    `last_run_date`. Festgehalten, nicht repariert — das Verhalten ist wie bei
+    jedem anderen Datumswechsel (beide Daten sind Anker), und die ganze
+    Sammel-Pipeline läuft fail-soft. Wird dieser Fall je real, steht hier, was
+    heute galt."""
+    coll = {"last_run_date": "2026-07-31", "prev_distinct_run_date": "2026-07-30"}
+    assert fc.episode_anchor_dates(coll, "2026-07-29") == {
+        "2026-07-29", "2026-07-31"}
+
+
 def test_gereifte_records_werden_nie_verlaengert():
     coll = leere_sammlung()
     coll["last_run_date"] = "2026-07-30"

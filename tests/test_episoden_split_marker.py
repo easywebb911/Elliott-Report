@@ -116,6 +116,63 @@ def test_finde_splits_ueberspringt_gereifte_vorgaenger():
     assert mes.finde_splits(staende) == []
 
 
+def test_die_vorgaenger_wahl_ist_NIE_mehrdeutig():
+    """Guardian-Fund 01.08.2026: `max(...)` zu `min(...)` in ``finde_splits``
+    blieb grün. Nachgerechnet ist das ein ÄQUIVALENTER Mutant, keine Lücke —
+    und genau das wird hier bewiesen statt behauptet.
+
+    Warum: markiert wird nur ``nach_soll and not nach_alt``. Die alten Anker
+    sind ``{prev_run}``, die Soll-Anker ``{run_date, prev_distinct}`` (gleicher
+    Kalendertag) bzw. ``{run_date, prev_run}`` (Tageswechsel). Ein Kandidat,
+    der unter die Soll-Anker fällt, aber nicht unter ``{prev_run}``, kann
+    deshalb nur EIN Datum tragen:
+      * gleicher Tag: ``prev_run == run_date`` -> übrig bleibt nur
+        ``prev_distinct``;
+      * Tageswechsel: übrig bleibt nur ``run_date`` — und vor dem ersten Lauf
+        eines Tages trägt kein Record dieses Datum, die Menge ist leer.
+    Also ist ``kandidaten_last_seen`` immer einelementig, und die Auswahl
+    zwischen max und min existiert gar nicht.
+
+    Der Nachbau, mit dem ich zuerst eine echte Mehrdeutigkeit erzeugen wollte,
+    ergab folgerichtig KEINEN Split: der jüngere Kandidat lag unter den alten
+    Ankern, die alte Regel hätte also verlängert. Er steht als Gegenprobe hier.
+    """
+    frueh = _rec("X", "2026-07-30T22:45:00Z", "2026-07-30", first_seen="2026-07-30")
+    spaet = _rec("X", "2026-07-31T04:00:00Z", "2026-07-31", first_seen="2026-07-31")
+    neu = _rec("X", "2026-07-31T22:40:00Z", "2026-07-31", first_seen="2026-07-31b")
+    staende = [
+        _stand("2026-07-30", "2026-07-30T22:45:00Z", frueh),
+        _stand("2026-07-31", "2026-07-31T04:00:00Z", frueh, spaet),
+        _stand("2026-07-31", "2026-07-31T22:40:00Z", frueh, spaet, neu),
+    ]
+    # Gegenprobe: kein Split, weil `spaet` schon unter die ALTEN Anker fiel.
+    assert [t for t in mes.finde_splits(staende)
+            if t["key"] == ("X", "2026-07-31T22:40:00Z")] == []
+
+
+def test_die_vorgaenger_wahl_ist_auch_REAL_nie_mehrdeutig(echte_staende):
+    """Dieselbe Eigenschaft über die 44 committeten Stände: jeder der zehn
+    Treffer hat GENAU EIN Kandidaten-Datum."""
+    treffer = mes.finde_splits(echte_staende)
+    assert treffer, "Testvoraussetzung: es gibt Treffer"
+    for t in treffer:
+        assert len(t["kandidaten_last_seen"]) == 1, (
+            f"{t['ticker']} am {t['run_date']}: mehrdeutige Vorgänger-Wahl "
+            f"{t['kandidaten_last_seen']} — max/min wäre plötzlich eine echte "
+            f"Entscheidung, dann braucht sie einen Wert-Test")
+
+
+def test_der_marker_traegt_die_diagnose_NICHT(echte_staende):
+    """`kandidaten_last_seen` ist Diagnose, kein Marker-Inhalt — sonst stünde
+    ein Implementierungsdetail dauerhaft in der Sammlung."""
+    coll = _unmarkierter_bestand()
+    mes.setze_marker(coll, mes.finde_splits(echte_staende), "2026-08-01")
+    for r in coll["records"]:
+        if mes.MARKER in r:
+            assert set(r[mes.MARKER]) == {
+                "marked_date", "reason", "run_date", "would_have_extended"}
+
+
 def test_record_key_haelt_kollidierende_episode_ids_auseinander():
     """ADS.DE@2026-07-24 gibt es real ZWEIMAL — episode_id taugt nicht als
     Identität, created_utc schon."""
@@ -223,8 +280,23 @@ def test_die_vorbedingung_des_aequivalenz_beweises_gilt_real(echte_staende):
 # ---------------------------------------------------------------------------
 # 3) Markieren ändert NUR das Marker-Feld
 # ---------------------------------------------------------------------------
-def test_marker_aendert_ausschliesslich_das_marker_feld(echte_staende):
+def _unmarkierter_bestand() -> dict:
+    """Der echte Sammlungs-Stand OHNE Marker — der Ausgangspunkt jeder Probe.
+
+    Wichtig (Guardian-Fund 01.08.2026): die ausgelieferte Datei trägt die
+    Marker bereits, und der Tageslauf schreibt sie in jedem Lauf mit fort.
+    Tests, die einen unmarkierten Ist-Zustand VORAUSSETZEN, sind darum
+    strukturell falsch — sie waren am 01.08. rot, sobald der Marker-Lauf
+    einmal gefahren war. Der Bestand wird hier deshalb aktiv normalisiert,
+    nicht angenommen.
+    """
     coll = json.loads(SAMMLUNG.read_text(encoding="utf-8"))
+    mes.entferne_marker(coll)
+    return coll
+
+
+def test_marker_aendert_ausschliesslich_das_marker_feld(echte_staende):
+    coll = _unmarkierter_bestand()
     vorher = copy.deepcopy(coll)
     treffer = mes.finde_splits(echte_staende)
     n = mes.setze_marker(coll, treffer, "2026-08-01")
@@ -243,7 +315,7 @@ def test_marker_aendert_ausschliesslich_das_marker_feld(echte_staende):
 
 
 def test_marker_inhalt_ist_von_hand_nachgerechnet(echte_staende):
-    coll = json.loads(SAMMLUNG.read_text(encoding="utf-8"))
+    coll = _unmarkierter_bestand()
     mes.setze_marker(coll, mes.finde_splits(echte_staende), "2026-08-01")
     g1a = [r for r in coll["records"]
            if r["ticker"] == "G1A.DE" and mes.MARKER in r]
@@ -257,7 +329,7 @@ def test_marker_inhalt_ist_von_hand_nachgerechnet(echte_staende):
 
 
 def test_markieren_ist_idempotent(echte_staende):
-    coll = json.loads(SAMMLUNG.read_text(encoding="utf-8"))
+    coll = _unmarkierter_bestand()
     treffer = mes.finde_splits(echte_staende)
     assert mes.setze_marker(coll, treffer, "2026-08-01") == 10
     zwischenstand = copy.deepcopy(coll)
@@ -276,27 +348,55 @@ def _kopiere_bestand(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def _basis_ohne_marker(tmp_path: Path) -> dict:
+    """Kopiert den echten Bestand nach ``tmp_path`` und PURGT ihn einmal.
+
+    Damit ist der Ausgangspunkt unabhängig davon, ob die ausgelieferte Datei
+    die Marker schon trägt (sie tut es) — der Rückweg-Beweis darf nicht davon
+    abhängen, wann er gefahren wird.
+    """
+    _kopiere_bestand(tmp_path)
+    assert mes.main(["--path", str(tmp_path), "--purge", "--live"]) == 0
+    basis = {rel: (tmp_path / rel).read_bytes() for rel in mes.REL_PATHS}
+    for rel, roh in basis.items():
+        assert b"episode_split_suspect" not in roh, f"{rel}: Purge unvollständig"
+    return basis
+
+
 def test_purge_stellt_byte_identitaet_her(tmp_path, echte_staende):
-    """Marker setzen, dann entfernen -> Datei ist BYTE-identisch zum Original.
+    """Marker setzen, dann entfernen -> BYTE-identisch zur Basis.
 
     Die Schreibform ist dieselbe wie in ``write_collection`` (indent=2,
     sort_keys, ensure_ascii=False, Schluss-Newline); mit sort_keys ist ein
     zusätzliches Feld eine reine Einfügung, ihr Entfernen also exakt umkehrbar.
     """
-    _kopiere_bestand(tmp_path)
-    original = {rel: (ROOT / rel).read_bytes() for rel in mes.REL_PATHS}
+    basis = _basis_ohne_marker(tmp_path)
 
     assert mes.main(["--path", str(tmp_path), "--git-root", str(ROOT),
                      "--date", "2026-08-01", "--live"]) == 0
     for rel in mes.REL_PATHS:
         jetzt = (tmp_path / rel).read_bytes()
-        assert jetzt != original[rel], f"{rel}: Marker nicht geschrieben"
+        assert jetzt != basis[rel], f"{rel}: Marker nicht geschrieben"
         assert b"episode_split_suspect" in jetzt
 
     assert mes.main(["--path", str(tmp_path), "--purge", "--live"]) == 0
     for rel in mes.REL_PATHS:
-        assert (tmp_path / rel).read_bytes() == original[rel], \
+        assert (tmp_path / rel).read_bytes() == basis[rel], \
             f"{rel}: Rückweg nicht byte-identisch"
+
+
+def test_der_ausgelieferte_bestand_traegt_die_zehn_marker(echte_staende):
+    """Gegenstück zur Normalisierung: die eingecheckte Datei IST markiert.
+
+    Sonst wäre der Rückweg-Test grün, ohne dass je ein Marker im Repo stünde.
+    """
+    coll = json.loads(SAMMLUNG.read_text(encoding="utf-8"))
+    markiert = [r for r in coll["records"] if mes.MARKER in r]
+    assert len(markiert) == len(ERWARTETE_FAELLE) == 10
+    assert sorted((r["ticker"], r[mes.MARKER]["run_date"]) for r in markiert) \
+        == sorted((t, d) for t, d, _, _ in ERWARTETE_FAELLE)
+    assert SPIEGEL.read_bytes() == SAMMLUNG.read_bytes(), \
+        "Spiegel und kanonische Datei laufen auseinander"
 
 
 def test_dry_run_schreibt_nichts(tmp_path):
@@ -313,12 +413,12 @@ def test_ohne_datum_verweigert_das_programm(tmp_path):
     assert mes.main(["--path", str(tmp_path), "--live"]) == 2
 
 
-def test_purge_ohne_marker_ist_ein_no_op(tmp_path):
-    _kopiere_bestand(tmp_path)
-    original = {rel: (tmp_path / rel).read_bytes() for rel in mes.REL_PATHS}
+def test_zweiter_purge_ist_ein_no_op(tmp_path):
+    """Auf einem bereits gepurgten Bestand schreibt der Rückweg nichts mehr."""
+    basis = _basis_ohne_marker(tmp_path)
     assert mes.main(["--path", str(tmp_path), "--purge", "--live"]) == 0
     for rel in mes.REL_PATHS:
-        assert (tmp_path / rel).read_bytes() == original[rel]
+        assert (tmp_path / rel).read_bytes() == basis[rel]
 
 
 def test_entferne_marker_laesst_andere_felder_stehen():

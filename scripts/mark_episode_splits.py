@@ -118,6 +118,17 @@ def finde_splits(staende: Sequence[Dict]) -> List[Dict]:
                         "run_date": run_date,
                         "neue_episode": rec.get("episode_id"),
                         "would_have_extended": vorgaenger.get("episode_id"),
+                        # Diagnose: die last_seen-Daten ALLER Kandidaten. Das
+                        # `max` oben ist nachweislich nie eine echte Wahl —
+                        # ein Kandidat, der unter die Soll-Anker fällt, aber
+                        # nicht unter die alten, trägt zwangsläufig dasselbe
+                        # Datum (siehe Test „die Vorgänger-Wahl ist nie
+                        # mehrdeutig"). Der Wert steht hier, damit diese
+                        # Eigenschaft prüfbar ist statt behauptet; er geht
+                        # NICHT in den Marker (siehe `marker_fuer`).
+                        "kandidaten_last_seen": sorted(
+                            {str(a.get("last_seen_top5_date"))
+                             for a in nach_soll}),
                     })
         if run_date:
             if prev_run != run_date:
