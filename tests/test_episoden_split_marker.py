@@ -426,12 +426,19 @@ def test_purge_stellt_byte_identitaet_her(tmp_path):
     Die Schreibform ist dieselbe wie in ``write_collection`` (indent=2,
     sort_keys, ensure_ascii=False, Schluss-Newline); mit sort_keys ist ein
     zusätzliches Feld eine reine Einfügung, ihr Entfernen also exakt umkehrbar.
+
+    OHNE Git: die Treffer kommen aus ``ERWARTETE_FAELLE``. Die Byte-Identität
+    ist die Kern-Eigenschaft des Rückwegs und muss in JEDER Umgebung geprüft
+    werden — auch in einem flachen Klon, in dem der Replay nichts fände. Den
+    kompletten Skript-Weg prüft der Test darunter.
     """
     basis = _basis_ohne_marker(tmp_path)
+    treffer = treffer_aus_erwartung()
 
-    assert mes.main(["--path", str(tmp_path), "--git-root", str(ROOT),
-                     "--date", "2026-08-01", "--live"]) == 0
     for rel in mes.REL_PATHS:
+        coll = json.loads((tmp_path / rel).read_text(encoding="utf-8"))
+        assert mes.setze_marker(coll, treffer, "2026-08-01") == 10
+        mes._schreibe(tmp_path / rel, coll)
         jetzt = (tmp_path / rel).read_bytes()
         assert jetzt != basis[rel], f"{rel}: Marker nicht geschrieben"
         assert b"episode_split_suspect" in jetzt
@@ -440,6 +447,19 @@ def test_purge_stellt_byte_identitaet_her(tmp_path):
     for rel in mes.REL_PATHS:
         assert (tmp_path / rel).read_bytes() == basis[rel], \
             f"{rel}: Rückweg nicht byte-identisch"
+
+
+@braucht_historie
+def test_der_ganze_skript_weg_ist_umkehrbar(tmp_path):
+    """Dasselbe über ``main()`` — inklusive Replay aus der echten Historie."""
+    basis = _basis_ohne_marker(tmp_path)
+    assert mes.main(["--path", str(tmp_path), "--git-root", str(ROOT),
+                     "--date", "2026-08-01", "--live"]) == 0
+    for rel in mes.REL_PATHS:
+        assert (tmp_path / rel).read_bytes() != basis[rel]
+    assert mes.main(["--path", str(tmp_path), "--purge", "--live"]) == 0
+    for rel in mes.REL_PATHS:
+        assert (tmp_path / rel).read_bytes() == basis[rel]
 
 
 def test_der_ausgelieferte_bestand_traegt_die_zehn_marker():
