@@ -30,7 +30,12 @@ from pathlib import Path
 # Wir spiegeln die Pfad-Konstanten aus forward_collection, ohne das Modul
 # zwingend importieren zu müssen (der Rückweg soll auch standalone laufen).
 _REL_PATHS = ("data/forward_collection.json", "docs/data/forward_collection.json")
-_EMPTY = {"schema_version": 1, "last_run_date": None, "updated_utc": None,
+_EMPTY = {"schema_version": 1, "last_run_date": None,
+          # additiv seit 01.08.2026 (Episoden-Anschluss über Kalendertage) —
+          # spiegelt forward_collection.load_collection; fehlend wäre zwar
+          # gleichbedeutend mit None, aber die leere Struktur soll dieselbe
+          # Form haben wie die, die der Lauf schreibt.
+          "prev_distinct_run_date": None, "updated_utc": None,
           "records": []}
 
 log = logging.getLogger("purge_forward_collection")

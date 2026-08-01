@@ -23,6 +23,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # VOLLE Historie (Default wäre fetch-depth: 1, ein flacher Klon).
+          # tests/test_episoden_split_marker.py fährt einen Replay über die
+          # committeten Stände von data/forward_collection.json — der forensische
+          # Beweis, welche Episoden der Mehrfach-Lauf-Defekt zerschnitten hat
+          # (01.08.2026). Flach geklont findet `git log` genau EINEN Stand, der
+          # Replay liefert nichts und die Beweise wären still leer. Die Tests
+          # überspringen sich in einem flachen Klon ausdrücklich (mit Grund),
+          # damit das nie unbemerkt passiert; hier sollen sie WIRKLICH laufen.
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5

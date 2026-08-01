@@ -1809,7 +1809,11 @@ def main() -> int:
     # (die aktuelle Erscheinung wird erst danach eingetragen). Fail-soft: fehlt/
     # kaputt -> kein Zähler, Report bleibt heil. Rein Anzeige, kein Ranking.
     try:
-        fc.annotate_appearance_counts(fc.load_collection(), report)
+        # run_date mitgeben: sonst zählt ein ZWEITER Lauf desselben Kalendertags
+        # eine fortgesetzte Erscheinung als neue Episode (01.08.2026, dieselbe
+        # Tages-Semantik wie in update_forward_collection).
+        fc.annotate_appearance_counts(fc.load_collection(), report,
+                                      report["run_timestamp_utc"][:10])
     except Exception as exc:  # noqa: BLE001
         _log(f"[elliott] N×-Zähler übersprungen (fail-soft): "
              f"{type(exc).__name__}: {exc}")

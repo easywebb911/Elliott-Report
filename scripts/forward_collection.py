@@ -70,7 +70,7 @@ REGIME_INDEX = {"US": "SPY", "DE": "^GDAXI"}
 def load_collection() -> Dict:
     """Lädt die Sammlung (fail-soft: leere Struktur bei fehlender/kaputter Datei)."""
     empty = {"schema_version": SCHEMA_VERSION, "last_run_date": None,
-             "updated_utc": None, "records": []}
+             "prev_distinct_run_date": None, "updated_utc": None, "records": []}
     try:
         path = REPO_ROOT / FORWARD_PATH
         with path.open(encoding="utf-8") as fh:
@@ -528,6 +528,73 @@ def observe_w5_structure(rec: Dict, dates: Sequence[str], closes: Sequence[float
 
 
 # ---------------------------------------------------------------------------
+# Episoden-Anschluss: welche `last_seen_top5_date` setzen eine Episode fort?
+# ---------------------------------------------------------------------------
+def episode_anchor_dates(coll: Dict, run_date: str) -> set:
+    """Die Lauf-Daten, deren Records der heutige Lauf VERLÄNGERT (statt neu
+    anzulegen). Genau zwei Anker, beide Kalendertage:
+
+      1. ``run_date`` selbst — ein FRÜHERER Lauf DESSELBEN Kalendertags hat
+         den Record bereits verlängert.
+      2. das jüngste davorliegende Lauf-Datum mit ANDEREM Kalendertag.
+
+    Warum (Präzisierung vom 01.08.2026, keine Umdefinition): die Regel lautet
+    „konsekutive Top-5-**Tage** verlängern dieselbe Episode". Bis hierher stand
+    dafür ``coll["last_run_date"]`` — das Datum des letzten LAUFS. Bei einem
+    einzigen Lauf pro Tag ist das dasselbe. Bei MEHREREN Läufen am selben Tag
+    nicht: der erste Lauf setzt ``last_run_date`` bereits auf heute, und ein
+    Record von gestern findet im zweiten Lauf keinen Anschluss mehr — er wird
+    zu einer zweiten Episode zerschnitten, obwohl er an zwei konsekutiven
+    Tagen in den Top 5 stand (beobachtet 31.07.2026: MTX.DE, G1A.DE, KKR nach
+    drei Hand-Dispatches am Vormittag; ebenso 30.07. und 25.07.).
+
+    'Tag' heißt ab hier KALENDERTAG, unabhängig von der Zahl der Läufe an ihm.
+    Eine UNTERBRECHUNG bleibt eine Unterbrechung: wer am letzten Lauf-Kalender-
+    tag nicht in den Top 5 war, bekommt weiterhin eine neue Episode. Über
+    Wochenenden und Feiertage trägt der Anker unverändert (das vorige distinct
+    Lauf-Datum ist dann der Freitag bzw. der letzte Handelstag).
+
+    Migration: fehlt ``prev_distinct_run_date`` (Sammlungs-Stand von vor dem
+    01.08.2026) und ist heute bereits ein Lauf gelaufen, ist das vorige distinct
+    Datum unbekannt — dann bleibt nur ``run_date`` als Anker. Das ist exakt das
+    ALTE Verhalten, also keine Verschlechterung; ab dem ersten Lauf an einem
+    neuen Kalendertag ist das Feld gesetzt und der Fall erledigt sich.
+    """
+    prev_run = coll.get("last_run_date")
+    if not prev_run:
+        return {run_date}
+    if prev_run != run_date:
+        # Erster Lauf an diesem Kalendertag: der bisherige `last_run_date` IST
+        # das vorige distinct Datum — unabhängig davon, ob das Feld schon
+        # existiert (deshalb hier kein Rückgriff darauf).
+        return {run_date, prev_run}
+    prev_distinct = coll.get("prev_distinct_run_date")
+    return {run_date, prev_distinct} if prev_distinct else {run_date}
+
+
+def _open_episode(records: List[Dict], ticker: str, anchors: set) -> Optional[Dict]:
+    """Die fortzusetzende offene Episode von ``ticker`` — oder None.
+
+    Deterministisch: unter den passenden Records gewinnt das JÜNGSTE
+    ``last_seen_top5_date``; bei Gleichstand der zuerst angelegte (Listen-
+    Reihenfolge). An Ein-Lauf-Tagen kann höchstens ein Anker-Datum vorkommen,
+    dort ist das Ergebnis identisch mit dem früheren ``next(...)``-Griff.
+    Wichtig wird die Ordnung erst bei bereits zerschnittenen Alt-Episoden:
+    dort ist der jüngere Record der richtige Anschluss.
+    """
+    best: Optional[Dict] = None
+    for r in records:
+        if r.get("ticker") != ticker or r.get("matured"):
+            continue
+        seen = r.get("last_seen_top5_date")
+        if seen not in anchors:
+            continue
+        if best is None or str(seen) > str(best.get("last_seen_top5_date")):
+            best = r
+    return best
+
+
+# ---------------------------------------------------------------------------
 # Episoden-Anlage + Reifung (pure)
 # ---------------------------------------------------------------------------
 def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
@@ -635,24 +702,26 @@ def update_forward_collection(
 ) -> Dict:
     """Legt neue Episoden an, reift offene Records, aktualisiert Metadaten.
 
-    Episoden-Regel: ein Record je Ticker-Episode. Konsekutive Top-5-Tage
-    verlängern dieselbe Episode (kein Doppel-Record). Wiederauftauchen nach
-    Verschwinden (last_seen != vorheriges Lauf-Datum) = neue Episode. Offene
-    Records reifen unabhängig von der Top-5-Zugehörigkeit aus.
+    Episoden-Regel: ein Record je Ticker-Episode. Konsekutive Top-5-KALENDER-
+    TAGE verlängern dieselbe Episode (kein Doppel-Record), unabhängig davon,
+    wie viele Läufe an einem Tag stattfinden — siehe ``episode_anchor_dates``
+    (Präzisierung 01.08.2026). Wiederauftauchen nach Verschwinden (nicht am
+    letzten Lauf-Kalendertag in den Top 5) = neue Episode. Offene Records
+    reifen unabhängig von der Top-5-Zugehörigkeit aus.
+
+    EINFRIER-INVARIANTE: eine Verlängerung schreibt AUSSCHLIESSLICH
+    ``last_seen_top5_date``. Die Anlage-Felder (entry_close, score_heuristic,
+    Zonen, Pivots, Konfluenz, …) friert der ERSTE Lauf eines Tages ein; jeder
+    weitere Lauf desselben Tages lässt sie unberührt.
     """
     records: List[Dict] = coll.setdefault("records", [])
-    prev_run_date = coll.get("last_run_date")
+    anchors = episode_anchor_dates(coll, run_date)
 
     # 1) Anlegen / Verlängern für die heutigen Top-5.
     for mk, market in report.get("markets", {}).items():
         for entry in market.get("candidates", []):
             ticker = entry["ticker"]
-            active = next(
-                (r for r in records
-                 if r["ticker"] == ticker and not r["matured"]
-                 and r.get("last_seen_top5_date") == prev_run_date),
-                None,
-            )
+            active = _open_episode(records, ticker, anchors)
             if active is not None:
                 active["last_seen_top5_date"] = run_date  # gleiche Episode
                 continue
@@ -701,6 +770,11 @@ def update_forward_collection(
             observe_w5_structure(r, pdata[0], pdata[1], now_iso)
 
     coll["schema_version"] = SCHEMA_VERSION
+    # Vor dem Überschreiben: das vorige DISTINCT Lauf-Datum festhalten — nur
+    # beim Wechsel des Kalendertags. Ein zweiter Lauf desselben Tages lässt es
+    # stehen, sonst ginge genau der Anker verloren, den er braucht.
+    if coll.get("last_run_date") != run_date:
+        coll["prev_distinct_run_date"] = coll.get("last_run_date")
     coll["last_run_date"] = run_date
     coll["updated_utc"] = now_iso
     return coll
@@ -729,7 +803,7 @@ def eval_counts(coll: Dict) -> Tuple[int, int, int]:
     return collected, matured, evaluable
 
 
-def appearance_count(coll: Dict, ticker: str) -> int:
+def appearance_count(coll: Dict, ticker: str, run_date: Optional[str] = None) -> int:
     """Wie oft ``ticker`` als Top-5-Kandidat erschienen ist — **Episoden**, nicht
     Tage — inkl. der AKTUELLEN Erscheinung.
 
@@ -737,29 +811,35 @@ def appearance_count(coll: Dict, ticker: str) -> int:
     Erscheinung noch NICHT in der Sammlung (die wird erst nach write_report
     aktualisiert). Deshalb: Zahl der vorhandenen Episoden + 1, ES SEI DENN die
     aktuelle Erscheinung verlängert eine bereits offene Episode (Ticker war schon
-    im vorherigen Lauf Top-5) — dann ist sie bereits gezählt. Die
+    am letzten Lauf-Kalendertag Top-5) — dann ist sie bereits gezählt. Die
     Fortsetzungs-Prüfung spiegelt exakt die ``active``-Erkennung in
-    ``update_forward_collection`` (kein Doppelzählen)."""
+    ``update_forward_collection`` (kein Doppelzählen) und benutzt seit dem
+    01.08.2026 dieselben ``episode_anchor_dates`` — sonst zählte ein zweiter
+    Lauf desselben Tages eine Erscheinung doppelt. Wirkt nur vorwärts: der
+    Zähler wird bei jedem Lauf neu in den Report geschrieben, nie gespeichert."""
     records = coll.get("records", [])
     episodes = sum(1 for r in records if r.get("ticker") == ticker)
-    prev_run_date = coll.get("last_run_date")
-    continues = any(
-        r.get("ticker") == ticker and not r.get("matured")
-        and r.get("last_seen_top5_date") == prev_run_date
-        for r in records
-    )
+    anchors = episode_anchor_dates(coll, run_date) if run_date else None
+    if anchors is None:
+        # Ohne Lauf-Datum bleibt nur der alte Anker (Rückwärtskompatibilität
+        # für Aufrufer, die das Datum nicht durchreichen).
+        anchors = {coll.get("last_run_date")}
+    continues = _open_episode(records, ticker, anchors) is not None
     return episodes if continues else episodes + 1
 
 
-def annotate_appearance_counts(coll: Dict, report: Dict) -> None:
+def annotate_appearance_counts(coll: Dict, report: Dict,
+                               run_date: Optional[str] = None) -> None:
     """Setzt je Markt-Top-5-Kandidat additiv ``appearance_count``. In-place.
 
     NUR für markets[].candidates — Watchlist-Karten bekommen KEINEN Zähler
     (nicht Teil der Population). Reine Anzeige: berührt Score/Ranking/Sammlung
-    nicht."""
+    nicht. ``run_date`` optional: ohne Angabe zählt der alte Anker (identisch
+    an Ein-Lauf-Tagen), mit Angabe auch der Mehrfach-Lauf-Fall korrekt."""
     for market in report.get("markets", {}).values():
         for entry in market.get("candidates", []):
-            entry["appearance_count"] = appearance_count(coll, entry["ticker"])
+            entry["appearance_count"] = appearance_count(
+                coll, entry["ticker"], run_date)
 
 
 # ---------------------------------------------------------------------------
