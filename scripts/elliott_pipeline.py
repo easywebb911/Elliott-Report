@@ -1682,6 +1682,31 @@ def build_watchlist(
     return {"entries": entries, "diag": counts}
 
 
+def _annotiere_bar_rueckstand(market: Dict, run_timestamp_utc: str) -> None:
+    """Additiv: von welchem Tag SOLLTEN die Kurse stammen, und wie viele
+    Handelstage liegt der Stand zurück? (04.08.2026, in-place)
+
+    Beides kommt aus ``market_calendar`` — derselben Quelle wie das
+    Feiertags-Gate und der Staleness-Wächter. Der Health-Check rechnet
+    unabhängig mit denselben Funktionen; das Frontend liest hier die fertige
+    Zahl, damit der Handelskalender NICHT ein zweites Mal in JavaScript
+    existieren muss (zwei Kalender laufen auseinander, sobald ein Feiertag
+    dazukommt).
+
+    Rein informativ: kein Score, kein Ranking, kein Filter. Fail-soft — ohne
+    lesbares Datum bleiben beide Felder ``None``.
+    """
+    import market_calendar as cal  # noqa: WPS433 — lokal wie das Gate unten
+    diag = market.get("diag")
+    if not isinstance(diag, dict):
+        return
+    lauf = str(run_timestamp_utc or "")[:10]
+    erwartet = cal.letzter_handelstag(lauf)
+    diag["expected_bar_date"] = erwartet.isoformat() if erwartet else None
+    diag["bar_lag_trading_days"] = cal.handelstage_rueckstand(
+        diag.get("last_bar_date"), lauf)
+
+
 def build_report(
     fetcher: Fetcher, run_timestamp_utc: str, weekly_fetcher: Optional[Fetcher] = None,
     monthly_fetcher: Optional[Fetcher] = None,
@@ -1702,6 +1727,7 @@ def build_report(
     for key in config.MARKETS:
         markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink,
                                     volume_sink)
+        _annotiere_bar_rueckstand(markets[key], run_timestamp_utc)
     # Watchlist NACH den Märkten und in EIGENEM Feld -> Ranking unberührt, und
     # die Forward-Sammlung (liest nur markets[].candidates) sieht sie nie.
     watchlist = build_watchlist(fetcher, weekly_fetcher, monthly_fetcher,

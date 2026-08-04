@@ -65,6 +65,11 @@ MAX_FETCH_ERROR_PCT = getattr(config, "HEALTH_MAX_FETCH_ERROR_PCT", 10.0)
 MAX_DEAD_DELTA = getattr(config, "HEALTH_MAX_DEAD_DELTA", 3)
 AGENT_MIN_OK = getattr(config, "HEALTH_AGENT_MIN_OK", 5)
 WARN_REPEAT_RUNS = getattr(config, "HEALTH_WARN_REPEAT_RUNS", 3)
+# Kurs-Stand veraltet (04.08.2026): ab so vielen Handelstagen Rueckstand wird
+# aus dem `warn` ein `crit`. 1 = der bekannte Ein-Tag-Versatz (Quelle liefert
+# die Tageszeile noch unfertig); ab 2 fehlt ein ganzer Handelstag, und der
+# Report rechnet auf sichtbar veralteten Kursen.
+BAR_LAG_CRIT = getattr(config, "HEALTH_BAR_LAG_CRIT", 2)
 STATE_PATH = getattr(config, "HEALTH_STATE_PATH", "data/health_state.json")
 REPORT_PATH = getattr(config, "REPORT_PATH", "data/report.json")
 # Der Vorbehalt steht EINMAL in der config — im ganzen Projekt darf keine Zahl
@@ -177,6 +182,66 @@ def check_completeness(report: Dict, min_candidates: int = MIN_CANDIDATES
                 f"obwohl {found} Kandidaten gefunden wurden",
                 market=key, detail={"top": n_top, "found": found,
                                     "min": min_candidates}))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 2b) KURS-STAND VERALTET (04.08.2026)
+# ---------------------------------------------------------------------------
+def check_bar_freshness(report: Dict, crit_ab: int = BAR_LAG_CRIT) -> List[Dict]:
+    """``last_bar_date`` je Markt gegen den letzten erwarteten Handelstag.
+
+    WARUM (Befund 04.08.2026): am 04.08. standen **beide** Märkte auf dem
+    Kursstand vom 31.07. — die Montags-Zeile kam von der Quelle nicht-finit und
+    wurde von der Härtung zu Recht verworfen. Der Report rechnete daraufhin
+    Score, Filter und Anzeige auf Freitags-Kursen, je ein Ticker fiel dadurch
+    aus den Top 5, und der Health-Check meldete ``status: ok`` — er prüfte
+    Kandidatenzahl, Fetch-Fehlerquote und tote Ticker, aber **nicht das
+    Bar-Datum**. Auch ``cal.is_stale`` half nicht: das misst den REPORT-
+    Zeitstempel, nicht die Kurse. Ein taufrischer Lauf auf drei Tage alten
+    Kursen galt damit als frisch.
+
+    Die Erwartung kommt aus ``market_calendar`` — derselben Quelle, die schon
+    das Feiertags-Gate und den Staleness-Wächter speist. Erwartet wird der
+    letzte Handelstag **bis einschließlich des Lauf-Datums**; am Wochenende und
+    an Voll-Schließtagen ist das der davorliegende Werktag, ein Freitags-Stand
+    am Sonntag ergibt also 0 Rückstand und keinen Fehlalarm.
+
+    1 Handelstag -> ``warn`` (der bekannte Ein-Tag-Versatz: die Quelle liefert
+    die laufende Tageszeile noch unfertig und reicht sie später nach).
+    ``crit_ab`` Handelstage -> ``crit`` (ein ganzer Handelstag fehlt).
+
+    Fail-soft: fehlt ``last_bar_date`` oder der Lauf-Zeitstempel, meldet die
+    Regel **nichts**. Ein Wächter, der bei fehlender Angabe Alarm schlägt,
+    würde alte Report-Stände und Testfixtures grundlos rot färben.
+    """
+    lauf_datum = str(report.get("run_timestamp_utc") or "")[:10]
+    if not lauf_datum:
+        return []
+    erwartet = cal.letzter_handelstag(lauf_datum)
+    if erwartet is None:
+        return []
+
+    out: List[Dict] = []
+    for key, market in sorted((report.get("markets") or {}).items()):
+        if not isinstance(market, dict):
+            continue
+        bar = ((market.get("diag") or {}).get("last_bar_date"))
+        if not bar:
+            continue
+        lag = cal.handelstage_rueckstand(bar, lauf_datum)
+        if not lag:                      # None (unlesbar) oder 0 (aktuell)
+            continue
+        sev = CRIT if lag >= crit_ab else WARN
+        tage = "Handelstag" if lag == 1 else "Handelstage"
+        out.append(_finding(
+            "bar_freshness", sev,
+            f"{key}: Kurse {lag} {tage} zurück — erwartet {erwartet.isoformat()}, "
+            f"tatsächlich {bar}",
+            market=key,
+            detail={"expected_bar_date": erwartet.isoformat(),
+                    "last_bar_date": str(bar), "lag_trading_days": lag,
+                    "crit_ab": crit_ab}))
     return out
 
 
@@ -591,6 +656,7 @@ def attach_to_report(report: Dict, findings: Sequence[Dict], now_iso: str,
             "max_dead_delta": MAX_DEAD_DELTA,
             "agent_min_ok": AGENT_MIN_OK,
             "warn_repeat_runs": WARN_REPEAT_RUNS,
+            "bar_lag_crit": BAR_LAG_CRIT,
         },
     }
     return report
@@ -608,6 +674,7 @@ def collect_findings(report: Dict, prev_report: Optional[Dict],
     Regel 1 VOR den beiden Serialisierungen laufen muss (Report + Sammlung)."""
     findings: List[Dict] = list(finite_findings)
     findings.extend(check_completeness(report))
+    findings.extend(check_bar_freshness(report))
     findings.extend(check_fetch_quality(report, prev_report))
     findings.extend(check_collection_progress(report, sig_before, sig_after,
                                               same_day_rerun))
