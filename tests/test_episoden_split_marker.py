@@ -259,23 +259,33 @@ def test_jeder_gefundene_fall_liegt_wirklich_in_der_sammlung(echte_staende):
 
 
 @braucht_historie
-def test_die_reale_historie_hat_KEINEN_ein_lauf_tag(echte_staende):
-    """Ehrlich festgehalten (01.08.2026): der Äquivalenz-Beweis „über die
-    Ein-Lauf-Tage der realen Historie" wäre LEER — jeder der neun Kalendertage
-    seit dem 23.07. trägt zwischen zwei und sieben Lauf-Stände.
+def test_AEQUIVALENZ_auch_an_den_echten_ein_lauf_tagen(echte_staende):
+    """Der Äquivalenz-Beweis an EIN-Lauf-Tagen — inzwischen nicht mehr leer.
 
-    Den Beweis führt deshalb ``test_AEQUIVALENZ_beim_ersten_lauf_eines_tages``:
-    der ERSTE Lauf eines Kalendertags IST die Ein-Lauf-Lage — dort ist
-    ``prev_run_date`` das vorige Kalenderdatum, und genau dort muss alte und
-    neue Regel dasselbe entscheiden. Sollte die Historie je einen echten
-    Ein-Lauf-Tag bekommen, wird dieser Test rot und der Hinweis ist fällig.
+    Am 01.08.2026 (PR #68) trug **jeder** der neun Kalendertage seit dem 23.07.
+    zwei bis sieben Lauf-Stände; der Beweis „alte vs. neue Regel an
+    Ein-Lauf-Tagen" wäre damals **leer** gewesen. Deshalb wurde er über die
+    ersten Läufe eines Kalendertags geführt (dieselbe Lage, siehe
+    ``test_AEQUIVALENZ_beim_ersten_lauf_eines_tages``) — und ein Stolperdraht
+    hielt fest, dass es keine Ein-Lauf-Tage gab.
+
+    Am 04.08.2026 hat der Stolperdraht ausgelöst: der 04.08. trug genau einen
+    Lauf. Damit ist der ursprünglich geforderte Beweis führbar, und der Test
+    führt ihn jetzt, statt nur die Abwesenheit zu behaupten: an einem
+    Ein-Lauf-Tag darf **keine** Abweichung zwischen alter und Soll-Regel
+    liegen. Die datierte Registry-Notiz vom 01.08. bleibt unangetastet — sie
+    beschreibt korrekt, was an jenem Tag galt.
     """
     lauf_daten = [s["last_run_date"] for s in echte_staende
                   if s.get("last_run_date")]
-    einzeln = sorted({d for d in lauf_daten if lauf_daten.count(d) == 1})
-    assert einzeln == [], (
-        f"Es gibt jetzt Ein-Lauf-Tage ({einzeln}) — den Kommentar hier und in "
-        f"docs/validation_registry.md nachziehen, der Beweis wird nicht-leer")
+    einzeln = {d for d in lauf_daten if lauf_daten.count(d) == 1}
+    for t in mes.finde_splits(echte_staende):
+        assert t["run_date"] not in einzeln, (
+            f"{t['ticker']} am {t['run_date']}: Abweichung an einem "
+            f"EIN-Lauf-Tag — der Fix verändert normale Tage")
+    # Der Beweis darf nicht still leerlaufen: entweder es gibt Ein-Lauf-Tage
+    # (dann ist er empirisch geführt) oder die Erst-Lauf-Fassung trägt ihn.
+    assert einzeln or len(set(lauf_daten)) >= 9, sorted(set(lauf_daten))
 
 
 @braucht_historie
