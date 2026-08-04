@@ -125,6 +125,35 @@ def test_am_feiertag_KEIN_fehlalarm():
     assert f and f[0]["detail"]["lag_trading_days"] == 2   # Mo 06. + Di 07.
 
 
+def test_EINZELMARKT_feiertag_erzeugt_ein_warn_das_sich_selbst_heilt():
+    """BEKANNTE GRENZE, hier festgenagelt statt versteckt (04.08.2026).
+
+    ``FULL_CLOSURE`` listet bewusst nur die **gemeinsamen** Voll-Schließtage
+    (NYSE ∩ Xetra). Einzelmarkt-Feiertage — Ostermontag und 1. Mai (nur Xetra),
+    Thanksgiving und July 4 (nur NYSE) — stehen dort nicht, weil der Report an
+    diesen Tagen normal läuft und der offene Markt liefert. Für den geschlossenen
+    Markt gibt es dann aber **keine neue Bar**, und der Wächter sieht das als
+    einen Handelstag Rückstand.
+
+    Folge: am Abend eines Einzelmarkt-Feiertags ein ``warn`` für den
+    geschlossenen Markt — inhaltlich richtig („die Kurse sind von gestern"),
+    nur nicht handlungsbedürftig. Am nächsten Handelstag ist es weg, weil
+    dessen Bar wieder existiert. Rund 6–8 solcher Tage im Jahr je Markt, dank
+    Flanken-Logik je ein einzelner Push.
+
+    Wird das je zu laut, ist der saubere Weg eine **markt-eigene**
+    Schließtags-Liste — das ändert die Bedeutung von „erwartet" je Markt und
+    braucht eine eigene datierte Entscheidung, keinen Test-Patch hier.
+    """
+    # Ostermontag 06.04.2026 (nur Xetra zu), DE-Stand vom Gründonnerstag.
+    f = hc.check_bar_freshness(_report("2026-04-06T21:45:00Z", DE="2026-04-02"))
+    assert len(f) == 1 and f[0]["severity"] == "warn"
+    assert f[0]["detail"]["lag_trading_days"] == 1
+    # Am Folgetag liegt die Dienstags-Bar vor -> still.
+    assert hc.check_bar_freshness(
+        _report("2026-04-07T21:45:00Z", DE="2026-04-07")) == []
+
+
 def test_die_maerkte_werden_EINZELN_bewertet():
     f = hc.check_bar_freshness(
         _report("2026-08-04T21:45:00Z", DE="2026-07-31", US="2026-08-04"))

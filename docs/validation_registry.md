@@ -889,6 +889,18 @@ vor n ≥ 100) gilt unverändert.
     DE+US `crit`, 03.08. 22:38 DE `crit` (dort stand DE sogar auf Donnerstag
     30.07. — die Freitags-Zeile fehlte in der Quelle), 31.07. und 30.07. abends
     je ein `warn` durch den bekannten Ein-Tag-Versatz, die übrigen Läufe still.
+  - **Bekannte Grenze — Einzelmarkt-Feiertage.** `FULL_CLOSURE` listet nur die
+    **gemeinsamen** Voll-Schließtage. Ostermontag und 1. Mai (nur Xetra),
+    Thanksgiving und July 4 (nur NYSE) stehen dort nicht, weil der Report an
+    diesen Tagen normal läuft und der offene Markt liefert. Der geschlossene
+    Markt hat dann aber keine neue Bar → am Abend eines solchen Tages meldet
+    der Wächter für ihn ein `warn`. Inhaltlich richtig („die Kurse sind von
+    gestern"), nur nicht handlungsbedürftig; am nächsten Handelstag ist es von
+    selbst weg. Rund 6–8 Tage im Jahr je Markt, dank Flanken-Logik je ein
+    einzelner Push. Der saubere Weg wäre eine **markt-eigene** Schließtags-
+    Liste — das ändert die Bedeutung von „erwartet" je Markt und wäre eine
+    eigene, datierte Entscheidung. Bis dahin ist das Verhalten in
+    `tests/test_kursstand_waechter.py` festgenagelt, damit es sichtbar bleibt.
   - **Bewusst NICHT Teil dieser Notiz:** der Sammlungs-Schutz („keine neue
     Episode bei veraltetem Stand"). Er berührt die **Population** und braucht
     deshalb eine eigene, datierte Entscheidung **vor** dem Bau. Bis dahin legt
