@@ -885,10 +885,35 @@ vor n ≥ 100) gilt unverändert.
     zurück"), der von selbst verschwindet. Der Handelskalender existiert damit
     **nicht** ein zweites Mal in JavaScript — zwei Kalender laufen beim nächsten
     Feiertag auseinander.
-  - **Rückblick über die Historie** (was die Regel gemeldet hätte): 04.08. 04:46
-    DE+US `crit`, 03.08. 22:38 DE `crit` (dort stand DE sogar auf Donnerstag
-    30.07. — die Freitags-Zeile fehlte in der Quelle), 31.07. und 30.07. abends
-    je ein `warn` durch den bekannten Ein-Tag-Versatz, die übrigen Läufe still.
+  - **Rückblick über die Historie** (was die Regel gemeldet hätte, vollständig
+    nachgerechnet über alle committeten Report-Stände 29.07.–04.08.): 04.08.
+    04:46 DE+US `crit` · 03.08. 22:38 DE `crit` (dort stand DE sogar auf
+    Donnerstag 30.07. — die Freitags-Zeile fehlte in der Quelle) · 31.07. 22:40
+    DE `warn` und 30.07. 22:45 DE `warn` durch den bekannten Ein-Tag-Versatz ·
+    **31.07. 11:16 und 11:22 US `warn`** — zwei Hand-Dispatches am Vormittag,
+    siehe die zweite bekannte Grenze unten. Die übrigen Läufe still.
+    **BERICHTIGUNG (04.08.2026):** hier stand zuerst „die übrigen Läufe still",
+    obwohl die beiden Vormittags-Läufe im eigenen Rückblick sichtbar waren —
+    ein Zusammenfassungs-Fehler, vom Guardian gefunden. Die Zeile nennt sie
+    jetzt vollständig.
+  - **Zweite bekannte Grenze — Läufe vor Handelsschluss.** Die Regel liest vom
+    Lauf-Zeitstempel nur das **Datum** und ignoriert die Uhrzeit. Ein Lauf am
+    Vormittag erwartet damit eine Bar für **heute**, die es zu diesem Zeitpunkt
+    nicht geben kann. Real passiert am 31.07. um 11:16 und 11:22 UTC: die NYSE
+    öffnet erst 13:30 UTC, US stand folglich auf dem 30.07., und die Regel
+    hätte zweimal `US: Kurse 1 Handelstag zurück` gemeldet — kein Datenfehler,
+    sondern eine Erwartung, die zur Uhrzeit nicht passt. Betrifft **nur** Läufe
+    vor Handelsschluss, also den Recalculate-Knopf und Hand-Dispatches; der
+    geplante Cron um 21:45 UTC liegt nach beiden Schlusszeiten und ist nicht
+    betroffen. Anders als beim Einzelmarkt-Feiertag heilt sich das **nicht** von
+    selbst, sondern wiederholt sich bei jedem Vormittags-Tap. Das Verhalten ist
+    in `tests/test_kursstand_waechter.py` festgenagelt. **Offene Entscheidung:**
+    die Erwartung auf den letzten Handelstag umzustellen, dessen Sitzung zur
+    Lauf-Zeit bereits **beendet** ist (markt-eigene Schlusszeiten). Das würde
+    diesen Fehlalarm restlos beseitigen — und zugleich den Dispatch vom 04.08.
+    04:46 von `crit` auf `warn` herabstufen, weil um 04:46 auch die
+    04.08.-Bar noch nicht existieren kann. Die geplanten Abend-Läufe blieben
+    unverändert bewertet. Bewusst **nicht** in diesem PR entschieden.
   - **Bekannte Grenze — Einzelmarkt-Feiertage.** `FULL_CLOSURE` listet nur die
     **gemeinsamen** Voll-Schließtage. Ostermontag und 1. Mai (nur Xetra),
     Thanksgiving und July 4 (nur NYSE) stehen dort nicht, weil der Report an

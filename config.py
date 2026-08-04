@@ -323,6 +323,8 @@ HEALTH_MAX_FETCH_ERROR_PCT = 10.0  # (empty_data+fetch_error)/Universum -> warn
 HEALTH_MAX_DEAD_DELTA = 3        # Anstieg toter Ticker ggü. Vorlauf -> warn
 HEALTH_AGENT_MIN_OK = 5          # < N von 10 Karten mit KI-Kommentar -> warn
 HEALTH_WARN_REPEAT_RUNS = 3      # warn wiederholt sich frühestens nach N Läufen
+HEALTH_BAR_LAG_CRIT = 2          # ab so vielen Handelstagen Kurs-Rückstand -> crit
+                                 # (1 = der bekannte Ein-Tag-Versatz -> warn)
 # Flanken-Marker der Health-Pushes (wie die Sammlung von daily.yml committet).
 HEALTH_STATE_PATH = "data/health_state.json"
 

@@ -125,6 +125,36 @@ def test_am_feiertag_KEIN_fehlalarm():
     assert f and f[0]["detail"]["lag_trading_days"] == 2   # Mo 06. + Di 07.
 
 
+def test_VORMITTAGS_LAUF_meldet_einen_rueckstand_den_es_nicht_geben_kann():
+    """ZWEITE BEKANNTE GRENZE, real aufgetreten (Guardian-Fund 04.08.2026).
+
+    Die Regel liest vom Lauf-Zeitstempel nur das **Datum** (``[:10]``) und
+    ignoriert die Uhrzeit. Ein Lauf am Vormittag erwartet damit eine Bar für
+    **heute** — die es zu diesem Zeitpunkt gar nicht geben kann, weil die Börse
+    noch nicht geschlossen (oder nicht einmal geöffnet) hat.
+
+    ECHT PASSIERT: die Hand-Dispatches am 31.07. um 11:16 und 11:22 UTC. Die
+    NYSE öffnet erst 13:30 UTC, US stand folglich auf dem 30.07. — die Regel
+    hätte zweimal ``US: Kurse 1 Handelstag zurück`` gemeldet. Kein Defekt in
+    den Daten, sondern eine Erwartung, die zur Uhrzeit nicht passt.
+
+    Betrifft **nur** Läufe vor Handelsschluss, also den Recalculate-Knopf und
+    Hand-Dispatches — der geplante Cron um 21:45 UTC liegt nach beiden
+    Schlusszeiten und ist nicht betroffen. Das Verhalten steht hier fest, damit
+    es sichtbar bleibt; ob die Regel eine markt-eigene Schlusszeit bekommt, ist
+    eine offene Entscheidung (siehe PR-Text und Registry).
+    """
+    # Freitag 31.07., 11:16 UTC — US hat noch nicht geöffnet.
+    f = hc.check_bar_freshness(
+        _report("2026-07-31T11:16:07Z", DE="2026-07-31", US="2026-07-30"))
+    assert len(f) == 1 and f[0]["market"] == "US"
+    assert f[0]["severity"] == "warn" and f[0]["detail"]["lag_trading_days"] == 1
+    # Derselbe Datenstand am ABEND ist derselbe Befund — dort zu Recht.
+    abends = hc.check_bar_freshness(
+        _report("2026-07-31T22:40:44Z", DE="2026-07-31", US="2026-07-30"))
+    assert [x["market"] for x in abends] == ["US"]
+
+
 def test_EINZELMARKT_feiertag_erzeugt_ein_warn_das_sich_selbst_heilt():
     """BEKANNTE GRENZE, hier festgenagelt statt versteckt (04.08.2026).
 
@@ -174,6 +204,38 @@ def test_fehlende_angaben_melden_NICHTS(report):
     """Ein Wächter, der bei fehlender Angabe Alarm schlägt, färbt alte
     Report-Stände und Fixtures grundlos rot."""
     assert hc.check_bar_freshness(report) == []
+
+
+def test_ein_markt_OHNE_diag_schluessel_bricht_die_regel_nicht():
+    """Guardian-Fund 04.08.2026: der `or {}`-Guard in Zeile
+    ``(market.get("diag") or {})`` war ungetestet — kein Test baute einen Markt
+    ohne den Schlüssel (nur mit kaputtem Wert, den fängt der `isinstance`-Guard
+    davor ab). Ohne ihn stürzt die Regel bei einem Report-Stand aus der Zeit vor
+    dem `diag`-Feld mit ``AttributeError`` ab, statt fail-soft zu schweigen —
+    schlimmer als der Fehlalarm, den die Docstring ausschließen will."""
+    r = {"run_timestamp_utc": "2026-08-04T21:45:00Z",
+         "markets": {"DE": {}, "US": {"diag": {"last_bar_date": "2026-07-31"}}}}
+    f = hc.check_bar_freshness(r)
+    assert len(f) == 1 and f[0]["market"] == "US"
+
+
+@pytest.mark.parametrize("wert, soll", [
+    (_dt.date(2026, 8, 4), "2026-08-04"),
+    (_dt.datetime(2026, 8, 4, 12, 30), "2026-08-04"),   # Guardian-Fund: ungetestet
+    ("2026-08-04", "2026-08-04"),
+])
+def test_als_datum_nimmt_date_datetime_und_string(wert, soll):
+    """Der ``datetime``-Zweig war ungetestet. Fällt er weg, liefert ``_als_datum``
+    ein datetime zurück — und ``date < datetime`` wirft in Python ``TypeError``
+    (nachgemessen). Aus fail-soft würde ein Absturz."""
+    assert cal._als_datum(wert).isoformat() == soll
+    assert isinstance(cal._als_datum(wert), _dt.date)
+    assert not isinstance(cal._als_datum(wert), _dt.datetime)
+
+
+def test_der_rueckstand_rechnet_auch_mit_datetime_objekten():
+    assert cal.handelstage_rueckstand(
+        _dt.datetime(2026, 7, 31, 22, 0), _dt.datetime(2026, 8, 4, 4, 46)) == 2
 
 
 def test_ein_markt_ohne_diag_bricht_die_regel_nicht():
