@@ -498,3 +498,77 @@ def test_der_marker_steht_nicht_in_FROZEN_FIELDS():
     ev = pytest.importorskip("evaluate")
     assert msr.MARKER not in ev.FROZEN_FIELDS
     assert "episode_split_suspect" not in ev.FROZEN_FIELDS
+
+
+# ---------------------------------------------------------------------------
+# 12) Äquivalenz über die echte Historie
+#
+# Die eigentliche Rückwärts-Frage: ändert der markt-bewusste Anker an FRISCHEN
+# Tagen irgendetwas? Er darf nicht. Population: jeder committete Sammlungs-Stand
+# x die Märkte seines Laufs; frisch = Rückstand 0 ODER nicht messbar (fail-soft,
+# genau wie im Gate). Der Test rechnet die Zahlen JEDES MAL neu — er pinnt keine
+# Momentaufnahme, sondern die Invariante.
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def markt_laeufe():
+    """(sammlungs_stand, lauf_datum, markt, rueckstand) über die Historie."""
+    reports = msr.committete_reports(ROOT)
+    lags = msr.rueckstaende_je_lauf(reports)
+    maerkte = {r["run_timestamp_utc"]: sorted(r.get("markets") or {})
+               for r in reports}
+    out = []
+    for coll in msr.committete_sammlungen(ROOT):
+        ts = str(coll.get("updated_utc"))
+        for mk in maerkte.get(ts, []):
+            out.append((coll, ts, mk, lags.get(ts, {}).get(mk)))
+    return out
+
+
+@braucht_historie
+def test_an_frischen_tagen_ankert_der_markt_wie_bisher(markt_laeufe):
+    frisch = [z for z in markt_laeufe
+              if not (isinstance(z[3], int) and z[3] >= 1)]
+    assert len(frisch) >= 97, "Historie unerwartet klein — Beweis wertlos"
+    abweichungen = []
+    for coll, ts, mk, _lag in frisch:
+        run_date = ts[:10]
+        alt = set(fc.episode_anchor_dates(coll, run_date))
+        neu = set(fc.episode_anchor_dates(coll, run_date, mk))
+        if alt != neu:
+            abweichungen.append((ts, mk, sorted(alt), sorted(neu)))
+    assert abweichungen == []
+
+
+@braucht_historie
+def test_das_gate_haette_genau_diese_markt_laeufe_gesperrt(markt_laeufe):
+    """Die sieben Fälle bis einschließlich 04.08. — nach Datum begrenzt, damit
+    kommende Läufe den Test nicht brechen. VIER davon sind Vormittags-Dispatches
+    vor Börsenöffnung (die Klasse, die der Sitzungs-Ende-PR beseitigt), DREI
+    sind echter Rückstand, abends gemessen."""
+    gesperrt = []
+    for _c, ts, mk, lag in markt_laeufe:
+        if ts > "2026-08-04T23:59:59Z":
+            continue
+        # durch den ECHTEN Gate-Code, nicht am Kalender vorbei
+        report = {"markets": {mk: {"diag": {"bar_lag_trading_days": lag}}}}
+        if mk in fc.stale_markets(report):
+            gesperrt.append((ts, mk, lag))
+    assert sorted(gesperrt) == [
+        ("2026-07-30T22:45:00Z", "DE", 1),
+        ("2026-07-31T11:16:07Z", "US", 1),
+        ("2026-07-31T11:22:49Z", "US", 1),
+        ("2026-07-31T22:40:44Z", "DE", 1),
+        ("2026-08-03T22:38:17Z", "DE", 2),
+        ("2026-08-04T04:46:23Z", "DE", 2),
+        ("2026-08-04T04:46:23Z", "US", 2),
+    ]
+
+
+@braucht_historie
+def test_schwelle_2_wuerde_die_haelfte_der_faelle_durchlassen(markt_laeufe):
+    """Belegt, warum die Registry-Schwelle >=1 lautet: >=2 ließe genau die
+    Ein-Tag-Versätze durch, aus denen drei der vier Alt-Records stammen."""
+    ab1 = [z for z in markt_laeufe
+           if isinstance(z[3], int) and z[3] >= 1 and z[1] <= "2026-08-04T23:59:59Z"]
+    ab2 = [z for z in ab1 if z[3] >= 2]
+    assert len(ab1) == 7 and len(ab2) == 3
