@@ -983,9 +983,9 @@ vor n ≥ 100) gilt unverändert.
     gesetzt (`if skipped:`), aber nie gelöscht — nach der Nachlieferung
     behauptete ein Record dauerhaft einen übersprungenen Bar, den es nicht mehr
     gibt. Ab jetzt: setzen, wenn > 0, sonst **entfernen**. Bewusst so und nicht
-    „immer setzen": Letzteres hätte allen 53 Records ein `skipped_bars: 0`
-    angehängt, obwohl heute **kein einziger** das Feld trägt — der Daten-Diff
-    dieses PRs bleibt so leer. Reine Diagnose: das Feld steht nicht in
+    „immer setzen": Letzteres hätte allen **56** Records des Standes vom
+    04.08.2026 ein `skipped_bars: 0` angehängt, obwohl **kein einziger**
+    das Feld trägt — der Daten-Diff dieses PRs bleibt so leer. Reine Diagnose: das Feld steht nicht in
     `evaluate.FROZEN_FIELDS` und wird vom Frontend nirgends gelesen.
   - **LAUT statt still.** Greift das Gate, steht es im Lauf-Status („Markt X:
     keine neuen Episoden — Kurs-Stand veraltet") und im Lauf-Log. **Kein

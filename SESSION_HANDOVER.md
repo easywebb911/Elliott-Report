@@ -19,7 +19,7 @@ Gedächtnis.
 >    rechnet je Lauf aus der Kursreihe neu, Endzustand mit und ohne stale Tag
 >    identisch). `skipped_bars` nach **Variante (b)** mitnehmen: setzen wenn > 0,
 >    sonst entfernen — Daten-Diff heute leer, während der Einzeiler (a) allen
->    53 Records ein Feld angehängt hätte. Marker-Replay für die Alt-Records
+>    56 Records (Stand 04.08.) ein Feld angehängt hätte. Marker-Replay für die Alt-Records
 >    (mindestens KKR), `evaluate.py` byte-identisch, Purge mit Byte-Identitäts-Test.
 > 3. **Sitzungs-Ende-PR** — Erwartung des Wächters auf den letzten Handelstag
 >    umstellen, dessen Sitzung zur Lauf-Zeit BEENDET ist (markt-eigene
