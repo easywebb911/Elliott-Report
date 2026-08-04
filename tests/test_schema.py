@@ -336,7 +336,11 @@ def test_market_diag_present_and_shaped():
                           "dropped_bar_dates", "dropped_last_row",
                           "dropped_mid_row",
                           # Von welchem Handelstag stammen die Preise? (30.07.)
-                          "last_bar_date"}
+                          "last_bar_date",
+                          # Kurs-Stand-Waechter (04.08.2026): von welchem Tag
+                          # SOLLTEN sie stammen, und wie viele Handelstage
+                          # liegt der Stand zurueck? Additiv, rein informativ.
+                          "expected_bar_date", "bar_lag_trading_days"}
         # Gesunde (synthetische) Daten: nichts verworfen.
         assert d["dropped_bars"] == 0 and d["invalid_volume_bars"] == 0
         assert d["bad_bar_tickers"] == []

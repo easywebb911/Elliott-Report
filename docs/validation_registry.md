@@ -844,3 +844,95 @@ vor n ≥ 100) gilt unverändert.
   Revert = PR zurücknehmen. Dann sind beide Pushes wieder tot und der
   Alarm-Text wieder ganzzahlig; **kein Datenstand wird ungültig**, keine
   gemessene Zahl ändert sich, diese Notiz bleibt gültig.
+
+- **2026-08-04 — Kurs-Stand-Wächter: der Report darf nicht still auf veralteten
+  Kursen rechnen.** Betriebs-Regel der Selbstüberwachung, **keine**
+  Auswertungs-Definition — Score, Filter, Sammlung und Reifung sind unberührt.
+  - **Der Anlass.** Am 04.08. standen **beide** Märkte auf dem Kursstand vom
+    31.07. Die Montags-Zeile (03.08.) kam von der Quelle **nicht-finit** und
+    wurde von der Härtung vom 27.07. zu Recht verworfen — ticker-genau belegt:
+    `dropped_bar_dates {'2026-08-03': 116}` (DE) bzw. `{'2026-08-03': 236}` (US),
+    `dropped_last_row` = alle, `dropped_mid_row` = 0. Danach rechneten Score,
+    Filter **und** Anzeige auf Freitags-Kursen; in beiden Märkten fiel je ein
+    Ticker aus den Top 5 (DE: NOEJ.DE → TKA.DE, US: COF → KKR), `target_exceeded`
+    verschob sich (DE 16→15, US 37→32), und die Sammlung legte **eine Episode
+    an** (KKR, `first_seen 2026-07-31`), die es bei aktuellen Kursen nicht gäbe.
+    Der Health-Check meldete dabei **`status: ok`**.
+  - **Warum es niemand merkte.** Die vorhandenen Regeln prüfen Kandidatenzahl,
+    Fetch-Fehlerquote und tote Ticker — **nicht das Bar-Datum**. Und
+    `market_calendar.is_stale` misst den **Report-Zeitstempel**, nicht die
+    Kurse: ein taufrischer Lauf auf drei Tage alten Kursen galt als frisch.
+  - **Die neue Regel** `health_check.check_bar_freshness` vergleicht je Markt
+    `diag.last_bar_date` mit dem **letzten Handelstag bis einschließlich des
+    Lauf-Datums**. 1 Handelstag Rückstand → `warn` (der bekannte Ein-Tag-Versatz:
+    die Quelle liefert die laufende Tageszeile unfertig und reicht sie nach),
+    ab `HEALTH_BAR_LAG_CRIT` = 2 → `crit` (ein ganzer Handelstag fehlt). Sie
+    läuft im **normalen** Befund-Pfad: Lauf-Status, Report-Block und der übliche
+    gebündelte Befund-Push mit **unverändertem Flanken-Verhalten** — kein neuer
+    Push-Kanal, kein täglicher Wiederholungs-Push bei gleichbleibendem Rückstand.
+  - **Kalender aus EINER Quelle.** `market_calendar.letzter_handelstag` und
+    `handelstage_rueckstand` liegen dort, wo schon das Feiertags-Gate und der
+    Staleness-Wächter wohnen. Am Wochenende und an gemeinsamen Voll-Schließtagen
+    ist der letzte Handelstag der davorliegende Werktag — ein Freitags-Stand am
+    Sonntag ergibt **0** Rückstand und damit **keinen Fehlalarm**.
+  - **Fail-soft:** fehlt `last_bar_date` oder der Lauf-Zeitstempel, meldet die
+    Regel **nichts**. Ein Wächter, der aus Unwissen Alarm schlägt, färbt alte
+    Report-Stände und Fixtures grundlos rot.
+  - **Additiv im Report:** `diag.expected_bar_date` und
+    `diag.bar_lag_trading_days` je Markt, in `build_report` aus derselben
+    Kalender-Funktion gerechnet. Das Frontend liest **die fertige Zahl** und
+    zeigt an „Kurse vom" einen dezenten Hinweis in `--ora` („⚠ 2 Handelstage
+    zurück"), der von selbst verschwindet. Der Handelskalender existiert damit
+    **nicht** ein zweites Mal in JavaScript — zwei Kalender laufen beim nächsten
+    Feiertag auseinander.
+  - **Rückblick über die Historie** (was die Regel gemeldet hätte, vollständig
+    nachgerechnet über alle committeten Report-Stände 29.07.–04.08.): 04.08.
+    04:46 DE+US `crit` · 03.08. 22:38 DE `crit` (dort stand DE sogar auf
+    Donnerstag 30.07. — die Freitags-Zeile fehlte in der Quelle) · 31.07. 22:40
+    DE `warn` und 30.07. 22:45 DE `warn` durch den bekannten Ein-Tag-Versatz ·
+    **31.07. 11:16 und 11:22 US `warn`** — zwei Hand-Dispatches am Vormittag,
+    siehe die zweite bekannte Grenze unten. Die übrigen Läufe still.
+    **BERICHTIGUNG (04.08.2026):** hier stand zuerst „die übrigen Läufe still",
+    obwohl die beiden Vormittags-Läufe im eigenen Rückblick sichtbar waren —
+    ein Zusammenfassungs-Fehler, vom Guardian gefunden. Die Zeile nennt sie
+    jetzt vollständig.
+  - **Zweite bekannte Grenze — Läufe vor Handelsschluss.** Die Regel liest vom
+    Lauf-Zeitstempel nur das **Datum** und ignoriert die Uhrzeit. Ein Lauf am
+    Vormittag erwartet damit eine Bar für **heute**, die es zu diesem Zeitpunkt
+    nicht geben kann. Real passiert am 31.07. um 11:16 und 11:22 UTC: die NYSE
+    öffnet erst 13:30 UTC, US stand folglich auf dem 30.07., und die Regel
+    hätte zweimal `US: Kurse 1 Handelstag zurück` gemeldet — kein Datenfehler,
+    sondern eine Erwartung, die zur Uhrzeit nicht passt. Betrifft **nur** Läufe
+    vor Handelsschluss, also den Recalculate-Knopf und Hand-Dispatches; der
+    geplante Cron um 21:45 UTC liegt nach beiden Schlusszeiten und ist nicht
+    betroffen. Anders als beim Einzelmarkt-Feiertag heilt sich das **nicht** von
+    selbst, sondern wiederholt sich bei jedem Vormittags-Tap. Das Verhalten ist
+    in `tests/test_kursstand_waechter.py` festgenagelt. **Offene Entscheidung:**
+    die Erwartung auf den letzten Handelstag umzustellen, dessen Sitzung zur
+    Lauf-Zeit bereits **beendet** ist (markt-eigene Schlusszeiten). Das würde
+    diesen Fehlalarm restlos beseitigen — und zugleich den Dispatch vom 04.08.
+    04:46 von `crit` auf `warn` herabstufen, weil um 04:46 auch die
+    04.08.-Bar noch nicht existieren kann. Die geplanten Abend-Läufe blieben
+    unverändert bewertet. Bewusst **nicht** in diesem PR entschieden.
+  - **Bekannte Grenze — Einzelmarkt-Feiertage.** `FULL_CLOSURE` listet nur die
+    **gemeinsamen** Voll-Schließtage. Ostermontag und 1. Mai (nur Xetra),
+    Thanksgiving und July 4 (nur NYSE) stehen dort nicht, weil der Report an
+    diesen Tagen normal läuft und der offene Markt liefert. Der geschlossene
+    Markt hat dann aber keine neue Bar → am Abend eines solchen Tages meldet
+    der Wächter für ihn ein `warn`. Inhaltlich richtig („die Kurse sind von
+    gestern"), nur nicht handlungsbedürftig; am nächsten Handelstag ist es von
+    selbst weg. Rund 6–8 Tage im Jahr je Markt, dank Flanken-Logik je ein
+    einzelner Push. Der saubere Weg wäre eine **markt-eigene** Schließtags-
+    Liste — das ändert die Bedeutung von „erwartet" je Markt und wäre eine
+    eigene, datierte Entscheidung. Bis dahin ist das Verhalten in
+    `tests/test_kursstand_waechter.py` festgenagelt, damit es sichtbar bleibt.
+  - **Bewusst NICHT Teil dieser Notiz:** der Sammlungs-Schutz („keine neue
+    Episode bei veraltetem Stand"). Er berührt die **Population** und braucht
+    deshalb eine eigene, datierte Entscheidung **vor** dem Bau. Bis dahin legt
+    ein Lauf auf veraltetem Stand weiter Episoden an — sichtbar, aber nicht
+    verhindert.
+  Revert = PR zurücknehmen. Dann meldet der Health-Check den Rückstand wieder
+  nicht und der Hinweis verschwindet; die beiden `diag`-Felder bleiben in
+  bereits committeten Reports stehen und werden schlicht nicht gelesen.
+  **Kein Datenstand wird ungültig**, keine gemessene Zahl ändert sich, diese
+  Notiz bleibt gültig.

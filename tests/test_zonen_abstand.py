@@ -86,12 +86,41 @@ def test_der_abstand_steht_NEBEN_dem_nowrap_wert_nicht_darin():
     assert ("`<span class=\"tf-v\">${vv}</span>${dist || ''}</span>`") in HTML
 
 
-def test_report_und_pipeline_bleiben_unberuehrt():
-    """Reines Frontend: der Zweig darf NUR docs/ und tests/ anfassen."""
-    r = subprocess.run(["git", "diff", "--name-only", "origin/main", "--",
-                        "scripts/", "config.py", "data/", ".github/"],
-                       cwd=ROOT, capture_output=True, text=True)
-    assert r.stdout.strip() == "", f"nicht-Frontend im Diff: {r.stdout!r}"
+def test_der_zonen_abstand_lebt_NUR_im_frontend():
+    """Die Zahl wird im Browser gerechnet — nirgendwo sonst.
+
+    BERICHTIGUNG (04.08.2026): hier stand ein ``git diff … origin/main``-Test,
+    der behauptete, der Zweig dürfe nur ``docs/`` und ``tests/`` anfassen. Das
+    war eine Momentaufnahme des #70-PRs, verkleidet als Dauer-Invariante — sie
+    wurde beim ERSTEN Backend-PR danach rot (dem Kurs-Stand-Wächter) und hätte
+    von da an jeden weiteren blockiert. Ein Test, der grün nur bleibt, solange
+    niemand anderes etwas tut, prüft nicht das Richtige.
+
+    Was wirklich gelten soll und dauerhaft prüfbar ist: die Rechen- und
+    Renderteile des Zonen-Abstands existieren AUSSCHLIESSLICH im Frontend.
+    Wandert einer davon in die Pipeline, in den Report oder in die Sammlung,
+    wird daraus eine gespeicherte Kennzahl — und die bräuchte einen
+    Registry-Eintrag statt eines Frontend-PRs.
+    """
+    verboten = ("zoneDistPct", "zoneDistText", "zoneDistSpan",
+                "zone_dist", "data-zone-dist", "bar_lag")  # bar_lag: Gegenprobe
+    treffer = []
+    for pfad in sorted((ROOT / "scripts").glob("*.py")):
+        quelle = pfad.read_text(encoding="utf-8")
+        for name in verboten[:5]:
+            if name in quelle:
+                treffer.append(f"{pfad.name}: {name}")
+    quelle_cfg = (ROOT / "config.py").read_text(encoding="utf-8")
+    for name in verboten[:5]:
+        if name in quelle_cfg:
+            treffer.append(f"config.py: {name}")
+    assert treffer == [], f"Zonen-Abstand ist ins Backend gewandert: {treffer}"
+
+    # Und die Gegenprobe: im Report steht die Zahl nicht.
+    report = json.loads((ROOT / "data/report.json").read_text(encoding="utf-8"))
+    for markt in report["markets"].values():
+        for kandidat in markt.get("candidates") or []:
+            assert not any(k.startswith("zone_dist") for k in kandidat), kandidat
 
 
 def test_die_methodik_nennt_die_bezugskante():

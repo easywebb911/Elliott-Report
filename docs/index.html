@@ -759,6 +759,12 @@
     .status-kv { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:0.8125rem; }
     .status-kv .k { color:var(--txt-dim); }
     .status-kv .v { color:var(--txt); font-variant-numeric:tabular-nums; }
+    /* Kurs-Stand veraltet (04.08.2026). Warnfarbe --ora, KEINE neue
+       Gut/Schlecht-Semantik: es ist derselbe Hinweis-Ton wie anderswo im
+       Lauf-Status. Erscheint nur bei Rückstand >= 1 Handelstag und
+       verschwindet von selbst, sobald der Stand wieder aktuell ist. */
+    .bar-lag { color:var(--ora); font-size:.62rem; margin-left:6px;
+      white-space:nowrap; font-variant-numeric:tabular-nums; }
     .status-skips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
     .status-chip {
       font-size:0.6875rem; padding:2px 8px; border-radius:999px; border:1px solid var(--brd);
@@ -3756,10 +3762,29 @@
       // Quelle zum Abrufzeitpunkt liefert. Steht immer da, nicht nur im
       // Problemfall: eine Angabe, die nur bei Auffälligkeiten erscheint, wird
       // beim Lesen leicht für „alles normal" genommen.
+      // Kurs-Stand-Hinweis (04.08.2026): liegt das Bar-Datum hinter dem
+      // letzten erwarteten Handelstag, steht der Rückstand daneben. Die Zahl
+      // kommt FERTIG aus dem Report (`bar_lag_trading_days`, gerechnet in
+      // market_calendar) — der Handelskalender darf NICHT ein zweites Mal in
+      // JavaScript existieren, sonst laufen beide beim nächsten Feiertag
+      // auseinander. Ältere Reports ohne das Feld verhalten sich wie „kein
+      // Rückstand" und zeigen die Zeile unverändert.
       function barDateRow(d) {
         const dt = d.last_bar_date;
         if (!dt) return '';
-        return `<span class="k">Kurse vom</span><span class="v">${esc(dt)}</span>`;
+        const lag = Number(d.bar_lag_trading_days);
+        if (!Number.isFinite(lag) || lag < 1) {
+          return `<span class="k">Kurse vom</span><span class="v">${esc(dt)}</span>`;
+        }
+        const tage = lag === 1 ? 'Handelstag' : 'Handelstage';
+        const erwartet = d.expected_bar_date
+          ? ` — erwartet ${esc(d.expected_bar_date)}` : '';
+        return `<span class="k">Kurse vom</span>`
+          + `<span class="v">${esc(dt)}`
+          + `<span class="bar-lag" title="Der letzte gültige Kurs-Balken liegt`
+          + ` hinter dem letzten erwarteten Handelstag${erwartet}.`
+          + ` Score, Filter und Anzeige rechnen auf diesem Stand.">`
+          + `⚠ ${lag} ${tage} zurück</span></span>`;
       }
 
       function barsRow(d) {

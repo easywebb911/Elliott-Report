@@ -60,6 +60,63 @@ def is_trading_day(d: _dt.date) -> bool:
     return d.weekday() < 5 and is_full_closure(d) is None
 
 
+def _als_datum(wert) -> Optional[_dt.date]:
+    """'YYYY-MM-DD' oder date -> date. None bei allem anderen (fail-soft)."""
+    if isinstance(wert, _dt.date) and not isinstance(wert, _dt.datetime):
+        return wert
+    if isinstance(wert, _dt.datetime):
+        return wert.date()
+    try:
+        return _dt.date.fromisoformat(str(wert))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def letzter_handelstag(bis) -> Optional[_dt.date]:
+    """Der jüngste Handelstag <= ``bis`` (``bis`` selbst zählt mit).
+
+    Für die Frage „von welchem Tag SOLLTEN die Kurse stammen?" (04.08.2026).
+    An einem Samstag/Sonntag/Voll-Schließtag ist das der letzte davorliegende
+    Werktag — deshalb erzeugt ein Freitags-Kursstand am Wochenende **keinen**
+    Rückstand und damit keinen Fehlalarm.
+    """
+    d = _als_datum(bis)      # nimmt date ODER 'YYYY-MM-DD' (ein Eingang)
+    if d is None:
+        return None
+    for _ in range(30):          # 30 Tage decken jede Feiertagsbrücke ab
+        if is_trading_day(d):
+            return d
+        d -= _dt.timedelta(days=1)
+    return None                  # pragma: no cover — defensiv
+
+
+def handelstage_rueckstand(bar_datum, bis) -> Optional[int]:
+    """Wie viele HANDELSTAGE liegt ein Kursstand zurück?
+
+    Gezählt werden die Handelstage **nach** ``bar_datum`` bis einschließlich
+    des letzten Handelstags <= ``bis``. Beispiele (``bis`` = Dienstag):
+      Dienstags-Stand -> 0 · Montags-Stand -> 1 · Freitags-Stand -> 2.
+    Am Sonntag mit Freitags-Stand -> 0 (der letzte Handelstag IST der Freitag).
+
+    Ein Kursstand in der Zukunft ergibt 0, nicht negativ: das wäre kein
+    Rückstand, und ein Alarm dafür gehört einer anderen Regel.
+    None = nicht bestimmbar (unlesbares Datum) -> der Aufrufer meldet nichts.
+    """
+    bar = _als_datum(bar_datum)
+    ziel = _als_datum(bis)
+    if bar is None or ziel is None:
+        return None
+    erwartet = letzter_handelstag(ziel)
+    if erwartet is None or bar >= erwartet:  # pragma: no branch
+        return 0
+    n, d = 0, bar + _dt.timedelta(days=1)
+    while d <= erwartet:
+        if is_trading_day(d):
+            n += 1
+        d += _dt.timedelta(days=1)
+    return n
+
+
 def parse_ts(ts_iso) -> Optional[_dt.datetime]:
     """Report-Zeitstempel '%Y-%m-%dT%H:%M:%SZ' -> aware UTC. None wenn kaputt."""
     if not ts_iso:
