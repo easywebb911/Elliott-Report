@@ -739,12 +739,12 @@ def stale_markets(report: Dict) -> Dict[str, int]:
 
     Schwelle ist **≥ 1 Handelstag** — so steht es in der Registry-Notiz vom
     05.08.2026 („hinter dem letzten erwarteten Handelstag zurück"). Über die
-    committete Historie (52 Sammlungs-Stände, 104 Markt-Läufe) hätte das Gate
-    **7×** gegriffen (6,7 %), bei Schwelle ≥ 2 nur 3× — der bekannte
-    Ein-Tag-Versatz hungert die Sammlung also nicht aus, und gerade aus ihm
-    stammen drei der vier markierten Alt-Records. Die Zahlen rechnet
-    ``test_das_gate_haette_genau_diese_markt_laeufe_gesperrt`` bei jedem
-    Testlauf neu nach.
+    committete Historie (Stand 04.08.2026 22:42: 53 Sammlungs-Stände,
+    106 Markt-Läufe) hätte das Gate **8×** gegriffen (7,5 %), bei Schwelle
+    ≥ 2 nur 3× (2,8 %) — der bekannte Ein-Tag-Versatz hungert die Sammlung
+    also nicht aus, und gerade aus ihm stammen drei der vier markierten
+    Alt-Records. Die Zahlen wandern mit jedem Lauf; die Tests pinnen
+    deshalb die ZUGEHÖRIGKEIT der bekannten Fälle, keinen Zählerstand.
 
     Fail-soft: fehlt das Feld (Report-Stände von vor dem 04.08.2026) oder ist
     es unbrauchbar, gilt der Markt als **frisch**. Ein Gate, das aus Unwissen

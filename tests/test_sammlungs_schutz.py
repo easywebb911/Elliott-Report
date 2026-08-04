@@ -556,36 +556,56 @@ def test_an_frischen_tagen_ankert_der_markt_wie_bisher(markt_laeufe):
     assert abweichungen == []
 
 
-@braucht_historie
-def test_das_gate_haette_genau_diese_markt_laeufe_gesperrt(markt_laeufe):
-    """Die sieben Fälle bis einschließlich 04.08. — nach Datum begrenzt, damit
-    kommende Läufe den Test nicht brechen. VIER davon sind Vormittags-Dispatches
-    vor Börsenöffnung (die Klasse, die der Sitzungs-Ende-PR beseitigt), DREI
-    sind echter Rückstand, abends gemessen."""
-    gesperrt = []
+# Diese Markt-Läufe standen hinter dem letzten erwarteten Handelstag zurück.
+# Die Liste ist KEIN Zählerstand — die committete Historie wächst mit jedem Lauf,
+# und ein Zähl-Pin wäre am nächsten Tag rot (genau das ist hier einmal passiert).
+# Was dauerhaft gilt, ist die ZUGEHÖRIGKEIT: was einmal zurückhing, hängt in der
+# committeten Historie für immer zurück.
+BEKANNT_GEGATET = {
+    ("2026-07-30T22:45:00Z", "DE", 1),   # Abend, echter Rückstand
+    ("2026-07-31T11:16:07Z", "US", 1),   # vor NYSE-Öffnung
+    ("2026-07-31T11:22:49Z", "US", 1),   # vor NYSE-Öffnung
+    ("2026-07-31T22:40:44Z", "DE", 1),   # Abend, echter Rückstand
+    ("2026-08-03T22:38:17Z", "DE", 2),   # Abend, echter Rückstand
+    ("2026-08-04T04:46:23Z", "DE", 2),   # vor Börsenöffnung, Quellen-Aussetzer
+    ("2026-08-04T04:46:23Z", "US", 2),   # vor Börsenöffnung, Quellen-Aussetzer
+    ("2026-08-04T22:42:32Z", "DE", 1),   # Abend, echter Rückstand
+}
+
+
+def _gesperrt(markt_laeufe):
+    """Die gegateten Markt-Läufe — durch den ECHTEN Gate-Code, nicht am
+    Kalender vorbei."""
+    out = set()
     for _c, ts, mk, lag in markt_laeufe:
-        if ts > "2026-08-04T23:59:59Z":
-            continue
-        # durch den ECHTEN Gate-Code, nicht am Kalender vorbei
         report = {"markets": {mk: {"diag": {"bar_lag_trading_days": lag}}}}
         if mk in fc.stale_markets(report):
-            gesperrt.append((ts, mk, lag))
-    assert sorted(gesperrt) == [
-        ("2026-07-30T22:45:00Z", "DE", 1),
-        ("2026-07-31T11:16:07Z", "US", 1),
-        ("2026-07-31T11:22:49Z", "US", 1),
-        ("2026-07-31T22:40:44Z", "DE", 1),
-        ("2026-08-03T22:38:17Z", "DE", 2),
-        ("2026-08-04T04:46:23Z", "DE", 2),
-        ("2026-08-04T04:46:23Z", "US", 2),
-    ]
+            out.add((ts, mk, lag))
+    return out
 
 
 @braucht_historie
-def test_schwelle_2_wuerde_die_haelfte_der_faelle_durchlassen(markt_laeufe):
-    """Belegt, warum die Registry-Schwelle >=1 lautet: >=2 ließe genau die
-    Ein-Tag-Versätze durch, aus denen drei der vier Alt-Records stammen."""
-    ab1 = [z for z in markt_laeufe
-           if isinstance(z[3], int) and z[3] >= 1 and z[1] <= "2026-08-04T23:59:59Z"]
-    ab2 = [z for z in ab1 if z[3] >= 2]
-    assert len(ab1) == 7 and len(ab2) == 3
+def test_die_bekannten_faelle_bleiben_gegatet(markt_laeufe):
+    """Vier davon sind Dispatches vor Börsenöffnung (die Klasse, die der
+    Sitzungs-Ende-PR beseitigt), vier echter Rückstand, abends gemessen."""
+    assert BEKANNT_GEGATET <= _gesperrt(markt_laeufe)
+
+
+@braucht_historie
+def test_jeder_markierte_alt_record_stammt_aus_einem_gegateten_lauf(markt_laeufe):
+    """Die Verbindung, die dieser PR behauptet: die vier Marker hängen an genau
+    den Läufen, die das Gate gesperrt hätte — kein Marker ohne Rückstand."""
+    gesperrt = {(ts, mk) for ts, mk, _lag in _gesperrt(markt_laeufe)}
+    for _ticker, markt, run_utc, _lag in ERWARTETE_MARKIERUNGEN:
+        assert (run_utc, markt) in gesperrt
+
+
+@braucht_historie
+def test_schwelle_2_liesse_drei_der_vier_alt_records_durch(markt_laeufe):
+    """Belegt, warum die Registry-Schwelle >= 1 lautet und nicht >= 2: bei >= 2
+    wären ADS.DE, MTX.DE und G1A.DE nicht verhindert worden."""
+    durchgelassen = [t for t in ERWARTETE_MARKIERUNGEN if t[3] < 2]
+    assert len(durchgelassen) == 3
+    for _ticker, markt, _run, lag in durchgelassen:
+        r = {"markets": {markt: {"diag": {"bar_lag_trading_days": lag}}}}
+        assert markt in fc.stale_markets(r), "Schwelle >= 1 muss hier sperren"
