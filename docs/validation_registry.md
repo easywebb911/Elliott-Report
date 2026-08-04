@@ -1003,8 +1003,13 @@ vor n ≥ 100) gilt unverändert.
     Marker-Entscheidung **vor der ersten echten Auswertung** (n≥100)
     festgelegt — zwei Marker auf derselben Population gehören in eine
     Entscheidung, nicht in zwei.
+  - **Überlappung der beiden Marker, ausdrücklich festgehalten:** von den vier
+    markierten Records tragen **drei** (ADS.DE, MTX.DE, G1A.DE) zusätzlich
+    `episode_split_suspect`. Die Marker-Entscheidung muss beide zusammen
+    behandeln — sonst würde ein Record je nach Reihenfolge zweimal oder gar
+    nicht ausgeschlossen.
   Revert = PR zurücknehmen (dann gilt wieder der alte Anker und ein Lauf auf
   veraltetem Stand legt wieder Episoden an); die Marker entfernt
-  `python scripts/purge_stale_market_marks.py --purge --live` byte-identisch.
+  `python scripts/mark_stale_market_records.py --purge --live` byte-identisch.
   **Kein Datenstand wird ungültig**, keine gemessene Zahl ändert sich, diese
   Notiz bleibt gültig.
