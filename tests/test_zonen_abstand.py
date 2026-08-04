@@ -40,6 +40,9 @@ def test_die_bezugskante_ist_die_UNTERKANTE():
         "zoneDistSpan(hd.target_zone_extended.low, c.close)",
         "zoneDistSpan(c.target_zone.low, cardClose)",
         "zoneDistSpan(c.target_zone_extended.low, cardClose)",
+        # Alt-Zählung (Guardian-Nit 04.08.): liegt auf DERSELBEN live
+        # getickten Karte und hatte als einzige Zonen-Anzeige keinen Abstand.
+        "zoneDistSpan(alt.target_zone.low, c.close)",
     ):
         assert aufruf in HTML, f"{aufruf} fehlt — Bezugskante oder Kurs vertauscht?"
     assert ".high, c.close)" not in HTML and ".high, cardClose)" not in HTML, \
@@ -56,7 +59,7 @@ def test_der_live_poller_zieht_den_abstand_mit():
 def test_der_bezugskurs_ist_der_angezeigte_kurs():
     """Gerendert wird mit `c.close` bzw. `cardClose` — demselben Wert, der im
     Kurs-Feld steht. Danach übernimmt der Poller (Test darüber)."""
-    assert "function zoneDistSpan(low, price, extraClass)" in HTML
+    assert "function zoneDistSpan(low, price)" in HTML
     assert "const txt = zoneDistText(zoneDistPct(low, price));" in HTML
 
 
@@ -159,10 +162,14 @@ def test_ohne_darstellbaren_wert_kommt_NICHTS(kante, kurs):
     k = "null" if kante is None else json.dumps(kante)
     p = ("null" if kurs is None else
          ("Infinity" if kurs == float("inf") else json.dumps(kurs)))
+    # `String(...)` statt des Rohwerts (Guardian-Fund 04.08.2026): `JSON`
+    # bildet Infinity auf `null` ab — der Test konnte „echtes null" und
+    # „Infinity durchgerutscht" nicht unterscheiden und überlebte deshalb das
+    # Entfernen des `p === 0`-Guards. Als Zeichenkette sind sie verschieden.
     pct, txt = _js(
-        f"console.log(JSON.stringify([zoneDistPct({k}, {p}), "
+        f"console.log(JSON.stringify([String(zoneDistPct({k}, {p})), "
         f"zoneDistText(zoneDistPct({k}, {p}))]))")
-    assert pct is None
+    assert pct == "null", f"zoneDistPct lieferte {pct!r} statt null"
     assert txt == ""
 
 
@@ -219,6 +226,42 @@ def test_ein_unbrauchbarer_tick_versteckt_statt_NaN_zu_zeigen():
     """)
     assert ergebnis["hidden"] is True
     assert "NaN" not in ergebnis["text"]
+
+
+def test_nach_einem_schlechten_tick_kommt_der_abstand_ZURUECK():
+    """Guardian-Fund 04.08.2026: `el.hidden = false;` aus ``_setZoneDist`` zu
+    entfernen überlebte alle 27 Tests.
+
+    Die Folge wäre live spürbar: ein einziger unbrauchbarer Quote-Tick (etwa
+    ein Preis 0 vom Proxy) versteckt den Abstand — und er käme **nie wieder**,
+    obwohl jeder folgende Tick gültig ist. Kein Test durchlief den Übergang
+    versteckt → sichtbar, weil das DOM-Doppel immer mit ``hidden:false``
+    startete. Genau dieser Übergang steht jetzt hier.
+    """
+    ergebnis = _js(_DOM_DOPPEL + _fn("_setZoneDist") + """
+      const el = El(107.4);
+      _setZoneDist(el, 0);            // schlechter Tick -> versteckt
+      const dazwischen = el.hidden;
+      _setZoneDist(el, 100);          // wieder gueltig -> muss zurueckkommen
+      console.log(JSON.stringify(
+        {dazwischen, hidden: el.hidden, text: el.textContent}));
+    """)
+    assert ergebnis["dazwischen"] is True
+    assert ergebnis["hidden"] is False, \
+        "der Abstand bleibt nach einem schlechten Tick für immer versteckt"
+    assert ergebnis["text"] == "+7,4 %"
+
+
+def test_auch_ein_von_ANFANG_an_versteckter_baustein_wird_sichtbar():
+    """Der Renderpfad: ohne Kurs entsteht der Baustein mit `hidden`. Der erste
+    gültige Tick muss ihn zeigen — sonst bliebe eine Karte ohne Report-Kurs
+    dauerhaft ohne Abstand."""
+    ergebnis = _js(_DOM_DOPPEL + _fn("_setZoneDist") + """
+      const el = El(107.4); el.hidden = true; el.textContent = '';
+      _setZoneDist(el, 100);
+      console.log(JSON.stringify({hidden: el.hidden, text: el.textContent}));
+    """)
+    assert ergebnis["hidden"] is False and ergebnis["text"] == "+7,4 %"
 
 
 def test_quotePatch_verdrahtet_ALLE_abstaende_der_karte():

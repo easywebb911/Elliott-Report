@@ -1659,12 +1659,11 @@
     // Ohne darstellbaren Wert kommt gar nichts zurück — nie „NaN", nie „–".
     const ZONE_DIST_TITLE = 'Abstand vom aktuellen Kurs zur Zonen-Unterkante '
       + '(dieselbe Kante wie beim Ziel-erreicht-Hinweis und der Erfolgsmessung)';
-    function zoneDistSpan(low, price, extraClass) {
+    function zoneDistSpan(low, price) {
       if (low === null || low === undefined || !isFinite(Number(low))) return '';
       const txt = zoneDistText(zoneDistPct(low, price));
-      return `<span class="zone-dist${extraClass ? ' ' + extraClass : ''}"`
-        + ` data-zone-dist data-zl="${Number(low)}" title="${ZONE_DIST_TITLE}"`
-        + `${txt ? '' : ' hidden'}>${txt}</span>`;
+      return `<span class="zone-dist" data-zone-dist data-zl="${Number(low)}"`
+        + ` title="${ZONE_DIST_TITLE}"${txt ? '' : ' hidden'}>${txt}</span>`;
     }
 
     // Sparkline wird NACH dem Render gezeichnet (misst die echte Pixelbreite,
@@ -1902,7 +1901,8 @@
             <div class="amb-alt-label">${esc(alt.count_label || '')}</div>
             <div class="amb-alt-meta">
               <span><span class="amb-k">Inval</span> ${fmt(alt.invalidation_price)}</span>
-              ${zone ? `<span><span class="amb-k">Ziel</span> ${zone}</span>` : ''}
+              ${zone ? `<span><span class="amb-k">Ziel</span> ${zone}`
+                       + `${zoneDistSpan(alt.target_zone.low, c.close)}</span>` : ''}
               ${score ? `<span class="amb-alt-score"><span class="amb-k">Score</span> ${score}</span>` : ''}
             </div>
           </div>
