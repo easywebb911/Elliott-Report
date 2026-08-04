@@ -961,7 +961,10 @@ vor n ≥ 100) gilt unverändert.
     diesen Markt damit schlicht nicht; der Anker springt über ihn hinweg, die
     Episode bleibt durchgehend. Für Märkte ohne Rückstand ändert sich **nichts**
     — an frischen Tagen ist `last_fresh_run_date` identisch mit dem bisherigen
-    Anker (Äquivalenz-Beweis über die reale Historie im PR).
+    Anker (Äquivalenz-Beweis über die reale Historie im PR). Fehlt das Feld
+    (Migration alter Stände) oder ist es unbrauchbar, gilt unverändert die
+    #68-Regel; ein unbrauchbares Feld wird beim nächsten Schreiben **neu
+    aufgebaut**, sonst wäre der Schutz danach lautlos aus.
   - **Eine Unterbrechung bleibt eine Unterbrechung.** Wer an einem echten
     frischen Handelstag nicht in den Top 5 war, bekommt beim Wiedereintritt
     weiterhin eine neue Episode. Der Schutz bügelt keine echten Lücken weg.

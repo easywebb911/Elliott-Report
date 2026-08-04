@@ -739,8 +739,12 @@ def stale_markets(report: Dict) -> Dict[str, int]:
 
     Schwelle ist **≥ 1 Handelstag** — so steht es in der Registry-Notiz vom
     05.08.2026 („hinter dem letzten erwarteten Handelstag zurück"). Über die
-    reale Historie (40 Läufe, 80 Markt-Läufe) hätte das **9 %** der Markt-Läufe
-    gegated; der bekannte Ein-Tag-Versatz hungert die Sammlung also nicht aus.
+    committete Historie (52 Sammlungs-Stände, 104 Markt-Läufe) hätte das Gate
+    **7×** gegriffen (6,7 %), bei Schwelle ≥ 2 nur 3× — der bekannte
+    Ein-Tag-Versatz hungert die Sammlung also nicht aus, und gerade aus ihm
+    stammen drei der vier markierten Alt-Records. Die Zahlen rechnet
+    ``test_das_gate_haette_genau_diese_markt_laeufe_gesperrt`` bei jedem
+    Testlauf neu nach.
 
     Fail-soft: fehlt das Feld (Report-Stände von vor dem 04.08.2026) oder ist
     es unbrauchbar, gilt der Markt als **frisch**. Ein Gate, das aus Unwissen
@@ -859,11 +863,16 @@ def update_forward_collection(
     # Markt-eigener Anschluss (05.08.2026): NUR frische Märkte schreiben ihren
     # letzten frischen Lauf fort. Ein gegateter Markt behält seinen alten Wert
     # — genau das überbrückt den stale Tag, ohne die Episode zu zerschneiden.
-    frisch = coll.setdefault("last_fresh_run_date", {})
-    if isinstance(frisch, dict):
-        for mk in (report.get("markets") or {}):
-            if mk not in stale:
-                frisch[mk] = run_date
+    # Ist das Feld unbrauchbar (fremd beschrieben, von Hand kaputtgemacht), wird
+    # es hier NEU aufgebaut statt still liegengelassen: sonst fiele der Anker
+    # dauerhaft auf #68 zurück und der Schutz wäre lautlos aus.
+    frisch = coll.get("last_fresh_run_date")
+    if not isinstance(frisch, dict):
+        frisch = {}
+        coll["last_fresh_run_date"] = frisch
+    for mk in (report.get("markets") or {}):
+        if mk not in stale:
+            frisch[mk] = run_date
     coll["updated_utc"] = now_iso
     return coll
 

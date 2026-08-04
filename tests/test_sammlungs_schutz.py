@@ -186,6 +186,23 @@ def test_ohne_das_feld_gilt_ebenfalls_68():
     assert fc.episode_anchor_dates(c, "2026-08-05", "DE") == {"2026-08-05", "2026-08-04"}
 
 
+@pytest.mark.parametrize("kaputt", ["kaputt", 7, [], None])
+def test_ein_unbrauchbares_last_fresh_run_date_bricht_den_LAUF_nicht(kaputt):
+    """Guardian-Nit: der Nicht-Dict-Fall war nur an `episode_anchor_dates`
+    geprüft, nicht am vollen Lauf. Ein fremd beschriebenes oder von Hand
+    kaputtgemachtes Feld darf die Sammlung weder abstürzen lassen noch die
+    Episode zerschneiden — sie fällt auf #68 zurück und heilt das Feld beim
+    nächsten Schreiben selbst."""
+    c = leer()
+    lauf(c, rep(de=["X"]), "2026-08-03")
+    c["last_fresh_run_date"] = kaputt
+    lauf(c, rep(de=["X"]), "2026-08-04")
+    assert len(recs(c, "X")) == 1
+    assert recs(c, "X")[0]["last_seen_top5_date"] == "2026-08-04"
+    # danach steht wieder ein brauchbares Feld da
+    assert c["last_fresh_run_date"] == {"DE": "2026-08-04", "US": "2026-08-04"}
+
+
 # ---------------------------------------------------------------------------
 # 5) Der echte 04.08.-Fall: KKR wäre nicht entstanden
 # ---------------------------------------------------------------------------
