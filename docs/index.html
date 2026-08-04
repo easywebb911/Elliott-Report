@@ -194,6 +194,18 @@
       font-size:.66rem; color:var(--txt-dim); font-variant-numeric:tabular-nums;
     }
     .ext-zone .ext-lbl { text-transform:uppercase; letter-spacing:.08em; margin-right:5px; }
+    /* Zonen-Abstand in Prozent (01.08.2026). NEUTRALE Farbe, immer die
+       dimmste Stufe: der Abstand ist ein FAKT, kein Gut/Schlecht — deshalb
+       bewusst kein Grün/Rot und keine Vorzeichen-Farbe. Tabellarische Ziffern,
+       damit die Spalten beim Live-Tick nicht springen; nowrap, damit die Zahl
+       nie zwischen Wert und Prozentzeichen umbricht. */
+    .zone-dist {
+      font-size:.58rem; color:var(--txt-dim); font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
+    .metric-box .zone-dist { display:block; margin-top:2px; }
+    .hd-rows .zone-dist { margin-top:1px; }
+    .ext-zone .zone-dist, .tf-pair .zone-dist { margin-left:5px; }
     /* „Zielzone erreicht/überschritten" — dezente Ehrlichkeit, KEIN Alarm-Rot.
        Kurs ≥ Zonen-Unterkante = Setup (teil-)verbraucht. Live-Quote darf es
        aktualisieren (quotePatch). Erscheint nur, wenn der Kurs die Zone erreicht. */
@@ -1605,6 +1617,55 @@
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
     }
 
+    // ---------------------------------------------------------------------
+    // Zonen-Abstand (01.08.2026) — wie weit liegt eine Zone vom Kurs entfernt?
+    //
+    // BEZUGSKANTE ist bewusst die UNTERKANTE der Zone. Das ist DIESELBE Kante,
+    // an der die Pipeline `target_exceeded` schneidet und an der die
+    // Erfolgsmessung der Forward-Sammlung einen Treffer zählt (close >= low).
+    // Eine andere Kante hier wäre eine zweite, stille Definition von „Ziel" —
+    // dieselbe Zahl müsste dann an zwei Stellen etwas Verschiedenes heißen.
+    //
+    // REIN im Frontend gerechnet: kein Report-Feld, kein Score, kein Filter.
+    // ---------------------------------------------------------------------
+    function zoneDistPct(zoneLow, price) {
+      // null/undefined/'' ZUERST abfangen: `Number(null)` und `Number('')`
+      // sind 0 und damit endlich — ohne diese Prüfung ergäbe eine FEHLENDE
+      // Kante brav „−100,0 %" statt gar nichts. Genau so eine stille
+      // Umwandlung soll hier nie eine Zahl erfinden.
+      for (const v of [zoneLow, price]) {
+        if (v === null || v === undefined || v === '') return null;
+      }
+      const zl = Number(zoneLow), p = Number(price);
+      if (!isFinite(zl) || !isFinite(p) || p === 0) return null;
+      return (zl / p - 1) * 100;
+    }
+
+    // „+7,4 %" / „−1,2 %" — EINE Dezimale, deutsches Komma, echtes Minus (−).
+    // Kein „−0,0 %": was auf eine Dezimale gerundet 0,0 ergibt, bekommt gar
+    // kein Vorzeichen (JS rundet -0.04 auf -0, und -0 < 0 ist false — genau
+    // deshalb steht die Prüfung auf dem GERUNDETEN Wert, nicht auf dem rohen).
+    // Leerer String = nicht darstellbar; der Aufrufer rendert dann nichts.
+    function zoneDistText(pct) {
+      if (pct === null || pct === undefined || !isFinite(pct)) return '';
+      const g = Math.round(pct * 10) / 10;
+      const sgn = g > 0 ? '+' : (g < 0 ? '−' : '');
+      return sgn + Math.abs(g).toLocaleString('de-DE',
+        { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' %';
+    }
+
+    // Der fertige Baustein. `low` = Zonen-Unterkante, `price` = AKTUELL
+    // angezeigter Kurs (Report-Kurs beim Rendern, danach der Live-Quote-Tick).
+    // Ohne darstellbaren Wert kommt gar nichts zurück — nie „NaN", nie „–".
+    const ZONE_DIST_TITLE = 'Abstand vom aktuellen Kurs zur Zonen-Unterkante '
+      + '(dieselbe Kante wie beim Ziel-erreicht-Hinweis und der Erfolgsmessung)';
+    function zoneDistSpan(low, price) {
+      if (low === null || low === undefined || !isFinite(Number(low))) return '';
+      const txt = zoneDistText(zoneDistPct(low, price));
+      return `<span class="zone-dist" data-zone-dist data-zl="${Number(low)}"`
+        + ` title="${ZONE_DIST_TITLE}"${txt ? '' : ' hidden'}>${txt}</span>`;
+    }
+
     // Sparkline wird NACH dem Render gezeichnet (misst die echte Pixelbreite,
     // damit Endpunkt-/Pivot-Marker rund bleiben statt verzerrt — Ansatz aus
     // dem Squeeze-Report). Stilmittel: vertikaler Gradient-Fill unter der
@@ -1840,7 +1901,8 @@
             <div class="amb-alt-label">${esc(alt.count_label || '')}</div>
             <div class="amb-alt-meta">
               <span><span class="amb-k">Inval</span> ${fmt(alt.invalidation_price)}</span>
-              ${zone ? `<span><span class="amb-k">Ziel</span> ${zone}</span>` : ''}
+              ${zone ? `<span><span class="amb-k">Ziel</span> ${zone}`
+                       + `${zoneDistSpan(alt.target_zone.low, c.close)}</span>` : ''}
               ${score ? `<span class="amb-alt-score"><span class="amb-k">Score</span> ${score}</span>` : ''}
             </div>
           </div>
@@ -1896,7 +1958,11 @@
       if (!tf) return '';
       const st = structure || {};
       const zoneStr = z => z ? `${fmt(z.low)}–${fmt(z.high)}` : '–';
-      const pair = (kk, vv) => `<span class="tf-pair"><span class="tf-k">${kk}</span><span class="tf-v">${vv}</span></span>`;
+      // `dist` steht NEBEN .tf-v, nicht darin: .tf-v ist `white-space:nowrap`,
+      // ein eingebetteter Abstand würde Zone und Prozentzahl zu EINEM
+      // unumbrechbaren Block machen und die 390px-Kachel aufreißen.
+      const pair = (kk, vv, dist) => `<span class="tf-pair"><span class="tf-k">${kk}</span>`
+        + `<span class="tf-v">${vv}</span>${dist || ''}</span>`;
       const rows = [['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat']].map(([k, lbl]) => {
         const c = tf[k];
         if (c) {  // valider Long-Count -> volle Anzeige (= long_setup)
@@ -1915,8 +1981,12 @@
             + `<div class="tf-body"><div class="tf-label">${esc(c.count_label || '')}</div>`
             + `<div class="tf-meta">`
             + pair('Inval', fmt(c.invalidation_price))
-            + pair('Ziel', zoneStr(c.target_zone))
-            + pair('Ext', zoneStr(c.target_zone_extended))
+            // Zonen-Abstand als drittes Glied des Paares — er wandert beim
+            // Umbruch mit seiner Zone mit, statt allein in die nächste Zeile.
+            + pair('Ziel', zoneStr(c.target_zone),
+                   c.target_zone ? zoneDistSpan(c.target_zone.low, cardClose) : '')
+            + pair('Ext', zoneStr(c.target_zone_extended),
+                   c.target_zone_extended ? zoneDistSpan(c.target_zone_extended.low, cardClose) : '')
             + `</div>${hint}${degreeSpark(c)}</div></div>`;
         }
         // Kein Long-Count -> ehrlicher Struktur-Befund statt bloßem „kein Count".
@@ -1953,7 +2023,8 @@
       // W4-Fällen mit kurzer Netto-Strecke P0->P3, wo sie knapp unter der
       // Basiszone liegen kann). Konsequente Darstellung; Feld ist additiv.
       const extLine = ez
-        ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmt(ez.low)}–${fmt(ez.high)}</div>`
+        ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmt(ez.low)}–${fmt(ez.high)}`
+          + `${zoneDistSpan(ez.low, c.close)}</div>`
         : '';
       // „Zielzone erreicht/überschritten": Anfangszustand aus dem Lauf-Schlusskurs;
       // Live-Quote aktualisiert es später (quotePatch → _setZoneBadge). Anker
@@ -1978,8 +2049,8 @@
           <div class="hd-label">${esc(hd.count_label || '')}</div>
           <div class="hd-rows">
             <div><span class="hd-k">Invalidierung</span><span class="hd-v">${fmt(hd.invalidation_price)}</span></div>
-            <div><span class="hd-k">Zielzone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span></div>
-            <div><span class="hd-k">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span></div>
+            <div><span class="hd-k">Zielzone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span>${hd.target_zone ? zoneDistSpan(hd.target_zone.low, c.close) : ''}</div>
+            <div><span class="hd-k">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
           </div>
           ${degreeSpark(hd)}
         </div>` : '';
@@ -2015,7 +2086,7 @@
         ${donutBlock(c.score_heuristic, c.status)}
         <div class="metrics-row">
           <div class="metric-box"><span class="m-val inval">${fmt(c.invalidation_price)}</span><span class="m-lbl">Invalidierung</span></div>
-          <div class="metric-box zone"><span class="m-val">${zone}</span><span class="m-lbl">Zielzone</span></div>
+          <div class="metric-box zone"><span class="m-val">${zone}</span>${c.target_zone ? zoneDistSpan(c.target_zone.low, c.close) : ''}<span class="m-lbl">Zielzone</span></div>
         </div>
         ${extLine}
         ${zoneBadge}
@@ -3483,6 +3554,7 @@
         ['Invalidierung', 'K.-o.-Kurs, unter dem die Zählung ungültig wird: beim W2-Setup der Start-Pivot P0 (W2 darf W1 nicht &gt;100 % zurücklaufen), beim W4-Setup P1 (W4 darf W1 nicht überlappen).'],
         ['Zielzone', 'Basis-Ziel per Fibonacci: W3 = P2 + <code>[1.0–1.618] × W1-Länge</code>; W5 = P4 + <code>[0.618–1.0] × W1</code>.'],
         ['Extension', 'Ambitionierteres Ziel (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt.'],
+        ['Zonen-Abstand (%)', 'Die kleine Prozentzahl an Zielzone und Extension: wie weit die <b>Unterkante</b> der Zone vom <b>aktuell angezeigten</b> Kurs entfernt liegt — <code>(Unterkante / Kurs − 1) × 100</code>. Startet mit dem Kurs des Laufs und rechnet bei jedem Live-Quote-Tick mit, damit Kurs und Prozentzahl auf derselben Karte nie auseinanderlaufen. <b>Warum die Unterkante?</b> Genau an dieser Kante schneidet der <code>target_exceeded</code>-Filter, und genau ab ihr zählt die Erfolgsmessung der Forward-Sammlung einen Treffer — eine andere Kante hier wäre eine zweite, stille Definition von „Ziel“. Ein Minus heißt: die Kante liegt bereits unter dem Kurs. Rein im Frontend gerechnet, kein Report-Feld, kein Score-, Filter- oder Sammlungs-Einfluss. Bewusst <b>neutral</b> gefärbt — der Abstand ist ein Fakt, keine Bewertung.'],
         ['Donut / Farbe', 'Der Score als Ring. Schwellen: <code>≥ 60</code> grün, <code>≥ 30</code> orange, <code>≥ 15</code> rot, darunter/ohne Wert grau.'],
         ['Großer Grad', 'Zweite, unabhängige Zählung auf <b>Wochen</b>-Basis für die Top-5 (höherer Wellengrad). Zweitblick zur Einordnung — fließt nicht in den Score ein.'],
         ['Ziel erreicht / überschritten', 'Dezenter Hinweis an einer Zeitebenen-Zeile (Tag/Woche/Monat), sobald der aktuelle Kurs die Zielzone dieser Zeitebene erreicht (<code>≥ Ziel-Low</code>) bzw. überschritten hat (<code>≥ Ziel-High</code>) — gleiche Schwellen wie das Zonen-Badge der Hauptkarte. <b>Warum überhaupt „erreicht"?</b> Auf großen Zeitebenen bestätigt der ZigZag einen neuen Pivot erst nach einer deutlichen Gegenbewegung (auf Monatskerzen leicht ±5 Balken Verzögerung). Eine ältere Zählung kann darum noch „Ende W2, W3 erwartet" anzeigen, obwohl der Kurs die damalige W3-Projektion längst durchlaufen hat — der Hinweis macht genau das sichtbar.'],
@@ -3919,12 +3991,24 @@
       else { el.hidden = true; }
     }
 
+    // Zonen-Abstand aus einem Preis neu setzen. MUSS beim Live-Tick mitlaufen —
+    // sonst stünde auf derselben Karte ein frischer Kurs neben einer
+    // Prozentzahl, die noch den Report-Stand meint (sie widersprächen sich).
+    function _setZoneDist(el, price) {
+      if (!el) return;
+      const txt = zoneDistText(zoneDistPct(el.dataset.zl, price));
+      if (!txt) { el.hidden = true; return; }
+      el.textContent = txt;
+      el.hidden = false;
+    }
+
     function quotePatch(card, q) {
       if (typeof q.price === 'number' && isFinite(q.price)) {
         const el = card.querySelector('[data-quote="price"]');
         if (el) el.textContent = fmt(q.price);
         _setZoneBadge(card.querySelector('[data-zone-badge]'), q.price);
         card.querySelectorAll('[data-tf-hint]').forEach(el => _setTfHint(el, q.price));
+        card.querySelectorAll('[data-zone-dist]').forEach(el => _setZoneDist(el, q.price));
       }
       const p = q.change, a = q.change_abs;  // change == Tages-% (Worker-Vertrag)
       if (typeof p === 'number' && isFinite(p)) {
