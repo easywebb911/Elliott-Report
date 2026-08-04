@@ -81,7 +81,20 @@ def test_pipeline_lauf_mit_journal_datei_aendert_nichts(tmp_path, monkeypatch):
         # Zeitstempel sind pro Lauf verschieden — sie sagen nichts über das Journal.
         for k in ("run_timestamp_utc", "generated_in_seconds"):
             rep.pop(k, None)
-        (rep.get("health") or {}).pop("checked_at", None)
+        # BERICHTIGUNG (04.08.2026): hier stand `checked_at` — ein Feld, das es
+        # nicht gibt. Der Health-Block trägt `checked_utc`, und das ist derselbe
+        # Zeitstempel wie `run_timestamp_utc`. Der Pop war also ein No-op, und
+        # der Test wurde immer dann rot, wenn die beiden Pipeline-Läufe über
+        # eine SEKUNDENGRENZE fielen (~5 % der Durchläufe). Vorbestehend, beim
+        # Kurs-Stand-Wächter aufgefallen.
+        (rep.get("health") or {}).pop("checked_utc", None)
+        # Ebenfalls lauf-zeitabhängig (04.08.2026): der erwartete Handelstag
+        # und der Rückstand leiten sich aus dem Lauf-Datum ab und würden über
+        # eine MITTERNACHTS-Grenze auseinanderlaufen. Sie haben eigene Tests
+        # (tests/test_kursstand_waechter.py) und sagen nichts über das Journal.
+        for m in (rep.get("markets") or {}).values():
+            for k in ("expected_bar_date", "bar_lag_trading_days"):
+                (m.get("diag") or {}).pop(k, None)
         coll.pop("updated_utc", None)
         for r in coll.get("records", []):
             r.pop("created_utc", None)
