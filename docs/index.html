@@ -3787,6 +3787,17 @@
           + `⚠ ${lag} ${tage} zurück</span></span>`;
       }
 
+      // Sammlungs-Schutz (05.08.2026): hat der Lauf fuer diesen Markt neue
+      // Episoden unterdrueckt, weil der Kurs-Stand veraltet war? LAUT statt
+      // still — aber ohne eigenen Push (der Kurs-Stand-Waechter meldet die
+      // Lage bereits). Aeltere Reports ohne das Feld zeigen die Zeile nicht.
+      function gatedRow(d) {
+        if (d.new_episodes_gated !== true) return '';
+        return `<span class="k">Sammlung</span>`
+          + `<span class="v"><span class="bar-lag">keine neuen Episoden — `
+          + `Kurs-Stand veraltet</span></span>`;
+      }
+
       function barsRow(d) {
         const dropped = Number(d.dropped_bars || 0);
         const badVol = Number(d.invalid_volume_bars || 0);
@@ -3847,6 +3858,7 @@
                <span class="k">Übersprungen</span><span class="v">${m.skipped ?? '–'}</span>
                <span class="k">Großer Grad</span><span class="v">${d.higher_degree_count ?? 0} / ${d.top_count ?? 0} mit Wochen-Count</span>
                ${barDateRow(d)}
+               ${gatedRow(d)}
                ${barsRow(d)}
              </div>
              <div class="status-skips">${chips}</div>`;

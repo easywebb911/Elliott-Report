@@ -178,8 +178,17 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     fwd = [c for _, c in pairs]
     rec["last_update_utc"] = now_iso
     rec["bars_elapsed"] = len(fwd)
+    # additiv, nur wenn es etwas zu melden gibt — und WIEDER WEG, sobald die
+    # Quelle den Bar nachgeliefert hat (05.08.2026). Vorher wurde das Feld nur
+    # gesetzt, nie gelöscht: ein Record behauptete dann dauerhaft einen
+    # übersprungenen Bar, den es nicht mehr gab. Bewusst nicht „immer setzen":
+    # das hätte allen Records ein `skipped_bars: 0` angehängt, obwohl heute
+    # keiner das Feld trägt. Reine Diagnose — nicht in evaluate.FROZEN_FIELDS,
+    # vom Frontend nirgends gelesen.
     if skipped:
-        rec["skipped_bars"] = skipped     # additiv, nur wenn es etwas zu melden gibt
+        rec["skipped_bars"] = skipped
+    else:
+        rec.pop("skipped_bars", None)
     # Kursverlauf NACH dem Einstieg (max HORIZON_DAYS Werte). Wird je Lauf aus
     # der vollen Historie neu aufgebaut -> deterministisch/idempotent.
     rec["price_path"] = [{"date": d, "close": round(c, 4)}
@@ -530,7 +539,8 @@ def observe_w5_structure(rec: Dict, dates: Sequence[str], closes: Sequence[float
 # ---------------------------------------------------------------------------
 # Episoden-Anschluss: welche `last_seen_top5_date` setzen eine Episode fort?
 # ---------------------------------------------------------------------------
-def episode_anchor_dates(coll: Dict, run_date: str) -> set:
+def episode_anchor_dates(coll: Dict, run_date: str,
+                         market: Optional[str] = None) -> set:
     """Die Lauf-Daten, deren Records der heutige Lauf VERLÄNGERT (statt neu
     anzulegen). Genau zwei Anker, beide Kalendertage:
 
@@ -559,17 +569,43 @@ def episode_anchor_dates(coll: Dict, run_date: str) -> set:
     Datum unbekannt — dann bleibt nur ``run_date`` als Anker. Das ist exakt das
     ALTE Verhalten, also keine Verschlechterung; ab dem ersten Lauf an einem
     neuen Kalendertag ist das Feld gesetzt und der Fall erledigt sich.
+
+    MARKT-BEWUSST seit 05.08.2026: wird ein Markt an einem Lauf wegen
+    veralteten Kurs-Stands übersprungen (siehe ``stale_markets``), darf dieser
+    Tag für ihn NICHT als „gesehen" gelten. Sonst zerschneidet der Schutz genau
+    die Episoden, die er schützen soll: der übersprungene Lauf schreibt
+    ``last_run_date`` fort, und der nächste saubere Lauf findet die Records von
+    vorgestern nicht mehr unter seinen Ankern (nachgestellt und reproduziert —
+    sauber → stale → sauber ergab ZWEI Records statt einem). Deshalb ankert ein
+    Markt auf seinen letzten **frischen** Lauf (``last_fresh_run_date[markt]``).
+    Ohne Markt-Angabe oder ohne das Feld gilt exakt das Verhalten von #68.
     """
-    prev_run = coll.get("last_run_date")
+    prev_run = _letzter_anschluss_lauf(coll, market)
     if not prev_run:
         return {run_date}
     if prev_run != run_date:
-        # Erster Lauf an diesem Kalendertag: der bisherige `last_run_date` IST
+        # Erster Lauf an diesem Kalendertag: der bisherige Anschluss-Lauf IST
         # das vorige distinct Datum — unabhängig davon, ob das Feld schon
         # existiert (deshalb hier kein Rückgriff darauf).
         return {run_date, prev_run}
     prev_distinct = coll.get("prev_distinct_run_date")
     return {run_date, prev_distinct} if prev_distinct else {run_date}
+
+
+def _letzter_anschluss_lauf(coll: Dict, market: Optional[str]) -> Optional[str]:
+    """Das Lauf-Datum, an das dieser Markt anschließt.
+
+    Ohne Markt (oder ohne den markt-eigenen Eintrag): ``last_run_date`` — das
+    Verhalten von #68, unverändert. Mit Markt und Eintrag: der letzte Lauf, an
+    dem DIESER Markt einen frischen Kurs-Stand hatte. An frischen Tagen sind
+    beide identisch; sie laufen erst auseinander, wenn ein Lauf den Markt wegen
+    Rückstands übersprungen hat.
+    """
+    if market:
+        frisch = coll.get("last_fresh_run_date")
+        if isinstance(frisch, dict) and frisch.get(market):
+            return frisch[market]
+    return coll.get("last_run_date")
 
 
 def _open_episode(records: List[Dict], ticker: str, anchors: set) -> Optional[Dict]:
@@ -692,6 +728,39 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
     }
 
 
+def stale_markets(report: Dict) -> Dict[str, int]:
+    """``{markt: rueckstand}`` für Märkte mit veraltetem Kurs-Stand.
+
+    Quelle ist ``diag.bar_lag_trading_days`` — dieselbe Zahl, die der
+    Kurs-Stand-Wächter meldet und die ``build_report`` aus
+    ``market_calendar.handelstage_rueckstand`` schreibt. **Keine zweite
+    Definition von „letzter Handelstag"**; wandert die Kalender-Regel, wandert
+    dieses Gate mit.
+
+    Schwelle ist **≥ 1 Handelstag** — so steht es in der Registry-Notiz vom
+    05.08.2026 („hinter dem letzten erwarteten Handelstag zurück"). Über die
+    committete Historie (Stand 04.08.2026 22:42: 53 Sammlungs-Stände,
+    106 Markt-Läufe) hätte das Gate **8×** gegriffen (7,5 %), bei Schwelle
+    ≥ 2 nur 3× (2,8 %) — der bekannte Ein-Tag-Versatz hungert die Sammlung
+    also nicht aus, und gerade aus ihm stammen drei der vier markierten
+    Alt-Records. Die Zahlen wandern mit jedem Lauf; die Tests pinnen
+    deshalb die ZUGEHÖRIGKEIT der bekannten Fälle, keinen Zählerstand.
+
+    Fail-soft: fehlt das Feld (Report-Stände von vor dem 04.08.2026) oder ist
+    es unbrauchbar, gilt der Markt als **frisch**. Ein Gate, das aus Unwissen
+    sperrt, würde die Sammlung stillschweigend anhalten — das wäre schlimmer
+    als der Schaden, den es verhindern soll.
+    """
+    out: Dict[str, int] = {}
+    for key, market in (report.get("markets") or {}).items():
+        if not isinstance(market, dict):
+            continue
+        lag = (market.get("diag") or {}).get("bar_lag_trading_days")
+        if isinstance(lag, int) and not isinstance(lag, bool) and lag >= 1:
+            out[key] = lag
+    return out
+
+
 def update_forward_collection(
     coll: Dict,
     report: Dict,
@@ -713,12 +782,27 @@ def update_forward_collection(
     ``last_seen_top5_date``. Die Anlage-Felder (entry_close, score_heuristic,
     Zonen, Pivots, Konfluenz, …) friert der ERSTE Lauf eines Tages ein; jeder
     weitere Lauf desselben Tages lässt sie unberührt.
+
+    SAMMLUNGS-SCHUTZ (05.08.2026): ein Markt mit veraltetem Kurs-Stand wird in
+    Schritt 1 **komplett übersprungen** — keine neue Episode UND keine
+    Verlängerung. Beides gehört zusammen: würde nur die Anlage unterbleiben,
+    die Verlängerung aber laufen, wanderte ``last_seen_top5_date`` auf einen
+    Tag, den der markt-eigene Anker gar nicht kennt — der nächste saubere Lauf
+    fände den Record nicht mehr und zerschnitte die Episode. Der Tag ist für
+    diesen Markt unsichtbar; ``last_fresh_run_date[markt]`` bleibt stehen und
+    überbrückt ihn. Die REIFUNG (Schritt 2 ff.) läuft bewusst weiter: sie
+    rechnet idempotent aus der Kursreihe neu und korrigiert sich am Folgetag
+    selbst — ein Gate dort würde genau diese Eigenschaft zerstören.
     """
     records: List[Dict] = coll.setdefault("records", [])
-    anchors = episode_anchor_dates(coll, run_date)
+    stale = stale_markets(report)
 
-    # 1) Anlegen / Verlängern für die heutigen Top-5.
+    # 1) Anlegen / Verlängern für die heutigen Top-5 — je Markt, mit
+    #    markt-eigenen Ankern.
     for mk, market in report.get("markets", {}).items():
+        if mk in stale:
+            continue                       # Markt unsichtbar (Sammlungs-Schutz)
+        anchors = episode_anchor_dates(coll, run_date, mk)
         for entry in market.get("candidates", []):
             ticker = entry["ticker"]
             active = _open_episode(records, ticker, anchors)
@@ -776,6 +860,19 @@ def update_forward_collection(
     if coll.get("last_run_date") != run_date:
         coll["prev_distinct_run_date"] = coll.get("last_run_date")
     coll["last_run_date"] = run_date
+    # Markt-eigener Anschluss (05.08.2026): NUR frische Märkte schreiben ihren
+    # letzten frischen Lauf fort. Ein gegateter Markt behält seinen alten Wert
+    # — genau das überbrückt den stale Tag, ohne die Episode zu zerschneiden.
+    # Ist das Feld unbrauchbar (fremd beschrieben, von Hand kaputtgemacht), wird
+    # es hier NEU aufgebaut statt still liegengelassen: sonst fiele der Anker
+    # dauerhaft auf #68 zurück und der Schutz wäre lautlos aus.
+    frisch = coll.get("last_fresh_run_date")
+    if not isinstance(frisch, dict):
+        frisch = {}
+        coll["last_fresh_run_date"] = frisch
+    for mk in (report.get("markets") or {}):
+        if mk not in stale:
+            frisch[mk] = run_date
     coll["updated_utc"] = now_iso
     return coll
 
@@ -803,7 +900,8 @@ def eval_counts(coll: Dict) -> Tuple[int, int, int]:
     return collected, matured, evaluable
 
 
-def appearance_count(coll: Dict, ticker: str, run_date: Optional[str] = None) -> int:
+def appearance_count(coll: Dict, ticker: str, run_date: Optional[str] = None,
+                     market: Optional[str] = None) -> int:
     """Wie oft ``ticker`` als Top-5-Kandidat erschienen ist — **Episoden**, nicht
     Tage — inkl. der AKTUELLEN Erscheinung.
 
@@ -819,7 +917,7 @@ def appearance_count(coll: Dict, ticker: str, run_date: Optional[str] = None) ->
     Zähler wird bei jedem Lauf neu in den Report geschrieben, nie gespeichert."""
     records = coll.get("records", [])
     episodes = sum(1 for r in records if r.get("ticker") == ticker)
-    anchors = episode_anchor_dates(coll, run_date) if run_date else None
+    anchors = episode_anchor_dates(coll, run_date, market) if run_date else None
     if anchors is None:
         # Ohne Lauf-Datum bleibt nur der alte Anker (Rückwärtskompatibilität
         # für Aufrufer, die das Datum nicht durchreichen).
@@ -836,10 +934,10 @@ def annotate_appearance_counts(coll: Dict, report: Dict,
     (nicht Teil der Population). Reine Anzeige: berührt Score/Ranking/Sammlung
     nicht. ``run_date`` optional: ohne Angabe zählt der alte Anker (identisch
     an Ein-Lauf-Tagen), mit Angabe auch der Mehrfach-Lauf-Fall korrekt."""
-    for market in report.get("markets", {}).values():
+    for mk, market in (report.get("markets") or {}).items():
         for entry in market.get("candidates", []):
             entry["appearance_count"] = appearance_count(
-                coll, entry["ticker"], run_date)
+                coll, entry["ticker"], run_date, mk)
 
 
 # ---------------------------------------------------------------------------

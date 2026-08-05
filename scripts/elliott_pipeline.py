@@ -1728,6 +1728,14 @@ def build_report(
         markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink,
                                     volume_sink)
         _annotiere_bar_rueckstand(markets[key], run_timestamp_utc)
+    # Sammlungs-Schutz (05.08.2026): welche Märkte legen heute KEINE neuen
+    # Episoden an? Die Entscheidung fällt hier, damit sie im Report steht und
+    # der Lauf-Status sie zeigt — gerechnet mit DERSELBEN Funktion, die die
+    # Sammlung anwendet (`fc.stale_markets`), nicht mit einer zweiten Fassung.
+    _gated = fc.stale_markets({"markets": markets})
+    for _mk, _m in markets.items():
+        if isinstance(_m.get("diag"), dict):
+            _m["diag"]["new_episodes_gated"] = _mk in _gated
     # Watchlist NACH den Märkten und in EIGENEM Feld -> Ranking unberührt, und
     # die Forward-Sammlung (liest nur markets[].candidates) sieht sie nie.
     watchlist = build_watchlist(fetcher, weekly_fetcher, monthly_fetcher,
@@ -1911,6 +1919,15 @@ def main() -> int:
             _hc_sig_before = hc.collection_signature(coll)
         except Exception:  # noqa: BLE001
             _hc_sig_before = None
+        # Sammlungs-Schutz (05.08.2026): Märkte mit veraltetem Kurs-Stand
+        # legen KEINE neuen Episoden an. LAUT statt still — Log-Zeile hier,
+        # Lauf-Status-Notiz additiv im Report (der zweite write_report unten
+        # nimmt sie mit). BEWUSST KEIN eigener Push: der Kurs-Stand-Wächter
+        # meldet dieselbe Lage bereits, ein zweiter Alarm wäre ein Doppel-Alarm.
+        _gated = fc.stale_markets(report)
+        for _mk, _lag in sorted(_gated.items()):
+            _log(f"[elliott] {_mk}: keine neuen Episoden — Kurs-Stand veraltet "
+                 f"({_lag} Handelstag{'e' if _lag != 1 else ''} zurück).")
         fc.update_forward_collection(coll, report, price_sink, regimes, run_date, ts)
         # Health-Check Stufe 2, Teil 2 von 3 — NICHT-FINIT-PRÜFUNG der Sammlung,
         # ebenfalls VOR write_collection (gleiche Begründung wie beim Report).

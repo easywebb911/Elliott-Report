@@ -936,3 +936,83 @@ vor n ≥ 100) gilt unverändert.
   bereits committeten Reports stehen und werden schlicht nicht gelesen.
   **Kein Datenstand wird ungültig**, keine gemessene Zahl ändert sich, diese
   Notiz bleibt gültig.
+
+- **2026-08-05 — Sammlungs-Schutz bei veraltetem Kurs-Stand (Populations-Regel,
+  je Markt).** Ab heute gilt: **Steht ein Markt laut Kurs-Stand-Wächter hinter
+  dem letzten erwarteten Handelstag zurück, legt der Lauf für diesen Markt
+  KEINE NEUEN Episoden an.** Grund: der Quellen-Aussetzer vom 04.08.2026
+  erzeugte einen Record aus veraltetem Stand (KKR, `first_seen 2026-07-31`,
+  angelegt vom Lauf am 04.08. um 04:46 UTC). Bestehende Episoden dürfen durch
+  einen solchen Lauf **weder künstlich abreißen noch falsch verlängert werden**.
+  - **Je Markt, nicht global.** Ist US frisch und DE veraltet, sammelt US
+    normal weiter. Die Rückstands-Quelle ist **dieselbe Kalender-Kernfunktion**
+    wie beim Wächter vom 04.08. (`market_calendar.handelstage_rueckstand`) —
+    es gibt weiterhin nur EINE Definition von „letzter Handelstag".
+  - **DIE HARTE INVARIANTE.** Ein Lauf auf veraltetem Markt-Stand darf
+    bestehende Episoden dieses Markts nicht beschädigen. Naiv umgesetzt tut er
+    genau das: der übersprungene Tag schreibt trotzdem `last_run_date` fort,
+    und der nächste saubere Lauf findet die Records von vorgestern nicht mehr
+    unter seinen Ankern — er zerschneidet die Episoden, die der Schutz schützen
+    soll. Nachgestellt und reproduziert (sauber → stale → sauber ergab **zwei**
+    Records statt einem).
+  - **Die Lösung: markt-bewusste Anker.** Die Sammlung führt additiv
+    `last_fresh_run_date` **je Markt**. `episode_anchor_dates` bekommt den Markt
+    und ankert auf dessen letzten **frischen** Lauf. Ein stale Tag existiert für
+    diesen Markt damit schlicht nicht; der Anker springt über ihn hinweg, die
+    Episode bleibt durchgehend. Für Märkte ohne Rückstand ändert sich **nichts**
+    — an frischen Tagen ist `last_fresh_run_date` identisch mit dem bisherigen
+    Anker (Äquivalenz-Beweis über die reale Historie im PR). Fehlt das Feld
+    (Migration alter Stände) oder ist es unbrauchbar, gilt unverändert die
+    #68-Regel; ein unbrauchbares Feld wird beim nächsten Schreiben **neu
+    aufgebaut**, sonst wäre der Schutz danach lautlos aus.
+  - **Eine Unterbrechung bleibt eine Unterbrechung.** Wer an einem echten
+    frischen Handelstag nicht in den Top 5 war, bekommt beim Wiedereintritt
+    weiterhin eine neue Episode. Der Schutz bügelt keine echten Lücken weg.
+  - **`appearance_count` zieht mit.** Der N×-Zähler benutzt dieselben Anker —
+    sonst zählte er an einem stale Tag anders als die Sammlung. Wirkt nur
+    vorwärts (der Zähler wird je Lauf neu in den Report geschrieben).
+  - **Die REIFUNG läuft bewusst weiter, weil sie idempotent aus der Kursreihe
+    neu gerechnet wird.** `mature_record` ist kein Akkumulator: es sucht
+    `first_seen_date` in den Kursen, sammelt ab dort die ersten
+    `HORIZON_DAYS` **gültigen** Bars und baut `price_path`, `bars_elapsed` und
+    die Trefferfelder bei **jedem** Lauf komplett neu auf. Nachgewiesen an der
+    Sequenz sauber → stale → nachgeliefert: `bars_elapsed` rührt sich am stale
+    Tag nicht (die nicht-finite Zeile wird aussortiert und verbraucht keinen
+    Slot), kein Datum steht doppelt im `price_path`, und der Endzustand ist in
+    **jedem gemessenen Feld identisch** mit dem ohne den stale Zwischenlauf.
+    Ein Gate wäre hier nicht nur unnötig, sondern **schädlich**: es würde genau
+    die Idempotenz zerstören, die den Record am Folgetag selbst korrigiert.
+  - **`skipped_bars` wird nicht mehr klebrig.** Das Feld wurde bisher nur
+    gesetzt (`if skipped:`), aber nie gelöscht — nach der Nachlieferung
+    behauptete ein Record dauerhaft einen übersprungenen Bar, den es nicht mehr
+    gibt. Ab jetzt: setzen, wenn > 0, sonst **entfernen**. Bewusst so und nicht
+    „immer setzen": Letzteres hätte allen **56** Records des Standes vom
+    04.08.2026 ein `skipped_bars: 0` angehängt, obwohl **kein einziger**
+    das Feld trägt — der Daten-Diff dieses PRs bleibt so leer. Reine Diagnose: das Feld steht nicht in
+    `evaluate.FROZEN_FIELDS` und wird vom Frontend nirgends gelesen.
+  - **LAUT statt still.** Greift das Gate, steht es im Lauf-Status („Markt X:
+    keine neuen Episoden — Kurs-Stand veraltet") und im Lauf-Log. **Kein
+    eigener Push** — der Kurs-Stand-Wächter meldet die Lage bereits, ein
+    zweiter Alarm für dieselbe Ursache wäre ein Doppel-Alarm.
+  - **Alt-Records: MARKIERT, NIEMALS GEHEILT** (wie `episode_split_suspect` und
+    der PRU-Guard). Ein Replay über die committeten Sammlungs-Stände findet die
+    Records, die auf einem Lauf mit veraltetem Markt-Stand NEU angelegt wurden;
+    sie bekommen additiv `stale_market_suspect` (Datum, Lauf-Zeitstempel,
+    `last_bar_date`-Beleg, Rückstand). Nichts wird zusammengeführt, gelöscht
+    oder in einem bestehenden Feld geändert.
+  - **Der Marker hat JETZT keine Zählwirkung.** `evaluate.py` bleibt
+    byte-identisch (Hash im Test gepinnt). Wie markierte Records behandelt
+    werden, wird **gemeinsam mit `episode_split_suspect`** bei der
+    Marker-Entscheidung **vor der ersten echten Auswertung** (n≥100)
+    festgelegt — zwei Marker auf derselben Population gehören in eine
+    Entscheidung, nicht in zwei.
+  - **Überlappung der beiden Marker, ausdrücklich festgehalten:** von den vier
+    markierten Records tragen **drei** (ADS.DE, MTX.DE, G1A.DE) zusätzlich
+    `episode_split_suspect`. Die Marker-Entscheidung muss beide zusammen
+    behandeln — sonst würde ein Record je nach Reihenfolge zweimal oder gar
+    nicht ausgeschlossen.
+  Revert = PR zurücknehmen (dann gilt wieder der alte Anker und ein Lauf auf
+  veraltetem Stand legt wieder Episoden an); die Marker entfernt
+  `python scripts/mark_stale_market_records.py --purge --live` byte-identisch.
+  **Kein Datenstand wird ungültig**, keine gemessene Zahl ändert sich, diese
+  Notiz bleibt gültig.
