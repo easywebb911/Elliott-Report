@@ -201,8 +201,15 @@ def test_kein_eingabefeld_fuer_betraege_im_formular():
 def test_es_gibt_nur_eine_github_put_mechanik():
     """Watchlist UND Journal gehen durch `_ghPutFile` — nicht zwei Fassungen."""
     assert HTML.count("async function _ghPutFile(") == 1
-    # Der 409/422-Retry steht genau EINMAL im ganzen Frontend.
-    assert len(re.findall(r"status === 409", HTML)) == 1
+    # Der 409/422-Retry steht genau EINMAL im ganzen Frontend. Gemessen am
+    # Retry SELBST, nicht an der Zahl der Vorkommen von „status === 409" —
+    # dieser Zaehler war ein Stellvertreter und schlug an, sobald irgendwo
+    # sonst ein 409 nur BENANNT wurde (05.08.2026: sha-Verwerfen nach
+    # gescheitertem Retry + Grund-Zuordnung fuer den Badge-Text).
+    assert HTML.count("method: 'PUT'") == 1, "es gibt nur EINEN PUT im Frontend"
+    put_block = re.search(r"async function _ghPutFile\(.*?\n    \}", HTML, re.S).group(0)
+    assert put_block.count("r = await _put(") == 2, "erster Versuch + genau EIN Retry"
+    assert HTML.count("r = await _put(") == 2, "kein zweiter Retry ausserhalb"
     for nutzer in ("_wlDoPut", "_tjDoPut"):
         block = re.search(rf"async function {nutzer}\(.*?\n    \}}", HTML, re.S).group(0)
         assert "_ghPutFile(" in block, f"{nutzer} nutzt die gemeinsame Mechanik nicht"

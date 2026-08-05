@@ -1168,6 +1168,10 @@
       <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
       <span class="mi-label">Lauf-Status</span>
     </button>
+    <button class="menu-item" id="mi-wlsync" type="button" role="menuitem">
+      <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/></svg></span>
+      <span class="mi-label">Watchlist synchronisieren</span>
+    </button>
     <div class="menu-sep" aria-hidden="true"></div>
     <button class="menu-item" id="mi-lock" type="button" role="menuitem">
       <span class="mi-tile" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
@@ -2146,6 +2150,14 @@
     const WL_GH_PATH = 'watchlist_personal.json';
     const WL_MAX = 30;
     const WL_SYNC_DEBOUNCE_MS = 3000;   // mehrere schnelle Änderungen -> EIN Commit
+    // Backoff statt Dauerschleife (05.08.2026). Vorher plante JEDER Fehlschlag
+    // den nächsten Versuch in 3 s — unbegrenzt, unbeaufsichtigt (die Sitzung
+    // entsperrt still) und mit bis zu vier API-Aufrufen je Runde. Das sind rund
+    // 4.800 Aufrufe/Stunde bei einem Stundenkontingent von 5.000.
+    const WL_SYNC_MAX_BACKOFF_MS = 180000;  // Deckel: 3 Minuten zwischen Versuchen
+    const WL_SYNC_MAX_TRIES = 6;            // danach RUHE bis zum nächsten Auslöser
+    const WL_STATE_KEY = 'elliott_wl_sync_state_v1';
+    const WL_DETAIL_MAX = 140;              // gespeicherter Antworttext, gekürzt
     let _wlArr = null;          // aktuelle (lokale) Ticker-Liste
     let _wlLastRunSet = null;   // Ticker, die der letzte Lauf kannte (aus report)
     let _wlLastReport = null;   // letzter geladener Report (für Karten-Re-Render bei add/remove)
@@ -2153,6 +2165,7 @@
     let _wlSyncedJson = null;   // JSON der zuletzt ins Repo gesyncten Liste (Idempotenz)
     let _wlSyncTimer = null;    // Debounce-Timer
     let _wlSyncing = false;     // ein PUT läuft gerade
+    let _wlState = _wlStateLoad();   // persistierter Sync-Zustand (überlebt Reload)
 
     function _wlLocal() {
       try { const a = JSON.parse(localStorage.getItem(WL_KEY) || 'null'); return Array.isArray(a) ? a : null; }
@@ -2170,11 +2183,119 @@
       return { ticker: t };
     }
     // „noch nicht gesynct"-Chip NUR wenn lokal ≠ Repo (situativ, sonst versteckt).
+    // ── Sync-Zustand: PERSISTIERT, formuliert sich aus ────────────────────
+    // Vorher war ein Fehlschlag ein flüchtiger Toast; danach stand nur ein
+    // grundloses Dauer-Orange. Ein Sync, der seit Tagen scheitert, sah aus wie
+    // einer, der eben erst angestoßen wurde. Jetzt überlebt der Grund samt
+    // Zeitpunkt und Versuchszahl den Reload — und verschwindet erst beim
+    // erfolgreichen PUT.
+    function _wlStateLoad() {
+      try {
+        const s = JSON.parse(localStorage.getItem(WL_STATE_KEY) || 'null');
+        return (s && typeof s === 'object' && !Array.isArray(s)) ? s : null;
+      } catch (_) { return null; }
+    }
+    function _wlStateSave() {
+      try { localStorage.setItem(WL_STATE_KEY, JSON.stringify(_wlState)); } catch (_) {}
+    }
+    function _wlStateClear() {
+      _wlState = null;
+      try { localStorage.removeItem(WL_STATE_KEY); } catch (_) {}
+    }
+
+    // SICHERHEIT (hart): aus einem GitHub-Antworttext darf NIE Token-Material in
+    // den persistierten Zustand wandern. ZWEI Netze, weil eines zu wenig ist:
+    // (1) die bekannten Token-Formen werden ersetzt; (2) teilt der Text auch nur
+    // ein 8-Zeichen-Fenster mit dem echten Token, fliegt der GANZE Text raus.
+    // Netz 2 fängt auch Formen, die wir nicht kennen, und abgeschnittene Reste —
+    // es braucht keine Annahme darüber, wie ein Token aussieht.
+    function _wlScrub(text, token) {
+      let t = String(text == null ? '' : text);
+      t = t.replace(/gh[pousr]_[A-Za-z0-9]{8,}/g, '[Token entfernt]');
+      t = t.replace(/github_pat_[A-Za-z0-9_]{8,}/g, '[Token entfernt]');
+      t = t.replace(/(Bearer|token|authorization)\s*[:=]?\s*\S+/gi, '$1 [entfernt]');
+      // Ohne Token kann Netz 2 nicht prüfen — dann wird NICHTS gespeichert.
+      // Netz 1 allein zu vertrauen hieße anzunehmen, wir kennten jede Token-Form.
+      if (typeof token !== 'string' || token.length < 8) {
+        return '[Antworttext verworfen — kein Token zur Prüfung]';
+      }
+      {
+        for (let i = 0; i + 8 <= token.length; i++) {
+          if (t.indexOf(token.slice(i, i + 8)) !== -1) {
+            return '[Antworttext verworfen — Token-Verdacht]';
+          }
+        }
+      }
+      return t.slice(0, WL_DETAIL_MAX);
+    }
+
+    function _wlMerkeFehlschlag(grund, http, detail) {
+      const jetzt = new Date().toISOString();
+      const serie = (_wlState && _wlState.status === 'offen') ? _wlState : null;
+      _wlState = {
+        status: 'offen',
+        grund: (grund && String(grund).trim()) ? String(grund).trim() : 'unbekannter Grund',
+        http: (typeof http === 'number') ? http : null,
+        seit: serie && serie.seit ? serie.seit : jetzt,
+        zuletzt: jetzt,
+        versuche: (serie && typeof serie.versuche === 'number' ? serie.versuche : 0) + 1,
+        detail: String(detail || '')
+      };
+      _wlStateSave();
+    }
+
+    function _wlMerkeAbbruch() {
+      const jetzt = new Date().toISOString();
+      _wlState = {
+        status: 'abgebrochen', grund: 'Passwort-Dialog abgebrochen', http: null,
+        seit: (_wlState && _wlState.seit) ? _wlState.seit : jetzt, zuletzt: jetzt,
+        versuche: (_wlState && typeof _wlState.versuche === 'number') ? _wlState.versuche : 0,
+        detail: ''
+      };
+      _wlStateSave();
+      _wlUpdateSyncChip();
+    }
+
+    // Mengen-Vergleich statt JSON.stringify (05.08.2026): eine bloße
+    // Reihenfolge-Abweichung — etwa zwischen Report-Reihenfolge und lokaler
+    // Liste — machte die Watchlist sonst DAUERHAFT „dirty" und löste bei jedem
+    // Start einen überflüssigen Commit aus.
+    function _wlKanon(arr) {
+      if (!Array.isArray(arr)) return null;
+      return JSON.stringify(Array.from(new Set(arr.map(String))).sort());
+    }
+    function _wlDirty() {
+      if (!Array.isArray(_wlArr)) return false;
+      let ref = null;
+      try { ref = _wlKanon(JSON.parse(_wlSyncedJson || 'null')); } catch (_) { ref = null; }
+      return _wlKanon(_wlArr) !== ref;
+    }
+
+    function _wlZeitKurz(iso) {
+      const d = new Date(iso);
+      if (!iso || isNaN(d.getTime())) return null;
+      const p = (n) => String(n).padStart(2, '0');
+      return `${p(d.getDate())}.${p(d.getMonth() + 1)}., ${p(d.getHours())}:${p(d.getMinutes())}`;
+    }
+    // Der Badge-Text formuliert den Zustand AUS. Jeder Zweig endet in einem
+    // vollständigen Satz — kein „undefined", kein leerer Grund.
+    function _wlChipText() {
+      const s = _wlState;
+      if (!s || s.status === 'ok' || !s.status) return 'noch nicht gesynct';
+      const grund = (s.grund && String(s.grund).trim()) ? String(s.grund).trim() : 'unbekannter Grund';
+      const seit = _wlZeitKurz(s.seit);
+      if (s.status === 'abgebrochen') {
+        return seit ? `Nicht gesynct seit ${seit} — ${grund}` : `Nicht gesynct — ${grund}`;
+      }
+      return seit ? `Sync scheitert seit ${seit} — ${grund}` : `Sync scheitert — ${grund}`;
+    }
+
     function _wlUpdateSyncChip() {
       const c = document.getElementById('wl-sync');
       if (!c) return;
-      const dirty = Array.isArray(_wlArr) && JSON.stringify(_wlArr) !== _wlSyncedJson;
+      const dirty = _wlDirty();
       c.hidden = !dirty;
+      if (dirty) c.textContent = _wlChipText();
     }
     function _wlErr(msg) {
       const e = document.getElementById('wl-err');
@@ -2417,10 +2538,38 @@
     }
 
     // Debounce: mehrere schnelle Änderungen -> EIN Sync (ein Commit).
+    // Das ist der NUTZER-Auslöser: er zählt nicht gegen den Backoff-Deckel,
+    // eine echte Listenänderung soll immer einen Versuch bekommen.
     function _wlScheduleSync() {
       _wlUpdateSyncChip();
       if (_wlSyncTimer) clearTimeout(_wlSyncTimer);
       _wlSyncTimer = setTimeout(() => { _wlSyncTimer = null; _wlSyncNow(); }, WL_SYNC_DEBOUNCE_MS);
+    }
+
+    // Backoff NACH einem Fehlschlag: 3 s, 6 s, 12 s … bis zum Deckel, dann Ruhe.
+    function _wlBackoffMs(versuche) {
+      const n = Math.max(1, Number(versuche) || 1);
+      return Math.min(WL_SYNC_DEBOUNCE_MS * Math.pow(2, n - 1), WL_SYNC_MAX_BACKOFF_MS);
+    }
+    function _wlPlanSync() {
+      const n = (_wlState && _wlState.status === 'offen' && _wlState.versuche) ? _wlState.versuche : 1;
+      _wlUpdateSyncChip();
+      if (n >= WL_SYNC_MAX_TRIES) return;   // Ruhe — der Zustand bleibt sichtbar
+      if (_wlSyncTimer) clearTimeout(_wlSyncTimer);
+      _wlSyncTimer = setTimeout(() => {
+        _wlSyncTimer = null; _wlSyncNow({ still: true });
+      }, _wlBackoffMs(n));
+    }
+
+    // Wiederanlauf OHNE Listenänderung — beim App-Start und beim Entsperren.
+    // Bewusst STILL: ein Passwort-Dialog bei jedem Start wäre schlimmer als der
+    // Fehler, den er behebt. Ist die Sitzung offen, läuft der Versuch von
+    // selbst; ist sie es nicht, bleibt der Zustand stehen und wartet.
+    function _wlWiederanlauf() {
+      if (_wlSyncing) return;                       // läuft schon — kein zweiter Anlauf
+      if (!_wlState || _wlState.status === 'ok') return;
+      if (!_wlDirty()) { _wlStateClear(); _wlUpdateSyncChip(); return; }
+      _wlSyncNow({ still: true });
     }
 
     function addWatchlistTicker() {
@@ -2448,11 +2597,38 @@
     // mehr, #17). Idempotent: KEIN PUT ohne echte Änderung. Session gesperrt/fehlt
     // -> normaler Passwort-/Setup-Dialog (wie Recalculate); die Änderung bleibt
     // lokal (Chip „noch nicht gesynct") und wird beim nächsten Gelingen mitgesynct.
-    function _wlSyncNow() {
+    function _wlSyncNow(opt) {
+      opt = opt || {};
       if (!Array.isArray(_wlArr)) return;
-      if (JSON.stringify(_wlArr) === _wlSyncedJson) { _wlUpdateSyncChip(); return; }  // nichts zu tun
+      if (!_wlDirty()) { _wlStateClear(); _wlUpdateSyncChip(); return; }  // nichts zu tun
       if (_wlSyncing) { _wlScheduleSync(); return; }   // ein PUT läuft -> danach erneut
-      _ensureToken((token) => { _wlDoPut(token); });   // gesperrt -> Dialog (fail-soft)
+      if (opt.still) {                                  // Wiederanlauf/Backoff: NIE ein Dialog
+        Promise.resolve().then(_trySessionUnlock)
+          .then((t) => { if (t) _wlDoPut(t); })
+          .catch(() => {});
+        return;
+      }
+      _ensureToken((token) => { _wlDoPut(token); },     // gesperrt -> Dialog (fail-soft)
+                   () => { _wlMerkeAbbruch(); },        // Dialog weggeklickt -> „abgebrochen"
+                   'wl-sync');
+    }
+
+    // Menüpunkt „Jetzt synchronisieren" — Selbsthilfe UND Diagnosemittel: der
+    // Ausgang steht im Klartext, nicht nur als Farbe am Chip.
+    function _wlSyncJetzt() {
+      if (typeof closeMenu === 'function') closeMenu();
+      if (!Array.isArray(_wlArr)) { showToast('Watchlist noch nicht geladen.', 'error'); return; }
+      if (!_wlDirty()) {
+        _wlStateClear(); _wlUpdateSyncChip();
+        showToast('✓ Watchlist ist bereits gesynct — nichts zu tun');
+        return;
+      }
+      if (_wlSyncing) { showToast('Sync läuft bereits …'); return; }
+      showToast('Synchronisiere Watchlist …');
+      _ensureToken((token) => { _wlDoPut(token); },
+                   () => { _wlMerkeAbbruch();
+                           showToast('Abgebrochen — Watchlist bleibt lokal.', 'error'); },
+                   'wl-sync');
     }
 
     // EINE SYNC-MECHANIK fuer Watchlist UND Journal (29.07.2026). Vorher lag der
@@ -2461,13 +2637,35 @@
     // erst an drei Stellen aufgeloest haben. Jetzt: EINE Funktion, zwei Nutzer.
     // Snapshot-basiert, 409/422 -> sha frisch holen, GENAU 1x retry (kein Sturm).
     // `shaBox` traegt den sha je Datei (Aufrufer haelt ihn).
+    // sha-Beschaffung ohne Cache (05.08.2026). Der 409 vom 04.08. entstand, weil
+    // der GET einen sha lieferte, der ZWEI Stände alt war, während der frische
+    // sha aus der vorigen PUT-Antwort noch im Speicher stand — und weil der eine
+    // Retry denselben GET wiederholte und dieselbe Antwort bekam. Deshalb hier
+    // `no-store` UND ein einmaliger Parameter: `no-store` sagt es dem Browser,
+    // der Parameter macht die Anfrage für jeden Zwischenspeicher eindeutig.
+    let _ghNonce = 0;
+    async function _ghGetSha(base, H) {
+      // Der Zähler MUSS mit: zwei Aufrufe innerhalb derselben Millisekunde
+      // ergäben sonst dieselbe URL — und damit wieder denselben Treffer im
+      // Zwischenspeicher, den wir gerade loswerden wollen.
+      const r = await fetch(`${base}?ref=${GH_BRANCH}&_=${Date.now()}-${++_ghNonce}`,
+                            { headers: H, cache: 'no-store' });
+      if (r.ok) { return (await r.json()).sha || null; }
+      if (r.status === 404) return null;      // Datei existiert nicht -> PUT ohne sha
+      return undefined;                       // unbekannt -> vorhandenen Wert behalten
+    }
+
     async function _ghPutFile(token, path, snapshot, message, shaBox) {
       const base = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${path}`;
       const H = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json',
                   'X-GitHub-Api-Version': '2022-11-28' };
-      const getR = await fetch(`${base}?ref=${GH_BRANCH}`, { headers: H });
-      if (getR.ok) { shaBox.sha = (await getR.json()).sha; }
-      else if (getR.status === 404) { shaBox.sha = null; }
+      // Der sha aus der letzten ERFOLGREICHEN PUT-Antwort ist die verlässlichste
+      // Quelle, die es gibt — GitHub nennt ihn dort selbst. Nur wenn wir keinen
+      // haben, wird gelesen. (Vorher überschrieb der GET den frischen Wert.)
+      if (shaBox.sha == null) {
+        const s = await _ghGetSha(base, H);
+        if (s !== undefined) shaBox.sha = s;
+      }
       const _put = (sha) => {
         const body = { message, branch: GH_BRANCH,
                        content: btoa(unescape(encodeURIComponent(snapshot))) };
@@ -2477,39 +2675,74 @@
           body: JSON.stringify(body) });
       };
       let r = await _put(shaBox.sha);
-      if (r.status === 409 || r.status === 422) {
-        const rf = await fetch(`${base}?ref=${GH_BRANCH}`, { headers: H });
-        if (rf.ok) { shaBox.sha = (await rf.json()).sha; r = await _put(shaBox.sha); }
+      // 404 gehört dazu (05.08.2026, beim Schärfen des Testmodells gefunden):
+      // wurde die Datei im Repo gelöscht, zeigt der gemerkte sha ins Leere —
+      // GitHub antwortet dann 404, und ohne diesen Zweig bliebe der tote sha
+      // stehen und JEDER weitere Versuch scheiterte still. Genau die Klasse
+      // Dauerausfall, die dieser PR beseitigt.
+      if (r.status === 409 || r.status === 422 || (r.status === 404 && shaBox.sha)) {
+        // GENAU EIN Retry (kein Sturm) — aber diesmal mit garantiert frischem sha.
+        const s = await _ghGetSha(base, H);
+        if (s !== undefined) { shaBox.sha = s; r = await _put(shaBox.sha); }
       }
       if (r.ok) { shaBox.sha = (await r.json()).content?.sha || null; }
+      else if (r.status === 409 || r.status === 422 || r.status === 404) { shaBox.sha = null; }
       return r;
+    }
+
+    // 403 ehrlich unterscheiden (05.08.2026). Der bisherige Text behauptete
+    // ungeprüft „Token braucht Contents: write" — bei erschöpftem Kontingent war
+    // das schlicht falsch und schickte die Fehlersuche in die falsche Richtung.
+    // Lässt sich der Zähler nicht lesen, sagen wir GENAU DAS, statt zu raten.
+    function _ghFehlerGrund(r) {
+      const kopf = (n) => { try { return r.headers && r.headers.get ? r.headers.get(n) : null; }
+                            catch (_) { return null; } };
+      if (r.status === 401) return 'Token ungültig oder abgelaufen';
+      if (r.status === 403 || r.status === 429) {
+        const rest = kopf('x-ratelimit-remaining');
+        if (rest === '0' || r.status === 429) {
+          const reset = Number(kopf('x-ratelimit-reset'));
+          const bis = reset ? _wlZeitKurz(new Date(reset * 1000).toISOString()) : null;
+          return bis ? `Rate-Limit erschöpft (frei ab ${bis})` : 'Rate-Limit erschöpft';
+        }
+        if (rest == null) return `Abgelehnt (${r.status}) — Grund nicht auslesbar`;
+        return 'Berechtigung fehlt (Token braucht „Contents: write")';
+      }
+      if (r.status === 409 || r.status === 422) return `Konflikt (${r.status})`;
+      if (r.status === 404) return 'Datei oder Repo nicht gefunden';
+      return `HTTP ${r.status}`;
     }
 
     // Der eigentliche PUT der Watchlist — nutzt jetzt die gemeinsame Mechanik.
     async function _wlDoPut(token) {
       const snapshot = JSON.stringify(_wlArr);        // exakt DAS wird gesynct
       _wlSyncing = true;
+      let ok = false;
       try {
         const box = { sha: _wlGhSha };
         const r = await _ghPutFile(token, WL_GH_PATH, snapshot,
                                    'Update watchlist_personal.json', box);
         _wlGhSha = box.sha;
         if (r.ok) {
+          ok = true;
           _wlSyncedJson = snapshot;                   // Idempotenz-Marker
+          _wlStateClear();                            // Zustand endet NUR hier
           showToast('✓ Watchlist gesynct');           // dezenter Mini-Erfolg
-        } else if (r.status === 401 || r.status === 403) {
-          showToast(`Nicht gesynct (HTTP ${r.status}) — Token braucht „Contents: write". Bleibt lokal.`, 'error');
         } else {
-          let bd = ''; try { bd = (await r.text()).slice(0, 140); } catch (_) {}
-          showToast(`Nicht gesynct (HTTP ${r.status})${bd ? ': ' + bd : ''} — bleibt lokal.`, 'error');
+          const grund = _ghFehlerGrund(r);
+          let roh = ''; try { roh = await r.text(); } catch (_) {}
+          const detail = _wlScrub(roh, token);        // NIE ungefiltert speichern
+          _wlMerkeFehlschlag(grund, r.status, detail);
+          showToast(`Nicht gesynct — ${grund}${detail ? ': ' + detail : ''}. Bleibt lokal.`, 'error');
         }
       } catch (e) {
+        _wlMerkeFehlschlag('Offline oder Netzfehler', null, '');
         showToast('Offline — noch nicht gesynct, bleibt lokal.', 'error');
       } finally {
         _wlSyncing = false;
-        _wlUpdateSyncChip();      // Chip bleibt bei Fehler stehen; nächste Änderung synct erneut
+        _wlUpdateSyncChip();      // Chip trägt jetzt den ausformulierten Zustand
         // Während des PUT könnte sich _wlArr geändert haben -> nachsyncen.
-        if (JSON.stringify(_wlArr) !== _wlSyncedJson) _wlScheduleSync();
+        if (_wlDirty()) { if (ok) _wlScheduleSync(); else _wlPlanSync(); }
       }
     }
 
@@ -3272,7 +3505,11 @@
     }
 
     // Modal-Steuerung
-    let _pendingTokenCb = null;
+    // WARTESCHLANGE statt Einzel-Slot (05.08.2026). Vorher hielt genau EIN Slot
+    // den wartenden Auftrag: stieß der Nutzer während des offenen Dialogs ein
+    // Recalculate an, überschrieb dessen Callback den wartenden Watchlist-Sync —
+    // der verschwand spurlos, ohne Fehler, ohne Spur. Jetzt laufen beide.
+    let _pendingTokenCbs = [];
     function _showTokModal(id) {
       document.getElementById('tok-modal-overlay').hidden = false;
       document.querySelectorAll('.tok-modal').forEach(m => { m.hidden = true; });
@@ -3288,7 +3525,23 @@
       ['tok-setup-err','tok-unlock-err'].forEach(id => {
         const e = document.getElementById(id); if (e) { e.hidden = true; e.textContent = ''; }
       });
-      _pendingTokenCb = null;
+      // Räumt NUR die Oberfläche. Wer die Warteschlange verwirft, sagt es
+      // ausdrücklich (`_abbrechenTokenWarteschlange`) — sonst wäre der Erfolgs-
+      // pfad, der ebenfalls hier durchkommt, ein stiller Auftragsvernichter.
+    }
+
+    // Dialog weggeklickt/Escape: die wartenden Aufträge werden NICHT still
+    // verworfen, sondern erfahren davon — daraus wird der Zustand „abgebrochen".
+    function _abbrechenTokenWarteschlange() {
+      const q = _pendingTokenCbs; _pendingTokenCbs = [];
+      _closeTokModals();
+      q.forEach(e => { try { if (e && e.onAbbruch) e.onAbbruch(); } catch (_) {} });
+    }
+
+    function _tokenWarteschlangeAusfuehren(tok) {
+      const q = _pendingTokenCbs; _pendingTokenCbs = [];
+      _closeTokModals();
+      q.forEach(e => { try { if (e && e.cb) e.cb(tok); } catch (_) {} });
     }
     function _tokErr(id, msg) {
       const e = document.getElementById(id);
@@ -3298,12 +3551,20 @@
     // Orchestrator: erst STILLE Session-Entsperrung (28-Tage-Fenster, kein
     // Passwort) — greift für Recalculate UND Watchlist-Speichern gleichermaßen
     // (kein doppelter Dialog). Sonst wie bisher: Unlock- bzw. Setup-Dialog.
-    async function _ensureToken(cb) {
+    async function _ensureToken(cb, onAbbruch, zweck) {
       try {
         const t = await _trySessionUnlock();
         if (t) { if (cb) cb(t); return; }
       } catch (_) { /* fail-soft → Passwort-Dialog */ }
-      _pendingTokenCb = cb;
+      // Gleicher Zweck wartet schon? Dann nicht doppelt einreihen — sonst liefe
+      // derselbe Sync zweimal, sobald das Passwort kommt. (In der Oberfläche
+      // verdeckt der Dialog das Menü; darauf soll sich der Code nicht verlassen.)
+      if (zweck && _pendingTokenCbs.some(e => e && e.zweck === zweck)) {
+        if (_hasToken()) _showTokModal('tok-modal-unlock');
+        else _showTokModal('tok-modal-setup');
+        return;
+      }
+      _pendingTokenCbs.push({ cb, onAbbruch, zweck: zweck || null });
       if (_hasToken()) _showTokModal('tok-modal-unlock');
       else _showTokModal('tok-modal-setup');
     }
@@ -3319,10 +3580,9 @@
         const blob = await _encryptToken(tok, pw);
         try { localStorage.setItem(TOK_ENC_KEY, blob); }
         catch (e) { _tokErr('tok-setup-err', 'Speichern fehlgeschlagen: ' + e.message); return; }
-        const cb = _pendingTokenCb;
         _persistSession(tok).catch(() => {});   // Session für 28 Tage etablieren
-        _closeTokModals();
-        if (cb) cb(tok);
+        _tokenWarteschlangeAusfuehren(tok);     // ALLE wartenden Aufträge, nicht einer
+        _wlWiederanlauf();                      // offener Sync? -> jetzt nachholen
       } catch (e) {
         _tokErr('tok-setup-err', 'Verschlüsseln fehlgeschlagen: ' + e.message);
       }
@@ -3341,10 +3601,9 @@
       }
       try {
         const tok = await _decryptToken(blob, pw);
-        const cb = _pendingTokenCb;
         _persistSession(tok).catch(() => {});   // Session für 28 Tage etablieren
-        _closeTokModals();
-        if (cb) cb(tok);
+        _tokenWarteschlangeAusfuehren(tok);     // ALLE wartenden Aufträge, nicht einer
+        _wlWiederanlauf();                      // offener Sync? -> jetzt nachholen
       } catch (e) {
         // Falsches Passwort → AES-GCM-Auth schlägt fehl (OperationError).
         _tokErr('tok-unlock-err', 'Falsches Master-Passwort.');
@@ -3959,6 +4218,7 @@
       renderMarket('US', r.markets.US);
       renderMarket('DE', r.markets.DE);
       renderWatchlist(r);  // Watchlist-Sektion (fail-soft, außer Konkurrenz)
+      _wlWiederanlauf();   // offener Sync aus einer früheren Sitzung? -> still nachholen
       drawAllSparklines();
       startQuotePolls();  // Live-Quotes nach jedem (Re-)Render neu aufsetzen
       // Zähler kommen aus dem Report (eine Quelle); die Records selbst weiterhin
@@ -4130,6 +4390,7 @@
     // auf einen Netz-Roundtrip warten muessen.
     _tjLoad().catch(() => { _tjArr = _tjLocal() || []; });
     document.getElementById('mi-recalc').addEventListener('click', triggerRecalc);
+    document.getElementById('mi-wlsync').addEventListener('click', _wlSyncJetzt);
     document.getElementById('mi-lock').addEventListener('click', _sessionLock);
 
     // Backtesting-Zurück: aus dem Detail zurück zur Liste, aus der Liste schließen.
@@ -4172,10 +4433,10 @@
     })();
 
     // Token-Modal-Verdrahtung (kein Inline-onclick — CSP-freundlich).
-    document.getElementById('tok-modal-overlay').addEventListener('click', _closeTokModals);
-    document.getElementById('tok-setup-cancel').addEventListener('click', _closeTokModals);
+    document.getElementById('tok-modal-overlay').addEventListener('click', _abbrechenTokenWarteschlange);
+    document.getElementById('tok-setup-cancel').addEventListener('click', _abbrechenTokenWarteschlange);
     document.getElementById('tok-setup-save').addEventListener('click', _submitTokenSetup);
-    document.getElementById('tok-unlock-cancel').addEventListener('click', _closeTokModals);
+    document.getElementById('tok-unlock-cancel').addEventListener('click', _abbrechenTokenWarteschlange);
     document.getElementById('tok-unlock-ok').addEventListener('click', _submitTokenUnlock);
     document.getElementById('tok-unlock-reset').addEventListener('click', _resetTokenForReentry);
     document.getElementById('tok-unlock-pw').addEventListener('keydown', (e) => {
@@ -4185,7 +4446,7 @@
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       // Priorität: Token-Modal > Menü > Info-Overlay > Backtesting-Overlay.
-      if (!document.getElementById('tok-modal-overlay').hidden) { _closeTokModals(); return; }
+      if (!document.getElementById('tok-modal-overlay').hidden) { _abbrechenTokenWarteschlange(); return; }
       if (_menuOpen) { closeMenu(); return; }
       if (_infoOpen) { closeInfo(); return; }
       if (_btOpen) {
