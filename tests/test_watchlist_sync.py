@@ -48,8 +48,11 @@ def test_der_gemerkte_sha_wird_nicht_mehr_ueberschrieben():
 
 
 def test_nach_gescheitertem_retry_wird_der_sha_verworfen():
-    """Sonst zöge der nächste Versuch denselben toten sha erneut heran."""
-    assert ("else if (r.status === 409 || r.status === 422) { shaBox.sha = null; }"
+    """Sonst zöge der nächste Versuch denselben toten sha erneut heran — 404
+    gehört dazu: eine gelöschte Datei macht den gemerkten sha wertlos."""
+    assert ("else if (r.status === 409 || r.status === 422 || r.status === 404) "
+            "{ shaBox.sha = null; }" in HTML)
+    assert ("if (r.status === 409 || r.status === 422 || (r.status === 404 && shaBox.sha)) {"
             in HTML)
 
 
@@ -64,7 +67,7 @@ def test_die_sha_wird_NICHT_aus_dem_fehlertext_gelesen():
 
 def test_die_warteschlange_ist_eine_liste_und_kein_slot():
     assert "let _pendingTokenCbs = [];" in HTML
-    assert "_pendingTokenCbs.push({ cb, onAbbruch });" in HTML
+    assert "_pendingTokenCbs.push({ cb, onAbbruch, zweck: zweck || null });" in HTML
     assert "_pendingTokenCb " not in HTML and "_pendingTokenCb;" not in HTML
 
 
@@ -710,3 +713,227 @@ def test_ein_kaputter_gespeicherter_zustand_wirft_nicht(kaputt):
     erg = _js(f"localStorage.setItem(WL_STATE_KEY, {json.dumps(kaputt)}); "
               f"console.log(JSON.stringify(_wlStateLoad()))")
     assert erg is None
+
+
+# ---------------------------------------------------------------------------
+# Nachgezogen nach dem Guardian-Lauf (05.08.2026): die ORCHESTRIERUNG lief
+# bisher nur gegen Literale, nicht unter node — genau die Klasse, in der die
+# erste überlebte Mutationsprobe saß.
+# ---------------------------------------------------------------------------
+_ORCH_STUBS = """
+let _dialoge = [], _puts = [], _eingereiht = [];
+let _sessionToken = null;
+function _hasToken() { return true; }
+function _showTokModal(id) { _dialoge.push(id); }
+function _closeTokModals() {}
+function showToast(t) { }
+function closeMenu() {}
+async function _trySessionUnlock() { return _sessionToken; }
+async function _wlDoPut(t) { _puts.push(t); }
+function _wlScheduleSync() { _eingereiht.push('debounce'); }
+function _wlPlanSync() { _eingereiht.push('backoff'); }
+let _pendingTokenCbs = [];
+"""
+
+
+def _orch_js(script: str):
+    return _js(script, extra="\n".join([
+        _ORCH_STUBS, _afn("_ensureToken"), _fn("_abbrechenTokenWarteschlange"),
+        _fn("_tokenWarteschlangeAusfuehren"), _fn("_wlSyncNow"),
+        _fn("_wlSyncJetzt"), _fn("_wlWiederanlauf"),
+    ]))
+
+
+def test_der_wiederanlauf_haelt_seine_drei_wachen():
+    """`_wlSyncing`, „nichts offen", „nichts zu tun" — jede einzeln geprüft,
+    ausgeführt statt gegrept."""
+    erg = _orch_js("""
+      (async () => {
+        const lauf = async (bau) => {
+          _puts = []; _dialoge = []; _eingereiht = []; _wlSyncing = false;
+          _wlArr = ['A']; _wlSyncedJson = '[]'; _wlState = null;
+          bau();
+          _wlWiederanlauf();
+          await new Promise(r => setTimeout(r, 0));
+          return { puts: _puts.length, dialoge: _dialoge.length, zustand: _wlState,
+                   eingereiht: _eingereiht };
+        };
+        console.log(JSON.stringify({
+          kein_zustand: await lauf(() => { _sessionToken = 'tok'; }),
+          laeuft_schon: await lauf(() => { _sessionToken = 'tok';
+                                           _wlState = { status: 'offen' }; _wlSyncing = true; }),
+          nichts_zu_tun: await lauf(() => { _sessionToken = 'tok';
+                                            _wlState = { status: 'offen' };
+                                            _wlSyncedJson = '["A"]'; }),
+          offen_und_dirty: await lauf(() => { _sessionToken = 'tok';
+                                              _wlState = { status: 'offen' }; }),
+          gesperrte_sitzung: await lauf(() => { _sessionToken = null;
+                                                _wlState = { status: 'offen' }; }),
+        }));
+      })();
+    """)
+    assert erg["kein_zustand"]["puts"] == 0, "ohne offenen Zustand kein Versuch"
+    assert erg["laeuft_schon"]["puts"] == 0, "kein zweiter Anlauf während eines PUT"
+    assert erg["laeuft_schon"]["eingereiht"] == [], \
+        "und auch kein Nachzügler in der Warteschlange — der laufende PUT sorgt selbst vor"
+    assert erg["nichts_zu_tun"]["puts"] == 0
+    assert erg["nichts_zu_tun"]["zustand"] is None, "erledigt -> Zustand weg"
+    assert erg["offen_und_dirty"]["puts"] == 1, "das ist der eigentliche Zweck"
+    # DER Punkt: nie ein Dialog, auch nicht bei gesperrter Sitzung
+    for fall in erg.values():
+        assert fall["dialoge"] == 0, "der Wiederanlauf darf NIE einen Dialog öffnen"
+    assert erg["gesperrte_sitzung"]["puts"] == 0, "ohne Token wartet er einfach"
+
+
+def test_ein_zweiter_sync_auftrag_reiht_sich_nicht_doppelt_ein():
+    """Guardian-Nit: zweimal „Jetzt synchronisieren" bei offenem Dialog hätte
+    denselben Sync zweimal laufen lassen. Der Zweck-Schlüssel verhindert das —
+    im Code, nicht durch den zufällig davorliegenden Dialog."""
+    erg = _orch_js("""
+      (async () => {
+        _sessionToken = null; _wlArr = ['A']; _wlSyncedJson = '[]'; _wlState = null;
+        _wlSyncJetzt(); await new Promise(r => setTimeout(r, 0));
+        _wlSyncJetzt(); await new Promise(r => setTimeout(r, 0));
+        const wartend = _pendingTokenCbs.length;
+        _sessionToken = 'tok';
+        _tokenWarteschlangeAusfuehren('tok');
+        await new Promise(r => setTimeout(r, 0));
+        console.log(JSON.stringify({ wartend, puts: _puts.length, dialoge: _dialoge.length }));
+      })();
+    """)
+    assert erg["wartend"] == 1, "derselbe Zweck steht genau einmal an"
+    assert erg["puts"] == 1, "und läuft genau einmal"
+    assert erg["dialoge"] == 2, "der Dialog wird trotzdem jedes Mal gezeigt"
+
+
+def test_verschiedene_zwecke_reihen_sich_weiterhin_beide_ein():
+    """Die Entdopplung darf nicht zur Verdrängung werden — genau die wollten
+    wir ja gerade loswerden."""
+    erg = _orch_js("""
+      (async () => {
+        const gelaufen = [];
+        _sessionToken = null;
+        await _ensureToken(() => gelaufen.push('sync'), () => {}, 'wl-sync');
+        await _ensureToken(() => gelaufen.push('recalc'), () => {}, 'recalc');
+        await _ensureToken(() => gelaufen.push('ohne-zweck'), () => {});
+        _tokenWarteschlangeAusfuehren('tok');
+        console.log(JSON.stringify(gelaufen));
+      })();
+    """)
+    assert erg == ["sync", "recalc", "ohne-zweck"]
+
+
+def test_syncJetzt_meldet_wenn_es_nichts_zu_tun_gibt():
+    erg = _orch_js("""
+      (async () => {
+        _sessionToken = null; _wlArr = ['A']; _wlSyncedJson = '["A"]';
+        _wlState = { status: 'offen', grund: 'Konflikt (409)', seit: '2026-08-03T21:14:00' };
+        localStorage.setItem(WL_STATE_KEY, JSON.stringify(_wlState));
+        _wlSyncJetzt(); await new Promise(r => setTimeout(r, 0));
+        console.log(JSON.stringify({ puts: _puts.length, dialoge: _dialoge.length,
+                                     zustand: _wlState,
+                                     gespeichert: localStorage.getItem(WL_STATE_KEY) }));
+      })();
+    """)
+    assert erg["puts"] == 0 and erg["dialoge"] == 0
+    assert erg["zustand"] is None and erg["gespeichert"] is None, \
+        "ein Zustand ohne Ursache muss verschwinden"
+
+
+def test_der_stille_pfad_von_syncNow_oeffnet_keinen_dialog():
+    erg = _orch_js("""
+      (async () => {
+        _sessionToken = null; _wlArr = ['A']; _wlSyncedJson = '[]'; _wlState = null;
+        _wlSyncNow({ still: true }); await new Promise(r => setTimeout(r, 0));
+        const still = { puts: _puts.length, dialoge: _dialoge.length };
+        _wlSyncNow();               // der laute Pfad DARF einen öffnen
+        await new Promise(r => setTimeout(r, 0));
+        console.log(JSON.stringify({ still, laut: _dialoge.length }));
+      })();
+    """)
+    assert erg["still"] == {"puts": 0, "dialoge": 0}
+    assert erg["laut"] == 1
+
+
+def test_die_datei_wird_angelegt_wenn_es_sie_noch_nicht_gibt():
+    """404 auf dem GET heißt: Datei existiert nicht -> PUT OHNE sha. Ein sha
+    wäre hier eine Lüge und ergäbe 422."""
+    erg = _js("""
+      (async () => {
+        const gesehen = [];
+        globalThis.fetch = async (url, init) => {
+          if ((init && init.method) !== 'PUT') return _antwort(404, { message: 'Not Found' });
+          const body = JSON.parse(init.body);
+          const hatSha = Object.prototype.hasOwnProperty.call(body, 'sha');
+          gesehen.push({ hatSha });
+          // Die Datei gibt es NICHT — ein PUT mit sha ist hier 404, kein Erfolg.
+          return hatSha ? _antwort(404, { message: 'Not Found' })
+                        : _antwort(201, { content: { sha: 'frisch' } });
+        };
+        const leer = { sha: null };
+        const r = await _ghPutFile('tok', 'neu.json', '["A"]', 'm', leer);
+        // … und derselbe Fall mit einem GEMERKTEN sha: die Datei ist geloescht
+        // worden, der gemerkte Wert zeigt ins Leere und darf NICHT mitgehen.
+        const alt = { sha: 'zeigt-ins-leere' };
+        await _ghPutFile('tok', 'neu.json', '["A"]', 'm', alt);
+        console.log(JSON.stringify({ status: r.status, gesehen, sha: leer.sha }));
+      })();
+    """)
+    assert erg["status"] == 201
+    # Erstanlage: sofort ohne sha. Danach derselbe Aufruf MIT gemerktem sha:
+    # er scheitert an 404, der Retry liest frisch (404 -> kein sha) und legt an.
+    assert erg["gesehen"] == [{"hatSha": False}, {"hatSha": True}, {"hatSha": False}], \
+        "der tote sha muss beim Retry fallen, statt jeden Versuch zu vergiften"
+    assert erg["sha"] == "frisch"
+
+
+def test_ein_kaputter_GET_beim_retry_erfindet_keinen_zweiten_PUT():
+    """500 auf dem GET ist KEINE Aussage über die Datei. Wer daraus „also kein
+    sha" macht, schickt einen zweiten PUT los, der sicher scheitert — und
+    verwirft dabei den einzigen sha, den er hatte."""
+    erg = _js("""
+      (async () => {
+        const puts = [];
+        globalThis.fetch = async (url, init) => {
+          if ((init && init.method) !== 'PUT') return _antwort(500, { message: 'kaputt' });
+          const body = JSON.parse(init.body);
+          puts.push(body.sha || null);
+          return _antwort(409, 'Konflikt');       // der erste Versuch kollidiert
+        };
+        const box = { sha: 'bekannt' };
+        const r = await _ghPutFile('tok', 'p.json', '["A"]', 'm', box);
+        console.log(JSON.stringify({ status: r.status, puts, sha: box.sha }));
+      })();
+    """)
+    assert erg["puts"] == ["bekannt"], \
+        "ohne frischen sha darf KEIN zweiter PUT losgehen"
+    assert erg["status"] == 409
+    assert erg["sha"] is None, "der tote sha wird trotzdem für den nächsten Lauf verworfen"
+
+
+def test_ein_kaputter_GET_laesst_den_gemerkten_sha_beim_ersten_PUT_stehen():
+    erg = _js("""
+      (async () => {
+        globalThis.fetch = async (url, init) => {
+          if ((init && init.method) !== 'PUT') return _antwort(500, { message: 'kaputt' });
+          const body = JSON.parse(init.body);
+          // Die Datei EXISTIERT — ein PUT ohne sha waere hier 422.
+          return body.sha === 'bekannt'
+            ? _antwort(200, { content: { sha: 'neu' } })
+            : _antwort(422, { message: 'sha fehlt oder falsch' });
+        };
+        const box = { sha: 'bekannt' };
+        const r = await _ghPutFile('tok', 'p.json', '["A"]', 'm', box);
+        console.log(JSON.stringify({ status: r.status, sha: box.sha }));
+      })();
+    """)
+    assert erg["status"] == 200 and erg["sha"] == "neu"
+
+
+@pytest.mark.parametrize("token", [None, "", "kurz", 42])
+def test_ohne_pruefbaren_token_wird_gar_nichts_gespeichert(token):
+    """Netz 2 kann nicht prüfen -> Netz 1 allein zu vertrauen hieße annehmen,
+    wir kennten jede Token-Form. Also lieber nichts."""
+    erg = _js(f"console.log(JSON.stringify(_wlScrub('irgendein Antworttext', "
+              f"{json.dumps(token)})))")
+    assert erg == "[Antworttext verworfen — kein Token zur Prüfung]"

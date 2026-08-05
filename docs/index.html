@@ -2214,7 +2214,12 @@
       t = t.replace(/gh[pousr]_[A-Za-z0-9]{8,}/g, '[Token entfernt]');
       t = t.replace(/github_pat_[A-Za-z0-9_]{8,}/g, '[Token entfernt]');
       t = t.replace(/(Bearer|token|authorization)\s*[:=]?\s*\S+/gi, '$1 [entfernt]');
-      if (typeof token === 'string' && token.length >= 8) {
+      // Ohne Token kann Netz 2 nicht prüfen — dann wird NICHTS gespeichert.
+      // Netz 1 allein zu vertrauen hieße anzunehmen, wir kennten jede Token-Form.
+      if (typeof token !== 'string' || token.length < 8) {
+        return '[Antworttext verworfen — kein Token zur Prüfung]';
+      }
+      {
         for (let i = 0; i + 8 <= token.length; i++) {
           if (t.indexOf(token.slice(i, i + 8)) !== -1) {
             return '[Antworttext verworfen — Token-Verdacht]';
@@ -2604,7 +2609,8 @@
         return;
       }
       _ensureToken((token) => { _wlDoPut(token); },     // gesperrt -> Dialog (fail-soft)
-                   () => { _wlMerkeAbbruch(); });       // Dialog weggeklickt -> „abgebrochen"
+                   () => { _wlMerkeAbbruch(); },        // Dialog weggeklickt -> „abgebrochen"
+                   'wl-sync');
     }
 
     // Menüpunkt „Jetzt synchronisieren" — Selbsthilfe UND Diagnosemittel: der
@@ -2621,7 +2627,8 @@
       showToast('Synchronisiere Watchlist …');
       _ensureToken((token) => { _wlDoPut(token); },
                    () => { _wlMerkeAbbruch();
-                           showToast('Abgebrochen — Watchlist bleibt lokal.', 'error'); });
+                           showToast('Abgebrochen — Watchlist bleibt lokal.', 'error'); },
+                   'wl-sync');
     }
 
     // EINE SYNC-MECHANIK fuer Watchlist UND Journal (29.07.2026). Vorher lag der
@@ -2668,13 +2675,18 @@
           body: JSON.stringify(body) });
       };
       let r = await _put(shaBox.sha);
-      if (r.status === 409 || r.status === 422) {
+      // 404 gehört dazu (05.08.2026, beim Schärfen des Testmodells gefunden):
+      // wurde die Datei im Repo gelöscht, zeigt der gemerkte sha ins Leere —
+      // GitHub antwortet dann 404, und ohne diesen Zweig bliebe der tote sha
+      // stehen und JEDER weitere Versuch scheiterte still. Genau die Klasse
+      // Dauerausfall, die dieser PR beseitigt.
+      if (r.status === 409 || r.status === 422 || (r.status === 404 && shaBox.sha)) {
         // GENAU EIN Retry (kein Sturm) — aber diesmal mit garantiert frischem sha.
         const s = await _ghGetSha(base, H);
         if (s !== undefined) { shaBox.sha = s; r = await _put(shaBox.sha); }
       }
       if (r.ok) { shaBox.sha = (await r.json()).content?.sha || null; }
-      else if (r.status === 409 || r.status === 422) { shaBox.sha = null; }  // nächster Lauf liest frisch
+      else if (r.status === 409 || r.status === 422 || r.status === 404) { shaBox.sha = null; }
       return r;
     }
 
@@ -3539,12 +3551,20 @@
     // Orchestrator: erst STILLE Session-Entsperrung (28-Tage-Fenster, kein
     // Passwort) — greift für Recalculate UND Watchlist-Speichern gleichermaßen
     // (kein doppelter Dialog). Sonst wie bisher: Unlock- bzw. Setup-Dialog.
-    async function _ensureToken(cb, onAbbruch) {
+    async function _ensureToken(cb, onAbbruch, zweck) {
       try {
         const t = await _trySessionUnlock();
         if (t) { if (cb) cb(t); return; }
       } catch (_) { /* fail-soft → Passwort-Dialog */ }
-      _pendingTokenCbs.push({ cb, onAbbruch });
+      // Gleicher Zweck wartet schon? Dann nicht doppelt einreihen — sonst liefe
+      // derselbe Sync zweimal, sobald das Passwort kommt. (In der Oberfläche
+      // verdeckt der Dialog das Menü; darauf soll sich der Code nicht verlassen.)
+      if (zweck && _pendingTokenCbs.some(e => e && e.zweck === zweck)) {
+        if (_hasToken()) _showTokModal('tok-modal-unlock');
+        else _showTokModal('tok-modal-setup');
+        return;
+      }
+      _pendingTokenCbs.push({ cb, onAbbruch, zweck: zweck || null });
       if (_hasToken()) _showTokModal('tok-modal-unlock');
       else _showTokModal('tok-modal-setup');
     }
