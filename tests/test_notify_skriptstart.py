@@ -84,7 +84,23 @@ def test_notify_als_skript_findet_forward_collection():
         f"forward_collection ist beim Skript-Start immer noch unerreichbar:\n"
         f"{ausgabe}")
     # ... und die Zählung nennt die ECHTE Zahl, nicht den Rückfall.
-    assert f"Meilenstein: 0/{fc.EVAL_MIN_N} auswertbar" in ausgabe, ausgabe
+    # BERICHTIGT 05.08.2026: hier stand die 0 als Literal — ein SNAPSHOT, kein
+    # Invariant. Der Tageslauf vom 05.08. reifte die ersten Records aus, und der
+    # Test wurde rot, ohne dass sich am geprüften Verhalten (Skript findet
+    # forward_collection) irgendetwas geändert hätte. Geprüft wird jetzt, was
+    # der Test MEINT: die Zeile nennt die tatsächlich gezählte Zahl aus der
+    # geladenen Sammlung — nicht den stillen Rückfall.
+    import re
+    m = re.search(rf"Meilenstein: (\d+)/{fc.EVAL_MIN_N} auswertbar", ausgabe)
+    assert m, ausgabe
+    # `auswertbar` kommt aus fc.eval_counts — NICHT hier nachgebaut: „gereift"
+    # und „auswertbar" sind verschieden (PRU-Guard schließt aus), und eine
+    # zweite Definition im Test wäre genau der Fehler, den das Projekt sonst
+    # vermeidet.
+    echt = fc.eval_counts(fc.load_collection())[2]
+    assert int(m.group(1)) == echt, (
+        f"notify meldet {m.group(1)}, die Sammlung zählt {echt} auswertbare "
+        f"Records — genau die stille Fehlstelle, die dieser Test verhindern soll")
 
 
 @pytest.mark.parametrize("modus", ["daily", "selftest", "staleness"])

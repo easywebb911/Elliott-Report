@@ -107,7 +107,18 @@ def handelstage_rueckstand(bar_datum, bis) -> Optional[int]:
     if bar is None or ziel is None:
         return None
     erwartet = letzter_handelstag(ziel)
-    if erwartet is None or bar >= erwartet:  # pragma: no branch
+    if erwartet is None:
+        return 0
+    return _zaehle_handelstage(bar, erwartet)
+
+
+def _zaehle_handelstage(bar: _dt.date, erwartet: _dt.date) -> int:
+    """Handelstage NACH ``bar`` bis einschließlich ``erwartet``.
+
+    Ausgelagert (05.08.2026), damit der Sitzungs-Ende-Anker exakt DIESELBE
+    Zählweise benutzt — sonst entstünden zwei Begriffe von „Handelstag zurück".
+    """
+    if bar >= erwartet:
         return 0
     n, d = 0, bar + _dt.timedelta(days=1)
     while d <= erwartet:
@@ -115,6 +126,105 @@ def handelstage_rueckstand(bar_datum, bis) -> Optional[int]:
             n += 1
         d += _dt.timedelta(days=1)
     return n
+
+
+# ---------------------------------------------------------------------------
+# SITZUNGS-ENDE (05.08.2026) — Erwartungs-Anker NUR für den Wächter
+# ---------------------------------------------------------------------------
+# Anlass: der Kurs-Stand-Wächter rechnete gegen den letzten Handelstag BIS
+# EINSCHLIESSLICH des Lauf-Datums. Ein Lauf am Vormittag erwartete damit eine
+# Bar des laufenden Tages, dessen Sitzung noch gar nicht beendet war — belegt
+# an den Läufen vom 31.07. 11:16/11:22 (US, warn bei Rückstand 1), zu denen die
+# NYSE noch nicht einmal geöffnet hatte.
+#
+# ERGÄNZUNG, KEIN ERSATZ: `is_trading_day` bleibt die EINE Definition von
+# „Handelstag". Hier kommt nur die Frage dazu, ob die Sitzung dieses Tages zur
+# Lauf-Zeit schon vorbei war.
+#
+# DAS GATE (#72) BENUTZT DIESE FUNKTIONEN NICHT — es bleibt am Kalendertag-Anker
+# (`letzter_handelstag`). Siehe validation_registry.md, Eintrag vom 05.08.2026:
+# ein gelockertes Gate machte Mittags-Läufe sammelfähig, und da der ERSTE Lauf
+# eines Kalendertags den `entry_close` einfriert, kämen ältere Einfrier-Kurse in
+# die Validierungs-Population.
+#
+# ZEITZONEN über zoneinfo, NICHT über feste UTC-Abstände: USA und EU stellen die
+# Sommerzeit an verschiedenen Terminen um (US: 2. So März / 1. So Nov; EU:
+# letzter So März / letzter So Okt). In den Zwischenwochen wäre jeder feste
+# Abstand falsch.
+#
+# DATIERTE GRENZE: verkürzte Handelstage (NYSE 13:00 ET am Tag nach Thanksgiving
+# und an Heiligabend; Xetra früher am 24./31.12.) sind NICHT abgebildet. Die
+# Abweichung wirkt nur in EINE Richtung — die Erwartung ist dort zu nachsichtig,
+# nie zu streng, kann also keinen Fehlalarm erzeugen (Test hält das fest).
+MARKET_SESSIONS = {
+    "US": {"tz": "America/New_York", "close": (16, 0)},    # NYSE 16:00 ET
+    "DE": {"tz": "Europe/Berlin", "close": (17, 30)},      # Xetra 17:30 Ortszeit
+}
+
+
+def _sitzung(markt) -> Optional[dict]:
+    return MARKET_SESSIONS.get(str(markt or "").upper())
+
+
+def sitzung_beendet(markt, jetzt) -> Optional[bool]:
+    """War die Sitzung des LOKALEN Kalendertags von ``jetzt`` schon beendet?
+
+    ``jetzt``: aware datetime (UTC oder beliebige Zone). None = nicht
+    bestimmbar (unbekannter Markt, naives/unlesbares Datum) — der Aufrufer
+    fällt dann auf den Kalendertag-Anker zurück, statt zu raten.
+
+    Genau ZUR Schlusszeit gilt die Sitzung als beendet (>=): die Schlussauktion
+    liegt auf der Marke, danach ist der Tag zu.
+    """
+    cfg = _sitzung(markt)
+    if cfg is None or not isinstance(jetzt, _dt.datetime) or jetzt.tzinfo is None:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        lokal = jetzt.astimezone(ZoneInfo(cfg["tz"]))
+    except Exception:  # noqa: BLE001 — fehlende tzdata o. Ä. -> fail-soft
+        return None
+    h, m = cfg["close"]
+    return (lokal.hour, lokal.minute) >= (h, m)
+
+
+def letzter_beendeter_handelstag(markt, jetzt):
+    """Der jüngste Handelstag, dessen Sitzung zu ``jetzt`` BEENDET war.
+
+    Das ist der Erwartungs-Anker des Wächters: von diesem Tag darf eine fertige
+    Tages-Bar verlangt werden. Läuft der Report vormittags, ist es der VORTAG —
+    und der bekannte Fehlalarm entfällt.
+
+    None = nicht bestimmbar; der Aufrufer nimmt dann ``letzter_handelstag``.
+    """
+    cfg = _sitzung(markt)
+    if cfg is None or not isinstance(jetzt, _dt.datetime) or jetzt.tzinfo is None:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        lokal = jetzt.astimezone(ZoneInfo(cfg["tz"]))
+    except Exception:  # noqa: BLE001
+        return None
+    heute = lokal.date()
+    fertig = sitzung_beendet(markt, jetzt)
+    # Ist heute ein Handelstag, dessen Sitzung noch LÄUFT (oder noch nicht
+    # begonnen hat), zählt er nicht — dann ab dem Vortag suchen.
+    if is_trading_day(heute) and not fertig:
+        return letzter_handelstag(heute - _dt.timedelta(days=1))
+    return letzter_handelstag(heute)
+
+
+def handelstage_rueckstand_sitzung(bar_datum, markt, jetzt) -> Optional[int]:
+    """Rückstand gegen das SITZUNGS-ENDE statt gegen den Kalendertag.
+
+    Dieselbe Zählweise wie ``handelstage_rueckstand`` — nur der Ziel-Tag kommt
+    aus ``letzter_beendeter_handelstag``. None = nicht bestimmbar.
+    """
+    bar = _als_datum(bar_datum)
+    erwartet = letzter_beendeter_handelstag(markt, jetzt)
+    if bar is None or erwartet is None:
+        return None
+    return _zaehle_handelstage(bar, erwartet)
 
 
 def parse_ts(ts_iso) -> Optional[_dt.datetime]:

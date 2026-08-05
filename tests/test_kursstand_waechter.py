@@ -125,34 +125,45 @@ def test_am_feiertag_KEIN_fehlalarm():
     assert f and f[0]["detail"]["lag_trading_days"] == 2   # Mo 06. + Di 07.
 
 
-def test_VORMITTAGS_LAUF_meldet_einen_rueckstand_den_es_nicht_geben_kann():
-    """ZWEITE BEKANNTE GRENZE, real aufgetreten (Guardian-Fund 04.08.2026).
+def test_VORMITTAGS_LAUF_meldet_NICHTS_MEHR():
+    """DER FEHLALARM IST WEG (05.08.2026) — vorher stand hier das Gegenteil.
 
-    Die Regel liest vom Lauf-Zeitstempel nur das **Datum** (``[:10]``) und
-    ignoriert die Uhrzeit. Ein Lauf am Vormittag erwartet damit eine Bar für
-    **heute** — die es zu diesem Zeitpunkt gar nicht geben kann, weil die Börse
-    noch nicht geschlossen (oder nicht einmal geöffnet) hat.
+    Bis zum Sitzungs-Ende-Anker las die Regel vom Lauf-Zeitstempel nur das
+    **Datum** und erwartete deshalb am Vormittag eine Bar für **heute** — die es
+    zu dem Zeitpunkt gar nicht geben kann. ECHT PASSIERT: die Hand-Dispatches am
+    31.07. um 11:16 und 11:22 UTC; die NYSE öffnet erst 13:30 UTC, US stand
+    folglich auf dem 30.07., und die Regel meldete zweimal einen Rückstand.
 
-    ECHT PASSIERT: die Hand-Dispatches am 31.07. um 11:16 und 11:22 UTC. Die
-    NYSE öffnet erst 13:30 UTC, US stand folglich auf dem 30.07. — die Regel
-    hätte zweimal ``US: Kurse 1 Handelstag zurück`` gemeldet. Kein Defekt in
-    den Daten, sondern eine Erwartung, die zur Uhrzeit nicht passt.
-
-    Betrifft **nur** Läufe vor Handelsschluss, also den Recalculate-Knopf und
-    Hand-Dispatches — der geplante Cron um 21:45 UTC liegt nach beiden
-    Schlusszeiten und ist nicht betroffen. Das Verhalten steht hier fest, damit
-    es sichtbar bleibt; ob die Regel eine markt-eigene Schlusszeit bekommt, ist
-    eine offene Entscheidung (siehe PR-Text und Registry).
+    Jetzt erwartet die Regel den letzten Handelstag, dessen Sitzung zur
+    LAUF-ZEIT beendet war. Am Vormittag ist das der Vortag — der 30.07.-Stand
+    ist damit aktuell, nicht verspätet.
     """
-    # Freitag 31.07., 11:16 UTC — US hat noch nicht geöffnet.
+    # Freitag 31.07., 11:16 UTC — US hat noch nicht geöffnet, Xetra läuft noch.
     f = hc.check_bar_freshness(
         _report("2026-07-31T11:16:07Z", DE="2026-07-31", US="2026-07-30"))
-    assert len(f) == 1 and f[0]["market"] == "US"
-    assert f[0]["severity"] == "warn" and f[0]["detail"]["lag_trading_days"] == 1
-    # Derselbe Datenstand am ABEND ist derselbe Befund — dort zu Recht.
+    assert f == [], f"Fehlalarm ist zurück: {f}"
+    f2 = hc.check_bar_freshness(
+        _report("2026-07-31T11:22:00Z", DE="2026-07-31", US="2026-07-30"))
+    assert f2 == []
+    # Der ABEND-Lauf desselben Tages meldet unverändert — dort zu Recht, denn
+    # beide Sitzungen sind vorbei und die US-Bar von Donnerstag fehlt wirklich.
     abends = hc.check_bar_freshness(
         _report("2026-07-31T22:40:44Z", DE="2026-07-31", US="2026-07-30"))
     assert [x["market"] for x in abends] == ["US"]
+    assert abends[0]["severity"] == "warn"
+    assert abends[0]["detail"]["expected_bar_date"] == "2026-07-31"
+
+
+def test_ein_lauf_KURZ_NACH_schluss_meldet_wieder():
+    """Die Gegenprobe zum Vormittag: eine Minute nach Xetra-Schluss ist die
+    Tages-Bar fällig. Ohne diesen Test wäre „meldet nie mehr" ununterscheidbar
+    von „meldet zum richtigen Zeitpunkt"."""
+    # 31.07., 17:31 Ortszeit Berlin = 15:31 UTC (Sommerzeit) — Xetra ist zu,
+    # die NYSE handelt noch. Erwartet: DE gemeldet, US still.
+    f = hc.check_bar_freshness(
+        _report("2026-07-31T15:31:00Z", DE="2026-07-30", US="2026-07-30"))
+    assert [x["market"] for x in f] == ["DE"], f
+    assert f[0]["detail"]["expected_bar_date"] == "2026-07-31"
 
 
 def test_EINZELMARKT_feiertag_erzeugt_ein_warn_das_sich_selbst_heilt():
@@ -256,10 +267,18 @@ def _echter_report(sha: str) -> dict:
     return json.loads(roh.stdout)
 
 
-def test_der_echte_04_08_fall_haette_CRIT_gemeldet():
+def test_der_echte_04_08_fall_meldet_jetzt_WARN_statt_crit():
     """Lauf 30878626833, 04.08. 04:46 UTC — beide Märkte auf 2026-07-31.
 
-    Damals: ``status: ok``, ``findings: []``. Genau das war die Lücke.
+    Damals: ``status: ok``, ``findings: []``. Genau das war die Lücke, die #71
+    geschlossen hat (dort: 2× ``crit``).
+
+    HERABSTUFUNG durch den Sitzungs-Ende-Anker (05.08.2026), ausdrücklich
+    gewollt: um 04:46 UTC war die letzte BEENDETE Sitzung die vom **Montag,
+    03.08.** — nicht die vom Dienstag, den es zu dieser Uhrzeit noch nicht gab.
+    Der Rückstand ist damit **1** statt 2 Handelstage, und 1 ist ``warn``.
+    Sachlich richtiger: die Kurse waren einen beendeten Handelstag alt, nicht
+    zwei. Gemeldet wird weiterhin — nur ehrlicher eingestuft.
     """
     r = _echter_report("ed4770c")
     assert r["run_timestamp_utc"] == "2026-08-04T04:46:23Z"
@@ -267,10 +286,10 @@ def test_der_echte_04_08_fall_haette_CRIT_gemeldet():
         "Voraussetzung: der echte Lauf meldete nichts"
     f = hc.check_bar_freshness(r)
     assert {x["market"] for x in f} == {"DE", "US"}
-    assert [x["severity"] for x in f] == ["crit", "crit"]
-    assert all(x["detail"] == {"expected_bar_date": "2026-08-04",
+    assert [x["severity"] for x in f] == ["warn", "warn"]
+    assert all(x["detail"] == {"expected_bar_date": "2026-08-03",
                                "last_bar_date": "2026-07-31",
-                               "lag_trading_days": 2, "crit_ab": 2} for x in f)
+                               "lag_trading_days": 1, "crit_ab": 2} for x in f)
 
 
 def test_der_gesunde_lauf_vom_03_08_bleibt_still():

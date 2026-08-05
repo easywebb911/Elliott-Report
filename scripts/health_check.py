@@ -218,9 +218,18 @@ def check_bar_freshness(report: Dict, crit_ab: int = BAR_LAG_CRIT) -> List[Dict]
     lauf_datum = str(report.get("run_timestamp_utc") or "")[:10]
     if not lauf_datum:
         return []
-    erwartet = cal.letzter_handelstag(lauf_datum)
-    if erwartet is None:
+    kalender_erwartet = cal.letzter_handelstag(lauf_datum)
+    if kalender_erwartet is None:
         return []
+    # Sitzungs-Ende-Anker (05.08.2026): erwartet wird der letzte Handelstag,
+    # dessen Börsensitzung zur LAUF-ZEIT beendet war — je Markt eigen. Damit
+    # entfällt der Fehlalarm der Vormittags-Läufe (31.07. 11:16/11:22 US: warn
+    # bei Rückstand 1, obwohl die NYSE noch nicht geöffnet hatte).
+    # NUR HIER. Das Sammlungs-Gate bleibt am Kalendertag-Anker
+    # (`diag.bar_lag_trading_days`) — siehe validation_registry.md 05.08.2026.
+    # Keine Karenzzeit: liefert die Quelle nach Sitzungsende noch keine fertige
+    # Bar, ist das ein QUELLEN-Problem und bleibt ein gemeldeter Rückstand.
+    lauf_zeit = cal.parse_ts(report.get("run_timestamp_utc"))
 
     out: List[Dict] = []
     for key, market in sorted((report.get("markets") or {}).items()):
@@ -229,7 +238,15 @@ def check_bar_freshness(report: Dict, crit_ab: int = BAR_LAG_CRIT) -> List[Dict]
         bar = ((market.get("diag") or {}).get("last_bar_date"))
         if not bar:
             continue
-        lag = cal.handelstage_rueckstand(bar, lauf_datum)
+        # Fail-soft in EINE Richtung: ist das Sitzungs-Ende nicht bestimmbar
+        # (unbekannter Markt, kaputter Zeitstempel, fehlende tzdata), gilt der
+        # bisherige Kalendertag-Anker — nie gar keine Prüfung.
+        erwartet = cal.letzter_beendeter_handelstag(key, lauf_zeit)
+        if erwartet is None:
+            erwartet = kalender_erwartet
+            lag = cal.handelstage_rueckstand(bar, lauf_datum)
+        else:
+            lag = cal.handelstage_rueckstand_sitzung(bar, key, lauf_zeit)
         if not lag:                      # None (unlesbar) oder 0 (aktuell)
             continue
         sev = CRIT if lag >= crit_ab else WARN
