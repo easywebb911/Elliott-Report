@@ -286,10 +286,12 @@ def _fn(name: str, tiefe: str = "    ") -> str:
 def _js(script: str):
     if not _NODE:
         pytest.skip("kein node vorhanden — die Literal-Tests decken dieselben Fälle")
-    quelle = ("function esc(s){return String(s).replace(/[&<>\"]/g,"
-              "c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));}\n"
-              + _fn("standHinweis") + "\n" + _fn("marktStand") + "\n"
-              + _fn("seriesRow", "      "))
+    # `esc` wird AUS DER SEITE gezogen, nicht nachgebaut (Guardian-Nit
+    # 05.08.2026): ein handgeschriebener Double war hier ohne null-Guard und
+    # damit freundlicher als das Original — ein Test soll nie an einer
+    # Nachbildung vorbeimessen.
+    quelle = "\n".join([_fn("esc"), _fn("standHinweis"), _fn("marktStand"),
+                        _fn("seriesRow", "      ")])
     r = subprocess.run([_NODE, "-e", quelle + "\n" + script],
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr
@@ -373,3 +375,20 @@ def test_eine_LEERE_reihe_landet_nicht_im_sink_und_wirft_nicht():
     # und die Zusammenfassung bleibt rechenbar
     q = pipe.series_summary(sink)
     assert q["tickers"] == 1 and q["bars_min"] == 40
+
+
+def test_der_hinweis_maskiert_report_werte():
+    """Die Werte kommen aus einer Datei im Repo — sie gehen durch `esc`, bevor
+    sie HTML werden. Geprüft mit der ECHTEN `esc`-Funktion der Seite."""
+    erg = _js("""console.log(JSON.stringify(standHinweis(
+      {date:'<img src=x onerror=alert(1)>', lag:2})))""")
+    assert "<img" not in erg and "&lt;img" in erg
+
+
+def test_die_lauf_status_zeile_maskiert_den_abdruck():
+    erg = _js("""console.log(JSON.stringify(seriesRow({series:{
+      tickers:2, bars_min:1, bars_median:1, bars_max:1,
+      last_bar_max:'<b>x</b>', tickers_at_last_bar:1,
+      first_bar_min:'2026-01-01', shape_digest:'<script>'}})))""")
+    assert "<b>" not in erg and "&lt;b&gt;" in erg
+    assert "<script>" not in erg
