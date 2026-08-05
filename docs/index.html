@@ -861,6 +861,12 @@
     /* Chip-Zeile entfernt (doppelt zu den Kacheln; Entfernen-× lebt auf der Kachel). */
     /* Situativer Sync-Status: „noch nicht gesynct"-Chip NUR wenn wirklich etwas
        ungesynct ist (Erfolg meldet ein kurzer Toast, kein Dauertext). */
+    /* Veraltungs-Hinweis auf der Karte (05.08.2026): dezent, klein, Warnfarbe,
+       blockiert nichts. Erscheint NUR bei Rückstand >= 1 Handelstag. */
+    .bar-stand {
+      margin-top:4px; font-size:0.625rem; font-weight:600; line-height:1.25;
+      color:var(--ora); white-space:normal; text-align:right;
+    }
     .wl-sync {
       display:inline-flex; align-items:center; gap:6px; margin:10px 0 0;
       font-size:0.71875rem; font-weight:600; color:var(--ora);
@@ -2024,7 +2030,35 @@
       return `<div class="tf-block"><div class="tf-title">Analyse · Zeitebenen</div>${rows}</div>`;
     }
 
-    function card(c, rank) {
+    // Veraltungs-Hinweis auf der Karte (05.08.2026). Die Zahl kommt FERTIG aus
+    // dem Report (`diag.bar_lag_trading_days`, gerechnet in market_calendar) —
+    // ein zweiter Handelskalender in JavaScript würde beim nächsten Feiertag
+    // auseinanderlaufen. Hier wird deshalb NUR formatiert, nie gerechnet.
+    // Rückstand 0, fehlendes Feld oder älterer Report -> kein Hinweis.
+    function standHinweis(stand) {
+      if (!stand) return '';
+      const lag = Number(stand.lag);
+      if (!Number.isFinite(lag) || lag < 1) return '';
+      const d = stand.date ? String(stand.date) : '';
+      // Reine Zeichen-Umstellung 2026-08-03 -> 03.08. — keine Datumsrechnung.
+      const kurz = /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.` : d;
+      const tage = lag === 1 ? 'Handelstag' : 'Handelstage';
+      return `<div class="bar-stand" title="Der letzte gültige Kurs-Balken dieses`
+        + ` Marktes liegt hinter dem letzten erwarteten Handelstag. Score, Filter`
+        + ` und Anzeige rechnen auf diesem Stand.">`
+        + (kurz ? `Kurse vom ${esc(kurz)} — ` : '')
+        + `${lag} ${tage} zurück</div>`;
+    }
+
+    // Den Kurs-Stand eines Marktes als fertiges Päckchen — EINE Stelle, die
+    // weiß, wo die Zahlen im Report liegen.
+    function marktStand(market) {
+      const d = market && market.diag;
+      if (!d || typeof d !== 'object') return null;
+      return { date: d.last_bar_date || null, lag: d.bar_lag_trading_days };
+    }
+
+    function card(c, rank, stand) {
       const ys = (c.chart_points || []).map(p => p.price);
       const trendUp = ys.length >= 2 ? ys[ys.length - 1] >= ys[0] : true;
       const zone = c.target_zone ? `${fmt(c.target_zone.low)}–${fmt(c.target_zone.high)}` : '–';
@@ -2089,6 +2123,7 @@
               <span class="live-dot" data-quote="dot" title="Live-Quote wird geladen …"></span>
               <span class="live-time" data-quote="time"></span>
             </div>
+            ${standHinweis(stand)}
           </div>
         </div>
         <div class="setup">${esc(c.count_label || '')}</div>
@@ -2134,7 +2169,8 @@
     const MARKET_FLAG = { US: '🇺🇸', DE: '🇩🇪' };
     function renderMarket(id, market) {
       const el = document.getElementById(id);
-      const cards = (market.candidates || []).map((c, i) => card(c, i + 1)).join('');
+      const stand = marktStand(market);
+      const cards = (market.candidates || []).map((c, i) => card(c, i + 1, stand)).join('');
       const flag = MARKET_FLAG[id] ? ` <span class="flag">${MARKET_FLAG[id]}</span>` : '';
       el.innerHTML = `<h2>${esc(market.label)}${flag}</h2>` +
         (cards ? `<div class="grid">${cards}</div>`
@@ -2304,8 +2340,8 @@
     }
 
     // Watchlist-Karte: setup -> volle Karte; sonst kompakte Karte mit Hinweis.
-    function watchlistCard(c) {
-      if (c.wl_status === 'setup') return card(c, '☆');
+    function watchlistCard(c, stand) {
+      if (c.wl_status === 'setup') return card(c, '☆', stand);
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
@@ -2329,7 +2365,7 @@
               ${company}${sector}
             </div>
           </div>
-          <div class="card-right">${right}</div>
+          <div class="card-right">${right}${isErr ? '' : standHinweis(stand)}</div>
         </div>
         <div class="wl-note${isErr ? ' wl-note-err' : ''}">${esc(c.note || '')}${c.reason ? ` <span style="opacity:.7">(${esc(c.reason)})</span>` : ''}</div>
         ${isErr ? '' : tjAddBtn(c, c.market || '')}
@@ -2428,9 +2464,18 @@
         return;
       }
       const openSet = _wlExpandedSet();
+      // Kurs-Stand des Marktes, zu dem der Ticker gehört. `market_key` setzt die
+      // Pipeline (sie kennt die Universen); steht der Ticker in keinem, bleibt
+      // es null und die Karte zeigt KEINEN Hinweis — lieber gar keine Angabe
+      // als eine aus einem fremden Markt.
+      const staende = {};
+      for (const mk of Object.keys((report && report.markets) || {})) {
+        staende[mk] = marktStand(report.markets[mk]);
+      }
       el.innerHTML = list.map(t => {
         const e = byTicker.get(t);
-        const inner = e ? watchlistCard(e) : _wlInstantCard(t);
+        const stand = (e && e.market_key) ? (staende[e.market_key] || null) : null;
+        const inner = e ? watchlistCard(e, stand) : _wlInstantCard(t);
         return wlTile(t, inner, e, openSet.has(t));
       }).join('');
     }
@@ -4057,6 +4102,32 @@
           + `Kurs-Stand veraltet</span></span>`;
       }
 
+      // Reihen-Diagnose (05.08.2026): WAS hat der Lauf an Kursreihe bekommen?
+      // `last_bar_date` ist das JÜNGSTE Datum über alle Ticker — es sagt nichts
+      // darüber, wie viele dort ankommen und wie lang die Reihen sind. Genau
+      // das entscheidet aber, ob ein Pivot schon bestätigt ist. Alle Zahlen
+      // kommen FERTIG aus dem Report; hier wird nichts nachgerechnet.
+      // Ältere Reports ohne den Block zeigen die Zeile nicht.
+      function seriesRow(d) {
+        const q = d.series;
+        if (!q || typeof q !== 'object') return '';
+        const n = Number(q.tickers);
+        if (!Number.isFinite(n) || n < 1) return '';
+        const z = (v) => (Number.isFinite(Number(v)) ? String(Number(v)) : '–');
+        const amJuengsten = (Number.isFinite(Number(q.tickers_at_last_bar)) && q.last_bar_max)
+          ? `jüngster Bar ${esc(String(q.last_bar_max))} bei ${z(q.tickers_at_last_bar)} von ${z(n)}`
+          : '';
+        const start = q.first_bar_min
+          ? `ältester Reihenstart ${esc(String(q.first_bar_min))}` : '';
+        const abdruck = q.shape_digest ? `Abdruck ${esc(String(q.shape_digest))}` : '';
+        const zusatz = [amJuengsten, start, abdruck].filter(Boolean).join(' · ');
+        return `<span class="k">Reihen</span><span class="v">`
+          + `${z(n)} Ticker · Bars ${z(q.bars_min)} / ${z(q.bars_median)} / ${z(q.bars_max)} `
+          + `<span class="lauf-zusatz">(min / Median / max)</span>`
+          + (zusatz ? `<br><span class="lauf-zusatz">${zusatz}</span>` : '')
+          + `</span>`;
+      }
+
       function barsRow(d) {
         const dropped = Number(d.dropped_bars || 0);
         const badVol = Number(d.invalid_volume_bars || 0);
@@ -4118,6 +4189,7 @@
                <span class="k">Großer Grad</span><span class="v">${d.higher_degree_count ?? 0} / ${d.top_count ?? 0} mit Wochen-Count</span>
                ${barDateRow(d)}
                ${gatedRow(d)}
+               ${seriesRow(d)}
                ${barsRow(d)}
              </div>
              <div class="status-skips">${chips}</div>`;
