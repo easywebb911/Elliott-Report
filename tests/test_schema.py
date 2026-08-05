@@ -343,7 +343,11 @@ def test_market_diag_present_and_shaped():
                           "expected_bar_date", "bar_lag_trading_days",
                           # Sammlungs-Schutz (05.08.2026): hat dieser Lauf fuer
                           # diesen Markt neue Episoden unterdrueckt? Additiv.
-                          "new_episodes_gated"}
+                          "new_episodes_gated",
+                          # Reihen-Diagnose (05.08.2026): WAS hat der Lauf an
+                          # Kursreihe bekommen? Beantwortet „frisch, aber zu
+                          # KURZ?" — additiv, rein beschreibend.
+                          "series"}
         # Gesunde (synthetische) Daten: nichts verworfen.
         assert d["dropped_bars"] == 0 and d["invalid_volume_bars"] == 0
         assert d["bad_bar_tickers"] == []

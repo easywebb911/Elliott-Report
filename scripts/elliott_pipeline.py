@@ -18,6 +18,7 @@ NUR der Entwicklung/Demonstration und ist klar als solches markiert.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -1276,10 +1277,73 @@ def build_candidate(
     return entry, None, ""
 
 
+# ---------------------------------------------------------------------------
+# REIHEN-DIAGNOSE (additiv, 05.08.2026) — was hat der Lauf TATSÄCHLICH bekommen?
+# ---------------------------------------------------------------------------
+# Anlass: am 03.08. lieferten zwei Läufe elf Minuten auseinander denselben
+# `last_bar_date`, dieselbe Zahl gefundener Kandidaten — und trotzdem einen
+# ANDEREN gültigen Kandidatensatz (`no_valid_count` 50 vs. 49). Aus dem Report
+# war nicht rekonstruierbar, warum: `last_bar_date` ist das JÜNGSTE Bar-Datum
+# über alle Ticker und sagt nichts darüber, wie viele Ticker dort ankommen und
+# wie lang ihre Reihen sind. Genau das fehlte für die Frage „frisch, aber zu
+# KURZ?" — der ZigZag bestätigt einen Pivot erst, wenn ihm ZIGZAG_WINDOW Bars
+# folgen; eine um wenige Zeilen kürzere Reihe kippt deshalb ganze Zählungen.
+#
+# REIN BESCHREIBEND: kein Score, kein Filter, kein Ranking, kein Gate liest
+# diese Felder. Sie beschreiben den Eingang, sie verändern ihn nicht.
+def _shape_digest(series: Dict[str, Tuple[int, str, str]]) -> str:
+    """Kurzer Abdruck der EINGANGS-FORM (Ticker, Bar-Zahl, erstes/letztes Datum).
+
+    Der Sinn ist der Vergleich ZWEIER Läufe: gleicher Abdruck = gleiche
+    Reihenform, also muss ein Unterschied im Ergebnis eine andere Ursache
+    haben. Bewusst NICHT über die Kurse selbst — Preise können sich nachträglich
+    korrigieren, ohne dass die Form sich ändert, und ein Abdruck, der bei jedem
+    Cent anspringt, beantwortet die Frage nicht mehr.
+    """
+    roh = "\n".join(f"{t}|{n}|{f}|{l}" for t, (n, f, l) in sorted(series.items()))
+    return hashlib.sha256(roh.encode("utf-8")).hexdigest()[:12]
+
+
+def series_summary(series: Dict[str, Tuple[int, str, str]]) -> Optional[Dict]:
+    """Verteilung der gelieferten Kursreihen über die Ticker EINES Marktes.
+
+    ``series``: ticker -> (Bar-Anzahl, erstes Bar-Datum, letztes Bar-Datum).
+    Leerer Eingang -> ``None`` (kein leerer Block im Report).
+
+    ``bars_median`` ist der UNTERE Median (``sorted[(n-1)//2]``) — bei gerader
+    Anzahl also ein Wert, den ein Ticker wirklich hat, statt eines gemittelten,
+    den keiner hat. Für eine Bar-ANZAHL ist das die ehrlichere Angabe.
+    """
+    if not series:
+        return None
+    laengen = sorted(n for (n, _f, _l) in series.values())
+    ersten = sorted(f for (_n, f, _l) in series.values() if f)
+    letzten = sorted(l for (_n, _f, l) in series.values() if l)
+    n = len(laengen)
+    juengster = letzten[-1] if letzten else None
+    return {
+        "schema": 1,
+        "tickers": n,
+        "bars_min": laengen[0],
+        "bars_median": laengen[(n - 1) // 2],
+        "bars_max": laengen[-1],
+        "first_bar_min": ersten[0] if ersten else None,
+        "first_bar_max": ersten[-1] if ersten else None,
+        "last_bar_min": letzten[0] if letzten else None,
+        "last_bar_max": juengster,
+        # Wie viele Ticker reichen ÜBERHAUPT bis zum jüngsten Bar? Der Wert
+        # trennt „der ganze Markt ist auf Stand" von „einer ist es, 116 nicht" —
+        # eine Unterscheidung, die `last_bar_date` allein verschluckt.
+        "tickers_at_last_bar": sum(1 for l in letzten if l == juengster),
+        "shape_digest": _shape_digest(series),
+    }
+
+
 def _scan_market(
     universe: Sequence[str], fetcher: Fetcher,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
+    series_sink: Optional[Dict[str, Tuple[int, str, str]]] = None,
 ) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]], List[Tuple[str, str]]]:
     """Verarbeitet ein Universum (fail-soft je Ticker) — ohne I/O/Logging.
 
@@ -1349,6 +1413,11 @@ def _scan_market(
         dates, closes = outcome.data
         if dates and (letztes_bar is None or dates[-1] > letztes_bar):
             letztes_bar = dates[-1]
+        # Reihenform mitschreiben (05.08.2026, rein beschreibend). Bewusst HIER,
+        # wo die verwertbare Reihe vorliegt — also nach dem Verwerfen nicht
+        # finiter Bars und vor der Zaehlung. Genau diese Reihe sieht der ZigZag.
+        if series_sink is not None and dates:
+            series_sink[ticker] = (len(dates), dates[0], dates[-1])
         # Kursdaten für die Forward-Sammlung mitnehmen (kein Re-Fetch): ALLE
         # erfolgreich geladenen Ticker, damit auch aus Top-5 gefallene Records
         # ausreifen können.
@@ -1387,9 +1456,10 @@ def build_market(
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
 
+    _series: Dict[str, Tuple[int, str, str]] = {}
     (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
      _letztes_bar) = _scan_market(
-        universe, fetcher, price_sink, volume_sink)
+        universe, fetcher, price_sink, volume_sink, _series)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
@@ -1485,6 +1555,9 @@ def build_market(
             "dropped_bar_dates": dict(sorted(_dropped_dates.items())),
             "dropped_last_row": _dropped_last,
             "dropped_mid_row": _dropped_mid,
+            # Reihen-Diagnose (05.08.2026): war die Reihe frisch, aber zu KURZ?
+            # `last_bar_date` allein kann das nicht beantworten.
+            "series": series_summary(_series),
         },
     }
 
@@ -1660,6 +1733,23 @@ def build_watchlist_entry(
     return e
 
 
+def _market_of(ticker: str) -> Optional[str]:
+    """Zu welchem Markt-Universum gehört dieser Watchlist-Ticker? Sonst ``None``.
+
+    Der Veraltungs-Hinweis auf der Karte braucht den Rückstand DES MARKTES —
+    und der steht je Markt im Report. Watchlist-Ticker müssen aber in keinem
+    Universum stehen; dann bleibt das Feld ``None`` und die Karte zeigt keinen
+    Hinweis (lieber gar keine Angabe als eine aus einem fremden Markt).
+    Bewusst hier in Python: das Frontend soll weder Universen noch einen
+    Handelskalender kennen.
+    """
+    t = str(ticker or "").upper()
+    for mk, cfg in config.MARKETS.items():
+        if t in {str(x).upper() for x in (cfg.get("universe") or ())}:
+            return mk
+    return None
+
+
 def build_watchlist(
     fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
     monthly_fetcher: Optional[Fetcher] = None,
@@ -1674,6 +1764,11 @@ def build_watchlist(
     for tk in tks:
         e = build_watchlist_entry(tk, fetcher, weekly_fetcher, monthly_fetcher,
                                   price_sink, volume_sink)
+        # BEWUSST `market_key`, nicht `market`: die Karten übergeben dem
+        # Journal-Knopf bereits `c.market || ''` (bisher immer leer). Ein Feld
+        # namens `market` würde also still ändern, was ins Journal geschrieben
+        # wird — das wäre eine Datenänderung, nicht Anzeige.
+        e["market_key"] = _market_of(tk)   # additiv, nur für den Karten-Hinweis
         counts[e["wl_status"]] = counts.get(e["wl_status"], 0) + 1
         entries.append(e)
     _log(f"[elliott][diag] Watchlist: {len(entries)} Ticker "
