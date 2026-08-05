@@ -304,11 +304,17 @@ def test_das_gate_entscheidet_bei_den_geaenderten_laeufen_gleich(ts, bar, soll):
 
 
 def test_gate_identitaet_ueber_die_REALE_historie():
-    """Die Populations-Garantie dieses PRs, am echten Bestand.
+    """Das Gate entscheidet über die REALE Historie unverändert.
 
     Jeder committete Report läuft durch ``fc.stale_markets``; das Ergebnis muss
-    exakt dem entsprechen, was der Kalendertag-Anker liefert — die Funktion,
-    die das Gate steuert, ist von diesem PR nicht berührt.
+    exakt dem entsprechen, was ``diag.bar_lag_trading_days >= 1`` liefert.
+
+    GENAU GENOMMEN (Guardian-Nit 05.08.2026): dieser Test belegt, dass
+    ``stale_markets`` sein VERHALTEN nicht geändert hat — nicht, dass
+    ``bar_lag_trading_days`` richtig gerechnet wird. Das Zweite deckt
+    ``test_das_gate_liest_weiter_das_unveraenderte_diag_feld`` ab (die Pipeline
+    schreibt das Feld weiter aus ``handelstage_rueckstand``). Erst beide
+    zusammen sind die Populations-Garantie; ein Test allein verspräche zu viel.
     """
     shas = subprocess.run(["git", "log", "--format=%H", "--", "docs/data/report.json"],
                           capture_output=True, text=True, cwd=ROOT).stdout.split()

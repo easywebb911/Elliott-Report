@@ -1024,7 +1024,8 @@ vor n ≥ 100) gilt unverändert.
     gegen den letzten Handelstag **bis einschließlich des Lauf-Datums**. Ein Lauf
     am Vormittag erwartet damit eine Bar des laufenden Tages, dessen Sitzung noch
     gar nicht beendet ist. Belegt an den Läufen vom **31.07. 11:16 und 11:22**
-    (US, `crit`) — zu jener Uhrzeit hatte die NYSE noch nicht einmal geöffnet.
+    (US, `warn` bei Rückstand 1) — zu jener Uhrzeit hatte die NYSE noch nicht
+    einmal geöffnet.
   - **NEUE ERWARTUNG (nur Wächter):** der letzte Handelstag, dessen Börsensitzung
     zur **Lauf-Zeit** bereits **beendet** war — je Markt eigen (NYSE 16:00
     America/New_York, Xetra 17:30 Europe/Berlin). Die Schlusszeiten werden über

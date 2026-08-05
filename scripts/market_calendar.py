@@ -134,8 +134,8 @@ def _zaehle_handelstage(bar: _dt.date, erwartet: _dt.date) -> int:
 # Anlass: der Kurs-Stand-Wächter rechnete gegen den letzten Handelstag BIS
 # EINSCHLIESSLICH des Lauf-Datums. Ein Lauf am Vormittag erwartete damit eine
 # Bar des laufenden Tages, dessen Sitzung noch gar nicht beendet war — belegt
-# an den Läufen vom 31.07. 11:16/11:22 (US, crit), zu denen die NYSE noch nicht
-# einmal geöffnet hatte.
+# an den Läufen vom 31.07. 11:16/11:22 (US, warn bei Rückstand 1), zu denen die
+# NYSE noch nicht einmal geöffnet hatte.
 #
 # ERGÄNZUNG, KEIN ERSATZ: `is_trading_day` bleibt die EINE Definition von
 # „Handelstag". Hier kommt nur die Frage dazu, ob die Sitzung dieses Tages zur

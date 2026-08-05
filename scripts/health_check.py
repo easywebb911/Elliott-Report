@@ -223,8 +223,8 @@ def check_bar_freshness(report: Dict, crit_ab: int = BAR_LAG_CRIT) -> List[Dict]
         return []
     # Sitzungs-Ende-Anker (05.08.2026): erwartet wird der letzte Handelstag,
     # dessen Börsensitzung zur LAUF-ZEIT beendet war — je Markt eigen. Damit
-    # entfällt der Fehlalarm der Vormittags-Läufe (31.07. 11:16/11:22 US: crit,
-    # obwohl die NYSE noch nicht geöffnet hatte).
+    # entfällt der Fehlalarm der Vormittags-Läufe (31.07. 11:16/11:22 US: warn
+    # bei Rückstand 1, obwohl die NYSE noch nicht geöffnet hatte).
     # NUR HIER. Das Sammlungs-Gate bleibt am Kalendertag-Anker
     # (`diag.bar_lag_trading_days`) — siehe validation_registry.md 05.08.2026.
     # Keine Karenzzeit: liefert die Quelle nach Sitzungsende noch keine fertige
