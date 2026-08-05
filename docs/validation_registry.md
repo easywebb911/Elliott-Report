@@ -1016,3 +1016,47 @@ vor n ≥ 100) gilt unverändert.
   `python scripts/mark_stale_market_records.py --purge --live` byte-identisch.
   **Kein Datenstand wird ungültig**, keine gemessene Zahl ändert sich, diese
   Notiz bleibt gültig.
+
+- **2026-08-05 — Sitzungs-Ende als Erwartungs-Anker: NUR für den Wächter, NICHT
+  für das Gate.** Zwei Anker auf EINER Kalenderfunktion — ausdrücklich gewollt,
+  damit es später nicht als Inkonsistenz „aufgeräumt" wird.
+  - **Der Fehlalarm, der den Anlass gibt:** der Kurs-Stand-Wächter (#71) rechnet
+    gegen den letzten Handelstag **bis einschließlich des Lauf-Datums**. Ein Lauf
+    am Vormittag erwartet damit eine Bar des laufenden Tages, dessen Sitzung noch
+    gar nicht beendet ist. Belegt an den Läufen vom **31.07. 11:16 und 11:22**
+    (US, `crit`) — zu jener Uhrzeit hatte die NYSE noch nicht einmal geöffnet.
+  - **NEUE ERWARTUNG (nur Wächter):** der letzte Handelstag, dessen Börsensitzung
+    zur **Lauf-Zeit** bereits **beendet** war — je Markt eigen (NYSE 16:00
+    America/New_York, Xetra 17:30 Europe/Berlin). Die Schlusszeiten werden über
+    echte Zeitzonen (`zoneinfo`) aufgelöst, **nicht** über feste UTC-Abstände:
+    USA und EU stellen die Sommerzeit an verschiedenen Terminen um, in den
+    Zwischenwochen wäre jeder feste Abstand falsch.
+  - **DAS GATE (#72) BLEIBT AM KALENDERTAG-ANKER.** Begründung, weil sie sonst
+    verloren geht: Würde das Gate mitgelockert, wären Tages-Läufe wieder
+    sammelfähig. Da #68 den **ERSTEN** Lauf eines Kalendertags einfrieren lässt,
+    bestimmte dann ein Mittags-Recalculate den `entry_close` statt des
+    Abend-Crons — also **ältere Einfrier-Kurse in der Validierungs-Population**.
+    Der Wächter darf großzügiger werden (er warnt), die Sammlung nicht (sie
+    misst). **Eine Kalenderfunktion, zwei Erwartungs-Anker:**
+    Anzeige/Warnung = Sitzungs-Ende · Sammlung = Kalendertag.
+  - **KEINE Karenzzeit.** Dass die Quelle nach Sitzungsende noch keine fertige
+    Bar liefert, ist ein QUELLEN-Problem und wird weiter als Rückstand gemeldet.
+    Eine Karenz würde den `GRACE_HOURS`-Fehler wiederholen: falscher Anker,
+    Warnung gedämpft.
+  - **DATIERTE GRENZE — verkürzte Handelstage sind NICHT abgebildet.** NYSE
+    schließt am Tag nach Thanksgiving und an Heiligabend um 13:00 ET, Xetra am
+    24./31.12. früher. Bewusst nicht modelliert, weil die Abweichung **nur in
+    eine Richtung** wirkt: die Erwartung ist an diesen Tagen zwischen dem echten
+    und dem angenommenen Schluss **zu nachsichtig** (sie verlangt die Tages-Bar
+    ein paar Stunden später als nötig) — sie kann dort **keinen** Fehlalarm
+    erzeugen. Der Abend-Cron (21:45 UTC = 16:45 ET / 22:45 MEZ) liegt ohnehin
+    nach jedem dieser Schlüsse; betroffen wären allein manuelle Läufe in einem
+    Drei-Stunden-Fenster an ~4 Tagen im Jahr. Ein Test hält die Richtung fest.
+  - **Wirkung auf die Population: KEINE.** Das Gate liest weiterhin
+    `diag.bar_lag_trading_days` (Kalendertag-Anker), und dieses Feld ändert sich
+    nicht. Ein Replay über die committete Historie belegt **identische**
+    Gate-Entscheidungen vor und nach diesem PR. Kein Record, kein `entry_close`,
+    keine gemessene Zahl ändert sich.
+  Revert = PR zurücknehmen; dann rechnet der Wächter wieder gegen den
+  Kalendertag und die Vormittags-Fehlalarme kehren zurück. **Kein Datenstand
+  wird ungültig**, diese Notiz bleibt gültig.
