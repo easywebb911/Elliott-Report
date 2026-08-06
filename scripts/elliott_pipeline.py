@@ -1437,10 +1437,100 @@ def _scan_market(
             letztes_bar)
 
 
+# ---------------------------------------------------------------------------
+# WIEDERHOL-ABRUF (06.08.2026) — ein zweiter Versuch, wenn die Quelle die
+# Tages-Zeile bei der MEHRHEIT der Ticker unbrauchbar geliefert hat.
+# ---------------------------------------------------------------------------
+# HARTE REGEL: nie verschlechtern. Übernommen wird der zweite Versuch NUR, wenn
+# er messbar besser ist. Es wird NIE gemischt — entweder gilt der eine Abruf
+# oder der andere, samt seiner Kurse. Alles andere erzeugte Reihen, die es an
+# der Quelle nie gab.
+def _versuch(market_key: str, universe: Sequence[str], fetcher: Fetcher) -> Dict:
+    """EIN vollständiger Markt-Abruf mit EIGENEN Sinks.
+
+    Die eigenen Sinks sind der Kern der Nicht-Verschlechterungs-Zusage: ein
+    verworfener Versuch darf die Kurse des gültigen nicht überschreiben. Erst
+    der SIEGER wird nach außen übernommen.
+    """
+    preise: Dict[str, Tuple[List[str], List[float]]] = {}
+    volumen: Dict[str, List[float]] = {}
+    reihen: Dict[str, Tuple[int, str, str]] = {}
+    (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
+     letztes_bar) = _scan_market(universe, fetcher, preise, volumen, reihen)
+    return {
+        "candidates": candidates, "reason_counts": reason_counts,
+        "first_samples": first_samples, "dead_tickers": dead_tickers,
+        "bad_bars": bad_bars, "letztes_bar": letztes_bar,
+        "preise": preise, "volumen": volumen, "reihen": reihen,
+        "series": series_summary(reihen),
+        "dropped_last": sum(b[4] for b in bad_bars),
+    }
+
+
+def wiederholung_noetig(dropped_last_row: int, universe_size: int,
+                        share: Optional[float] = None) -> bool:
+    """Hat die Quelle die letzte Zeile bei einem WESENTLICHEN Anteil verworfen?
+
+    Schwelle als Anteil (Vorgabe: Mehrheit). Ein einzelner Ticker mit einer
+    kaputten Zeile ist Alltag und darf keinen zweiten Abruf auslösen.
+    """
+    if universe_size <= 0:
+        return False
+    grenze = config.RETRY_LAST_ROW_SHARE if share is None else share
+    # Eine Schwelle <= 0 hieße „IMMER wiederholen" — das ist nie gewollt und
+    # wäre ein stiller Dauer-Zusatzabruf (in Tests: ein echter `time.sleep`,
+    # der die Suite schlafen legt statt sie rot zu machen; Mutationsprobe
+    # 06.08.2026). Eine Schwelle > 1 kann nie greifen. Beides gilt als
+    # unbrauchbar konfiguriert -> keine Wiederholung.
+    if not (0 < grenze <= 1):
+        return False
+    return (dropped_last_row / universe_size) >= grenze
+
+
+def versuch_besser(neu: Optional[Dict], alt: Optional[Dict]) -> bool:
+    """Ist ``neu`` ECHT besser als ``alt``? Deterministisch, ohne Unentschieden.
+
+    Besser heißt genau zweierlei — in dieser Reihenfolge:
+      1. jüngeres letztes Bar-Datum, ODER
+      2. gleiches Datum, aber MEHR Ticker auf diesem jüngsten Bar.
+    Alles andere ist nicht besser. Gleichstand zählt ausdrücklich NICHT als
+    Verbesserung: bei Gleichstand bleibt der erste Abruf gültig, damit das
+    Ergebnis eines Laufs nicht von der Reihenfolge zweier gleichwertiger
+    Abrufe abhängt.
+    """
+    if not neu or not neu.get("last_bar_max"):
+        return False
+    if not alt or not alt.get("last_bar_max"):
+        return True
+    if neu["last_bar_max"] != alt["last_bar_max"]:
+        return neu["last_bar_max"] > alt["last_bar_max"]
+    return (neu.get("tickers_at_last_bar") or 0) > (alt.get("tickers_at_last_bar") or 0)
+
+
+def _protokoll_zeile(nummer: int, pause: int, v: Dict,
+                     uebernommen: Optional[bool] = None) -> Dict:
+    """Was dieser Versuch geliefert hat — die Grundlage für die Frage, ob
+    Wiederholen überhaupt hilft (und sonst für eine datierte Cron-Verschiebung)."""
+    q = v.get("series") or {}
+    zeile = {
+        "attempt": nummer,
+        "pause_seconds": pause,
+        "last_bar_date": v.get("letztes_bar"),
+        "tickers": q.get("tickers"),
+        "tickers_at_last_bar": q.get("tickers_at_last_bar"),
+        "dropped_last_row": v.get("dropped_last"),
+        "shape_digest": q.get("shape_digest"),
+    }
+    if uebernommen is not None:
+        zeile["adopted"] = uebernommen
+    return zeile
+
+
 def build_market(
     market_key: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
+    sleeper: Optional[Callable[[float], None]] = None,
 ) -> Dict:
     """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
 
@@ -1456,10 +1546,66 @@ def build_market(
     cfg = config.MARKETS[market_key]
     universe = cfg["universe"]
 
-    _series: Dict[str, Tuple[int, str, str]] = {}
-    (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
-     _letztes_bar) = _scan_market(
-        universe, fetcher, price_sink, volume_sink, _series)
+    # --- Abruf, ggf. mit EINEM Wiederholungsversuch (06.08.2026) -------------
+    _schlaf = sleeper if sleeper is not None else time.sleep
+    _protokoll: List[Dict] = []
+    _bester = _versuch(market_key, universe, fetcher)
+    _protokoll.append(_protokoll_zeile(1, 0, _bester))
+    _n = 1
+    # Ohne echte Quelle wird NIE wiederholt: synthetische Daten haben keine
+    # Quellen-Aussetzer, und ein echter `time.sleep` würde jeden Test-Lauf
+    # minutenlang blockieren. Geprüft wird BEIDES — die Umgebungsvariable UND
+    # der Fetcher selbst: `build_report(fetch_synthetic, …)` setzt die Variable
+    # nicht, und eine Fehl-Konfiguration der Schwelle darf nicht zum stillen
+    # Hänger führen (Mutationsprobe 06.08.2026: die Suite schlief statt rot zu
+    # werden).
+    _offline = (os.environ.get("ELLIOTT_OFFLINE") == "1"
+                or fetcher in (fetch_synthetic, fetch_synthetic_weekly,
+                               fetch_synthetic_monthly))
+    while (not _offline and _n < config.RETRY_MAX_ATTEMPTS
+           and wiederholung_noetig(_bester["dropped_last"], len(universe))):
+        anteil = _bester["dropped_last"] / max(1, len(universe))
+        _log(f"[elliott][abruf] {market_key}: letzte Zeile bei "
+             f"{_bester['dropped_last']}/{len(universe)} Tickern verworfen "
+             f"({anteil:.0%}) -> zweiter Abruf in {config.RETRY_PAUSE_SECONDS} s")
+        try:
+            _schlaf(config.RETRY_PAUSE_SECONDS)
+            _neu = _versuch(market_key, universe, fetcher)
+        except Exception as exc:  # noqa: BLE001 — LAUT, aber der Lauf steht nicht
+            _log(f"[elliott][abruf] {market_key}: zweiter Abruf FEHLGESCHLAGEN "
+                 f"({type(exc).__name__}: {exc}) -> der erste Abruf bleibt gültig")
+            _protokoll.append({"attempt": _n + 1,
+                               "pause_seconds": config.RETRY_PAUSE_SECONDS,
+                               "error": f"{type(exc).__name__}: {exc}"[:200],
+                               "adopted": False})
+            break
+        _n += 1
+        _besser = versuch_besser(_neu.get("series"), _bester.get("series"))
+        _protokoll.append(_protokoll_zeile(_n, config.RETRY_PAUSE_SECONDS,
+                                           _neu, uebernommen=_besser))
+        _a, _b = (_bester.get("series") or {}), (_neu.get("series") or {})
+        _log(f"[elliott][abruf] {market_key}: Versuch {_n} "
+             f"letzter Bar {_neu.get('letztes_bar')} bei "
+             f"{_b.get('tickers_at_last_bar')} Tickern, Versuch 1 "
+             f"{_bester.get('letztes_bar')} bei {_a.get('tickers_at_last_bar')} "
+             f"-> " + ("ÜBERNOMMEN (echt besser)" if _besser
+                       else "VERWORFEN (nicht besser, erster Abruf bleibt)"))
+        if not _besser:
+            break
+        _bester = _neu
+
+    # Erst der SIEGER wandert nach außen — nie eine Mischung aus zwei Abrufen.
+    if price_sink is not None:
+        price_sink.update(_bester["preise"])
+    if volume_sink is not None:
+        volume_sink.update(_bester["volumen"])
+    candidates = _bester["candidates"]
+    reason_counts = _bester["reason_counts"]
+    first_samples = _bester["first_samples"]
+    dead_tickers = _bester["dead_tickers"]
+    bad_bars = _bester["bad_bars"]
+    _letztes_bar = _bester["letztes_bar"]
+    _series = _bester["reihen"]
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
@@ -1558,6 +1704,10 @@ def build_market(
             # Reihen-Diagnose (05.08.2026): war die Reihe frisch, aber zu KURZ?
             # `last_bar_date` allein kann das nicht beantworten.
             "series": series_summary(_series),
+            # Protokoll je Abruf-Versuch (06.08.2026). Beantwortet nach wenigen
+            # Tagen die Frage, ob ein zweiter Abruf überhaupt hilft — und liefert
+            # sonst die Grundlage für eine datierte Cron-Verschiebung.
+            "fetch_attempts": _protokoll,
         },
     }
 

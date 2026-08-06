@@ -4128,6 +4128,30 @@
           + `</span>`;
       }
 
+      // Wiederhol-Abruf (06.08.2026): fand ein ZWEITER Abruf statt? Die Zeile
+      // erscheint NUR dann — an normalen Tagen läuft genau ein Abruf und sie
+      // wäre reines Rauschen. Alle Zahlen kommen fertig aus dem Report.
+      function attemptsRow(d) {
+        const a = d.fetch_attempts;
+        if (!Array.isArray(a) || a.length < 2) return '';
+        const teile = a.map(v => {
+          if (v && v.error) return `Versuch ${esc(String(v.attempt))}: Fehler`;
+          const bar = v && v.last_bar_date ? esc(String(v.last_bar_date)) : '–';
+          const n = (v && Number.isFinite(Number(v.tickers_at_last_bar)))
+            ? `${Number(v.tickers_at_last_bar)} Ticker` : '';
+          const mark = (v && v.adopted === true) ? ' ✓' : '';
+          return `Versuch ${esc(String(v.attempt))}: ${bar}${n ? ' · ' + n : ''}${mark}`;
+        });
+        const letzte = a[a.length - 1] || {};
+        const pause = Number(letzte.pause_seconds);
+        const wie = Number.isFinite(pause) && pause > 0
+          ? ` (Pause ${Math.round(pause / 60)} min)` : '';
+        const ausgang = (letzte.adopted === true)
+          ? 'zweiter Abruf übernommen' : 'erster Abruf blieb gültig';
+        return `<span class="k">Abruf</span><span class="v">${teile.join(' · ')}`
+          + `<br><span class="lauf-zusatz">${ausgang}${wie}</span></span>`;
+      }
+
       function barsRow(d) {
         const dropped = Number(d.dropped_bars || 0);
         const badVol = Number(d.invalid_volume_bars || 0);
@@ -4190,6 +4214,7 @@
                ${barDateRow(d)}
                ${gatedRow(d)}
                ${seriesRow(d)}
+               ${attemptsRow(d)}
                ${barsRow(d)}
              </div>
              <div class="status-skips">${chips}</div>`;

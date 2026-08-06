@@ -198,6 +198,27 @@ CONFLUENCE_ROUND_STEPS = [(20.0, 1.0), (100.0, 5.0), (500.0, 10.0)]
 CONFLUENCE_ROUND_STEP_LARGE = 50.0  # ab 500
 
 # ---------------------------------------------------------------------------
+# WIEDERHOL-ABRUF je Markt (06.08.2026)
+# ---------------------------------------------------------------------------
+# BEFUND, der das auslöst: die Quelle liefert für DE regelmäßig eine Tages-Zeile
+# mit NICHT-FINITEN Werten; die Härtung vom 27.07. verwirft sie, und der Markt
+# fällt damit auf den Vortag zurück. Gemessen an 116 von 117 Tickern in JEDEM
+# Abend-Cron-Lauf (30.07., 31.07., 03.08., 04.08., 05.08.).
+#
+# Ein zweiter Abruf ist der billigste Weg herauszufinden, ob das ein kurzer
+# Aussetzer ist oder ein stabiler Zustand. Das Protokoll je Versuch (diag.
+# fetch_attempts) ist der eigentliche Dauerwert: nach wenigen Tagen ist belegt,
+# ob Wiederholen hilft.
+RETRY_LAST_ROW_SHARE = 0.5     # Anteil Ticker mit verworfener LETZTER Zeile,
+                               # ab dem wiederholt wird (Mehrheit). Ein einzelner
+                               # Ticker löst NICHTS aus — sonst liefe der zweite
+                               # Abruf fast täglich ohne Anlass.
+RETRY_PAUSE_SECONDS = 180      # Pause vor dem zweiten Abruf (3 min).
+RETRY_MAX_ATTEMPTS = 2         # erster Abruf + HÖCHSTENS ein weiterer. Damit ist
+                               # die Zusatz-Laufzeit je Markt gedeckelt auf
+                               # 1 × Pause + 1 × Markt-Abruf (~40 s bei DE).
+
+# ---------------------------------------------------------------------------
 # OUTPUT
 # ---------------------------------------------------------------------------
 TOP_N = 5                       # Top-N Kandidaten je Markt

@@ -347,7 +347,10 @@ def test_market_diag_present_and_shaped():
                           # Reihen-Diagnose (05.08.2026): WAS hat der Lauf an
                           # Kursreihe bekommen? Beantwortet „frisch, aber zu
                           # KURZ?" — additiv, rein beschreibend.
-                          "series"}
+                          "series",
+                          # Wiederhol-Abruf (06.08.2026): wie viele Abrufe liefen
+                          # fuer diesen Markt, mit welchem Ergebnis je Versuch?
+                          "fetch_attempts"}
         # Gesunde (synthetische) Daten: nichts verworfen.
         assert d["dropped_bars"] == 0 and d["invalid_volume_bars"] == 0
         assert d["bad_bar_tickers"] == []
