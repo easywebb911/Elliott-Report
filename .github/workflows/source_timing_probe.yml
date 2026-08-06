@@ -1,0 +1,108 @@
+name: Quellen-Zeitmessung (befristet)
+
+# WEGWERF-MESSUNG, befristet bis 21.08.2026 (danach no-op mit Logzeile).
+#
+# ZWECK: die zwei Lücken schließen, die eine begründete Cron-Verschiebung des
+# Tageslaufs heute unmöglich machen —
+#   (1) die DE-Rückzugsgrenze liegt unbestimmt zwischen 21:29 und 22:38 UTC,
+#   (2) der US-Nachlauf nach Börsenschluss ist nur mit "<= 31 min" belegt.
+#
+# BERÜHRT DEN TAGESLAUF NICHT: eigene concurrency-Gruppe, eigene Datei,
+# schreibt NIE report.json, forward_collection.json, health_state.json oder
+# docs/. Der Tageslauf (21:45 UTC, Gruppe `daily-elliott`) läuft unbeeinflusst
+# weiter; diese Messung ändert seine Zeit ausdrücklich NICHT.
+#
+# ZEITWAHL — Soll-Zeitpunkte, nicht Cron-Einträge: GitHub verzögert geplante
+# Läufe; in diesem Repo gemessen 53–57 min (21:45 -> 22:37:51 / 22:40:53 /
+# 22:41:59). Die Cron-Einträge liegen deshalb 55 min VOR dem Ziel. Wichtig:
+# entscheidend ist nicht, ob der Lauf sein Ziel trifft — protokolliert wird der
+# ECHTE Abrufzeitpunkt. Fünf Einträge statt der drei angefragten, weil die
+# Verzögerung eine Eigenschaft der GLOBALEN Warteschlange zur jeweiligen Minute
+# ist, nicht des Repos: sie kann bei 19:15 anders ausfallen als bei 21:20. Fünf
+# Punkte über gut zwei Stunden liefern die DE-Grenze auf ~15 min genau, selbst
+# wenn die Verzögerung deutlich abweicht — und kosten je Lauf nur ~20 Abrufe.
+#
+#   Cron    erwartete Ist-Zeit   Zweck
+#   19:15   20:08–20:12          US-Nachlauf (Schluss 20:00 UTC im Sommer)
+#   20:50   21:43–21:47          DE-Grenze, unteres Ende (21:29 war sauber)
+#   21:05   21:58–22:02          DE-Grenze
+#   21:20   22:13–22:17          DE-Grenze
+#   21:35   22:28–22:32          DE-Grenze, oberes Ende (22:38 war kaputt)
+#
+# LÖSCHWEG: diese Datei und `data/source_timing_probe.jsonl` entfernen, dazu
+# `scripts/source_timing_probe.py` und `tests/test_source_timing_probe.py`.
+# Es hängt nichts daran — kein Report-Feld, kein Frontend, kein Test der
+# Pipeline.
+
+on:
+  schedule:
+    - cron: "15 19 * * 1-5"
+    - cron: "50 20 * * 1-5"
+    - cron: "5 21 * * 1-5"
+    - cron: "20 21 * * 1-5"
+    - cron: "35 21 * * 1-5"
+  workflow_dispatch:
+
+# BEWUSST NICHT `daily-elliott`: sonst könnte eine Messung den Tageslauf in der
+# Warteschlange aufhalten oder umgekehrt.
+concurrency:
+  group: source-timing-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Messen
+        run: python scripts/source_timing_probe.py
+
+      # NUR die Messdatei, NUR auf main. Bewusst kein `git add -A`: dieser Job
+      # darf keine andere Datei committen, auch nicht versehentlich.
+      - name: Messzeile committen
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/source_timing_probe.jsonl
+          if git diff --cached --quiet; then
+            echo "Nichts gemessen — nichts zu committen."
+            exit 0
+          fi
+          git commit -m "chore(probe): Quellen-Zeitmessung [skip ci]"
+          pushed=""
+          for i in 1 2 3; do
+            # Einen hängengebliebenen Rebase ZUERST auflösen (Lektion aus
+            # daily.yml, 31.07.2026): sonst sind Versuch 2 und 3 keine
+            # Versuche, weil `git pull` bei unmerged files sofort abbricht.
+            git rebase --abort >/dev/null 2>&1 || true
+            if git pull --rebase origin main && git push; then
+              pushed="yes"; break
+            fi
+            echo "Push-Versuch $i fehlgeschlagen — neuer Versuch."
+            sleep $((i * 3))
+          done
+          git rebase --abort >/dev/null 2>&1 || true
+          if [ -z "$pushed" ]; then
+            echo "::error::Messzeile konnte nicht gepusht werden."
+            exit 1
+          fi
