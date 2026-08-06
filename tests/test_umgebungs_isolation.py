@@ -39,22 +39,93 @@ def test_die_fixture_raeumt_die_gelisteten_variablen_ab():
         assert os.environ.get(name) is None, f"{name} steht noch"
 
 
+def _env_zugriffe(quelle: str):
+    """Alle Umgebungs-Zugriffe einer Datei — als AST, nicht als Textsuche.
+
+    **Warum nicht per Regex:** ein Guardian-Nit (06.08.2026) traf genau ins
+    Ziel — eine Suche nach ``os.environ.get("X")`` übersieht
+    ``os.environ["X"]`` und ``os.getenv("X")``. Dieselbe Fallenklasse, nur
+    anders geschrieben, wäre unentdeckt geblieben, und der Test hätte mehr
+    Schutz versprochen, als er liefert.
+
+    Gibt zwei Mengen zurück: die **literalen** Namen und die Zahl der
+    Zugriffe, deren Name erst zur Laufzeit feststeht. Letztere kann keine
+    statische Prüfung auflösen — sie werden deshalb nicht verschwiegen,
+    sondern gezählt und gemeldet.
+    """
+    import ast
+    literale, dynamisch = set(), []
+
+    def _name(knoten):
+        return (knoten.value
+                if isinstance(knoten, ast.Constant) and isinstance(knoten.value, str)
+                else None)
+
+    for k in ast.walk(ast.parse(quelle)):
+        ziel = None
+        if isinstance(k, ast.Call):
+            f = k.func
+            # os.environ.get("X") / os.getenv("X")
+            if isinstance(f, ast.Attribute) and f.attr in ("get", "getenv") and k.args:
+                if f.attr == "getenv" or (isinstance(f.value, ast.Attribute)
+                                          and f.value.attr == "environ"):
+                    ziel = k.args[0]
+        elif isinstance(k, ast.Subscript):
+            # os.environ["X"]
+            if isinstance(k.value, ast.Attribute) and k.value.attr == "environ":
+                ziel = k.slice
+        if ziel is None:
+            continue
+        name = _name(ziel)
+        if name is None:
+            dynamisch.append(ast.dump(ziel)[:60])
+        else:
+            literale.add(name)
+    return literale, dynamisch
+
+
 def test_die_liste_deckt_jede_umgebungsvariable_des_produktionscodes():
     """Wächst der Produktionscode um eine Variable, muss sie in die Liste.
 
     Sonst wiederholt sich der Vorfall mit einer anderen Variable — und wieder
     erst dann, wenn ein Läufer sie zufällig gesetzt hat.
     """
-    import re
-    gelesen = set()
+    gelesen, dynamisch = set(), []
     for datei in sorted((ROOT / "scripts").glob("*.py")):
-        for treffer in re.finditer(r"os\.environ\.get\(\s*[\"']([A-Z_]+)[\"']",
-                                   datei.read_text(encoding="utf-8")):
-            gelesen.add(treffer.group(1))
+        lit, dyn = _env_zugriffe(datei.read_text(encoding="utf-8"))
+        gelesen |= lit
+        dynamisch += [f"{datei.name}: {d}" for d in dyn]
     fehlend = gelesen - set(NEUTRALE_UMGEBUNG)
     assert not fehlend, (
         f"Produktionscode liest {sorted(fehlend)}, die Fixture räumt sie nicht "
         f"weg — dieselbe Falle wie GITHUB_REF am 06.08.2026")
+    # EHRLICHE GRENZE, statt sie zu verschweigen: steht der Variablenname erst
+    # zur Laufzeit fest, kann keine statische Prüfung ihn kennen. Heute gibt es
+    # keinen solchen Zugriff; entsteht einer, soll dieser Test laut werden und
+    # nicht stillschweigend weiter Vollständigkeit behaupten.
+    assert not dynamisch, (
+        f"Umgebungs-Zugriff mit nicht-literalem Namen: {dynamisch} — dieser "
+        f"Test kann ihn nicht prüfen, die Variable muss von Hand in "
+        f"NEUTRALE_UMGEBUNG")
+
+
+def test_der_scanner_findet_ALLE_drei_schreibweisen():
+    """Gegenprobe zum Scanner selbst — sonst ist er eine Attrappe.
+
+    Genau das war der Guardian-Nit: die erste Fassung suchte nur nach
+    `os.environ.get(...)`. Ein Scanner, der die halbe Sprache übersieht,
+    meldet Vollständigkeit, wo keine ist.
+    """
+    quelle = (
+        "import os\n"
+        "a = os.environ.get('EINS')\n"
+        "b = os.environ['ZWEI']\n"
+        "c = os.getenv('DREI')\n"
+        "d = os.environ.get(schluessel)\n"
+    )
+    literale, dynamisch = _env_zugriffe(quelle)
+    assert literale == {"EINS", "ZWEI", "DREI"}
+    assert len(dynamisch) == 1, "der Laufzeit-Name muss als solcher auffallen"
 
 
 def test_is_main_run_ist_im_test_IMMER_falsch():
