@@ -1061,3 +1061,50 @@ vor n ≥ 100) gilt unverändert.
   Revert = PR zurücknehmen; dann rechnet der Wächter wieder gegen den
   Kalendertag und die Vormittags-Fehlalarme kehren zurück. **Kein Datenstand
   wird ungültig**, diese Notiz bleibt gültig.
+
+- **2026-08-06 — Wiederhol-Abruf je Markt: nie verschlechtern, alles
+  protokollieren.** Additiv im Abruf-Pfad; die Sammlung ist mittelbar betroffen
+  und deshalb steht es hier.
+  - **BEFUND:** die Quelle liefert für DE regelmäßig eine Tages-Zeile mit
+    NICHT-FINITEN Werten; die Härtung vom 27.07. verwirft sie, und der Markt
+    fällt auf den Vortag zurück. Gemessen an **116 von 117** Tickern in **jedem**
+    Abend-Cron-Lauf (30.07., 31.07., 03.08., 04.08., 05.08.). Läufe **bis 21:29
+    UTC** sind sauber, Läufe **ab 22:38 UTC** betroffen — und der Zustand hält
+    an (04.08. 22:42 kaputt, 04:46 am Folgetag noch immer kaputt, erst 11:16
+    wieder sauber).
+  - **MECHANIK:** ist bei mindestens `RETRY_LAST_ROW_SHARE` (= 0,5, also der
+    Mehrheit) der Ticker die LETZTE Zeile verworfen worden, wird der Abruf für
+    DIESEN Markt nach `RETRY_PAUSE_SECONDS` (= 180 s) **einmal** wiederholt
+    (`RETRY_MAX_ATTEMPTS` = 2). Ein einzelner betroffener Ticker löst nichts aus.
+  - **NIE VERSCHLECHTERN (harte Regel):** der zweite Versuch wird NUR übernommen,
+    wenn er ECHT besser ist — jüngeres letztes Bar-Datum ODER, bei gleichem
+    Datum, MEHR Ticker auf diesem Bar. **Gleichstand zählt nicht als
+    Verbesserung.** Es wird **nie gemischt**: jeder Versuch schreibt in eigene
+    Kurs-Sinks, und nur der Sieger wandert nach außen. Ein verworfener Versuch
+    hinterlässt nachweislich keine Spur (Test vergleicht gegen einen Lauf ohne
+    Wiederholung).
+  - **WIRKUNG AUF DIE POPULATION — die gewollte Richtung:** gelingt der zweite
+    Abruf, ist der Markt frisch; dann schweigt der Wächter zu Recht **und** das
+    #72-Gate sperrt nicht mehr. Die Sammlung legt für diesen Markt also wieder
+    Episoden an — **mit dem frischeren `entry_close`**, was genau der Zweck ist.
+    **Keine Doppel-Anlage:** der Wiederhol-Abruf läuft vollständig innerhalb von
+    `build_market`; `update_forward_collection` wird im Lauf genau **einmal** und
+    erst **nach** der Markt-Schleife aufgerufen und sieht ausschließlich den
+    Sieger.
+  - **KEINE Ersatzkurse.** Keine Interpolation, kein Rückgriff auf einen früheren
+    Lauf, kein Zwischenspeicher — nur echte Abrufe. Bei Rate-Limit oder Fehler
+    wird abgebrochen, der erste Abruf bleibt gültig, und es steht laut im Log.
+  - **DAS PROTOKOLL IST DER EIGENTLICHE ZWECK:** `diag.fetch_attempts` hält je
+    Versuch Nummer, Pause, letztes Bar-Datum, Ticker auf dem jüngsten Bar,
+    verworfene letzte Zeilen und den `shape_digest` fest. **Ehrliche Erwartung:**
+    nach der Befundlage oben wird der zweite Abruf im DE-Abendfall
+    **wahrscheinlich NICHT helfen** — der kaputte Zustand hielt in der Messung
+    über Stunden an, eine Pause von 3 Minuten liegt sicher darin. Genau deshalb
+    wird protokolliert: nach wenigen Tagen ist belegt, ob Wiederholen hilft, und
+    wenn nicht, ist das die Grundlage für eine **einmalige, datierte
+    Cron-Verschiebung** (die Datenlage deutet auf ein Fenster **vor 21:30 UTC**).
+  - **Cron-Zeit unverändert** (`45 21 * * 1-5`), Score, Ranking, Filter,
+    Gate-Schwellen, Wächter-Logik und Reifung unberührt.
+  Revert = PR zurücknehmen; dann läuft wieder genau ein Abruf je Markt, und
+  `diag.fetch_attempts` verschwindet aus dem nächsten Report. **Kein Datenstand
+  wird ungültig**, keine bereits gemessene Zahl ändert sich.
