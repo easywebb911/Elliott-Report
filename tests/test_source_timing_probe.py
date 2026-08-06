@@ -199,6 +199,27 @@ def test_ohne_vorgabe_kommt_die_echte_uhr(monkeypatch):
     assert z["fetched_utc"] == "2026-08-06T22:17:00Z"
 
 
+def test_finished_utc_ist_ein_ZWEITER_spaeterer_uhrenblick(monkeypatch):
+    """`finished_utc` ist keine Kopie von `fetched_utc`, sondern die Uhr NACH
+    den Abrufen. Erst dadurch ist an der Zeile ablesbar, ob sie über einen
+    Zeitpunkt spricht oder über einen langen Zeitraum — bei einer gesuchten
+    Auflösung von ~15 min ist das der Unterschied zwischen Messung und
+    Vermutung."""
+    takte = iter([_dt.datetime(2026, 8, 6, 22, 15, 0, tzinfo=_dt.timezone.utc),
+                  _dt.datetime(2026, 8, 6, 22, 16, 42, tzinfo=_dt.timezone.utc)])
+
+    class _Uhr(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return next(takte)
+
+    monkeypatch.setattr(probe._dt, "datetime", _Uhr)
+    plan = {t: _reihe(30, "2026-08-06") for t in ("A", "B")}
+    z = probe.probe_markt("DE", ["A", "B"], _fetcher(plan))
+    assert z["fetched_utc"] == "2026-08-06T22:15:00Z"
+    assert z["finished_utc"] == "2026-08-06T22:16:42Z", "zweiter Uhrenblick fehlt"
+
+
 def test_die_zeile_traegt_alle_geforderten_felder():
     plan = {"A": _reihe(30, "2026-08-06")}
     z = probe.probe_markt("DE", ["A"], _fetcher(plan),
@@ -220,9 +241,18 @@ def test_die_messung_kennt_KEINE_produktionsdatei():
     assert probe.PROBE_PATH == "data/source_timing_probe.jsonl"
 
 
-def test_ein_messlauf_laesst_report_sammlung_und_health_BYTE_IDENTISCH(tmp_path):
+def test_ein_messlauf_laesst_report_sammlung_und_health_BYTE_IDENTISCH(tmp_path,
+                                                                      monkeypatch):
     """Der harte Isolations-Nachweis: Prüfsummen vor und nach einem echten
-    Schreibvorgang der Sonde."""
+    Schreibvorgang der Sonde.
+
+    Verschoben wird die WURZEL (`REPO_ROOT`), nicht der Zielpfad. Ein Test, der
+    `_anhaengen` einen tmp-Pfad in die Hand drückt, prüft nur, dass ein
+    übergebener Pfad benutzt wird — er sagt nichts darüber, wohin die Sonde im
+    Betrieb schreibt. Hier läuft die ECHTE Pfadberechnung
+    (`REPO_ROOT / PROBE_PATH`) durch, nur eben unter einer Wurzel, in der es
+    keine Produktionsdatei zu treffen gäbe.
+    """
     import hashlib
 
     def summe(p):
@@ -234,13 +264,14 @@ def test_ein_messlauf_laesst_report_sammlung_und_health_BYTE_IDENTISCH(tmp_path)
               ROOT / "data/health_state.json"]
     vorher = {p: summe(p) for p in wachen}
 
-    ziel = tmp_path / "probe.jsonl"
+    monkeypatch.setattr(probe, "REPO_ROOT", tmp_path)
     plan = {"A": _reihe(30, "2026-08-06")}
     z = probe.probe_markt("DE", ["A"], _fetcher(plan),
                           jetzt=_dt.datetime(2026, 8, 6, 21, 45,
                                              tzinfo=_dt.timezone.utc))
-    probe._anhaengen([z], ziel)
+    ziel = probe._anhaengen([z])
 
+    assert ziel == tmp_path / probe.PROBE_PATH, "andere Datei als angekündigt"
     assert ziel.exists() and ziel.read_text(encoding="utf-8").count("\n") == 1
     for p in wachen:
         assert summe(p) == vorher[p], f"{p.name} wurde verändert"
@@ -270,7 +301,23 @@ def test_der_workflow_committet_NUR_die_messdatei():
     for verboten in ("report.json", "forward_collection", "health_state", "docs/"):
         assert f"git add {verboten}" not in text
     assert "if: github.ref == 'refs/heads/main'" in text
-    assert "git rebase --abort" in text
+
+
+def test_der_rebase_abort_liegt_IM_wiederholungs_schleifenkoerper():
+    """Nicht bloß irgendwo in der Datei.
+
+    Eine Mutationsprobe (06.08.2026) hat den Abort AUS DER SCHLEIFE entfernt
+    und die Testreihe blieb grün — `"git rebase --abort" in text` fand noch die
+    Aufräumzeile hinter der Schleife. Genau das war aber der Fehler aus
+    daily.yml vom 31.07.2026: bleibt ein Rebase hängen, bricht `git pull` bei
+    unmerged files sofort ab, und Versuch 2 und 3 sind keine Versuche.
+    """
+    text = _yaml_ohne_kommentare(WF.read_text(encoding="utf-8"))
+    assert "for i in 1 2 3; do" in text, "Wiederholungsschleife fehlt"
+    koerper = text.split("for i in 1 2 3; do", 1)[1].split("done", 1)[0]
+    assert "git rebase --abort" in koerper, "Abort steht nicht IN der Schleife"
+    assert koerper.index("git rebase --abort") < koerper.index("git pull"), \
+        "der Abort muss VOR dem pull stehen, sonst räumt er nichts auf"
 
 
 def test_die_cron_eintraege_liegen_55_minuten_vor_den_zielzeiten():
@@ -343,3 +390,64 @@ def test_bei_einem_fehler_wird_SOFORT_aufgehoert(monkeypatch, capsys, tmp_path):
     assert "kein Retry" in ausgabe and "429" in ausgabe
     assert aufrufe["n"] == 1, "nach dem ersten Fehler ist Schluss"
     assert geschrieben == [], "keine Zeile bei Abbruch"
+
+
+def test_ein_markt_OHNE_JEDE_reihe_ist_ein_ausfall_keine_messung(monkeypatch,
+                                                                 capsys):
+    """Der realistische Rate-Limit-Fall — und er läuft NICHT über `except`.
+
+    `fetch_yfinance` fängt Ausnahmen selbst ab und liefert
+    `FetchOutcome(reason=FETCH_ERROR)`. Ohne eigenen Wächter entstünde also
+    eine vollständig leere Zeile, die bei der Auswertung wie „die Quelle hatte
+    um 22:15 keine Daten" aussähe — und damit genau die Cron-Entscheidung
+    verfälschte, für die hier gemessen wird.
+    """
+    monkeypatch.setattr(probe, "abgelaufen", lambda heute=None: False)
+    monkeypatch.delenv("ELLIOTT_OFFLINE", raising=False)
+    versuche = {"n": 0}
+
+    def _blockiert(ticker):
+        versuche["n"] += 1
+        return pipe.FetchOutcome(None, pipe.FETCH_ERROR, "429 Too Many Requests")
+
+    monkeypatch.setattr(pipe, "fetch_yfinance", _blockiert)
+    geschrieben = []
+    monkeypatch.setattr(probe, "_anhaengen", lambda z, p=None: geschrieben.append(z))
+
+    assert probe.main() == 0
+    ausgabe = capsys.readouterr().out
+    assert "Abruf-Ausfall" in ausgabe, "der Ausfall muss laut im Log stehen"
+    assert geschrieben == [], "eine leere Zeile wäre eine Falschaussage über die Quelle"
+    # Nur der erste Markt wird versucht — danach ist Schluss, kein zweiter
+    # Anlauf gegen eine Quelle, die gerade dichtmacht.
+    assert versuche["n"] == len(probe.PROBE_TICKERS["DE"])
+
+
+def test_faellt_ein_markt_aus_bleibt_die_gelungene_zeile_stehen(monkeypatch,
+                                                                capsys):
+    """Teil-Messung ist ABSICHT: die DE-Zeile ist ein vollwertiger Datenpunkt
+    für DE, auch wenn US danach ausfällt. Sie wegzuwerfen würde eine Messung
+    vernichten, die mit dem Ausfall nichts zu tun hat."""
+    monkeypatch.setattr(probe, "abgelaufen", lambda heute=None: False)
+    monkeypatch.delenv("ELLIOTT_OFFLINE", raising=False)
+
+    def _halb(ticker):
+        if ticker.endswith(".DE"):
+            return pipe.FetchOutcome(_reihe(30, "2026-08-06"))
+        return pipe.FetchOutcome(None, pipe.FETCH_ERROR, "429")
+
+    monkeypatch.setattr(pipe, "fetch_yfinance", _halb)
+    geschrieben = []
+
+    def _sammelt(zeilen, pfad=None):
+        geschrieben.append(zeilen)
+        return probe.REPO_ROOT / probe.PROBE_PATH  # wie das Original: der Pfad
+
+    monkeypatch.setattr(probe, "_anhaengen", _sammelt)
+
+    assert probe.main() == 0
+    ausgabe = capsys.readouterr().out
+    assert len(geschrieben) == 1, "genau ein Schreibvorgang"
+    assert [z["market"] for z in geschrieben[0]] == ["DE"]
+    assert geschrieben[0][0]["last_bar_date"] == "2026-08-06"
+    assert "Teil-Messung" in ausgabe and "US" in ausgabe

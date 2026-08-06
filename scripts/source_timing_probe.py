@@ -71,6 +71,12 @@ def probe_markt(markt: str, tickers: Sequence[str],
     darin liegt der Wert der Messung: GitHub verzögert geplante Läufe (bisher
     gemessen 53–57 min), und eine Zeile mit der Sollzeit wäre eine Zeile über
     einen Zeitpunkt, zu dem gar nichts abgerufen wurde.
+
+    Neben ``fetched_utc`` steht ``finished_utc``: 10 Abrufe dauern, und die
+    gesuchte DE-Grenze soll auf ~15 min genau werden. Liegen Beginn und Ende
+    einer Zeile weit auseinander, ist die Zeile über einen ZEITRAUM, nicht über
+    einen Zeitpunkt — das muss bei der Auswertung sichtbar sein, statt als
+    stille Unschärfe im Ergebnis zu landen.
     """
     begonnen = jetzt or _jetzt()
     reihen: Dict[str, tuple] = {}
@@ -137,6 +143,19 @@ def main() -> int:
             print(f"[probe] {markt}: Abruf abgebrochen "
                   f"({type(exc).__name__}: {exc}) — kein Retry, keine Zeile.")
             break
+        # KEINE Reihe = KEINE Messung (Guardian-Fund 06.08.2026). `fetch_yfinance`
+        # fängt Fehler INTERN ab und liefert `FETCH_ERROR` statt zu werfen — der
+        # realistische Rate-Limit-Fall landet also NICHT im `except` oben, sondern
+        # ergäbe eine vollständig leere Zeile. Die sähe später aus wie „die Quelle
+        # hatte um 22:15 keine Daten" und würde genau die Cron-Entscheidung
+        # verfälschen, für die hier gemessen wird.
+        if not zeile["tickers_with_series"]:
+            print(f"[probe] {markt}: KEIN einziger Ticker lieferte eine Reihe "
+                  f"({len(zeile['errors'])} Fehler, erster: "
+                  f"{zeile['errors'][0] if zeile['errors'] else '?'}) — das ist "
+                  f"keine Messung, sondern ein Abruf-Ausfall. Keine Zeile, kein "
+                  f"Retry.")
+            break
         zeilen.append(zeile)
         print(f"[probe] {markt}: {zeile['fetched_utc']} · "
               f"letzter Bar {zeile['last_bar_date']} · "
@@ -146,6 +165,14 @@ def main() -> int:
     if not zeilen:
         print("[probe] nichts gemessen — nichts geschrieben.")
         return 0
+    # ABSICHT, nicht Versehen: gelingt der erste Markt und fällt der zweite aus,
+    # bleibt die EINE gelungene Zeile stehen. Sie ist ein vollwertiger Datenpunkt
+    # für ihren Markt — sie wegzuwerfen, weil ein anderer Markt streikte, würde
+    # Messungen vernichten, die nichts miteinander zu tun haben.
+    if len(zeilen) < len(PROBE_TICKERS):
+        fehlend = sorted(set(PROBE_TICKERS) - {z["market"] for z in zeilen})
+        print(f"[probe] Teil-Messung: {fehlend} fehlt/fehlen — die gelungenen "
+              f"Zeilen werden trotzdem geschrieben (eigenständige Datenpunkte).")
     ziel = _anhaengen(zeilen)
     print(f"[probe] {len(zeilen)} Zeile(n) an {ziel.relative_to(REPO_ROOT)} angehängt.")
     return 0
