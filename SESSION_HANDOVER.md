@@ -170,7 +170,46 @@ durchgängig ab #13.
 
 Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 
-**NEU AM 07.08.2026 — die drei frischesten Punkte zuerst:**
+**NEU AM 07.08.2026 — die frischesten Punkte zuerst:**
+
+- **OFFEN, UNGEKLÄRT BIS ZUM NÄCHSTEN LAUF — der verzögerte Lauf vom 07.08. 01:04
+  hat die Sammlung eingefroren.** In `data/health_state.json` stehen **zwei
+  frische `warn`-Befunde** (`since_run: 2026-08-07`, `runs_since_push: 0`), beide
+  **noch offen**, weil seither kein Lauf stattfand:
+  1. **`bar_freshness:DE`** — „DE: Kurse 1 Handelstag zurück — erwartet
+     2026-08-06, tatsächlich **2026-08-05**". **DE ist rückwärts gelaufen:** der
+     Lauf vom 06.08. 19:52 hatte DE noch auf `2026-08-06`. Genau der
+     dokumentierte DE-Abendrückzug — diesmal vom Wächter aus #71/#75 gefangen.
+     US blieb korrekt auf `2026-08-06`.
+  2. **`collection_stalled`** — „Top-5 vorhanden, aber die Forward-Sammlung ist
+     weder gewachsen (62 Records) noch wurde ein Datensatz verlängert".
+  **DIE URSACHE IST NACHGERECHNET UND SIE IST KEIN FEHLER, SONDERN EINE
+  UNBEDACHTE FOLGE:** der Lauf kam wegen der 3 h 19 min Verzögerung erst um
+  **01:04 UTC — nach Mitternacht, also an einem neuen Kalendertag**. Das
+  #72-Gate hängt bewusst am **Kalendertag-Anker** (die datierte Entscheidung
+  „eine Kalenderfunktion, zwei Erwartungs-Anker" aus #75). Am 07.08. um 01:04
+  erwartet dieser Anker eine Bar vom **07.08.** — die **kein** Markt haben kann,
+  weil noch keine Sitzung stattgefunden hat. Belegt am Datenstand: `last_run_date`
+  wandert `2026-08-06 → 2026-08-07`, **`last_fresh_run_date` bleibt für BEIDE
+  Märkte auf `2026-08-06`** stehen. Also galten DE **und** US als nicht frisch,
+  das Gate sperrte die Anlage neuer Episoden für beide, und die Sammlung stand.
+  **Der Verzögerungs-Ausreißer hat damit nicht nur einen Messtag gekostet,
+  sondern einen Sammeltag.** Das war so nicht bedacht.
+  **WAS ZU TUN IST — in dieser Reihenfolge, nichts davon ist erledigt:**
+  **(a)** Den **nächsten** Tageslauf ansehen (07.08. 21:45 UTC + Verzug). Läuft
+  er wieder normal vor Mitternacht, müssen beide Befunde von selbst verschwinden
+  (`bar_freshness:DE` sowieso, `collection_stalled` sobald die Sammlung wieder
+  wächst). **Tun sie das nicht, ist es kein Verzögerungs-Artefakt und muss
+  untersucht werden.**
+  **(b)** Erst danach entscheiden, ob das Gate gegen den Mitternachts-Übertritt
+  gehärtet werden soll. **Nicht vorschnell:** die Kalendertag-Verankerung ist die
+  Zusage aus #75, die verhindert, dass Mittags-Recalculates den `entry_close`
+  bestimmen. Wer sie anfasst, muss die Populations-Garantie neu belegen —
+  Replay über die committete Historie, wie in #75 und #72 geschehen.
+  **(c)** Der Fall gehört in die **Registry**, sobald er verstanden ist: er
+  verändert die Bedingungen, unter denen Records entstehen.
+
+
 
 - **OFFEN (laufend, ab #77) — der Mess-Workflow hat noch KEINE Zeile geschrieben.**
   `scripts/source_timing_probe.py` läuft seit dem Merge von #77 (`df68c9d`,
@@ -360,6 +399,16 @@ verbindliche Reihenfolge für die nächste Session.
    `main`" wieder ein echtes Signal** — und muss auch wieder angesehen werden.
 2. **#79 mergen** (Ready-Meldungs-Regel + dieses Handover-Update). **Der letzte
    offene PR dieser Sitzung.**
+
+**P0.5 — die einzige inhaltlich offene Sache dieser Sitzung:**
+2b. **Den nächsten Tageslauf ansehen** (Abschnitt 3, erster Punkt): der um
+   3 h 19 min verzögerte Lauf vom 07.08. 01:04 ist **nach Mitternacht** gelandet
+   und hat dadurch über den Kalendertag-Anker des #72-Gates **die Sammlung
+   eingefroren** — `collection_stalled` und `bar_freshness:DE` stehen **offen**.
+   Läuft der nächste Lauf normal, müssen beide von selbst verschwinden. **Tun
+   sie das nicht, ist es kein Artefakt der Verzögerung und muss untersucht
+   werden.** Am Gate **nicht** vorschnell drehen — die Kalendertag-Verankerung
+   ist die Zusage aus #75.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 3. **Auswertung des Mess-Workflows**, sobald zwei bis drei **ertragreiche**
