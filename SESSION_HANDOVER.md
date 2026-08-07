@@ -161,6 +161,7 @@ durchgängig ab #13.
 | #79 | `(offen, dieser)` | **Ready-Meldung braucht Lauf-ID, Head-SHA und Zweigkopf-Abgleich** (Easy-Regel 07.08.) plus dieses Handover-Update. **Anlass war ein Fehlschluss von mir:** zwei Draft-PRs standen 16 bzw. 8 Stunden ohne einen einzigen CI-Lauf da; ich habe daraus erst „Actions ist kaputt" und dann „ein per API angelegter PR löst hier keinen Lauf aus" gemacht. **Beides falsch** — der nächste PR (#79 selbst) wurde genauso per API angelegt und bekam sofort einen Lauf (`31186594108`, 12 s nach dem Anlegen). Belegt ist nur die Beobachtung, nicht die Ursache; sie steht als **Vermutung** im Handover, nicht als Befund. Doku-only, kein Code berührt. Details in Abschnitt 7. |
 
 | #(dieser, nach #77) | `(offen)` | **Umgebungsleck im Test — die CI auf `main` war dauerrot, und niemand sah es.** **BEFUND beim Anlegen von PR #77:** im Fenster vom 31.07. bis 06.08. (30 CI-Läufe, über die GitHub-API abgezählt) sind von **16** Push-Läufen auf `main` **15 rot und einer abgebrochen — kein einziger grün**; von **14** PR-Läufen sind **13 grün**. Der Split verläuft exakt an der Ereignisart, nicht an der Zeit. **URSACHE, lokal reproduziert** (`GITHUB_REF=refs/heads/main python3 -m pytest tests/ -q` → identische Fehlermeldung wie CI-Lauf `31041772828`): `health_check.is_main_run()` liest `GITHUB_REF`; bei einem Push auf `main` steht dort `refs/heads/main`, also feuerte der **Herzschlag mitten im Unit-Test** und `test_healthy_run_yields_zero_findings` fiel („gesunder Lauf ist absolut still"). Bei einem PR-Lauf steht `refs/pull/N/merge`, lokal steht gar nichts — deshalb überall grün, wo jemand hinsah. **KEIN Produktionsfehler**: der Herzschlag SOLL auf `main` feuern; falsch war, dass der Test die Umgebung seines Läufers geerbt hat. **FIX AN DER KLASSE, nicht am Einzelfall:** eine autouse-Fixture in `tests/conftest.py` räumt **jede** Umgebungsvariable weg, die der Produktionscode liest — `GITHUB_REF`, `ELLIOTT_OFFLINE`, `ANTHROPIC_API_KEY`, `NTFY_TOPIC` und die drei aus `notify._run_url()` (`GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`, `GITHUB_RUN_ID`). Ein Test, der eine davon braucht, setzt sie selbst — das gewinnt, weil die Fixture vorher läuft; genau so arbeitet `test_heartbeat.py` schon immer, nur `test_health_check.py` tat es nicht. **DIE DREI `_run_url()`-VARIABLEN HAT ERST DER NEUE VOLLSTÄNDIGKEITS-TEST GEFUNDEN** — sie sind dieselbe Falle, nur noch ungezündet: in der CI steht dort die echte Lauf-URL, lokal nicht. **BELEGE:** 7 neue Tests (919 → **926**). Der einzige, der wirklich beißt, startet pytest in einem **Kindprozess** mit `GITHUB_REF=refs/heads/main` — im selben Prozess ist der Nachweis unmöglich, weil die Fixture die Variable längst geräumt hat. Dazu ein Test, der `scripts/*.py` über den **AST** nach Umgebungs-Zugriffen absucht und verlangt, dass jeder gefundene Name in der Liste steht — plus eine Gegenprobe am Scanner selbst. Volle Reihe **unter der echten CI-Umgebung** (`GITHUB_REF=refs/heads/main GITHUB_RUN_ID=… GITHUB_REPOSITORY=…`) grün. **9 Mutationsproben, alle rot:** Fixture räumt nichts ab · `autouse=False` · `GITHUB_REF` aus der Liste · `GITHUB_RUN_ID` aus der Liste · `GITHUB_SERVER_URL` aus der Liste · Scanner sieht nur `os.environ.get` · Scanner ignoriert `os.getenv` · Scanner verschweigt dynamische Zugriffe · (dazu die vier aus der ersten Runde). **Grenzen eingehalten:** kein Produktionscode angefasst — nur `tests/conftest.py` und eine neue Testdatei; `test_health_check.py` bleibt **unverändert**, die Fixture repariert es von außen. **KEIN Registry-Eintrag** (Testinfrastruktur berührt keine gemessene Zahl). **GUARDIAN: keine Blocker, zwei Nits — beide erledigt.** (1) **Der Nit traf ins Ziel:** meine erste Fassung des Vollständigkeits-Tests suchte per Regex nur nach `os.environ.get("X")` und hätte `os.environ["X"]` sowie `os.getenv("X")` übersehen — dieselbe Fallenklasse, nur anders geschrieben. Ein Scanner, der die halbe Sprache nicht sieht, meldet Vollständigkeit, wo keine ist. Jetzt läuft er über den **AST**, erfasst alle drei Schreibweisen, und eine eigene Gegenprobe am Scanner hält das fest. **Zusätzlich die ehrliche Grenze benannt statt verschwiegen:** steht ein Variablenname erst zur Laufzeit fest, kann keine statische Prüfung ihn kennen — solche Zugriffe werden gezählt und der Test wird laut. Heute gibt es keinen. (2) Er konnte die CI-Zahlen mangels API-Zugriff nicht selbst nachrechnen und hat das gesagt, statt sie zu bestätigen; ich habe sie daraufhin nachgezählt und **verschärft** — es sind nicht „15 von 16 rot", sondern **16 von 16 nicht grün**. Den Kern hat er selbst reproduziert: ohne Fix `1 failed, 918 passed`, mit Fix `925 passed` (vor dem Nit-Fix). **Revert =** PR zurücknehmen; dann ist die CI auf `main` wieder dauerrot. 7 neue Tests (926) | Guardian (Nits erledigt) + manual, keine Screenshots |
+| #81 | `(offen, dieser)` | **In-Session-Marker `in_session_creation`** (Beschluss Easy 07.08., nach read-only-Diagnose derselben Session). **BEFUND:** 34 von 69 Records entstanden in Läufen, deren Report-Stempel INNERHALB der Sitzung des eigenen Markts lag — die Quelle liefert dort schon eine Zeile für den laufenden Tag, also eine **unfertige Bar**. Alles bei der Anlage Eingefrorene ist damit ein Zwischenstand: `entry_close`, Score, `confluence`, `vol_*`, `ambiguity_n*`, `agent_concern_level` — **und die Auswahl selbst** (`target_exceeded`-Filter und Ranking liefen auf demselben vorläufigen Close). **KRITERIUM K2, nach Mini-Stopp entschieden:** Stempel im Sitzungsfenster (US 09:30–16:00 `America/New_York`, DE 09:00–17:30 `Europe/Berlin`, Grenzen exklusiv, DST je Datum) **UND** Ortszeit-Kalendertag == Bar-Datum. **Das reine Uhrzeitfenster ergab 35 statt 34** — der Überzählige war `ADS.DE @ 2026-07-25T13:35:26Z`, ein **Samstags**-Dispatch 15:35 CEST auf die FERTIGE Freitags-Bar (belegt: derselbe Kurs 173,60 wie im Freitags-Lauf, ±0,0000 % Abweichung). Nicht über `is_trading_day` gelöst — das markierte einen Lauf an einem Handelstag, der wegen des Ein-Tag-Versatzes noch die fertige Bar von T−1 einfriert, fälschlich mit. **Schlusszeiten aus `cal.MARKET_SESSIONS`** (eine Quelle, Monkeypatch-Test statt Quelltext-Nähe), Eröffnungszeiten standen nicht im Repo und sind hiermit festgelegt. **Vergleich auf voller Ortszeit inkl. Sekunden** — ein `(Stunde, Minute)`-Tupel hätte 09:30:30 fälschlich ausgeschlossen (Mutation rot). **TEIL A:** Backfill 34/69; Feld-für-Feld-Diff über alle 69 → **ausschließlich** `in_session_creation` (34×) und `in_session_creation_marked_utc` (34×), Top-Level unverändert; **Purge → Byte-Identität**; idempotent auch mit abweichendem `--marked-utc` (gleiche MD5); `--marked-utc` ist **Pflichtargument** (kein Systemuhr-Wert → Determinismus). **Belegt statt angenommen:** alle 69 `created_utc` sind committete `run_timestamp_utc` (70 Report-Stände). **TEIL B:** Markierung in `elliott_pipeline.main()` **nach** `update_forward_collection`, **vor** `write_collection` — wie die Score-Alert-Flanke; kein Gate, kein Verhalten, fail-soft aber laut. **BEWUSST NICHT in `_new_record`:** `tests/test_sitzungs_ende.py:273` verbietet der Sammlung statisch `MARKET_SESSIONS`/`zoneinfo`/Sitzungs-Funktionen — der Wächter der #75-Populations-Garantie; er bleibt **unverändert scharf**, dieser PR spiegelt ihn mit einem eigenen Test. **TEIL C:** `data/in_session_evidence.json` — **16 von 34 belegbar**, 18 nicht; Median 0,3624 %, Maximum **1,5847 %** (BAYN.DE), 9 über 0,25 %, 3 über 1 %, kein Vorzeichen-Bias. Je Eintrag ist ausgewiesen, woher das Bar-Datum des Vergleichslaufs stammt (**9× `diag`**, **7× `bruecke`** über `first_seen_date`, weil `diag.last_bar_date` erst ab #63 existiert; die Brücke ist mit 29/29 belegt, bei Mehrdeutigkeit `None` statt Raten). Der Vergleichslauf darf **nie selbst** in der Sitzung dieser Bar gelegen haben (sonst Zwischenstand gegen Zwischenstand) — geprüft mit demselben Prädikat wie der Marker. **DIE UNBEANTWORTBARE FRAGE, ausdrücklich so benannt:** alle **9 gereiften** markierten Records sind **nicht belegbar** (darunter 2× `target_hit=1`, 1× `invalidated=1`) — „kippt ein Verdikt?" ist mit Repo-Daten **nicht prüfbar**, nicht negativ beantwortet. **ZWEI EIGENE TESTLÜCKEN BEIM MUTIEREN GEFUNDEN:** zwei Tests prüften das **Artefakt** statt den Code (`false` wird nie geschrieben; Vergleichslauf nicht in-session) — eine Code-Mutation wäre unsichtbar geblieben, weil die Datei sich nicht ändert. Beide durch Werte-Tests auf Funktionsebene ersetzt. **MUTATIONSPROBEN, ehrlich gezählt: 19 gefahren, 17 rot, 2 als ÄQUIVALENT belegt** — (a) „Tagesvergleich in UTC statt Ortszeit" überlebt, weil beide Sitzungsfenster vollständig in EINEM UTC-Tag liegen (über alle 3592 In-Sitzung-Minuten in Sommer, Winter und **beiden** DST-Zwischenwochen nachgemessen: null Abweichungen); (b) `setdefault` → `=` beim Marker-Datum überlebt, weil die `continue`-Wache vorher abspringt — die Wache selbst ist rot, wenn man sie entfernt. **Eine dritte Probe war MEIN Fehler, nicht die der Tests:** sie sollte „Markierung erst nach `write_collection`" nachstellen, verschob aber gar nichts; richtig gebaut (`write_collection` vor die Markierung gezogen) ist sie rot. **GUARDIAN: OK, keine Blocker, vier Nits — alle vier eingearbeitet, und zwei davon waren echte Funde.** (1) Er fand **zwei überlebende Mutationen in `collect_in_session_evidence.belege()`, die auf meiner Liste fehlten**: „erster statt letzter Vergleichslauf gewinnt" (im echten Bestand konkurrieren nie zwei gültige Kandidaten für dieselbe Bar — deshalb blieb es unsichtbar) und `is not False` → `is True` (ließe einen Vergleichslauf **unklarer** Lage als Beleg durchgehen, statt ihn zu verwerfen). Beide jetzt mit Werte-Tests gedeckt, beide nachgestellt → rot. (2) Er benannte meinen Reihenfolge-Test als weiteren Vertreter der Artefakt-Klasse — **zu Recht**, und er ist jetzt durch einen **echten Voll-Lauf** ersetzt: `elliott_pipeline.main()` im Offline-Modus mit eingefrorener Uhr und einer synthetischen Kursreihe, die auf dem Lauf-Tag endet (der Fetcher ankert sonst auf 2024, der In-Session-Fall wäre end-to-end gar nicht herstellbar); geprüft wird die **geschriebene Datei**, plus Gegenprobe mit demselben Lauf um 22:40 UTC ohne Marker. (3) Einzelmarkt-Feiertage waren korrekt, aber unbenannt — jetzt vier Fälle als Test (Thanksgiving, July 4, 1. Mai, Ostermontag): das Kriterium fängt sie **strukturell** über den Tagesvergleich ab, ganz ohne Feiertagsliste. (4) Revert-Satz nachgetragen. **MUTATIONSBILANZ FINAL: 24 gefahren, 22 rot, 2 äquivalent.** 72 neue Tests (952 → **1024**). **Revert = kompletter PR-Revert genügt**; die Marker verschwinden mit den Datendateien, `python scripts/mark_in_session_creation.py --purge --live` stellt sie auch einzeln byte-identisch zurück. Kein Datenstand wird ungültig, keine gemessene Zahl ändert sich | Draft, Guardian OK |
 (Merge-Commits/tägliche `chore(data)`-Commits ausgelassen. Der tägliche
 `report.json`-Commit trägt `[skip ci]`.)
 
@@ -171,6 +172,40 @@ durchgängig ab #13.
 Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 
 **NEU AM 07.08.2026 — die frischesten Punkte zuerst:**
+
+- **OFFEN, STRUKTURELL UNBEANTWORTBAR (ab #81) — kippt bei den In-Session-Records
+  ein Treffer-Verdikt?** Von den 34 markierten Records sind **16 belegbar**
+  (Median 0,36 %, Maximum 1,58 % Abweichung des eingefrorenen `entry_close` vom
+  echten Schluss) — aber **alle 16 sind ungereift**, tragen also noch kein
+  Verdikt. Umgekehrt sind **alle 9 gereiften** markierten Records **nicht
+  belegbar**: `diag.last_bar_date` gibt es erst ab #63 (30.07.), und für die
+  Bars vom 23./24.07. existiert kein späterer Lauf, der den Ticker noch in den
+  Top-5 führt. Betroffen namentlich: **WAC.DE, TKA.DE, G1A.DE, HAG.DE, PBB.DE,
+  RTX** (Bar 23.07.) sowie **XEL, NVDA, SPG** (Bar 24.07.) — darunter **zwei
+  `target_hit=1`** (HAG.DE, SPG) und **ein `invalidated=1`** (NVDA). **Es gibt
+  in dieser Datenlage keinen einzigen Record, an dem die Frage überhaupt
+  gestellt werden kann.** Das ist eine Lücke, keine Entwarnung.
+  **Der einzige Weg, sie zu schließen**, wäre ein späterer Abruf der amtlichen
+  Tagesschlüsse jener Tage — ein festgestellter Tagesschluss ändert sich nicht
+  rückwirkend, wäre also ein gültiger Referenzwert (nur für die *echte* Seite,
+  nie für den eingefrorenen Zwischenstand). **Easys Entscheidung**, ausdrücklich
+  offen gelassen; die Sandbox erreicht die Quelle ohnehin nicht.
+- **OFFEN (laufend, ab #81) — das Beweisfenster schließt sich täglich.** Ein
+  In-Session-Record ist nur belegbar, solange die committete Report-Historie
+  einen späteren Lauf mit derselben Bar enthält, der den Ticker **noch in den
+  Top-5 führt**. **Sechs** der 18 heutigen Lücken sind genau so entstanden. Die
+  drei Records vom 07.08. 14:46 (DUE.DE, SYK, TKA.DE) sind heute noch nicht
+  belegt, weil zum Bau-Zeitpunkt kein späterer Lauf mit Bar `2026-08-07`
+  vorlag; `scripts/collect_in_session_evidence.py` ist **append-only** und holt
+  sie beim nächsten Lauf nach, wenn sie dann noch in den Top-5 stehen.
+  **Praktisch:** das Skript nach dem Abend-Cron noch einmal fahren.
+- **BETRIEBSREGEL ab 07.08.2026 (Easy) — keine Hand-Dispatches während der
+  Sitzungen.** US 09:30–16:00 New York, DE 09:00–17:30 Berlin. **Alle 34**
+  In-Session-Records stammen aus `workflow_dispatch`; der geplante Abend-Cron
+  (`45 21 * * 1-5`) hat **nie** einen erzeugt. Damit ist das Problem für
+  künftige Records ohne Code-Änderung, ohne Gate und ohne Populations-Beweis
+  beseitigt. Der Marker läuft trotzdem weiter — als Nachweis, nicht als Ersatz
+  für die Regel.
 
 - **OFFEN, UNGEKLÄRT BIS ZUM NÄCHSTEN LAUF — der verzögerte Lauf vom 07.08. 01:04
   hat die Sammlung eingefroren.** In `data/health_state.json` stehen **zwei
@@ -427,9 +462,16 @@ verbindliche Reihenfolge für die nächste Session.
    dieselbe **neutrale** Farbe (kein Grün/Rot beim Risiko-Wert). Nichts begonnen.
 
 **P3 — vorgemerkt, ohne Auftrag:**
-6. **Marker-Entscheidung vor der ersten echten Auswertung:**
-   `episode_split_suspect` und `stale_market_suspect` gehören in **eine**
-   Entscheidung; drei Records tragen beide Marker.
+6. **Marker-Entscheidung vor der ersten echten Auswertung — jetzt DREI Marker
+   statt zwei (seit #81):** `episode_split_suspect` (10 Records),
+   `stale_market_suspect` (4) und **`in_session_creation` (34)** gehören in
+   **eine** Entscheidung. Überlappung nachgerechnet: drei Records tragen
+   `split`+`stale`, **genau einer** trägt `in_session`+`split`
+   (`HAG.DE @ 2026-07-24T14:36:19Z`), **keiner** trägt alle drei. Getrennt
+   entschieden würde derselbe Record je nach Reihenfolge doppelt oder gar nicht
+   ausgeschlossen. **Die Frist meldet sich nicht selbst** — sie muss fallen,
+   BEVOR die erste Zahl sichtbar ist, sonst entscheidet man in Sichtweite der
+   Ergebnisse. Stand 07.08.: 15 auswertbar von 100.
 7. **Rückfallwerte in `notify.py`** können still divergieren (`REPORT_PATH`,
    `CARD_STATUS`, `EVAL_MIN_N` — Backlog-Punkt weiter unten in Abschnitt 3).
 
@@ -1500,6 +1542,36 @@ Beleg = Abschnitt 3.)
   live (PR #3). Guardian prüft: „Spiegeln die Mocks die echte Form?"
 - **Sandbox-Stale-Base:** die Sandbox startet auf altem Stand → **immer zuerst
   `origin/main` fetchen und davon branchen** (steht in jedem Aufgaben-Prompt).
+- **FLACHER KLON IN DER SANDBOX (07.08.2026) — `git fetch --unshallow` VOR
+  jeder Historien-Analyse.** Die Sandbox klont mit `--depth 1`. `git log -- data/report.json`
+  zeigt dann **22 statt 70** Ständen, `data/forward_collection.json` **24 statt
+  64** — und zwar **ohne Fehler, ohne Warnung, ohne Lücke im Ergebnis**. Jede
+  Replay-Rechnung läuft still auf einem Drittel der Daten und liefert eine
+  plausible, falsche Zahl. Das ist **exakt die #68-Falle**, nur eine Ebene
+  weiter: dort klonte `actions/checkout` flach und der Split-Replay fand einen
+  Stand statt 44; behoben wurde damals `ci.yml` (`fetch-depth: 0`) — die
+  **Sandbox** blieb flach und hat es beim In-Session-Befund prompt wieder
+  getan. Prüfen mit `git rev-parse --is-shallow-repository`. Wer eine
+  Historien-Zahl nennt, nennt auch die Zahl der gesehenen Stände. Die beiden
+  Skripte `mark_in_session_creation.py --verify-history` und
+  `collect_in_session_evidence.py` brechen unter 40 sichtbaren Ständen mit
+  Grund ab, statt zu rechnen; die zugehörigen Tests **überspringen mit Grund**
+  statt still leer grün zu sein (`braucht_historie`).
+- **MUTATIONSPROBEN: `__pycache__` VOR JEDEM LAUF WEG (07.08.2026).** Eine
+  Probe meldete **17 von 17 rot** — falsch. Die Mutation
+  `"close": (16, 0)` → `(20, 0)` ist **längengleich**, und das Zurückspielen
+  der Sicherungskopie ergab dieselbe mtime-Sekunde: Python hielt den
+  **mutierten Bytecode** für gültig und lud ihn weiter, obwohl die Quelle
+  längst wieder korrekt war. Sichtbar wurde es erst, weil danach 20 fremde
+  Tests umfielen, während `git diff` auf `scripts/` **leer** war — Quelle
+  `(16, 0)`, Laufzeit `(20, 0)`. Wäre es umgekehrt gelaufen, hätte eine
+  überlebende Mutation als „rot" gegolten und eine echte Testlücke verdeckt.
+  **Regel:** vor jeder Mutationsreihe
+  `find . -name __pycache__ -type d -not -path './.git/*' -exec rm -rf {} +`
+  und die Reihe mit **`PYTHONDONTWRITEBYTECODE=1`** fahren. Der Neulauf ergab
+  dann das ehrliche Bild (17 rot, 2 äquivalent, 1 selbst falsch gebaut).
+  **Verallgemeinert:** eine Mess-Vorrichtung, die ihr eigenes Ergebnis
+  verfälschen kann, gehört genauso geprüft wie das Gemessene.
 - **Proxy-Rechte:** `workflow_dispatch` geht; Branch-Delete / Branch-Protection-
   Änderungen → **403**. Nicht dagegen anrennen.
 - **Sandbox erreicht kein Yahoo/EDGAR/externe Hosts** → alles Externe bleibt

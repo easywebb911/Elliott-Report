@@ -1061,3 +1061,81 @@ vor n ≥ 100) gilt unverändert.
   Revert = PR zurücknehmen; dann rechnet der Wächter wieder gegen den
   Kalendertag und die Vormittags-Fehlalarme kehren zurück. **Kein Datenstand
   wird ungültig**, diese Notiz bleibt gültig.
+
+- **07.08.2026 — `in_session_creation`: Records aus laufender Sitzung markiert
+  (dritter Marker, KEIN Ausschluss).** Read-only-Diagnose vom 07.08.: **34 von
+  69** Records entstanden in Läufen, deren Report-Stempel **innerhalb der
+  regulären Sitzung des eigenen Markts** lag. Die Quelle liefert dann bereits
+  eine Zeile für den laufenden Tag — eine **noch nicht fertige Bar**. Alles, was
+  die Anlage einfriert, ist dort ein Zwischenstand: `entry_close`,
+  `score_heuristic`, `confluence`, `vol_*`, `ambiguity_n*`,
+  `agent_concern_level`.
+  - **DEFINITION (Kriterium K2).** Ein Record trägt `in_session_creation: true`
+    genau dann, wenn der Report-Stempel des **anlegenden** Laufs im
+    Sitzungsfenster seines Markts liegt **UND** der **Ortszeit**-Kalendertag
+    dieses Stempels das **Bar-Datum** des eingefrorenen Kurses ist. Fenster:
+    **US 09:30–16:00 America/New_York**, **DE 09:00–17:30 Europe/Berlin**,
+    Grenzen exklusiv, DST je Datum über `zoneinfo`. Die Schlusszeiten kommen aus
+    `market_calendar.MARKET_SESSIONS` — **eine** Kalender-Quelle, kein Nachbau;
+    die Eröffnungszeiten standen nicht im Repo und sind hiermit festgelegt.
+    Zweites Feld `in_session_creation_marked_utc` datiert die Markierung.
+    **`false` wird nie geschrieben** (Abwesenheit = sauber), der Marker wird
+    **nie entfernt und nie geheilt** (MET/D/PRU-Prinzip) und ändert **keine
+    Berechnung** — er steht nicht in `evaluate.FROZEN_FIELDS`, und Population,
+    `eval_counts` und `build_population` sind mit und ohne ihn identisch (Test).
+  - **WARUM DIE ZWEITE BEDINGUNG.** Das reine Uhrzeitfenster markierte **35**
+    statt 34. Der Überzählige war `ADS.DE @ 2026-07-25T13:35:26Z` — ein Dispatch
+    am **Samstag** 15:35 CEST. Die Uhrzeit passt, aber es gab keine Sitzung, und
+    eingefroren wurde die **fertige** Freitags-Bar vom 24.07. Belegt: derselbe
+    Kurs 173,60 wie im Freitags-Lauf, Abweichung **±0,0000 %**. Nicht über
+    `is_trading_day` gelöst, weil das nur ein Näherungsmaß ist: ein Lauf an
+    einem Handelstag T, der wegen des Ein-Tag-Versatzes (Notiz vom 30.07.) noch
+    die fertige Bar von T−1 einfriert, wäre damit fälschlich markiert.
+  - **BEFUNDLAGE (gemessen, nicht geschätzt).** Alle 34 stammen aus
+    `workflow_dispatch`, **kein einziger** aus dem geplanten Lauf — der Cron
+    `45 21 * * 1-5` liegt außerhalb beider Sitzungsfenster. Von den 34 sind
+    **16 belegbar** (`data/in_session_evidence.json`): Median der Abweichung
+    zwischen eingefrorenem `entry_close` und echtem Schlusskurs **0,36 %**,
+    Maximum **1,58 %** (BAYN.DE), 9 über 0,25 %, 3 über 1 %, **kein
+    Vorzeichen-Bias** (10 zu hoch, 5 zu niedrig, 1 exakt). Der eingefrorene
+    Score ist deutlich robuster: 11 von 16 exakt gleich, Maximum 0,60 Punkte.
+    Kein einziger Auswertbar-Status kippt; die engste Marge ist RWE.DE mit
+    0,51 % Abstand zur Ausschluss-Schwelle.
+  - **DIE FRAGE „KIPPT EIN VERDIKT?" IST UNBEANTWORTBAR — nicht negativ
+    beantwortet.** Alle **9 gereiften** markierten Records (WAC.DE, TKA.DE,
+    G1A.DE, HAG.DE, PBB.DE, RTX — alle Bar 23.07.; XEL, NVDA, SPG — Bar 24.07.)
+    sind aus Repo-Daten **nicht belegbar**: `diag.last_bar_date` gibt es erst ab
+    dem 30.07., und für diese Bars existiert kein späterer Lauf, der den Ticker
+    noch in seinen Top-5 führt. Darunter zwei `target_hit=1` (HAG.DE, SPG) und
+    ein `invalidated=1` (NVDA). Es gibt in dieser Datenlage **keinen** Record,
+    an dem sich prüfen ließe, ob ein Treffer-Verdikt kippt. Das bleibt eine
+    offene Lücke, keine Entwarnung.
+  - **SELEKTIONSEFFEKT — benannte, rückwirkend NICHT messbare Grenze.** Der
+    `target_exceeded`-Filter und das Ranking liefen auf demselben vorläufigen
+    Close. **Welche Ticker überhaupt in die Top-5 kamen**, hing damit am
+    Abrufzeitpunkt. Das ist kein Wertefehler an einem Feld, sondern eine andere
+    Stichprobe — und es ist nachträglich nicht quantifizierbar, weil dafür die
+    gesamte Pipeline mit den echten Schlusskursen jener Tage neu gerechnet
+    werden müsste und die Kursbasis dafür nicht im Repo liegt. Bei der
+    Auswertung ist diese Grenze zu nennen.
+  - **BETRIEBSREGEL ab 07.08.2026: keine Hand-Dispatches während der
+    Sitzungen.** Alle 34 Fälle sind Hand-Dispatches; der geplante Abend-Cron hat
+    **nie** einen erzeugt. Damit ist das Problem für künftige Records ohne
+    Code-Änderung, ohne Gate und ohne Populations-Beweis beseitigt. Der Marker
+    bleibt trotzdem laufend aktiv — als Nachweis, nicht als Ersatz für die
+    Regel.
+  - **BEWUSST NICHT GEÄNDERT:** kein Gate, kein Ausschluss, keine Heilung, keine
+    Neuberechnung. Der Sammlungs-Schutz aus #72 bleibt am Kalendertag-Anker, der
+    Wächter-Anker aus #75 bleibt am Sitzungs-Ende, `mature_record` und
+    `evaluate.py` (v1, eingefroren) sind unberührt.
+  - **DREI MARKER, EINE ENTSCHEIDUNG.** Die Wiedervorlage „Marker-Entscheidung
+    vor der ersten echten Auswertung" umfasst ab jetzt **drei** Marker:
+    `episode_split_suspect` (10 Records), `stale_market_suspect` (4) und
+    `in_session_creation` (34). Überlappung: genau **ein** Record trägt zwei
+    davon — `HAG.DE @ 2026-07-24T14:36:19Z` (`in_session_creation` +
+    `episode_split_suspect`); **keiner** trägt drei. Getrennt entschieden würde
+    derselbe Record je nach Reihenfolge doppelt oder gar nicht ausgeschlossen.
+  Revert = Marker per `python scripts/mark_in_session_creation.py --purge --live`
+  entfernen (stellt **Byte-Identität** her, nachgewiesen), Evidence-Datei und
+  Skripte löschen. **Kein Datenstand wird ungültig**, keine gemessene Zahl
+  ändert sich — die Records selbst waren zu keinem Zeitpunkt verändert.
