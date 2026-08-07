@@ -1274,6 +1274,9 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Reine Doku-/Daten-PRs: kein Guardian; Doku-only darf bei grünem CI self-merge.
 - Guardian = **Zweitblick, kein Gatekeeper** (Urteil OK / Nits / Blocker).
 - **QS-Kette:** CI (`test`, required empfohlen) + Guardian + Easy.
+- **Grün ist erst grün, wenn Lauf-ID und Head-SHA genannt sind und der SHA der
+  aktuelle Zweigkopf ist** — ein frisch per API angelegter PR ist **ungeprüft-leer**,
+  nicht ungeprüft-rot (Easy-Regel 07.08., s. Abschnitte 7 und 8).
 - Modell-ID `claude-opus-4-8` **nie** in Commits/PRs/Artefakten.
 
 ---
@@ -1394,6 +1397,30 @@ Beleg = Abschnitt 3.)
 
 ---
 
+### CI-Läufe entstehen hier nicht beim Anlegen eines PRs (07.08.2026)
+
+Zwei Draft-PRs standen **sechzehn bzw. acht Stunden** ohne einen einzigen CI-Lauf
+da, ohne dass etwas kaputt war. Belegt in beide Richtungen:
+
+- **#77:** angelegt 06.08. 21:55 → kein Lauf. Push von `5a7ebac` am 07.08. 05:39 →
+  sofort Lauf 31151291975, grün.
+- **#78:** Zweig **vor** dem Anlegen gepusht, danach nie wieder → **null** Läufe.
+  Schließen + sofort wieder öffnen → `reopened` löst Lauf 31185038786 aus, grün.
+
+**Regel:** ein per API angelegter PR erzeugt keinen `pull_request`-Lauf; **ein Push
+auf den Zweig oder ein Reopen erzeugt ihn.** Actions selbst lief die ganze Zeit —
+der Tageslauf vom 06.08. hat planmäßig committet.
+
+**Die zweite Falle liegt im Ablesen:** `get_status` liest die *Commit-Status*-API,
+`ci.yml` erzeugt aber *Check-Runs*. `total_count: 0` heißt dort also **nicht**
+„keine CI" — die Frage war die falsche. Verlässlich ist die Lauf-Liste
+(`list_workflow_runs`, nach `branch` gefiltert) plus `git ls-remote`.
+
+**Folge:** Ready-Meldungen brauchen Lauf-ID + Head-SHA + Zweigkopf-Abgleich
+(stehende Regel, Abschnitt 8).
+
+---
+
 ## 8. ARBEITSWEISE
 
 - **Drei-Rollen-Disziplin:** **Claude** (in Easys Slack/Chat) formuliert Prompts &
@@ -1418,6 +1445,16 @@ Beleg = Abschnitt 3.)
   konstruierte Testfälle genügen NICHT. **Lesson:** der PRU-/`target_exceeded`-Fall
   blieb in allen Mocks unsichtbar, weil niemand den Fall konstruiert hatte; erst
   der Blick auf den echten Lauf (Kurs über Zielzone) deckte ihn auf.
+- **Ready-Meldung nur mit Lauf-ID, Head-SHA und Zweigkopf-Abgleich (Easy-Regel
+  07.08., stehend):** Wer einen PR als geprüft meldet, nennt **die Lauf-ID**, **den
+  Head-SHA, gegen den die CI gelaufen ist**, und **bestätigt, dass dieser SHA der
+  aktuelle Zweigkopf ist** (`git ls-remote origin refs/heads/<zweig>`). Ohne alle
+  drei Angaben ist es keine Ready-Meldung.
+  **Grund (am 07.08. teuer gelernt, s. Abschnitt 7):** ein **per API angelegter PR
+  löst hier keinen CI-Lauf aus** — er ist nicht ungeprüft-rot, sondern
+  **ungeprüft-leer**. `mergeable_state: unstable` und ein leeres Ampelfeld sehen
+  dabei aus wie „Checks laufen noch", heißen aber „es gibt keine". Ein grüner Lauf
+  gegen einen **überholten** SHA ist derselbe Trugschluss in der zweiten Form.
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
 
