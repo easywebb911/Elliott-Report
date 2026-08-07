@@ -208,6 +208,13 @@ def markiere(records: Sequence[Dict], marked_utc: str) -> Tuple[int, List[Dict]]
     ``marked_utc``-Stempel — die Markierung ist ein Ereignis, das genau einmal
     stattgefunden hat, und darf sich nicht bei jedem Lauf neu datieren.
     Rückgabe: (neu gesetzt, nicht berechenbare Records).
+
+    TRÄGER DIESER INVARIANTE IST DIE ``continue``-WACHE, nicht das
+    ``setdefault``: die Wache springt vor der Zuweisung ab, das ``setdefault``
+    ist Gürtel zum Hosenträger für den (heute unmöglichen) Fall, dass ein
+    Record ``MARKER_UTC`` ohne ``MARKER`` trägt. Eine Mutationsprobe hat das
+    belegt — ``setdefault`` -> ``=`` überlebt (unerreichbar), die Wache
+    entfernt macht rot.
     """
     treffer, unklar = betroffene_records(records)
     gesetzt = 0

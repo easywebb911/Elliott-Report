@@ -205,6 +205,17 @@ def test_tagesvergleich_rechnet_in_ortszeit_nicht_in_utc():
     """Der Freitags-Abend-Cron (22:40 UTC) liegt für DE im NÄCHSTEN Ortstag
     (00:40 CEST Samstag). In UTC gerechnet wäre der Tagesvergleich schief.
     Hier fällt er ohnehin aus dem Fenster — der Test hält die Rechenart fest.
+
+    EHRLICH ZUR BEWEISKRAFT: die Mutation „Tagesvergleich in UTC statt
+    Ortszeit" ÜBERLEBT die Suite — und zwar zu Recht, sie ist ein
+    ÄQUIVALENTER MUTANT, keine Testlücke. Beide Sitzungsfenster liegen
+    vollständig innerhalb EINES UTC-Tages (US 13:30–21:00 UTC, DE 07:00–16:30
+    UTC über beide Zeitzonen-Stände), Ortszeit- und UTC-Datum können dort also
+    nicht auseinanderfallen. Nachgemessen über alle 3592 In-Sitzung-Minuten an
+    Sommer-, Winter- und beiden DST-Zwischenwochen-Tagen: **null** Abweichungen.
+    Der Test steht trotzdem — er hält die ABSICHT fest, damit niemand die
+    Ortszeit-Rechnung später als Umstand wegoptimiert; sie trägt, sobald ein
+    Markt mit über Mitternacht UTC laufender Sitzung dazukäme.
     """
     assert ins._lokal("DE", "2026-07-31T22:40:44Z").date() == _dt.date(2026, 8, 1)
     assert ins._lokal("US", "2026-07-31T22:40:44Z").date() == _dt.date(2026, 7, 31)
@@ -265,6 +276,25 @@ def test_false_wird_nie_geschrieben():
         assert r.get(ins.MARKER) in (True, None)
         if ins.MARKER not in r:
             assert ins.MARKER_UTC not in r
+
+
+def test_markiere_haengt_nicht_getroffenen_records_kein_feld_an():
+    """WERTE-Test auf Funktionsebene, nicht auf der erzeugten Datei.
+
+    `test_false_wird_nie_geschrieben` prüft das Artefakt — eine Code-Mutation,
+    die `False` schreibt, bliebe dort unsichtbar, weil die Datei sich nicht
+    ändert. Dieser Test prüft die Funktion selbst.
+    """
+    records = [
+        {"ticker": "IN", "market": "US", "first_seen_date": "2026-08-07",
+         "created_utc": _utc("US", "2026-08-07 10:46:00")},
+        {"ticker": "AUS", "market": "US", "first_seen_date": "2026-08-07",
+         "created_utc": _utc("US", "2026-08-07 17:00:00")},
+    ]
+    gesetzt, unklar = ins.markiere(records, "2026-08-07T00:00:00Z")
+    assert (gesetzt, unklar) == (1, [])
+    assert records[0][ins.MARKER] is True
+    assert ins.MARKER not in records[1] and ins.MARKER_UTC not in records[1]
 
 
 def test_marker_datum_ist_gesetzt_und_einheitlich():
@@ -458,6 +488,48 @@ def test_evidence_vergleichslauf_lag_nie_selbst_in_der_sitzung_dieser_bar():
     for e in json.loads(EVIDENCE.read_text(encoding="utf-8"))["records"]:
         assert ins.ist_in_session_anlage(
             e["market"], e["source_run_utc"], e["bar_date"]) is False
+
+
+def test_belege_verwirft_einen_vergleichslauf_der_selbst_in_der_sitzung_lag():
+    """WERTE-Test auf Funktionsebene, nicht auf der erzeugten Datei.
+
+    `test_evidence_vergleichslauf_lag_nie_selbst_in_der_sitzung_dieser_bar`
+    prüft das Artefakt — eine Code-Mutation, die den Guard entfernt, bliebe
+    dort unsichtbar. Hier steht die Wahl zwischen zwei Läufen derselben Bar:
+    der spätere liegt NOCH in der Sitzung (11:00 New York), der frühere ist es
+    nicht (Vortag 20:00). Gewinnen muss der Nicht-in-Sitzung-Lauf.
+    """
+    rec = {"ticker": "T", "market": "US", "first_seen_date": "2026-08-07",
+           "created_utc": _utc("US", "2026-08-07 09:45:00"), "entry_close": 100.0}
+    historie = [
+        {"ts": _utc("US", "2026-08-07 10:00:00"), "sha": "aaa",           # in Sitzung
+         "markets": {"US": {"last_bar_date": "2026-08-07",
+                            "bar_date_source": "diag", "closes": {"T": 111.0}}}},
+        {"ts": _utc("US", "2026-08-07 16:30:00"), "sha": "bbb",           # nach Schluss
+         "markets": {"US": {"last_bar_date": "2026-08-07",
+                            "bar_date_source": "diag", "closes": {"T": 105.0}}}},
+        {"ts": _utc("US", "2026-08-07 17:00:00"), "sha": "ccc",           # in Sitzung? nein
+         "markets": {"US": {"last_bar_date": "2026-08-07",
+                            "bar_date_source": "diag", "closes": {}}}},    # ohne Ticker
+    ]
+    gefunden, offen = ev.belege([rec], historie)
+    assert offen == []
+    assert len(gefunden) == 1
+    e = gefunden[0]
+    assert e["source_commit"] == "bbb", "der In-Sitzung-Lauf darf nicht gewinnen"
+    assert e["close_after_session"] == 105.0
+    assert e["deviation_pct"] == round((100.0 - 105.0) / 105.0 * 100.0, 4)
+
+
+def test_belege_meldet_offen_wenn_es_nur_in_session_vergleiche_gibt():
+    rec = {"ticker": "T", "market": "US", "first_seen_date": "2026-08-07",
+           "created_utc": _utc("US", "2026-08-07 09:45:00"), "entry_close": 100.0}
+    historie = [{"ts": _utc("US", "2026-08-07 10:00:00"), "sha": "aaa",
+                 "markets": {"US": {"last_bar_date": "2026-08-07",
+                                    "bar_date_source": "diag",
+                                    "closes": {"T": 111.0}}}}]
+    gefunden, offen = ev.belege([rec], historie)
+    assert gefunden == [] and len(offen) == 1
 
 
 def test_evidence_ist_append_only():
