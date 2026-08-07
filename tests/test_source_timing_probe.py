@@ -4,7 +4,8 @@ Die drei Zusagen, die diese Datei festnagelt:
   1. **Dieselbe Abruf-Funktion wie die Pipeline** — eine zweite Fassung würde
      etwas anderes messen als der Tageslauf sieht.
   2. **Der ECHTE Abrufzeitpunkt** wird protokolliert, nie die Cron-Sollzeit.
-     GitHub verzögert geplante Läufe um 53–57 min; eine Zeile mit der Sollzeit
+     GitHub verzögert geplante Läufe (gemessen 52–60 min, einmal 3:19 h);
+     eine Zeile mit der Sollzeit
      wäre eine Zeile über einen Zeitpunkt, zu dem nichts abgerufen wurde.
   3. **Isolation**: Report, Sammlung, Health-Zustand und `docs/` bleiben
      unberührt.
@@ -321,9 +322,13 @@ def test_der_rebase_abort_liegt_IM_wiederholungs_schleifenkoerper():
 
 
 def test_die_cron_eintraege_liegen_55_minuten_vor_den_zielzeiten():
-    """Von Hand: Verzögerung 53–57 min (21:45 -> 22:37:51 / 22:40:53 /
-    22:41:59). Ziel 20:10 -> Cron 19:15, Ziel 21:45 -> 20:50, Ziel 22:15 ->
-    21:20; dazu zwei Zwischenpunkte für eine 15-Minuten-Auflösung."""
+    """Von Hand: Verzögerung 52–60 min über acht geplante Läufe (28.07.–06.08.,
+    Soll 21:45). Ziel 20:10 -> Cron 19:15, Ziel 21:45 -> 20:50, Ziel 22:15 ->
+    21:20; dazu zwei Zwischenpunkte für eine 15-Minuten-Auflösung.
+
+    Der gemessene Ausreißer von 3:19 h (Nacht zum 07.08.) ist bewusst NICHT
+    eingerechnet: gegen drei Stunden Verzug hilft kein Raster, ein solcher Tag
+    liefert keinen Ertrag und wird verworfen. Siehe Kopf der Workflow-Datei."""
     text = WF.read_text(encoding="utf-8")
     for eintrag in ('cron: "15 19 * * 1-5"', 'cron: "50 20 * * 1-5"',
                     'cron: "5 21 * * 1-5"', 'cron: "20 21 * * 1-5"',

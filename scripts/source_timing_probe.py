@@ -69,7 +69,8 @@ def probe_markt(markt: str, tickers: Sequence[str],
 
     ``jetzt`` ist der ECHTE Abrufzeitpunkt — nicht die Cron-Sollzeit. Genau
     darin liegt der Wert der Messung: GitHub verzögert geplante Läufe (bisher
-    gemessen 53–57 min), und eine Zeile mit der Sollzeit wäre eine Zeile über
+    gemessen 52–60 min, einmal aber 3:19 h), und eine Zeile mit der Sollzeit
+    wäre eine Zeile über
     einen Zeitpunkt, zu dem gar nichts abgerufen wurde.
 
     Neben ``fetched_utc`` steht ``finished_utc``: 10 Abrufe dauern, und die
