@@ -201,6 +201,34 @@ def test_tagesvergleich_schlaegt_is_trading_day():
     assert ins.ist_in_session_anlage("US", stempel, "2026-08-06") is False  # fertige Bar
 
 
+@pytest.mark.parametrize("markt,feiertag,lokal,bar,was", [
+    # NYSE zu, Xetra offen: Thanksgiving (4. Donnerstag im November) 2026.
+    ("US", "2026-11-26", "2026-11-26 11:00:00", "2026-11-25", "Thanksgiving"),
+    # NYSE zu, Xetra offen: Independence Day, hier der Freitag 03.07.2026.
+    ("US", "2026-07-03", "2026-07-03 11:00:00", "2026-07-02", "July 4 (beobachtet)"),
+    # Xetra zu, NYSE offen: 1. Mai 2026 (Freitag).
+    ("DE", "2026-05-01", "2026-05-01 12:00:00", "2026-04-30", "1. Mai"),
+    # Xetra zu, NYSE offen: Ostermontag 2026 (06.04.).
+    ("DE", "2026-04-06", "2026-04-06 12:00:00", "2026-04-02", "Ostermontag"),
+])
+def test_einzelmarkt_feiertage_erzeugen_KEINEN_false_positive(markt, feiertag,
+                                                              lokal, bar, was):
+    """GUARDIAN-NIT: der Fall war korrekt, aber nirgends als Test benannt.
+
+    An einem Einzelmarkt-Feiertag (nur EIN Markt zu — `FULL_CLOSURE` kennt nur
+    die gemeinsamen Schließtage, s. #71) liegt ein Lauf zur Mittagszeit im
+    Uhrzeit-Fenster, die eingefrorene Bar ist aber die FERTIGE des letzten
+    Handelstags. Das Kriterium fängt das **strukturell** über den
+    Tagesvergleich ab — es braucht dafür KEINE Feiertagsliste, und genau das
+    ist der Grund, warum es dem `is_trading_day`-Ansatz überlegen ist.
+    """
+    stempel = _utc(markt, lokal)
+    assert ins.im_sitzungsfenster(markt, stempel) is True, f"{was}: Vorbedingung"
+    assert ins.ist_in_session_anlage(markt, stempel, bar) is False, was
+    # Gegenprobe: derselbe Lauf auf die BAR DES TAGES wäre sehr wohl in-session.
+    assert ins.ist_in_session_anlage(markt, stempel, feiertag) is True
+
+
 def test_tagesvergleich_rechnet_in_ortszeit_nicht_in_utc():
     """Der Freitags-Abend-Cron (22:40 UTC) liegt für DE im NÄCHSTEN Ortstag
     (00:40 CEST Samstag). In UTC gerechnet wäre der Tagesvergleich schief.
@@ -389,14 +417,92 @@ def test_unberechenbarer_fall_blockiert_die_anlage_nicht_und_wird_laut(caplog):
 
 
 def test_pipeline_markiert_nach_dem_update_und_vor_dem_schreiben():
-    """Die Reihenfolge ist die ganze Zusage: sonst erreichte ein Record die
-    Platte ohne Marker. Geprüft an der Quelltext-Reihenfolge, weil ein
-    Voll-Lauf hier keine Kurse ziehen kann."""
+    """Quelltext-Reihenfolge — die BILLIGE Absicherung. Der eigentliche Beweis
+    steht darunter als echter Voll-Lauf (`test_ein_echter_lauf_…`); dieser Test
+    bleibt, weil er die Absicht an der Stelle festnagelt, an der sie steht."""
     q = (ROOT / "scripts" / "elliott_pipeline.py").read_text(encoding="utf-8")
     i_update = q.index("fc.update_forward_collection(coll, report")
     i_mark = q.index("ins.markiere_neue_records(coll, ts)")
     i_write = q.index("fc.write_collection(coll)")
     assert i_update < i_mark < i_write
+
+
+def _voll_lauf(tmp_path, monkeypatch, stempel: str, bar_ende: str):
+    """Echter `elliott_pipeline.main()` im Offline-Modus, mit eingefrorener Uhr
+    und einer synthetischen Kursreihe, die auf ``bar_ende`` endet.
+
+    Der synthetische Fetcher ankert sonst auf 2024 (`_synthetic_dates`:
+    „kein 'today'"), dann läge das Bar-Datum nie auf dem Lauf-Tag und der
+    In-Session-Fall wäre end-to-end gar nicht herstellbar.
+
+    REPO_ROOT wird auf `tmp_path` gebogen — auch für `health_check`, sonst
+    schreibt der Lauf in die ECHTE `data/health_state.json` (die Lehre steht in
+    `test_one_count_source`).
+    """
+    import elliott_pipeline as pipe
+    import forward_collection as fc
+    import health_check as hc
+
+    (tmp_path / "data").mkdir(exist_ok=True)
+    (tmp_path / "docs/data").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data/forward_collection.json").write_text(
+        json.dumps({"schema_version": 1, "records": []}), encoding="utf-8")
+
+    class _FesteUhr(_dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return _dt.datetime.strptime(stempel, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=_dt.timezone.utc)
+
+    def _reihe(n):
+        ende = _dt.date.fromisoformat(bar_ende)
+        return [(ende - _dt.timedelta(days=n - 1 - i)).isoformat() for i in range(n)]
+
+    monkeypatch.setenv("ELLIOTT_OFFLINE", "1")
+    monkeypatch.setattr(pipe, "datetime", _FesteUhr)
+    monkeypatch.setattr(pipe, "_synthetic_dates", _reihe)
+    for modul in (pipe, fc, hc):
+        monkeypatch.setattr(modul, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(pipe.config, "MARKETS", {
+        "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
+        "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},
+    })
+    monkeypatch.setattr(pipe, "load_watchlist", lambda: [])
+    assert pipe.main() == 0
+    return json.loads((tmp_path / "data/forward_collection.json")
+                      .read_text(encoding="utf-8"))
+
+
+def test_ein_echter_lauf_schreibt_den_marker_MIT_der_datei(tmp_path, monkeypatch):
+    """DIE ZIEL-MECHANIK, end-to-end nachgewiesen statt behauptet.
+
+    Lauf-Stempel 2026-08-07T14:46:04Z = 10:46 New York und 16:46 Berlin — beide
+    Sitzungen laufen. Die Kursreihe endet am selben Tag, der Record friert also
+    eine unfertige Bar ein. Geprüft wird die GESCHRIEBENE Datei: der Marker muss
+    auf der Platte stehen, nicht nur im Speicher. Damit ist die Reihenfolge
+    (Markierung vor `write_collection`) mitbewiesen.
+    """
+    coll = _voll_lauf(tmp_path, monkeypatch,
+                      "2026-08-07T14:46:04Z", "2026-08-07")
+    recs = coll["records"]
+    assert recs, "der Lauf hat gar keine Episode angelegt — Test wertlos"
+    for r in recs:
+        assert r["first_seen_date"] == "2026-08-07"
+        assert r[ins.MARKER] is True, r["ticker"]
+        assert r[ins.MARKER_UTC] == "2026-08-07T14:46:04Z"
+
+
+def test_ein_abendlauf_schreibt_den_marker_NICHT(tmp_path, monkeypatch):
+    """Gegenprobe mit identischer Kursreihe, nur später am Tag: 22:40 UTC ist
+    18:40 New York (Sitzung vorbei) und 00:40 Berlin des Folgetags. Kein Marker.
+    Ohne diese Gegenprobe bewiese der Positiv-Test nur, dass IRGENDWAS markiert.
+    """
+    coll = _voll_lauf(tmp_path, monkeypatch,
+                      "2026-08-07T22:40:00Z", "2026-08-07")
+    recs = coll["records"]
+    assert recs, "der Lauf hat gar keine Episode angelegt — Test wertlos"
+    for r in recs:
+        assert ins.MARKER not in r and ins.MARKER_UTC not in r
 
 
 def test_die_sammlung_kennt_die_sitzungs_logik_weiterhin_nicht():
@@ -519,6 +625,51 @@ def test_belege_verwirft_einen_vergleichslauf_der_selbst_in_der_sitzung_lag():
     assert e["source_commit"] == "bbb", "der In-Sitzung-Lauf darf nicht gewinnen"
     assert e["close_after_session"] == 105.0
     assert e["deviation_pct"] == round((100.0 - 105.0) / 105.0 * 100.0, 4)
+
+
+def test_belege_nimmt_den_SPAETESTEN_gueltigen_vergleichslauf():
+    """GUARDIAN-NIT: die Mutation „erster statt letzter Match gewinnt" überlebte
+    meine Reihe, weil im echten Bestand nie zwei gültige Vergleichsläufe für
+    dieselbe Bar konkurrieren. Hier konkurrieren sie.
+
+    Warum der späteste: er liegt am weitesten hinter dem Sitzungsschluss, ist
+    also der abgeklärteste Stand derselben Bar.
+    """
+    rec = {"ticker": "T", "market": "US", "first_seen_date": "2026-08-07",
+           "created_utc": _utc("US", "2026-08-07 09:45:00"), "entry_close": 100.0}
+    def lauf(lokal, sha, close):
+        return {"ts": _utc("US", lokal), "sha": sha,
+                "markets": {"US": {"last_bar_date": "2026-08-07",
+                                   "bar_date_source": "diag",
+                                   "closes": {"T": close}}}}
+    historie = [lauf("2026-08-07 16:05:00", "frueh", 104.0),
+                lauf("2026-08-07 18:00:00", "spaet", 106.0)]
+    gefunden, offen = ev.belege([rec], historie)
+    assert offen == [] and len(gefunden) == 1
+    assert gefunden[0]["source_commit"] == "spaet"
+    assert gefunden[0]["close_after_session"] == 106.0
+
+
+def test_belege_verwirft_einen_vergleichslauf_dessen_lage_UNKLAR_ist():
+    """GUARDIAN-NIT: die Mutation `is not False` → `is True` überlebte — sie
+    ließe einen Vergleichslauf durch, dessen In-Session-Lage gar nicht
+    berechenbar ist (`None`), statt ihn zu verwerfen.
+
+    `None` heißt „wir wissen nicht, ob das ein Zwischenstand war" — und ein
+    Beweisstück, das auf einem Vielleicht steht, ist keines. Hier: ein Lauf mit
+    unlesbarem Zeitstempel. Er ist der EINZIGE Kandidat; wird er zu Recht
+    verworfen, bleibt der Record offen.
+    """
+    rec = {"ticker": "T", "market": "US", "first_seen_date": "2026-08-07",
+           "created_utc": _utc("US", "2026-08-07 09:45:00"), "entry_close": 100.0}
+    kaputt = {"ts": "2026-08-07T99:99:99Z", "sha": "unlesbar",
+              "markets": {"US": {"last_bar_date": "2026-08-07",
+                                 "bar_date_source": "diag",
+                                 "closes": {"T": 104.0}}}}
+    assert ins.ist_in_session_anlage("US", kaputt["ts"], "2026-08-07") is None
+    gefunden, offen = ev.belege([rec], [kaputt])
+    assert gefunden == [], "ein Lauf unklarer Lage darf kein Beleg sein"
+    assert len(offen) == 1
 
 
 def test_belege_meldet_offen_wenn_es_nur_in_session_vergleiche_gibt():
