@@ -1275,8 +1275,8 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 - Guardian = **Zweitblick, kein Gatekeeper** (Urteil OK / Nits / Blocker).
 - **QS-Kette:** CI (`test`, required empfohlen) + Guardian + Easy.
 - **Grün ist erst grün, wenn Lauf-ID und Head-SHA genannt sind und der SHA der
-  aktuelle Zweigkopf ist** — ein frisch per API angelegter PR ist **ungeprüft-leer**,
-  nicht ungeprüft-rot (Easy-Regel 07.08., s. Abschnitte 7 und 8).
+  aktuelle Zweigkopf ist** — ein PR kann **ungeprüft-leer** dastehen statt
+  ungeprüft-rot (Easy-Regel 07.08., s. Abschnitte 7 und 8).
 - Modell-ID `claude-opus-4-8` **nie** in Commits/PRs/Artefakten.
 
 ---
@@ -1397,27 +1397,46 @@ Beleg = Abschnitt 3.)
 
 ---
 
-### CI-Läufe entstehen hier nicht beim Anlegen eines PRs (07.08.2026)
+### Ein leeres CI-Feld heißt nicht „läuft noch" — und die Ursache war nicht die, die ich zuerst nannte (07.08.2026)
 
 Zwei Draft-PRs standen **sechzehn bzw. acht Stunden** ohne einen einzigen CI-Lauf
-da, ohne dass etwas kaputt war. Belegt in beide Richtungen:
+da. Ich habe daraus erst „Actions ist kaputt" gelesen, dann „ein per API angelegter
+PR löst hier keinen Lauf aus". **Beides war falsch**, und die zweite Behauptung hat
+der nächste PR binnen Minuten widerlegt: #79 wurde genauso per API angelegt und
+bekam **sofort** einen Lauf (`31186594108`, Event `pull_request`, 12 s nach dem
+Anlegen).
 
-- **#77:** angelegt 06.08. 21:55 → kein Lauf. Push von `5a7ebac` am 07.08. 05:39 →
-  sofort Lauf 31151291975, grün.
-- **#78:** Zweig **vor** dem Anlegen gepusht, danach nie wieder → **null** Läufe.
-  Schließen + sofort wieder öffnen → `reopened` löst Lauf 31185038786 aus, grün.
+**Was belegt ist — nur die Beobachtung, nicht die Ursache:**
 
-**Regel:** ein per API angelegter PR erzeugt keinen `pull_request`-Lauf; **ein Push
-auf den Zweig oder ein Reopen erzeugt ihn.** Actions selbst lief die ganze Zeit —
-der Tageslauf vom 06.08. hat planmäßig committet.
+| Zeit | Ereignis |
+|---|---|
+| 06.08. 21:41 | letzter CI-Lauf des Abends (#76) |
+| 06.08. 21:45 | Soll-Start Tageslauf — **startet erst 07.08. 01:04**, 3 h 19 min Verzug (sonst 52–60 min) |
+| 06.08. 21:55 | #77 angelegt → **kein Lauf** |
+| 06.08. 22:1x | #78 angelegt → **kein Lauf** |
+| 07.08. 05:39 | Push auf #77 → Lauf `31151291975`, grün |
+| 07.08. 13:55 | Reopen #78 → Lauf `31185038786`, grün |
+| 07.08. 14:14 | #79 **angelegt** → Lauf `31186594108`, grün |
 
-**Die zweite Falle liegt im Ablesen:** `get_status` liest die *Commit-Status*-API,
-`ci.yml` erzeugt aber *Check-Runs*. `total_count: 0` heißt dort also **nicht**
-„keine CI" — die Frage war die falsche. Verlässlich ist die Lauf-Liste
-(`list_workflow_runs`, nach `branch` gefiltert) plus `git ls-remote`.
+Am Abend des 06.08. hat GitHub also für PR-`opened`-Events **keine** Läufe erzeugt
+**und** den geplanten Lauf um mehr als drei Stunden verschoben; seitdem funktioniert
+dieselbe Handlung normal. Das Muster passt auf eine **vorübergehende Störung auf
+GitHub-Seite** — beweisen lässt sich das von hier aus **nicht**, und deshalb steht
+es hier als Vermutung, nicht als Befund. **Als strukturelle Regel taugt es nicht.**
+
+**Die zweite Falle liegt im Ablesen und ist unabhängig von der Ursache:**
+`get_status` liest die *Commit-Status*-API, `ci.yml` erzeugt aber *Check-Runs*.
+`total_count: 0` heißt dort **nicht** „keine CI", sondern „falsche Frage gestellt" —
+und `mergeable_state: unstable` sieht aus wie „Checks laufen noch", heißt aber „es
+gibt keine". Verlässlich sind die nach `branch` gefilterte Lauf-Liste
+(`list_workflow_runs`) und `git ls-remote`.
+
+**Wenn ein PR ohne Lauf dasteht:** ein Push auf den Zweig oder ein Schließen +
+sofortiges Wiederöffnen erzeugt ihn — beides hier erprobt.
 
 **Folge:** Ready-Meldungen brauchen Lauf-ID + Head-SHA + Zweigkopf-Abgleich
-(stehende Regel, Abschnitt 8).
+(stehende Regel, Abschnitt 8). Die Regel steht **unabhängig davon**, warum ein Feld
+leer ist — genau das ist ihr Wert.
 
 ---
 
@@ -1450,11 +1469,12 @@ der Tageslauf vom 06.08. hat planmäßig committet.
   Head-SHA, gegen den die CI gelaufen ist**, und **bestätigt, dass dieser SHA der
   aktuelle Zweigkopf ist** (`git ls-remote origin refs/heads/<zweig>`). Ohne alle
   drei Angaben ist es keine Ready-Meldung.
-  **Grund (am 07.08. teuer gelernt, s. Abschnitt 7):** ein **per API angelegter PR
-  löst hier keinen CI-Lauf aus** — er ist nicht ungeprüft-rot, sondern
-  **ungeprüft-leer**. `mergeable_state: unstable` und ein leeres Ampelfeld sehen
-  dabei aus wie „Checks laufen noch", heißen aber „es gibt keine". Ein grüner Lauf
-  gegen einen **überholten** SHA ist derselbe Trugschluss in der zweiten Form.
+  **Grund (am 07.08. teuer gelernt, s. Abschnitt 7):** ein PR kann **ungeprüft-leer**
+  dastehen statt ungeprüft-rot — am 06.08. abends über Stunden, aus einer Ursache,
+  die von hier aus nicht feststellbar ist. `mergeable_state: unstable` und ein leeres
+  Ampelfeld sehen dabei aus wie „Checks laufen noch", heißen aber „es gibt keine".
+  Ein grüner Lauf gegen einen **überholten** SHA ist derselbe Trugschluss in der
+  zweiten Form. Die Regel greift, **ohne** dass man die Ursache kennen muss.
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
 
