@@ -2024,6 +2024,31 @@ def main() -> int:
             _log(f"[elliott] {_mk}: keine neuen Episoden — Kurs-Stand veraltet "
                  f"({_lag} Handelstag{'e' if _lag != 1 else ''} zurück).")
         fc.update_forward_collection(coll, report, price_sink, regimes, run_date, ts)
+        # In-Session-Marker (07.08.2026, Beschluss Easy): trug der ANLEGENDE Lauf
+        # seinen Stempel mitten in der Sitzung des eigenen Markts, sind alle bei
+        # der Anlage eingefrorenen Werte Zwischenstände (entry_close, Score,
+        # confluence, vol_*, ambiguity_n*, agent_concern_level — und die Auswahl
+        # selbst). REIN ETIKETTIEREND: kein Gate, keine Berechnung, kein
+        # Verhalten. Hier und nicht in `forward_collection`, damit der statische
+        # Wächter aus #75 (die Sammlung kennt keine Sitzungs-Logik) scharf
+        # bleibt. Vor `write_collection` -> ein Record erreicht die Platte nie
+        # ohne seinen Marker. Fail-soft, aber LAUT: schlägt der Vergleich fehl,
+        # entsteht der Record trotzdem und die Warnung steht im Log.
+        try:
+            import in_session as ins  # noqa: WPS433 — lazy wie agent_comment
+
+            _ins_gesetzt, _ins_unklar = ins.markiere_neue_records(coll, ts)
+            if _ins_gesetzt:
+                _log(f"[elliott] In-Session-Marker gesetzt: {_ins_gesetzt} "
+                     f"neuer Record{'s' if _ins_gesetzt != 1 else ''} "
+                     f"(Lauf-Stempel liegt in der Sitzung).")
+            if _ins_unklar:
+                _log(f"[elliott] WARNUNG: In-Session-Vergleich für "
+                     f"{len(_ins_unklar)} Record(s) nicht berechenbar — "
+                     f"Records angelegt, aber UNMARKIERT.")
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[elliott] WARNUNG: In-Session-Markierung übersprungen "
+                 f"(fail-soft): {type(exc).__name__}: {exc}")
         # Health-Check Stufe 2, Teil 2 von 3 — NICHT-FINIT-PRÜFUNG der Sammlung,
         # ebenfalls VOR write_collection (gleiche Begründung wie beim Report).
         try:
