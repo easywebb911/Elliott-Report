@@ -75,6 +75,31 @@ MARKET_OPEN = {
 # der Marke gilt die Sitzung als beendet) — kein zweiter Begriff von „Schluss".
 # Verglichen wird die volle Ortszeit inkl. Sekunden, NICHT ein (Stunde, Minute)-
 # Tupel: 09:30:30 liegt sonst auf (9, 30) und fiele fälschlich aus dem Fenster.
+#
+# ZWEITE BEDINGUNG (Kriterium K2, Beschluss Easy 07.08.2026 nach Rückfrage):
+# Der ORTSZEIT-Kalendertag des Stempels muss das BAR-DATUM des eingefrorenen
+# Kurses sein. Erst dann sagt der Marker, was er sagen soll — „die eingefrorene
+# Bar war noch in Bildung".
+#
+# ANLASS, damit es später nicht als Überkomplizierung wegoptimiert wird: das
+# reine Uhrzeitfenster markierte 35 statt 34 Records. Der Überzählige war
+# `ADS.DE @ 2026-07-25T13:35:26Z` — ein Dispatch am **Samstag** 15:35 CEST.
+# 15:35 liegt im Fenster 09:00–17:30, aber der 25.07.2026 ist ein Samstag
+# (`cal.is_trading_day` = False); eingefroren wurde die **fertige** Bar vom
+# Freitag, dem 24.07. Belegt: derselbe Kurs 173,60 wie im Freitags-Lauf, und
+# die Belegtabelle weist für ihn ±0,0000 % Abweichung aus. Nichts daran war
+# vorläufig — ein Marker dort wäre ein False Positive.
+#
+# WARUM NICHT `is_trading_day` STATT DES TAGESVERGLEICHS: der Handelstag ist
+# nur ein Näherungsmaß. Ein Lauf an einem Handelstag T, der wegen des
+# dokumentierten Ein-Tag-Versatzes (Registry 30.07.2026) noch die FERTIGE Bar
+# von T−1 einfriert, wäre damit fälschlich markiert. Der Tagesvergleich trifft
+# die Sache direkt. Heute liefern beide dieselbe Menge (34); der Unterschied
+# ist erst künftig sichtbar — ein Test hält ihn fest.
+#
+# ORTSZEIT, NICHT UTC: der Freitags-Abend-Cron (22:40 UTC) liegt für DE bereits
+# im nächsten Ortstag (00:40 CEST Samstag). In UTC gerechnet wäre der
+# Tagesvergleich für den DE-Markt regelmäßig schief.
 
 
 def _parse_utc(stempel) -> Optional[_dt.datetime]:
@@ -91,28 +116,59 @@ def _parse_utc(stempel) -> Optional[_dt.datetime]:
     return dt if dt.tzinfo else None
 
 
-def ist_in_sitzung(markt, stempel) -> Optional[bool]:
-    """Lag ``stempel`` in der regulären Sitzung von ``markt``?
+def _lokal(markt, stempel) -> Optional[_dt.datetime]:
+    """``stempel`` in der Ortszeit von ``markt``. None = nicht berechenbar."""
+    cfg = cal.MARKET_SESSIONS.get(str(markt or "").upper())
+    dt = _parse_utc(stempel)
+    if cfg is None or dt is None:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+
+        return dt.astimezone(ZoneInfo(cfg["tz"]))
+    except Exception:  # noqa: BLE001 — fehlende tzdata o. Ä. -> fail-soft
+        return None
+
+
+def im_sitzungsfenster(markt, stempel) -> Optional[bool]:
+    """Lag ``stempel`` im Uhrzeit-Fenster der Sitzung von ``markt``?
+
+    NUR die Uhrzeit — sagt NICHTS darüber, ob an dem Tag überhaupt gehandelt
+    wurde. Für das Marker-Kriterium ``ist_in_session_anlage`` benutzen.
 
     ``None`` = NICHT BERECHENBAR (unbekannter Markt, unlesbarer/naiver Stempel,
     fehlende tzdata). Der Aufrufer muss diesen Fall LAUT behandeln — nie still
     als „nicht in Sitzung" verbuchen, sonst verschwindet ein Marker geräuschlos.
     """
-    schluss_cfg = cal.MARKET_SESSIONS.get(str(markt or "").upper())
     oeffnung = MARKET_OPEN.get(str(markt or "").upper())
-    dt = _parse_utc(stempel)
-    if schluss_cfg is None or oeffnung is None or dt is None:
+    cfg = cal.MARKET_SESSIONS.get(str(markt or "").upper())
+    lokal = _lokal(markt, stempel)
+    if oeffnung is None or cfg is None or lokal is None:
         return None
-    try:
-        from zoneinfo import ZoneInfo
+    h, m = cfg["close"]
+    return oeffnung < lokal.time() < _dt.time(h, m)
 
-        lokal = dt.astimezone(ZoneInfo(schluss_cfg["tz"]))
-    except Exception:  # noqa: BLE001 — fehlende tzdata o. Ä. -> fail-soft
+
+def ist_in_session_anlage(markt, stempel, bar_datum) -> Optional[bool]:
+    """DAS MARKER-KRITERIUM (K2): war die eingefrorene Bar noch in Bildung?
+
+    Wahr genau dann, wenn ``stempel`` im Sitzungsfenster von ``markt`` liegt
+    UND sein ORTSZEIT-Kalendertag das ``bar_datum`` des eingefrorenen Kurses
+    ist. Begründung beider Bedingungen: siehe Kopf dieses Moduls.
+
+    ``None`` = nicht berechenbar (auch bei fehlendem/unlesbarem ``bar_datum``).
+    """
+    fenster = im_sitzungsfenster(markt, stempel)
+    if fenster is None:
         return None
-    h, m = schluss_cfg["close"]
-    schluss = _dt.time(h, m)
-    jetzt = lokal.time()
-    return oeffnung < jetzt < schluss
+    if not isinstance(bar_datum, str) or not bar_datum.strip():
+        return None
+    lokal = _lokal(markt, stempel)
+    if lokal is None:  # pragma: no cover — von `fenster` bereits abgedeckt
+        return None
+    if not fenster:
+        return False
+    return lokal.date().isoformat() == bar_datum.strip()
 
 
 def record_key(rec: Dict) -> Tuple:
@@ -124,17 +180,20 @@ def record_key(rec: Dict) -> Tuple:
 def betroffene_records(records: Sequence[Dict]) -> Tuple[List[Dict], List[Dict]]:
     """(zu markieren, nicht berechenbar) — rein, deterministisch, ohne I/O.
 
-    Das Kriterium braucht ausschließlich ``created_utc`` und ``market`` des
-    Records. ``created_utc`` IST der Report-Stempel des anlegenden Laufs; dass
-    das über den gesamten Bestand gilt, prüft ein eigener Test gegen die
-    committete Report-Historie (kein Vertrauen, ein Beleg).
+    Das Kriterium braucht ausschließlich ``created_utc``, ``market`` und
+    ``first_seen_date`` des Records — alle drei stehen im Record selbst.
+    ``created_utc`` IST der Report-Stempel des anlegenden Laufs und
+    ``first_seen_date`` IST das ``diag.last_bar_date`` seines Markts in jenem
+    Lauf; dass beides über den gesamten Bestand gilt, prüfen eigene Tests gegen
+    die committete Report-Historie (kein Vertrauen, ein Beleg).
     """
     treffer: List[Dict] = []
     unklar: List[Dict] = []
     for rec in records:
         if not isinstance(rec, dict):
             continue
-        urteil = ist_in_sitzung(rec.get("market"), rec.get("created_utc"))
+        urteil = ist_in_session_anlage(rec.get("market"), rec.get("created_utc"),
+                                       rec.get("first_seen_date"))
         if urteil is None:
             unklar.append(rec)
         elif urteil:
