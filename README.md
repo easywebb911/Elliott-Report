@@ -14,9 +14,11 @@ Wellen-Auszählung — **keine Anlageberatung, keine Wahrscheinlichkeitsaussage.
 > **[`SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)** — beim Session-Start **nicht**
 > lesen, nur bei Detailfragen zu einem erledigten Strang.
 >
-> **PFLEGE-REGEL:** `SESSION_HANDOVER.md` wird bei **jedem Merge im selben PR**
-> aktualisiert (mindestens PR-Historie, Offene Verifikationen, Roadmap). Ein PR
-> **ohne** Handover-Update gilt als unvollständig; der Guardian prüft das mit.
+> **Pflege- und Archiv-Regel** — wann das Handover aktualisiert wird und wann ein
+> erledigter Strang ins Archiv wandert — stehen **im Kopf von
+> [`SESSION_HANDOVER.md`](SESSION_HANDOVER.md)**, bewusst **nur dort**. Dieselbe
+> Regel an zwei Orten läuft auseinander; diese Stelle war der Beleg dafür (sie
+> nannte noch Abschnittsnamen, die es seit der Handover-Teilung nicht mehr gibt).
 
 ## Struktur
 
