@@ -31,14 +31,11 @@ import argparse
 import datetime as _dt
 import json
 import os
-import sys
-from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-# BEIDE Verzeichnisse — genau wie elliott_pipeline.py es tut: `config.py` liegt
-# im Repo-ROOT, die übrigen Module in `scripts/`.
+# BEIDE Verzeichnisse auf den Pfad — `config.py` liegt im Repo-ROOT, die
+# übrigen Module in `scripts/`.
 #
-# Warum das hier stand und fehlte (Befund 01.08.2026): beim Start ALS SKRIPT
+# Warum das nötig ist (Befund 01.08.2026): beim Start ALS SKRIPT
 # (`python scripts/notify.py --mode daily`) setzt Python `sys.path[0]` auf das
 # SKRIPT-Verzeichnis, nicht auf das Arbeitsverzeichnis. Der Repo-Root stand
 # damit nirgends auf dem Pfad, `import config` scheiterte — und weil
@@ -48,9 +45,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Dieselbe Klasse wie der tote Score-Alarm vor #66. Die Pipeline merkte nichts,
 # weil sie `notify` als MODUL importiert und beide Pfade selbst setzt; „lokal
 # geht es" täuschte, weil `python -c` das Arbeitsverzeichnis auf dem Pfad hat.
-for _p in (str(REPO_ROOT), str(REPO_ROOT / "scripts")):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+#
+# Der Aufbau selbst steht seit 08.08.2026 an EINER Stelle (`scripts/repo_path.py`)
+# statt als Kopie in jedem Modul — jede Kopie ist eine Gelegenheit zum
+# Auseinanderlaufen. Der Import WIRKT beim Importieren (Nebenwirkung ist der
+# Zweck); welche Module noch eine Eigenkopie haben, steht in `repo_path.py`.
+import repo_path  # noqa: F401,E402 — Nebenwirkung ist der Zweck
+
+REPO_ROOT = repo_path.REPO_ROOT
 
 # Import-Fehler MERKEN statt verschlucken: fail-soft bleibt fail-soft, aber die
 # Log-Zeile soll sagen, WORAN es lag. Ein stiller Rückfall auf 0 hat den
@@ -71,26 +73,94 @@ except Exception as exc:  # pragma: no cover
 
 import market_calendar as cal  # gemeinsamer Kalender (Gate + Staleness)  # noqa: E402
 
+
+class _Fehlt:
+    """Sentinel: der Wert war **nicht auffindbar** — ≠ bewusst auf None gesetzt.
+
+    Warum es diesen Unterschied braucht: `SCORE_REVIEW_BY = None` heißt laut
+    Konvention „Review menschlich abgeschaltet / falsifiziert" und ist ein
+    gültiger Zustand. Ein fehlgeschlagener `import config` erzeugte bisher
+    **denselben** Wert — der tote Wecker sah damit exakt aus wie ein bewusst
+    abgeschalteter. Genau diese Ununterscheidbarkeit hielt den Defekt vom
+    31.07.2026 acht Tage lang unsichtbar (`Review-Wecker: review_by=None` stand
+    im Log und las sich wie Normalbetrieb).
+
+    Falsy, damit jeder bestehende `if not wert`-Pfad unverändert greift; das
+    ``repr`` macht die Log-Zeile selbsterklärend.
+    """
+
+    __slots__ = ()
+
+    def __repr__(self) -> str:  # taucht so in den Log-Zeilen auf
+        return "<nicht auffindbar>"
+
+    def __bool__(self) -> bool:
+        return False
+
+
+FEHLT = _Fehlt()
+
+# Ersatzwerte MERKEN statt still verwenden — dieselbe Regel wie oben für die
+# Import-Fehler: die Literale hier stimmen mit der config überein, ein Ausfall
+# sieht also aus wie Normalbetrieb. Was gemerkt ist, wird beim Lauf laut.
+_KONFIG_LUECKEN = []
+
+
+def _aus_config(name: str, ersatz):
+    """config-Wert lesen; greift der Ersatz, wird das FESTGEHALTEN."""
+    if config is not None and hasattr(config, name):
+        return getattr(config, name)
+    _KONFIG_LUECKEN.append(name)
+    return ersatz
+
+
 NTFY_BASE = "https://ntfy.sh"
 # Pfade aus der config (health_check macht es bereits so) — ein zweiter,
 # hartkodierter Pfad ist eine stille Divergenz, sobald einer umzieht.
-REPORT_PATH = getattr(config, "REPORT_PATH", "data/report.json")
+REPORT_PATH = _aus_config("REPORT_PATH", "data/report.json")
 COLLECTION_PATH = "data/forward_collection.json"
 MILESTONE_MARKER = "data/validation_milestone_fired.flag"
 
 # EVAL_MIN_N lebt in forward_collection (Single Source), NICHT in config —
 # von dort lesen, damit eine spätere Änderung hier nicht still divergiert.
-EVAL_MIN_N = getattr(_fc, "EVAL_MIN_N", getattr(config, "EVAL_MIN_N", 100))
+if _fc is not None and hasattr(_fc, "EVAL_MIN_N"):
+    EVAL_MIN_N = _fc.EVAL_MIN_N
+else:
+    EVAL_MIN_N = _aus_config("EVAL_MIN_N", 100)
 # Der Vorbehalt steht EINMAL in der config; keine Zweitfassung im Push-Text.
-CARD_STATUS = getattr(config, "CARD_STATUS", "heuristisch · unvalidiert")
+CARD_STATUS = _aus_config("CARD_STATUS", "heuristisch · unvalidiert")
 # Staleness-Entscheidung liegt komplett in market_calendar (kalenderbewusst) —
 # notify hält KEINE eigene Stunden-Schwelle mehr.
-SCORE_REVIEW_BY = getattr(config, "SCORE_REVIEW_BY", None)
-STATUS_REVIEW_WEEKDAY = getattr(config, "STATUS_REVIEW_WEEKDAY", 0)  # 0 = Montag
+SCORE_REVIEW_BY = _aus_config("SCORE_REVIEW_BY", FEHLT)
+STATUS_REVIEW_WEEKDAY = _aus_config("STATUS_REVIEW_WEEKDAY", 0)  # 0 = Montag
 
 
 def _log(msg: str) -> None:
     print(f"[notify] {msg}", flush=True)
+
+
+def _warne(msg: str) -> None:
+    """Laute Zeile für Zustände, die sonst STUMM eine Alarmierung töten."""
+    print(f"[notify] WARNUNG: {msg}", flush=True)
+
+
+def warne_bei_import_fehler() -> None:
+    """Einmal pro Lauf: was ist ausgefallen, und was hängt daran.
+
+    Fail-soft bleibt fail-soft — aber nicht mehr lautlos. Diese Funktion ändert
+    NICHTS an der Logik; sie macht nur sichtbar, dass gerade Ersatzwerte statt
+    echter Konfiguration im Einsatz sind.
+    """
+    for modul, grund in sorted(_IMPORT_FEHLER.items()):
+        _warne(f"`import {modul}` ist fehlgeschlagen ({grund}) — notify läuft "
+               f"auf Ersatzwerten weiter. Prüfen: liegt `config.py` im "
+               f"Repo-Root, und legt `repo_path` beide Verzeichnisse auf "
+               f"sys.path?")
+    if _KONFIG_LUECKEN:
+        _warne("Ersatzwerte statt config-Werten in Gebrauch für: "
+               + ", ".join(sorted(set(_KONFIG_LUECKEN)))
+               + " — diese Literale stimmen im Normalfall mit der config "
+                 "überein; ein Ausfall sieht deshalb aus wie Normalbetrieb.")
 
 
 def _ascii_title(s: str) -> str:
@@ -191,7 +261,20 @@ def review_due(review_by, now: _dt.datetime, weekday=STATUS_REVIEW_WEEKDAY) -> b
     """`review_by` überschritten UND heute der Drossel-Wochentag (~1×/Woche).
 
     review_by None/leer → nie (falsifiziert/menschlich abgeschaltet). Ungültiges
-    Datum → nie (fail-soft)."""
+    Datum → nie (fail-soft).
+
+    NICHT auffindbar (``FEHLT``) → ebenfalls nie, aber **laut**: das ist kein
+    Zustand, den ein Mensch gewählt hat, sondern ein Konfigurations- oder
+    Import-Fehler. Bis 08.08.2026 war beides derselbe Wert (None) und damit
+    ununterscheidbar — der Wecker starb stumm."""
+    if review_by is FEHLT:
+        grund = _IMPORT_FEHLER.get(
+            "config", "config geladen, aber ohne Attribut SCORE_REVIEW_BY")
+        _warne(f"SCORE_REVIEW_BY ist nicht auffindbar ({grund}) — der "
+               f"Review-Wecker ist damit AUS. Das ist ein Fehler, KEINE "
+               f"Abschaltung: eine bewusste Abschaltung steht als "
+               f"`SCORE_REVIEW_BY = None` in config.py.")
+        return False
     if not review_by:
         return False
     if now.weekday() != weekday:
@@ -350,6 +433,7 @@ def main(argv=None) -> int:
     p.add_argument("--mode", required=True,
                    choices=["staleness", "daily", "selftest"])
     args = p.parse_args(argv)
+    warne_bei_import_fehler()   # erste Handlung: Ausfälle melden, dann arbeiten
     topic = os.environ.get("NTFY_TOPIC", "")
     now = _dt.datetime.now(_dt.timezone.utc)
     try:

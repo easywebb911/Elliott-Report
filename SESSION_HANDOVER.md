@@ -10,8 +10,9 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 08.08.2026**, nach PR **#84** (Nachtrag zur Auswertungsregel, gemerged
-`53b46af`, Merge-Commit `87ea581`). Zahlen gegen `main` geprüft, nicht aus dem
+**Stand: 08.08.2026**, nach PR **#87** (README-Regel-Kopie durch Verweis
+ersetzt, gemerged `e18eb4a`, Merge-Commit `1e57fd7`). Zahlen gegen `main`
+geprüft, nicht aus dem
 Gedächtnis: **1024 Tests** grün · Sammlung **70 Records** (20 gereift, **15
 auswertbar** von 100) · Marker **44 von 70** tragen mindestens einen
 (`in_session_creation` 34 · `episode_split_suspect` 10 · `stale_market_suspect`
@@ -64,7 +65,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#84
+## 2. PR-INDEX #1–#88
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -158,6 +159,15 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #82 | `f8fd324` | Beweissicherung nachgezogen + Live-Verifikation von #81 |
 | #83 | `f8219b1` | Marker-Entscheidung aufgelöst |
 | #84 | `53b46af` | Nachtrag zur Auswertungsregel |
+| #85 | `71a6522` | Handover geteilt — Arbeits-Handover + Beweis-Archiv |
+| #86 | `f6fcb79` | Archiv-Regel in die Pflege-Regel, README-Verweis korrigiert |
+| #87 | `e18eb4a` | README-Regel-Kopie durch Verweis ersetzt — EIN Ort für die Regel |
+| #88 | `(offen, dieser)` | EIN Pfad-Baustein (`scripts/repo_path.py`) + laute statt stille Rückfälle in `health_check`/`notify` |
+
+<sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
+aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
+die Pflege-Regel verlangt beides. Volle Belegketten haben sie nicht im Archiv;
+ihre Commit-Nachrichten sind die Quelle.</sub>
 
 <sub>**#76** fehlt bewusst: geschlossen, **nicht gemergt** (Wiederhol-Abruf; im Archiv begründet, der Zweig `claude/wiederhol-abruf` liegt noch auf dem Remote). **#80** war ein reiner Daten-/Doku-PR ohne eigene Historien-Zeile. Bei **#79** und **#81** nennt die Archiv-Zeile noch `(offen, dieser)` — hier steht der erste Feature-Commit (`9a2206a` bzw. `97060d8`), gemergt als `1acfe96` bzw. `eb0cd43`.</sub>
 
@@ -306,7 +316,8 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 
 ## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
 
-**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #84 sind
+**P0 — liegt bei Easy:** **#88** (Pfad-Baustein + laute Rückfälle) wartet auf
+den Merge — **Alarmierungs-Klasse, kein Self-Merge.** Alle PRs bis #87 sind
 gemergt.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
@@ -333,11 +344,23 @@ gemergt.
 
 **P3 — Hygiene-Backlog, vorgemerkt ohne Auftrag:**
 
-4. **Rückfallwerte in `notify.py` können still divergieren:** `REPORT_PATH`,
-   `CARD_STATUS` und `EVAL_MIN_N` haben `getattr(config, …, <Literal>)`-
-   Rückfälle, deren Literale **zufällig** mit den echten Werten übereinstimmen.
-   Genau deshalb blieb der Import-Ausfall aus #69 unsichtbar. Ein gemeinsamer
-   `sys.path`-Baustein statt drei Fassungen bleibt vorgemerkt.
+4. ~~**Rückfallwerte in `notify.py` können still divergieren**~~ — **erledigt in
+   #88** (08.08.): `scripts/repo_path.py` ist der eine Pfad-Baustein,
+   `health_check` und `notify` melden jeden Rückfall jetzt **laut**, und
+   `SCORE_REVIEW_BY` unterscheidet „nicht auffindbar" (Fehler) von „bewusst
+   `None`" (Abschaltung). Belegkette im Archiv.
+
+   **NACHFOLGER, neu und ehrlich gezählt:** der `sys.path`-Block stand
+   **neunmal** in `scripts/`; #88 hat **zwei** davon abgelöst, **sieben**
+   Eigenkopien stehen noch (`elliott_pipeline` · `evaluate` · `in_session` ·
+   `mark_in_session_creation` · `collect_in_session_evidence` ·
+   `mark_stale_market_records` · `source_timing_probe`). Sie sind **schon
+   auseinandergelaufen**: `source_timing_probe` ohne Dubletten-Schutz,
+   `mark_stale_market_records` nur `scripts/` statt beider Verzeichnisse (heute
+   unschädlich — es importiert `config` nicht). Der Umbau ist **ein Einzeiler je
+   Datei**, gehört aber in einen eigenen Auftrag, weil `elliott_pipeline.py` im
+   **Messlauf-Pfad** liegt. `repo_path.py` führt die sieben namentlich, und ein
+   Test hält die Liste an der Wirklichkeit fest.
 5. **`forward_collection.market_regimes` baut die MultiIndex-Reduktion inline
    nach** (offener Nit aus #64), statt `_normalize_columns` zu importieren.
    Vorbestehend; liegt im **Sammlungs**-Pfad, Aufräumen dort braucht den Beweis,
@@ -757,6 +780,27 @@ Beleg = Abschnitt 3.)
   dann das ehrliche Bild (17 rot, 2 äquivalent, 1 selbst falsch gebaut).
   **Verallgemeinert:** eine Mess-Vorrichtung, die ihr eigenes Ergebnis
   verfälschen kann, gehört genauso geprüft wie das Gemessene.
+- **EINE ÜBERLEBENDE MUTATION KANN VON EINER ZWEITEN LAUTEN STELLE VERDECKT
+  WERDEN (08.08.2026, #88).** Die Probe „`warne_bei_import_fehler()` aus
+  `notify.main()` entfernt" blieb **grün**, obwohl der Ende-zu-Ende-Test genau
+  diese Meldung prüft — weil `review_due` bei fehlendem `SCORE_REVIEW_BY`
+  **seinerseits** warnt und dieselben Wörter (`WARNUNG`, der Grund, der
+  Feldname) schon lieferte. Der Test prüfte also „irgendwer meldet es", nicht
+  „**diese** Stelle meldet es". **Regel:** Wenn zwei Stellen dasselbe melden
+  können, muss die Zusicherung an einer **Zeichenfolge hängen, die nur die
+  geprüfte Stelle erzeugen kann** — hier der Sammel-Bericht über
+  `forward_collection` und die Ersatzwert-Liste. Nachgezogen, Probe danach rot.
+  **Verallgemeinert:** Redundante Sicherungen sind gut fürs System und
+  gefährlich für den Test — sie machen Zusicherungen unschärfer, ohne dass es
+  auffällt.
+- **EINE AUFZÄHLUNG IM KOMMENTAR ALTERT LAUTLOS (08.08.2026, #88).** Mein
+  erster Entwurf von `repo_path.py` schrieb „drei Kopien" — nachgezählt waren es
+  **neun**. Wer die Zahl nicht nachzählt, schreibt eine falsche Zusage ins Repo,
+  und die nächste Session glaubt sie. Konsequenz: die Liste steht jetzt in einem
+  maschinenlesbaren Block (`EIGENKOPIEN-ANFANG`/`-ENDE`), und ein Test
+  vergleicht sie mit den tatsächlichen Dateien. **Regel:** Jede Zahl oder Liste
+  in einer Dokumentation, die aus dem Code ableitbar ist, wird entweder aus dem
+  Code abgeleitet oder von einem Test festgehalten — sonst gehört sie nicht hin.
 - **Proxy-Rechte:** `workflow_dispatch` geht; Branch-Delete / Branch-Protection-
   Änderungen → **403**. Nicht dagegen anrennen.
 - **Sandbox erreicht kein Yahoo/EDGAR/externe Hosts** → alles Externe bleibt
