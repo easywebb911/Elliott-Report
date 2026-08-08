@@ -5,9 +5,14 @@ GitHub-Pages-PWA. Der Report ist eine **heuristische, unvalidierte**
 Wellen-Auszählung — **keine Anlageberatung, keine Wahrscheinlichkeitsaussage.**
 
 > **Projektstand & Kontext:** Die kanonische, allein tragfähige Projekt-Quelle
-> ist **[`SESSION_HANDOVER.md`](SESSION_HANDOVER.md)** — PR-Historie, offene
-> Verifikationen, Roadmap, Architektur-Anker, Validierung, Lessons. Eine frische
-> Session (oder ein Kontext-Verlust) arbeitet allein damit weiter.
+> ist **[`SESSION_HANDOVER.md`](SESSION_HANDOVER.md)** — PR-Index, offene Punkte,
+> Warteschlange/Roadmap, Architektur-Anker, Validierung, Lessons. Eine frische
+> Session (oder ein Kontext-Verlust) arbeitet **allein damit** weiter.
+>
+> Die **vollen PR-Zeilen mit Belegketten** (Lauf-IDs, Commit-Hashes,
+> Mutationsproben, Live-Verifikationen) stehen im Beweis-Archiv
+> **[`SESSION_ARCHIVE.md`](SESSION_ARCHIVE.md)** — beim Session-Start **nicht**
+> lesen, nur bei Detailfragen zu einem erledigten Strang.
 >
 > **PFLEGE-REGEL:** `SESSION_HANDOVER.md` wird bei **jedem Merge im selben PR**
 > aktualisiert (mindestens PR-Historie, Offene Verifikationen, Roadmap). Ein PR
