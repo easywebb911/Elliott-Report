@@ -65,6 +65,13 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   liest ausschließlich die Markt-Top-5 (`markets[].candidates`); die Watchlist
   lebt im separaten Feld `watchlist` und wird nie gesammelt. Ein Watchlist-Ticker
   zählt nur, wenn er **unabhängig** einen Top-5-Platz verdient.
+- **Der Stichtag berichtet ZWEI Rechnungen, nicht eine** (festgelegt 08.08.2026,
+  ausführlich im Änderungs-Log unten): eine **Primärauswertung** über **alle**
+  auswertbaren Records und eine **Sensitivitätsauswertung** über dieselben
+  Records **ohne jeden**, der mindestens einen der Qualitäts-Marker trägt.
+  Beide werden **nebeneinander** berichtet; weichen sie im Verdikt ab, wird das
+  ausgewiesen und **nicht** nachträglich zugunsten einer Seite entschieden.
+  **Keine weiteren Varianten post hoc.**
 - Ein **Punktschätzer allein ist nie Bestätigung**.
 
 ## Score-Status & Review-Wecker (`review_by`)
@@ -1139,3 +1146,58 @@ vor n ≥ 100) gilt unverändert.
   entfernen (stellt **Byte-Identität** her, nachgewiesen), Evidence-Datei und
   Skripte löschen. **Kein Datenstand wird ungültig**, keine gemessene Zahl
   ändert sich — die Records selbst waren zu keinem Zeitpunkt verändert.
+
+- **08.08.2026 — Die Marker-Entscheidung ist gefallen: zwei Rechnungen am
+  Stichtag, festgelegt VOR jeder Ergebniszahl.** Dieser Eintrag **löst die
+  bisherige Wiedervorlage ab** („Marker-Entscheidung vor der ersten echten
+  Auswertung", vermerkt am 05.08. und am 07.08.). Er ändert **nicht**, wie
+  gerechnet wird, sondern **was berichtet wird**; `evaluate.py` bleibt als v1
+  eingefroren, die Rechnung selbst entsteht erst zum Stichtag.
+  - **(a) PRIMÄRAUSWERTUNG — über ALLE auswertbaren Records.** Auswertbar heißt
+    unverändert: gereift und nicht vom PRU-Guard ausgeschlossen
+    (`eval_counts(...)[2]`). Markierte Records sind hier **drin**.
+  - **(b) SENSITIVITÄTSAUSWERTUNG — über dieselben auswertbaren Records, aber
+    OHNE jeden Record, der mindestens EINEN Qualitäts-Marker trägt.** Die drei
+    Marker heute: `episode_split_suspect` (Mehrfach-Läufe am selben
+    Kalendertag), `stale_market_suspect` (Anlage auf veraltetem Kurs-Stand),
+    `in_session_creation` (Anlage aus laufender Sitzung, also aus einer noch
+    unfertigen Bar). **Ein Marker genügt zum Ausschluss aus (b)** — es wird
+    nicht nach Marker-Art unterschieden.
+  - **BEIDE ERGEBNISSE WERDEN NEBENEINANDER BERICHTET.** Weichen sie im
+    **Verdikt** voneinander ab (das eine belegt, das andere nicht), wird genau
+    das ausgewiesen. Es wird **nicht** nachträglich entschieden, welche der
+    beiden Rechnungen „die richtige" ist. Eine Abweichung ist ein Befund über
+    die Datenqualität, kein Auswahlproblem.
+  - **KEINE WEITEREN VARIANTEN POST HOC.** Insbesondere: keine nachträgliche
+    Auswahl einzelner Marker, keine nachträglichen Teilmengen, keine dritte
+    Rechnung „mit nur zwei der drei Marker". Wer nach Sichtbarkeit der Zahlen
+    eine weitere Variante rechnet, hat die Präregistrierung verlassen.
+  - **WARUM JETZT — das ist der eigentliche Punkt.** Die Entscheidung fällt zum
+    **frühestmöglichen** Zeitpunkt: Stand heute **15 von 100** auswertbaren
+    Records, es ist **keine einzige Ergebniszahl sichtbar** (die Auswertung ist
+    unter n < 100 gesperrt und läuft nur als „nicht gültig" gestempelte
+    Vorschau). Damit kann die Regel nicht in Sichtweite der Ergebnisse
+    zurechtgelegt werden. Vorbild ist die Praxis klinischer Studien:
+    Protokollabweichungen bleiben in der Hauptanalyse, und eine
+    Sensitivitätsanalyse ohne sie wird **vorab** festgeschrieben.
+  - **ZAHLEN ZUM ZEITPUNKT DER ENTSCHEIDUNG** (Quelle:
+    `data/forward_collection.json` auf `main`, Stand `9c3e72d`): **70** Records
+    gesammelt, **20** gereift, **15** auswertbar. Mindestens einen Marker
+    tragen **44 von 70** (`in_session_creation` 34 · `episode_split_suspect` 10
+    · `stale_market_suspect` 4; vier Records tragen zwei davon). Von den **15**
+    heute auswertbaren Records sind **7** markiert — die Menge (b) hätte heute
+    also **8** Fälle. Das ist kein Randphänomen: **(b) rechnet auf gut der
+    Hälfte von (a)**, und beide Mengen wachsen bis zum Stichtag weiter.
+  - **KEIN RECORD WIRD ENTFERNT ODER VERÄNDERT** — „markieren, nie heilen"
+    gilt unverändert. (b) ist eine **Sicht** auf dieselben Daten, kein Eingriff
+    in sie. Die Marker bleiben additiv und zählungs-neutral; keiner steht in
+    `evaluate.FROZEN_FIELDS`.
+  - **KÜNFTIGE MARKER FALLEN AUTOMATISCH UNTER DIESE REGEL.** Kommt später ein
+    weiterer Qualitäts-Marker derselben Klasse hinzu (ein Record ist unter
+    fragwürdigen Bedingungen entstanden), gehört er **ohne neue Entscheidung**
+    in die Ohne-Marker-Menge (b). Es braucht dafür keine weitere Wiedervorlage
+    — genau das war die Schwäche der alten Formulierung, die bei jedem neuen
+    Marker neu verhandelt worden wäre.
+  Revert = diesen Eintrag und den zugehörigen Punkt unter „Regeln" entfernen;
+  es hängt kein Code und kein Datenstand daran, und keine gemessene Zahl
+  ändert sich.
