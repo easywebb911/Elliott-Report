@@ -24,9 +24,21 @@ auswertbar** von 100) · Marker **44 von 70** tragen mindestens einen
 
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
-> selben PR** aktualisiert — mindestens Abschnitte **2 (PR-Historie)**, **3
-> (Offene Verifikationen)** und **4 (Roadmap)**. Ein PR ohne Handover-Update ist
+> selben PR** aktualisiert — mindestens Abschnitte **2 (PR-Index)**, **3 (Offene
+> Punkte)** und **4 (Warteschlange/Roadmap)**. Ein PR ohne Handover-Update ist
 > **unvollständig**; der Guardian prüft das mit.
+>
+> **ARCHIV-REGEL (seit 08.08.2026, damit dieses Dokument nicht wieder
+> zuwächst):** Wird ein Strang **abgeschlossen**, wandert seine **Belegkette im
+> SELBEN PR** nach `SESSION_ARCHIVE.md` — Lauf-IDs, Commit-Hashes,
+> Mutationsproben, Live-Verifikationen, Guardian-Urteile, Revert-Wege. Im
+> Handover bleibt **eine Zeile mit Datum und Verweis**.
+> **Anlass:** vor der Teilung (#85) trug dieses Dokument 1808 Zeilen / 253 KB,
+> davon allein 663 Zeilen erledigte Bau-Blöcke in der Roadmap — nichts davon war
+> falsch, es blieb nur nie jemand fürs Umräumen zuständig. Genau deshalb konnte
+> „Warteschlange leer" monatelang **über** einer aktiven Warteschlange stehen.
+> Die Regel dreht die bestehende Mechanik nur um eine Richtung: Erledigtes
+> **verlässt** das Handover zum selben Zeitpunkt, zu dem es erledigt wird.
 
 ---
 
