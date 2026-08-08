@@ -1198,6 +1198,42 @@ vor n ≥ 100) gilt unverändert.
     in die Ohne-Marker-Menge (b). Es braucht dafür keine weitere Wiedervorlage
     — genau das war die Schwäche der alten Formulierung, die bei jedem neuen
     Marker neu verhandelt worden wäre.
+  - **NACHTRAG vom 08.08.2026 — zwei Lücken des obigen Textes geschlossen.**
+    Die Formulierung oben ließ zwei Fragen offen, die zum Stichtag wieder eine
+    Wahlmöglichkeit eröffnet hätten. Beide sind hiermit entschieden; am Text
+    darüber ändert sich nichts.
+    - **WAS „VERDIKT" HEISST — beide Teilbedingungen einzeln.** Die
+      Erfolgs-Definition ist zweiteilig (siehe „Wann Erfolg als BELEGT gilt"):
+      die **Trefferquote** muss den **Zufalls-Benchmark Holm-korrigiert
+      signifikant** schlagen, **und** die **Bootstrap-CI-Untergrenze der AUC**
+      (Score vs. `target_hit`) muss **> 0,5** liegen. Zum Stichtag werden
+      **beide Teilbedingungen für BEIDE Rechnungen EINZELN berichtet** — also
+      vier Aussagen, nicht zwei Gesamturteile. Dazu je Rechnung die Fallzahl.
+      **Eine Abweichung liegt bereits vor, wenn EINE Teilbedingung zwischen
+      Primär- und Sensitivitätsrechnung verschieden ausfällt** — nicht erst,
+      wenn das zusammengefasste Urteil kippt. Auch diese Abweichung wird
+      **ausgewiesen** und **nicht** nachträglich zugunsten einer Seite
+      entschieden.
+      **Zur Vermeidung einer Verwechslung:** die Primär-Familie weiter unten
+      nummeriert ihre beiden Tests ebenfalls mit (a) und (b). In diesem Eintrag
+      meinen **(a)/(b) immer die zwei Rechnungen** — Primär und Sensitivität.
+      Die beiden Teilbedingungen werden hier deshalb ausgeschrieben statt
+      nummeriert.
+    - **FALLZAHL — die n-Schwelle gilt für die Primärrechnung.** Die
+      präregistrierte Sperre „Auswertung erst ab **n ≥ 100 auswertbaren**
+      Setups" (`EVAL_MIN_N`, gezählt über `eval_counts(...)[2]`) bezieht sich
+      auf die **Primärrechnung (a)**. Die **Sensitivitätsrechnung (b) wird
+      OHNE eigene Mindest-Fallzahl berichtet** — sie wäre sonst je nach
+      Marker-Anteil beliebig lange gar nicht zu haben. Dafür gilt:
+      **ihre tatsächliche Fallzahl steht ausdrücklich dabei**, und sie ist als
+      **Stützrechnung ohne eigenständige Beweiskraft** gekennzeichnet. Sie
+      beantwortet genau eine Frage — **kippen die markierten Records das
+      Bild?** — und ist **keine zweite Hauptprüfung**. Ein Beleg für den Score
+      kann **ausschließlich** über (a) entstehen; (b) kann ihn nie ersetzen und
+      nie allein herstellen.
+    Auch dieser Nachtrag fällt **vor** jede sichtbare Ergebniszahl (Stand
+    unverändert 15 von 100 auswertbaren Records) und ändert **nicht**, wie
+    gerechnet wird — `evaluate.py` bleibt als v1 eingefroren.
   Revert = diesen Eintrag und den zugehörigen Punkt unter „Regeln" entfernen;
   es hängt kein Code und kein Datenstand daran, und keine gemessene Zahl
   ändert sich.
