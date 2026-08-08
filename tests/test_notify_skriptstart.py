@@ -151,9 +151,39 @@ def test_config_liegt_im_repo_root_nicht_in_scripts():
 
 
 def test_notify_legt_BEIDE_verzeichnisse_auf_den_pfad():
-    quelle = (ROOT / "scripts/notify.py").read_text(encoding="utf-8")
-    assert 'str(REPO_ROOT), str(REPO_ROOT / "scripts")' in quelle, \
-        "der Repo-Root ist wieder aus dem sys.path-Aufbau verschwunden"
+    """BERICHTIGT 08.08.2026: hier stand eine TEXT-Suche im Quelltext
+    (``'str(REPO_ROOT), str(REPO_ROOT / "scripts")' in quelle``). Die prüfte die
+    Schreibweise, nicht die Wirkung — und wurde rot, als derselbe Aufbau in den
+    gemeinsamen Baustein ``scripts/repo_path.py`` zog, obwohl sich am Verhalten
+    NICHTS geändert hatte. Ein Test, der bei unverändertem Verhalten rot wird,
+    misst die falsche Sache.
+
+    Geprüft wird jetzt die WIRKUNG, und zwar so, wie `daily.yml` startet: als
+    Skript, aus einem fremden Arbeitsverzeichnis. Beide Verzeichnisse müssen
+    danach auf ``sys.path`` stehen.
+    """
+    code = (
+        "import sys, json\n"
+        # Ausgangslage wie beim Skript-Start: sys.path[0] ist das
+        # Skript-Verzeichnis, das Arbeitsverzeichnis ('') ist weg.
+        "sys.path.pop(0)\n"
+        f"sys.path.insert(0, {str(ROOT / 'scripts')!r})\n"
+        "import notify\n"
+        f"print(json.dumps({{'root': {str(ROOT)!r} in sys.path,"
+        f" 'scripts': {str(ROOT / 'scripts')!r} in sys.path,"
+        " 'config_da': notify.config is not None}))\n"
+    )
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    env.pop("NTFY_TOPIC", None)
+    p = subprocess.run([sys.executable, "-c", code], cwd=tempdir_neutral(),
+                       env=env, capture_output=True, text=True, timeout=60)
+    assert p.returncode == 0, p.stderr
+    lage = json.loads(p.stdout.strip().splitlines()[-1])
+    assert lage["root"], "der Repo-Root ist wieder aus dem sys.path-Aufbau " \
+                         "verschwunden — `import config` stirbt beim Skript-Start"
+    assert lage["scripts"], "scripts/ fehlt auf dem Pfad"
+    assert lage["config_da"], "`import config` ist beim Skript-Start gescheitert"
 
 
 # ---------------------------------------------------------------------------

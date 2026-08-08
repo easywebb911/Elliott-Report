@@ -38,19 +38,31 @@ import datetime as _dt
 import json
 import math
 import os
-import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+import repo_path  # noqa: F401,E402 — EIN Pfad-Baustein (Repo-Root + scripts/)
+
+REPO_ROOT = repo_path.REPO_ROOT
 
 from numeric import finite  # EIN Finit-Prädikat (siehe numeric.py)  # noqa: E402
 
+# IMPORT-FEHLER MERKEN STATT VERSCHLUCKEN (Muster aus notify, #69).
+# Bis zum 08.08.2026 legte dieses Modul nur `scripts/` auf den Pfad, nicht den
+# Repo-Root — `config.py` liegt aber im Root. Beim Start als Skript wäre der
+# Import also gescheitert, und die 13 `getattr`-Rückfälle unten hätten das
+# lautlos aufgefangen: ihre Literale sind mit den echten Werten IDENTISCH, der
+# Ausfall hätte wie Normalbetrieb ausgesehen. Genau diese Konstruktion hat in
+# #69 den Meilenstein-Push und den Review-Wecker acht Tage totgestellt.
+# Die Rückfälle bleiben als letzte Verteidigung — aber nur noch hinter einer
+# LAUTEN Meldung.
+_IMPORT_FEHLER = {}
+
 try:
     import config  # noqa: E402
-except Exception:  # pragma: no cover — config immer vorhanden, defensiv
+except Exception as exc:  # pragma: no cover — config immer vorhanden, defensiv
     config = None
+    _IMPORT_FEHLER["config"] = f"{type(exc).__name__}: {exc}"
 
 import market_calendar as cal  # noqa: E402
 import notify  # noqa: E402  — geteilte ntfy-Schicht (fail-soft, ASCII-Title)
@@ -88,6 +100,23 @@ MAX_PATHS_REPORTED = 8
 
 def _log(msg: str) -> None:
     print(f"[health] {msg}", flush=True)
+
+
+def warne_bei_import_fehler() -> bool:
+    """Meldet einen gescheiterten `config`-Import LAUT. True = es gab einen.
+
+    Ohne diese Zeile fiele das Modul stumm auf die `getattr`-Literale unten
+    zurueck — und weil die mit den echten Werten uebereinstimmen, saehe der
+    Ausfall wie Normalbetrieb aus. Genau so blieb der Defekt aus #69 acht Tage
+    unbemerkt. Die Meldung nennt den GRUND, nicht nur die Tatsache.
+    """
+    if not _IMPORT_FEHLER:
+        return False
+    for modul, grund in sorted(_IMPORT_FEHLER.items()):
+        _log(f"WARNUNG: `{modul}` nicht importierbar ({grund}) — die Schwellen "
+             f"laufen auf ihren Rueckfall-Literalen. Sie stimmen heute mit der "
+             f"config ueberein, eine Aenderung dort wuerde hier NICHT ankommen.")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -723,6 +752,7 @@ def run(report: Dict, prev_report: Optional[Dict],
     Forward-Sammlung (None, wenn der Sammel-Schritt scheiterte — dann nennt der
     Herzschlag die Sammlung schlicht nicht).
     """
+    warne_bei_import_fehler()
     findings = collect_findings(report, prev_report, finite_findings,
                                 sig_before, sig_after, has_agent_key,
                                 same_day_rerun)
