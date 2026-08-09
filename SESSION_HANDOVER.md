@@ -10,8 +10,8 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 08.08.2026**, nach PR **#88** (EIN Pfad-Baustein + laute Rückfälle,
-gemerged `0d080af`, Merge-Commit `966d2b1`). Zahlen gegen `main`
+**Stand: 08.08.2026**, nach PR **#89** (`timeout-minutes` für `eval_prices.yml`,
+gemerged `3ea7424`, Merge-Commit `4109999`). Zahlen gegen `main`
 geprüft, nicht aus dem
 Gedächtnis: **1045 Tests** grün · Sammlung **70 Records** (20 gereift, **15
 auswertbar** von 100) · Marker **44 von 70** tragen mindestens einen
@@ -65,7 +65,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#89
+## 2. PR-INDEX #1–#90
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -163,7 +163,8 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #86 | `f6fcb79` | Archiv-Regel in die Pflege-Regel, README-Verweis korrigiert |
 | #87 | `e18eb4a` | README-Regel-Kopie durch Verweis ersetzt — EIN Ort für die Regel |
 | #88 | `0d080af` | EIN Pfad-Baustein (`scripts/repo_path.py`) + laute statt stille Rückfälle in `health_check`/`notify` |
-| #89 | `(offen, dieser)` | `timeout-minutes: 20` für `eval_prices.yml` — der letzte Workflow ohne Deckel |
+| #89 | `3ea7424` | `timeout-minutes: 20` für `eval_prices.yml` — der letzte Workflow ohne Deckel |
+| #90 | `(offen, dieser)` | `requests` deklariert — die Sendeschicht aller Pushes hing an einer fremden Abhängigkeit |
 
 <sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
 aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
@@ -317,9 +318,7 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 
 ## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
 
-**P0 — liegt bei Easy:** **#89** (`timeout-minutes` für `eval_prices.yml`)
-wartet auf den Merge — **Workflow-Klasse, kein Self-Merge.** Alle PRs bis #88
-sind gemergt.
+**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #89 sind gemergt.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 
@@ -369,6 +368,15 @@ sind gemergt.
    echten Laufzeiten hergeleitet (Belegkette im Archiv). Damit haben **alle
    fünf** Workflows einen Deckel: ci 10 · staleness 5 · probe 10 · eval_prices
    20 · daily 30.
+
+4c. ~~**`requests` nur transitiv über yfinance**~~ (Fund 1 der Selbstwartungs-
+   Diagnose 08.08.) — **erledigt in #90**: die Sendeschicht **aller** ntfy-Pushes
+   (`notify._post`) war in `requirements.txt` **nicht deklariert** und kam nur
+   über yfinance mit, dessen Abhängigkeiten sich innerhalb `<0.3` bewegen dürfen
+   (0.2.66 nutzt bereits `curl_cffi`). Wäre `requests` je herausgefallen, hätte
+   **jeder** Push still sterben können — und die Meldung darüber hätte durch
+   dieselbe kaputte Schicht gemusst. Jetzt `requests>=2.31,<3`; Auflösung
+   nachweislich unverändert. Belegkette im Archiv.
 
 5. **`forward_collection.market_regimes` baut die MultiIndex-Reduktion inline
    nach** (offener Nit aus #64), statt `_normalize_columns` zu importieren.

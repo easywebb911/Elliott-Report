@@ -11,6 +11,18 @@ yfinance>=0.2.40,<0.3
 pandas>=2.0,<3.0
 numpy>=1.24,<2.3
 
+# --- Laufzeit (Alarmierung) ---
+# Sendeschicht ALLER ntfy-Pushes (`notify._post` importiert `requests` erst im
+# Sendepfad). Stand bis 08.08.2026 war sie hier NICHT deklariert und kam nur
+# TRANSITIV über yfinance mit — dessen Abhängigkeiten sich innerhalb von
+# `<0.3` bewegen dürfen (0.2.66 zieht seine HTTP-Schicht bereits über
+# `curl_cffi`). Fiele `requests` je aus diesem fremden Baum, stürbe jeder
+# Push: `send_ntfy` fängt den ImportError fail-soft ab, der Lauf bliebe grün,
+# der Herzschlag bliebe aus — und die Meldung darüber müsste durch dieselbe
+# kaputte Schicht. Untergrenze bewusst identisch mit der von yfinance
+# geforderten (>=2.31), damit hier nie eine zweite Auflösung entsteht.
+requests>=2.31,<3
+
 # --- Tests / Validierung ---
 pytest>=8.0,<9.0
 jsonschema>=4.0,<5.0
