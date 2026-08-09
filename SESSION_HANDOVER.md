@@ -10,8 +10,8 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 09.08.2026**, nach PR **#90** (`requests` deklariert, gemerged
-`41a8c1b`, Merge-Commit `c79eb27`). Zahlen gegen `main`
+**Stand: 09.08.2026**, nach PR **#91** (Selbstwartung Stufe 2, gemerged
+`d6bd442`, Merge-Commit `239b7ab`). Zahlen gegen `main`
 geprüft, nicht aus dem
 Gedächtnis: **1111 Tests** grün · Sammlung **70 Records** (20 gereift, **15
 auswertbar** von 100) · Marker **44 von 70** tragen mindestens einen
@@ -65,7 +65,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#91
+## 2. PR-INDEX #1–#92
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -165,7 +165,8 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #88 | `0d080af` | EIN Pfad-Baustein (`scripts/repo_path.py`) + laute statt stille Rückfälle in `health_check`/`notify` |
 | #89 | `3ea7424` | `timeout-minutes: 20` für `eval_prices.yml` — der letzte Workflow ohne Deckel |
 | #90 | `41a8c1b` | `requests` deklariert — die Sendeschicht aller Pushes hing an einer fremden Abhängigkeit |
-| #91 | `(offen, dieser)` | Selbstwartung Stufe 2: Wartungs-Cron + 8. Health-Regel `maintenance_stale` |
+| #91 | `d6bd442` | Selbstwartung Stufe 2: Wartungs-Cron + 8. Health-Regel `maintenance_stale` |
+| #92 | `(offen, dieser)` | Wiedervorlage „Selbstwartung Stufe 3“ mit Fälligkeit nach dem 21.08. |
 
 <sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
 aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
@@ -319,9 +320,7 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 
 ## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
 
-**P0 — liegt bei Easy:** **#91** (Selbstwartung Stufe 2) wartet auf den Merge —
-**neue Workflow-Datei + Alerting, kein Self-Merge.** Alle PRs bis #90 sind
-gemergt.
+**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #91 sind gemergt.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 
@@ -339,9 +338,40 @@ gemergt.
    ohnehin selbst ab (no-op + Logzeile mit dem Löschweg) — der Löschweg ist
    trotzdem zu gehen, sonst bleibt toter Code liegen.
 
+3. **WIEDERVORLAGE „Selbstwartung Stufe 3" — fällig NACH dem 21.08.2026**,
+   zusammen mit Punkt 1 und 2 (Mess-Auswertung + Cron-Entscheidung). Entschieden
+   von Easy am 09.08.2026: **Stufe 3 ist GEPARKT, nicht beerdigt.** Stufe 2 läuft
+   (#91), und die Grenze *melden, nie handeln* ist **statisch per Test**
+   festgenagelt — sie fällt nicht nebenbei.
+
+   - **Auto-Re-Dispatch — vorgemerkt.** **VOR jedem Bau zu klären, per
+     Wegwerf-Experiment und nicht per Annahme:** löst ein Dispatch mit dem
+     `GITHUB_TOKEN` überhaupt einen Folge-Lauf aus, oder braucht es ein
+     **PAT-Secret**? (Indiz gegen den Token: das Frontend dispatcht `daily.yml`
+     mit einem persönlichen Token, `docs/index.html:3342 ff.` — ein zusätzliches
+     Secret mit Schreibrecht ist keine Kleinigkeit und gehört vorher
+     entschieden.) **Grund der Parkung:** Gewinn = **ein gesparter Fingertipp**
+     (der Staleness-Wächter meldet den ausgefallenen Lauf ohnehin um 06:00),
+     Risiko = ein Lauf **innerhalb der Sitzung** und damit
+     **Populations-Verwässerung**. Bei n<100 ist das ein schlechter Tausch.
+     **Diese Rechnung ändert sich**, falls die Cron-Entscheidung nach dem 21.08.
+     **mehrere Startzeiten** bringt — dann neu bewerten, nicht die alte
+     Ablehnung übernehmen.
+   - **Auto-Evidence — abgelehnt, hart blockiert.** `daily.yml` klont **flach**;
+     die Beweis-Sammlung liest die **volle** Report-Historie und bräche mit ihrer
+     eigenen Wache ab. Reparatur wären **drei Eingriffe in `daily.yml`** für eine
+     Datei, die **keine gemessene Zahl** beeinflusst. Evidence bleibt **manuell
+     nach Bedarf** (`scripts/collect_in_session_evidence.py --live`, erprobt in
+     #82).
+
+   Belegketten zu beidem — gemessene Sitzungsfenster in UTC für Sommer, Winter
+   und **beide** DST-Zwischenwochen, die drei Schleifen-Bremsen, der
+   Klontiefen-Blocker — stehen im Archiv unter *„Selbstwartung Stufe 3 —
+   Bewertung 08./09.08.2026, GEPARKT"*.
+
 **P2 — der letzte offene Fahrplan-Punkt:**
 
-3. **Invalidierungs-Abstand** — gleiches Muster wie der Zonen-Abstand (#70),
+4. **Invalidierungs-Abstand** — gleiches Muster wie der Zonen-Abstand (#70),
    dieselbe **neutrale** Farbe (kein Grün/Rot beim Risiko-Wert). Nichts
    begonnen.
 
