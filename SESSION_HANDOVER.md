@@ -10,10 +10,10 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 08.08.2026**, nach PR **#89** (`timeout-minutes` für `eval_prices.yml`,
-gemerged `3ea7424`, Merge-Commit `4109999`). Zahlen gegen `main`
+**Stand: 09.08.2026**, nach PR **#90** (`requests` deklariert, gemerged
+`41a8c1b`, Merge-Commit `c79eb27`). Zahlen gegen `main`
 geprüft, nicht aus dem
-Gedächtnis: **1045 Tests** grün · Sammlung **70 Records** (20 gereift, **15
+Gedächtnis: **1111 Tests** grün · Sammlung **70 Records** (20 gereift, **15
 auswertbar** von 100) · Marker **44 von 70** tragen mindestens einen
 (`in_session_creation` 34 · `episode_split_suspect` 10 · `stale_market_suspect`
 4) · Beweis-Datei `data/in_session_evidence.json` **17 Einträge** · Universum
@@ -65,7 +65,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#90
+## 2. PR-INDEX #1–#91
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -164,7 +164,8 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #87 | `e18eb4a` | README-Regel-Kopie durch Verweis ersetzt — EIN Ort für die Regel |
 | #88 | `0d080af` | EIN Pfad-Baustein (`scripts/repo_path.py`) + laute statt stille Rückfälle in `health_check`/`notify` |
 | #89 | `3ea7424` | `timeout-minutes: 20` für `eval_prices.yml` — der letzte Workflow ohne Deckel |
-| #90 | `(offen, dieser)` | `requests` deklariert — die Sendeschicht aller Pushes hing an einer fremden Abhängigkeit |
+| #90 | `41a8c1b` | `requests` deklariert — die Sendeschicht aller Pushes hing an einer fremden Abhängigkeit |
+| #91 | `(offen, dieser)` | Selbstwartung Stufe 2: Wartungs-Cron + 8. Health-Regel `maintenance_stale` |
 
 <sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
 aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
@@ -318,7 +319,9 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 
 ## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
 
-**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #89 sind gemergt.
+**P0 — liegt bei Easy:** **#91** (Selbstwartung Stufe 2) wartet auf den Merge —
+**neue Workflow-Datei + Alerting, kein Self-Merge.** Alle PRs bis #90 sind
+gemergt.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 
@@ -416,6 +419,17 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 ---
 
 ## 5. ARCHITEKTUR-ANKER
+
+> **DIE WÄCHTER-KETTE (seit #91, 09.08.2026) — drei Ebenen, keine ohne Aufsicht:**
+> **Staleness-Cron** (täglich 06:00 UTC) bewacht den **Tageslauf** · der
+> **Tageslauf** (21:45 UTC, Regel `maintenance_stale`) bewacht den
+> **Wartungs-Cron** · der **Wartungs-Cron** (Mo 06:30 UTC) bewacht die
+> **Struktur** (Suite, Termine, Konstanten-Drift, Spiegel, Workflows).
+> Kein vierter Wächter nötig — die Kette schließt sich, weil jede Ebene die
+> nächste beobachtet. **Betriebsdaten** prüft `health_check` täglich,
+> **Struktur** prüft `maintenance_check` wöchentlich; die Trennung ist Absicht
+> und darf nicht verwischen.
+
 
 ### Pipeline (`scripts/elliott_pipeline.py`, `scripts/zigzag.py`, `scripts/rules.py`, `config.py`)
 - **ZigZag:** `ZIGZAG_WINDOW = 5` (symmetrisches Fenster, alternierende Pivots).
@@ -818,6 +832,25 @@ Beleg = Abschnitt 3.)
   vergleicht sie mit den tatsächlichen Dateien. **Regel:** Jede Zahl oder Liste
   in einer Dokumentation, die aus dem Code ableitbar ist, wird entweder aus dem
   Code abgeleitet oder von einem Test festgehalten — sonst gehört sie nicht hin.
+- **EINE ZUSICHERUNG DARF NICHT AN ETWAS HÄNGEN, DAS EIN KOMMENTAR ERFÜLLT
+  (09.08.2026, #91).** Ein Test prüfte `"if: failure()" in workflow_text` — und
+  blieb grün, als die Mutationsprobe den echten Step löschte: dieselbe
+  Zeichenfolge stand in einem **erklärenden Kommentar** derselben Datei.
+  Dasselbe galt für `curl`. **Regel:** Quelltext-Zusicherungen laufen über den
+  Text **ohne Kommentarzeilen**; die Zeichenfolge muss etwas sein, das **nur
+  die geprüfte Stelle** erzeugen kann. Das ist die direkte Fortsetzung der
+  #88-Lesson (dort verdeckte eine zweite laute Stelle die Probe, hier ein
+  Kommentar) — die Klasse heißt: *die Zusicherung ist unschärfer, als sie
+  aussieht.*
+- **EINE MUTATION, DIE NICHTS ÄNDERT, IST KEIN BESTANDENER TEST (09.08.2026,
+  #91).** Eine Probe ersetzte `return [_finding(…)]` durch
+  `return [] or [_finding(…)]` — und blieb grün, weil eine leere Liste **falsy**
+  ist und der Ausdruck unverändert denselben Befund liefert. Die Probe war
+  fehlerhaft, nicht der Test. **Regel:** Überlebt eine Mutation, ist die erste
+  Frage nicht „welche Testlücke?", sondern „**war das überhaupt eine
+  Mutation?**" — erst prüfen, ob sich das Verhalten wirklich ändert. (Dritter
+  Fall dieser Art nach #81 und #88; er tritt zuverlässig auf, wenn man Proben
+  als Textersetzung baut.)
 - **Proxy-Rechte:** `workflow_dispatch` geht; Branch-Delete / Branch-Protection-
   Änderungen → **403**. Nicht dagegen anrennen.
 - **Sandbox erreicht kein Yahoo/EDGAR/externe Hosts** → alles Externe bleibt

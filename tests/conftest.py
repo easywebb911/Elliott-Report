@@ -27,6 +27,35 @@ NEUTRALE_UMGEBUNG = (
 )
 
 
+#: Lebenszeichen des Wartungs-Crons für Sandbox-Repos.
+#:
+#: Seit der Regel ``health_check.check_maintenance`` (09.08.2026) ist ein Repo
+#: OHNE ``data/maintenance_state.json`` ein Repo mit einem Befund — zu Recht:
+#: dann weiß niemand, ob der Wartungs-Cron je lief. Ein Sandbox-Repo, das einen
+#: GESUNDEN Lauf darstellen soll, braucht die Datei deshalb genauso wie das
+#: echte. Sie hier zu erzeugen ist kein Zurechtbiegen des Tests, sondern das
+#: Nachstellen der realen Ausgangslage.
+#:
+#: Der Vorgabewert liegt drei Tage vor dem Lauf-Zeitstempel, den beide
+#: Health-Test-Reihen benutzen (``NOW_ISO = 2026-07-27T21:45:00Z``) — deutlich
+#: unter der 10-Tage-Grenze, also gesund. Wer eine ANDERE Lage braucht
+#: (überfällig, fehlend, unlesbar), setzt sie im Test selbst; genau das tun die
+#: Regel-Tests in ``tests/test_wartungs_cron.py``.
+WARTUNGS_STATE_FRISCH = "2026-07-24T06:30:00Z"
+
+
+def schreibe_wartungs_state(root, last_run_utc: str = WARTUNGS_STATE_FRISCH):
+    """Legt ``data/maintenance_state.json`` in einem Sandbox-Repo an."""
+    import json
+    ziel = Path(root) / "data" / "maintenance_state.json"
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    ziel.write_text(json.dumps(
+        {"schema_version": 1, "last_run_utc": last_run_utc,
+         "updated_utc": last_run_utc, "rules": {}}, indent=2) + "\n",
+        encoding="utf-8")
+    return ziel
+
+
 @pytest.fixture(autouse=True)
 def _neutrale_umgebung(monkeypatch):
     """Kein Test erbt die Umgebung seines Läufers.

@@ -14,6 +14,8 @@ import math
 import elliott_pipeline as ep
 import forward_collection as fc
 import health_check as hc
+
+import conftest  # noqa: E402 — geteilte Sandbox-Helfer
 import notify
 
 NAN = float("nan")
@@ -41,6 +43,9 @@ def _capture(monkeypatch):
 def _sandbox(tmp_path, monkeypatch):
     (tmp_path / "data").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(hc, "REPO_ROOT", tmp_path)
+    # Ein GESUNDES Repo hat ein Lebenszeichen des Wartungs-Crons — sonst meldet
+    # `check_maintenance` zu Recht. Begruendung: tests/conftest.py.
+    conftest.schreibe_wartungs_state(tmp_path)
     return tmp_path
 
 

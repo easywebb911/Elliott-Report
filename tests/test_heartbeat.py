@@ -13,6 +13,8 @@ import json
 import health_check as hc
 import notify
 
+import conftest  # noqa: E402 — geteilte Sandbox-Helfer
+
 MON = _dt.datetime(2026, 7, 27, 21, 45, tzinfo=_dt.timezone.utc)   # Montag
 TUE = _dt.datetime(2026, 7, 28, 21, 45, tzinfo=_dt.timezone.utc)   # Dienstag
 SAT = _dt.datetime(2026, 8, 1, 21, 45, tzinfo=_dt.timezone.utc)    # Samstag
@@ -35,6 +37,8 @@ def _capture(monkeypatch):
 def _sandbox(tmp_path, monkeypatch, *, on_main=True):
     (tmp_path / "data").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(hc, "REPO_ROOT", tmp_path)
+    # Lebenszeichen des Wartungs-Crons — siehe tests/conftest.py.
+    conftest.schreibe_wartungs_state(tmp_path)
     monkeypatch.setenv("GITHUB_REF", "refs/heads/main" if on_main
                        else "refs/heads/claude/testbranch")
     return tmp_path

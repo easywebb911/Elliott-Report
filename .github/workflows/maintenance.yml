@@ -1,0 +1,141 @@
+# Wartungs-Cron (Selbstwartung Stufe 2) — prueft die STRUKTUR, nicht die Daten.
+#
+# WARUM ES IHN GIBT: `health_check` laeuft IM Tageslauf und prueft, was der Lauf
+# gerade produziert hat (Kandidaten, Kurs-Stand, Fetch-Qualitaet, Sammlung) —
+# lauter Dinge, die sich taeglich aendern. Alles STRUKTURELLE dagegen — die
+# Testsuite, Termin-Horizonte, Konstanten-Drift, Spiegel, Workflow-Aufbau —
+# aendert sich nur, wenn jemand Code anfasst, und wurde deshalb bisher NUR von
+# der CI geprueft, also nur bei PR oder Push. Ruehrt monatelang niemand das
+# Repo an, prueft nichts mehr: Termine laufen ab, Konstanten laufen
+# auseinander, Spiegel divergieren — lautlos.
+#
+# DIESER LAUF HANDELT NIE. Er meldet. Keine Selbst-Reparatur, keine
+# Selbst-Loeschung, keine Schwellen-Anpassung. Die einzige Datei, die er
+# schreibt, ist sein eigener State (data/maintenance_state.json) — und der
+# enthaelt ausschliesslich Flanken-Marker, keine Messwerte.
+#
+# WER BEWACHT DIESEN LAUF: der Tageslauf. `health_check.check_maintenance`
+# meldet `warn`, wenn `last_run_utc` aelter als 10 Tage ist. Kette:
+# Staleness-Cron -> Tageslauf -> Wartungs-Cron. Kein dritter Waechter noetig.
+name: Wartung (woechentlich)
+
+on:
+  schedule:
+    # Montag 06:30 UTC — bewusst NACH dem Staleness-Cron (06:00) und weit weg
+    # vom Tageslauf (21:45), damit zwei Meldungen nie im selben Moment kommen.
+    - cron: "30 6 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write        # schreibt NUR data/maintenance_state.json
+
+concurrency:
+  group: elliott-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    # 15 Minuten. Hergeleitet: dieser Job tut dasselbe wie `ci.yml` (voller
+    # Klon + pip + pytest) plus das Wartungs-Skript und einen Commit. Die
+    # juengsten CI-Laeufe brauchen 38-51 s; 15 min sind rund das 18-fache und
+    # liegen in der Haus-Skala zwischen ci (10) und daily (30).
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # ZWEIG STATT github.sha (Guardian-Nit 09.08.2026, uebernommen aus
+          # daily.yml): bei einem geplanten Lauf steht `github.sha` schon fest,
+          # wenn der Lauf in der concurrency-Warteschlange haengt. Ohne `ref`
+          # rechnete ein wartender Lauf auf dem ALTEN Stand und sein
+          # anschliessender Rebase-Push kollidierte — genau der Vorfall vom
+          # 31.07.2026 (Lauf 30626433741). Hier ist das Fenster enger (nur
+          # Selbst-Ueberlappung), die Lehre gilt trotzdem.
+          ref: ${{ github.ref_name }}
+          # VOLLE HISTORIE, bewusst. Mehrere Tests ueberspringen sich auf einem
+          # flachen Klon MIT GRUND (`braucht_historie`): der Episoden-Split-
+          # Replay, die Sitzungs-Ende-Nachrechnung und die Beweis-Sammlung
+          # laufen ueber die committeten Report-Staende. Genau diese Tests sind
+          # die forensisch wertvollsten — ein Wartungslauf, dessen Kernfrage
+          # "ist die Suite noch gruen?" lautet, darf sie nicht stillschweigend
+          # auslassen. Ein flacher Klon waere gruen, ohne sie gefahren zu haben.
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # KERN 1: die komplette Suite. Rot faerbt den Job -> der `if: failure()`-
+      # Push unten meldet es. Bewusst OHNE `continue-on-error`: eine rote Suite
+      # IST der Befund.
+      - name: Testsuite (voller Klon)
+        id: suite
+        run: python -m pytest -q
+
+      # KERN 2: die Struktur-Pruefungen. Fail-soft (exit 0) und mit eigenem
+      # Push-Weg — ein Problem hier soll nicht wie ein kaputter Lauf aussehen.
+      - name: Struktur-Pruefungen
+        id: wartung
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python scripts/maintenance_check.py
+
+      # State persistieren. NUR diese eine Datei — der Tageslauf schreibt sie
+      # nie, dieser Lauf schreibt nichts anderes.
+      - name: Wartungs-State committen
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -f data/maintenance_state.json ] \
+            && git add data/maintenance_state.json || true
+          if git diff --cached --quiet; then
+            echo "Kein State-Wechsel — nichts zu committen."
+          else
+            git commit -m "chore(wartung): Wartungs-State [skip ci]"
+            # Race-Haertung wie im Tageslauf: main kann waehrend des Laufs
+            # gewandert sein (Daten-Commit, gemergter PR).
+            for i in 1 2 3; do
+              git pull --rebase origin "${GITHUB_REF_NAME}" && \
+                git push origin "HEAD:${GITHUB_REF_NAME}" && break
+              echo "Push-Versuch $i fehlgeschlagen — neuer Anlauf."
+              sleep $((i * 5))
+            done
+          fi
+
+      # Der Waechter darf nicht still sterben. Reiner curl, bewusst ausserhalb
+      # des Python-Pfads: ein gebrochener Python-/Pip-Schritt soll den Alarm
+      # nicht mitreissen (Muster aus daily.yml).
+      - name: Push bei Wartungs-Fehlschlag
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SUITE: ${{ steps.suite.outcome }}
+          WARTUNG: ${{ steps.wartung.outcome }}
+        run: |
+          if [ -z "$NTFY_TOPIC" ]; then
+            echo "kein NTFY_TOPIC → kein Push (graceful)."; exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          HEUTE="$(date -u +%Y-%m-%d)"
+          if [ "$SUITE" = "failure" ]; then
+            TITEL="Elliott-Wartung: Testsuite ROT"
+            TEXT="Woechentliche Wartung ${HEUTE}: die Testsuite ist rot. Struktur-Pruefungen liefen nicht mehr. ${RUN_URL}"
+          else
+            TITEL="Elliott-Wartung fehlgeschlagen"
+            TEXT="Woechentliche Wartung ${HEUTE} abgebrochen (Suite=${SUITE}, Wartung=${WARTUNG}). ${RUN_URL}"
+          fi
+          curl -s -m 10 \
+            -H "Title: ${TITEL}" \
+            -H "Priority: high" -H "Tags: rotating_light,wrench" \
+            -d "${TEXT}" \
+            "https://ntfy.sh/${NTFY_TOPIC}" || echo "ntfy-Push fehlgeschlagen (fail-soft)"
+          exit 0
