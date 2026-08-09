@@ -87,6 +87,17 @@ REPORT_PATH = getattr(config, "REPORT_PATH", "data/report.json")
 # Der Vorbehalt steht EINMAL in der config — im ganzen Projekt darf keine Zahl
 # ohne ihn nach außen, und er darf nicht in zwei Fassungen existieren.
 CARD_STATUS = getattr(config, "CARD_STATUS", "heuristisch · unvalidiert")
+# Wartungs-State (09.08.2026): der Tageslauf bewacht den Wartungs-Cron. Pfad
+# und Schwelle hier, weil die REGEL hier lebt — `maintenance_check` zu
+# importieren waere ein Zirkel (jenes Modul importiert `health_check` fuer die
+# EINE Flanken-Logik).
+MAINTENANCE_STATE_PATH = getattr(config, "MAINTENANCE_STATE_PATH",
+                                 "data/maintenance_state.json")
+# 10 Tage: der Wartungs-Cron laeuft WOECHENTLICH. Ein einzelner ausgefallener
+# Lauf (7 Tage) darf nicht melden — das waere ein Fehlalarm bei jeder
+# GitHub-Stoerung. Zwei ausgefallene Laeufe (14 Tage) MUESSEN melden. 10 liegt
+# dazwischen und laesst drei Tage Luft fuer verschobene Cron-Starts.
+MAINTENANCE_MAX_AGE_DAYS = getattr(config, "HEALTH_MAINTENANCE_MAX_AGE_DAYS", 10)
 
 CRIT = "crit"
 WARN = "warn"
@@ -643,6 +654,64 @@ def send_findings(topic: str, findings: Sequence[Dict]) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# 8) WARTUNGS-CRON — der Tageslauf bewacht den Waechter
+# ---------------------------------------------------------------------------
+def check_maintenance(report: Dict,
+                      max_age_days: int = MAINTENANCE_MAX_AGE_DAYS,
+                      state_path: str = MAINTENANCE_STATE_PATH) -> List[Dict]:
+    """Wartungs-Cron laenger als ``max_age_days`` stumm → warn.
+
+    WARUM DIESE REGEL HIER STEHT (09.08.2026): der woechentliche Wartungs-Cron
+    prueft die STRUKTUR (Termine, Konstanten-Drift, Spiegel, Workflows) und
+    faehrt die Testsuite. Faellt er aus, faellt das niemandem auf — er meldet
+    sich ja nur bei Befund. Ein Waechter, dessen Ausfall unsichtbar ist, ist
+    kein Waechter.
+
+    Damit ist die Kette geschlossen, ohne einen dritten Cron:
+    Staleness-Cron → bewacht den Tageslauf → bewacht den Wartungs-Cron.
+
+    Zeitbezug ist der LAUF-Zeitstempel des Reports, nicht die Systemuhr: so
+    rechnet die Regel gegen dieselbe Zeit wie jede andere Regel hier, und ein
+    Test kann sie ohne Uhr-Monkeypatch festnageln.
+
+    Fail-soft in EINE Richtung: ist der Lauf-Zeitstempel unlesbar, meldet die
+    Regel NICHTS (kein Bezugspunkt). Fehlt dagegen die State-Datei oder ist ihr
+    Stempel kaputt, ist das sehr wohl ein Befund — genau dann weiss niemand, ob
+    der Cron je lief.
+    """
+    jetzt = cal.parse_ts(report.get("run_timestamp_utc"))
+    if jetzt is None:
+        return []
+    st = _load_json(state_path)
+    if not isinstance(st, dict) or not st.get("last_run_utc"):
+        return [_finding(
+            "maintenance_stale", WARN,
+            f"Wartungs-Cron ohne Lebenszeichen: {state_path} fehlt oder "
+            f"nennt kein `last_run_utc` — es ist unbekannt, ob er je lief.",
+            detail={"state_path": state_path, "grund": "kein last_run_utc"})]
+    zuletzt = cal.parse_ts(st.get("last_run_utc"))
+    if zuletzt is None:
+        return [_finding(
+            "maintenance_stale", WARN,
+            f"Wartungs-Cron: `last_run_utc` in {state_path} ist unlesbar "
+            f"({st.get('last_run_utc')!r}) — Alter nicht bestimmbar.",
+            detail={"state_path": state_path, "grund": "unlesbar",
+                    "last_run_utc": str(st.get("last_run_utc"))})]
+    alter = (jetzt - zuletzt).total_seconds() / 86400.0
+    if alter <= max_age_days:
+        return []
+    return [_finding(
+        "maintenance_stale", WARN,
+        f"Wartungs-Cron seit {alter:.1f} Tagen stumm (Grenze "
+        f"{max_age_days}) — letzter Lauf {st.get('last_run_utc')}. Die "
+        f"Struktur-Pruefung (Termine, Konstanten, Spiegel, Suite) findet "
+        f"gerade nicht statt.",
+        detail={"state_path": state_path, "alter_tage": round(alter, 2),
+                "max_age_days": max_age_days,
+                "last_run_utc": str(st.get("last_run_utc"))})]
+
+
+# ---------------------------------------------------------------------------
 # I/O (fail-soft — alles hier darf den Lauf nie brechen)
 # ---------------------------------------------------------------------------
 def _load_json(rel: str):
@@ -725,6 +794,7 @@ def collect_findings(report: Dict, prev_report: Optional[Dict],
     findings.extend(check_collection_progress(report, sig_before, sig_after,
                                               same_day_rerun))
     findings.extend(check_agent_comments(report, has_agent_key))
+    findings.extend(check_maintenance(report))
     # Stabile Reihenfolge: crit zuerst, dann Regel, dann Markt — der Push-Text
     # und der Report-Block sind damit deterministisch.
     findings.sort(key=lambda f: (-_SEV_RANK.get(f["severity"], 0),
