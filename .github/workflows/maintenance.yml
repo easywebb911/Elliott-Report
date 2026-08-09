@@ -45,6 +45,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # ZWEIG STATT github.sha (Guardian-Nit 09.08.2026, uebernommen aus
+          # daily.yml): bei einem geplanten Lauf steht `github.sha` schon fest,
+          # wenn der Lauf in der concurrency-Warteschlange haengt. Ohne `ref`
+          # rechnete ein wartender Lauf auf dem ALTEN Stand und sein
+          # anschliessender Rebase-Push kollidierte — genau der Vorfall vom
+          # 31.07.2026 (Lauf 30626433741). Hier ist das Fenster enger (nur
+          # Selbst-Ueberlappung), die Lehre gilt trotzdem.
+          ref: ${{ github.ref_name }}
           # VOLLE HISTORIE, bewusst. Mehrere Tests ueberspringen sich auf einem
           # flachen Klon MIT GRUND (`braucht_historie`): der Episoden-Split-
           # Replay, die Sitzungs-Ende-Nachrechnung und die Beweis-Sammlung

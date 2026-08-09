@@ -460,6 +460,81 @@ def test_verschwundene_secret_referenz_wird_erkannt(tmp_path):
     assert any(f["detail"].get("fehlend") == ["NTFY_TOPIC"] for f in befunde)
 
 
+def test_ein_KOMMENTAR_erfuellt_die_secret_pruefung_NICHT(tmp_path):
+    """GUARDIAN-NIT 09.08.2026 — und ein verdienter.
+
+    Die Lesson „eine Zusicherung darf nicht an etwas haengen, das ein Kommentar
+    erfuellt" hatte ich in den TEST eingebaut und im PRODUKTIONSCODE direkt
+    daneben denselben Fehler stehen lassen: `check_secret_referenzen` suchte
+    `NTFY_TOPIC` im ROHTEXT des Steps. Ein Kommentar, der das Wort nennt,
+    stellte damit genau die Pruefung still, die den Defekt vom 27.07.2026
+    verhindern soll — ausgerechnet die mit dem Sicherheitsversprechen.
+    """
+    wf = ("name: X\n\nconcurrency:\n  group: g\n\njobs:\n  bau:\n"
+          "    runs-on: ubuntu-latest\n    timeout-minutes: 5\n    steps:\n"
+          "      - name: Push\n"
+          "        # NTFY_TOPIC wird hier NICHT durchgereicht — der Kommentar\n"
+          "        # nennt es trotzdem woertlich.\n"
+          "        run: python scripts/notify.py --mode daily\n")
+    _wf_sandbox(tmp_path, {"a.yml": wf})
+    befunde = mc.check_secret_referenzen(tmp_path, erwartet=set())
+    assert any(f["rule"] == "secret_durchreichung" for f in befunde), \
+        "ein Kommentar hat die Durchreichungs-Pruefung erfuellt"
+
+
+def test_auskommentierte_secret_referenz_zaehlt_nicht(tmp_path):
+    """Gegenstueck: ein auskommentiertes `secrets.X` darf eine verschwundene
+    Referenz nicht maskieren."""
+    wf = WF_OK.replace("        run: echo hi\n",
+                       "        # env:\n        #   X: ${{ secrets.NTFY_TOPIC }}\n"
+                       "        run: echo hi\n")
+    _wf_sandbox(tmp_path, {"a.yml": wf})
+    befunde = mc.check_secret_referenzen(tmp_path, erwartet={"NTFY_TOPIC"})
+    assert any(f["detail"].get("fehlend") == ["NTFY_TOPIC"] for f in befunde), \
+        "die auskommentierte Referenz galt als vorhanden"
+
+
+def test_ein_STEP_timeout_maskiert_keinen_fehlenden_JOB_deckel(tmp_path):
+    """GUARDIAN-NIT 09.08.2026: `\\s+timeout-minutes` zaehlte auch Step-Deckel
+    mit (in Actions gueltig). Ein Step-Timeout haette damit einen fehlenden
+    Job-Deckel verdeckt — der Job liefe weiter bis zum 6-Stunden-Default."""
+    wf = ("name: X\n\nconcurrency:\n  group: g\n\njobs:\n  bau:\n"
+          "    runs-on: ubuntu-latest\n    steps:\n"
+          "      - name: Schritt\n        timeout-minutes: 5\n"
+          "        run: echo hi\n")
+    _wf_sandbox(tmp_path, {"a.yml": wf})
+    befunde = mc.check_workflow_struktur(tmp_path)
+    assert any(f["detail"].get("timeouts") == 0 for f in befunde), \
+        "ein Step-Deckel wurde als Job-Deckel gezaehlt"
+
+
+def test_kaputter_puls_wert_kippt_den_lauf_nicht(tmp_path, monkeypatch):
+    """GUARDIAN-NIT 09.08.2026: ein String statt Dict in `puls` gab einen
+    AttributeError — gefangen, aber VOR `write_state`. `last_run_utc` waere
+    damit dauerhaft eingefroren gewesen, und der Grund haette nie im Log
+    gestanden."""
+    _sandbox(tmp_path, monkeypatch)
+    _kein_netz(monkeypatch)
+    monkeypatch.setattr(mc, "sammle_befunde", lambda *a, **k: [])
+    (tmp_path / "data" / "maintenance_state.json").write_text(
+        json.dumps({"schema_version": 1, "puls": "kaputt",
+                    "last_run_utc": "2026-08-01T06:30:00Z"}), encoding="utf-8")
+    erg = mc.run("topic", JETZT, base=tmp_path)
+    assert erg["puls"] is True, "der Lauf ist am kaputten Wert haengengeblieben"
+    st = json.loads((tmp_path / "data" / "maintenance_state.json")
+                    .read_text(encoding="utf-8"))
+    assert st["last_run_utc"] == "2026-08-10T06:30:00Z", \
+        "last_run_utc wurde nicht fortgeschrieben"
+
+
+def test_der_wartungs_checkout_nimmt_den_ZWEIG(tmp_path):
+    """GUARDIAN-NIT 09.08.2026, uebernommen aus daily.yml: ohne `ref` nimmt
+    `actions/checkout` `github.sha` — und der steht schon fest, wenn der Lauf
+    in der concurrency-Warteschlange haengt."""
+    code = _wf_ohne_kommentare("maintenance.yml")
+    assert "ref: ${{ github.ref_name }}" in code
+
+
 def test_neue_secret_referenz_wird_erkannt(tmp_path):
     wf = WF_OK.replace("        run: echo hi\n",
                        "        env:\n          X: ${{ secrets.GEHEIM }}\n"

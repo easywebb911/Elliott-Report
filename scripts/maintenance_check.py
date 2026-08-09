@@ -337,6 +337,26 @@ def workflow_dateien(base: Optional[Path] = None) -> List[Path]:
     return sorted((root / WORKFLOW_DIR).glob("*.yml"))
 
 
+def ohne_kommentare(text: str) -> str:
+    """Workflow-Text ohne Kommentarzeilen.
+
+    GUARDIAN-NIT 09.08.2026, und ein verdienter: die Lesson „eine Zusicherung
+    darf nicht an etwas hängen, das ein Kommentar erfüllt" hatte ich in den
+    TEST eingebaut — und im Produktionscode direkt daneben denselben Fehler
+    stehen lassen. ``check_secret_referenzen`` suchte ``"NTFY_TOPIC"`` im
+    ROHTEXT des Steps; ein Kommentar wie ``# NTFY_TOPIC wird hier NICHT
+    durchgereicht`` erfüllte die Bedingung und stellte genau die Prüfung still,
+    die den Defekt vom 27.07.2026 verhindern soll. Nachgestellt und bestätigt,
+    bevor es hier steht.
+
+    In diesem Repo ist das kein Randfall: der Hausstil begründet fast jede
+    Zeile im Kommentar, und diese Begründungen nennen die betroffenen Namen
+    naturgemäß wörtlich.
+    """
+    return "\n".join(z for z in text.splitlines()
+                     if not z.lstrip().startswith("#"))
+
+
 def _job_namen(text: str) -> List[str]:
     """Job-Schlüssel unterhalb von `jobs:` (Hausstil: zwei Leerzeichen)."""
     zeilen = text.splitlines()
@@ -380,7 +400,11 @@ def check_workflow_struktur(base: Optional[Path] = None) -> List[Dict]:
                 f"Datei ist damit WIRKUNGSLOS.",
                 detail={"datei": name, "parser": "jobs"}))
         else:
-            timeouts = len(re.findall(r"^\s+timeout-minutes:\s*\d+\s*$",
+            # JOB-Ebene = genau vier Leerzeichen (Hausstil, wie `_job_namen`
+            # zwei nimmt). GUARDIAN-NIT 09.08.2026: `\s+` zaehlte auch
+            # STEP-Timeouts mit (in Actions gueltig, acht Leerzeichen) — ein
+            # Step-Deckel haette damit einen fehlenden JOB-Deckel maskiert.
+            timeouts = len(re.findall(r"^    timeout-minutes: *\d+ *$",
                                       text, re.M))
             if timeouts < len(jobs):
                 out.append(_finding(
@@ -429,7 +453,9 @@ def check_secret_referenzen(base: Optional[Path] = None,
     out: List[Dict] = []
     gefunden: set = set()
     for pfad in dateien:
-        text = pfad.read_text(encoding="utf-8")
+        # OHNE Kommentare — sonst genügt eine Erwähnung im Fließtext, um die
+        # Prüfung zu erfüllen (Guardian-Nit 09.08.2026, siehe `ohne_kommentare`).
+        text = ohne_kommentare(pfad.read_text(encoding="utf-8"))
         gefunden |= set(re.findall(r"secrets\.([A-Z_][A-Z0-9_]*)", text))
         for step in re.split(r"\n      - name:", text):
             if "scripts/notify.py" not in step:
@@ -516,8 +542,18 @@ def puls_faellig(now: _dt.datetime, state: Optional[Dict]) -> bool:
     ausschließlich von einem anderen Wächter kommt, ist eine Kette mit einem
     Glied zu wenig.
     """
-    letzter = str(((state or {}).get("puls") or {}).get("last_month") or "")
-    return letzter != now.strftime("%Y-%m")
+    puls = (state or {}).get("puls")
+    # GUARDIAN-NIT 09.08.2026: ein kaputter `puls`-Wert (String statt Dict) gab
+    # einen AttributeError. Der wurde zwar fail-soft gefangen — aber VOR
+    # `write_state`, `last_run_utc` waere also dauerhaft nicht mehr
+    # fortgeschrieben worden. Der `maintenance_stale`-Backstop haette das nach
+    # zehn Tagen gemeldet, den GRUND aber nie genannt.
+    if not isinstance(puls, dict):
+        if puls is not None:
+            _warne(f"`puls` im State ist kein Objekt ({type(puls).__name__}) — "
+                   f"behandelt wie ein fehlendes Lebenszeichen.")
+        puls = {}
+    return str(puls.get("last_month") or "") != now.strftime("%Y-%m")
 
 
 def push_text(befunde: Sequence[Dict]) -> Tuple[str, str, str]:

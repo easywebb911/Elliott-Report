@@ -13,7 +13,7 @@ ihren vollständigen Belegketten im Archiv.
 **Stand: 09.08.2026**, nach PR **#90** (`requests` deklariert, gemerged
 `41a8c1b`, Merge-Commit `c79eb27`). Zahlen gegen `main`
 geprüft, nicht aus dem
-Gedächtnis: **1106 Tests** grün · Sammlung **70 Records** (20 gereift, **15
+Gedächtnis: **1111 Tests** grün · Sammlung **70 Records** (20 gereift, **15
 auswertbar** von 100) · Marker **44 von 70** tragen mindestens einen
 (`in_session_creation` 34 · `episode_split_suspect` 10 · `stale_market_suspect`
 4) · Beweis-Datei `data/in_session_evidence.json` **17 Einträge** · Universum
