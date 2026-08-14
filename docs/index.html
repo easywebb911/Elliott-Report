@@ -1633,6 +1633,29 @@
         ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
     }
 
+    // Währungssymbol je Markt — DIESELBE Quelle wie die Flaggen-Anzeige (die
+    // Karte kennt ihren Markt ohnehin als 'US'/'DE'-Schlüssel), kein zweiter,
+    // eigener Markt-Test. Unbekannter/fehlender Markt (Watchlist-Sofortkarte
+    // vor dem ersten Lauf, nicht zugeordneter Ticker) → KEIN Symbol statt
+    // geraten — fail-soft wie überall sonst in diesem Frontend.
+    const CUR = { US: '$', DE: '€' };
+    function priceSym(market) { return CUR[market] || ''; }
+    // EINZELWERT (Live-Kurs, Invalidierung): Symbol direkt danach, ein
+    // Leerzeichen davor. '–' (kein Wert) bleibt '–', ohne angehängtes Symbol.
+    function fmtP(n, market) {
+      const v = fmt(n);
+      const s = priceSym(market);
+      return (v === '–' || !s) ? v : `${v} ${s}`;
+    }
+    // BEREICH (Zielzone, Extension): Symbol EINMAL am Ende des Bereichs, nicht
+    // an jeder Zahl einzeln — "21,93–22,5 €", nicht "21,93 €–22,5 €".
+    function fmtZone(z, market) {
+      if (!z) return '–';
+      const s = priceSym(market);
+      const base = `${fmt(z.low)}–${fmt(z.high)}`;
+      return s ? `${base} ${s}` : base;
+    }
+
     // ---------------------------------------------------------------------
     // Zonen-Abstand (01.08.2026) — wie weit liegt eine Zone vom Kurs entfernt?
     //
@@ -1902,12 +1925,12 @@
     // fail-soft-Fallback auf v1, solange ein älterer report.json ohne v2 geladen ist.
     // Ehrlichkeits-Sprache, kein eigener Donut, Alt-Score dezent. Eine Korrektur-
     // Alternative hat keine Zielzone/Score (kind='correction') -> Zeile ohne beide.
-    function ambiguityBlock(c) {
+    function ambiguityBlock(c, market) {
       const useV2 = c && typeof c.valid_count_total_v2 === 'number';
       const n = useV2 ? c.valid_count_total_v2 : (c && c.valid_count_total);
       const alt = useV2 ? (c.alt_count_v2 || c.alt_count) : (c && c.alt_count);
       if (typeof n !== 'number' || n < 2 || !alt) return '';
-      const zone = alt.target_zone ? `${fmt(alt.target_zone.low)}–${fmt(alt.target_zone.high)}` : null;
+      const zone = alt.target_zone ? fmtZone(alt.target_zone, market) : null;
       const score = (typeof alt.score_heuristic === 'number') ? fmt(alt.score_heuristic) : null;
       return `<div class="amb-row">
         <span class="amb-badge" title="Die Struktur lässt mehr als eine regelkonforme Lesart zu (Impuls-Zählungen und ggf. eine A-B-C-Korrektur-Lesart). Reine Anzeige/Messung — der Score/das Ranking richtet sich unverändert nach der Primär-Zählung.">Zählung 1 von ${n}</span>
@@ -1916,7 +1939,7 @@
           <div class="amb-alt">
             <div class="amb-alt-label">${esc(alt.count_label || '')}</div>
             <div class="amb-alt-meta">
-              <span><span class="amb-k">Inval</span> ${fmt(alt.invalidation_price)}</span>
+              <span><span class="amb-k">Inval</span> ${fmtP(alt.invalidation_price, market)}</span>
               ${zone ? `<span><span class="amb-k">Ziel</span> ${zone}`
                        + `${zoneDistSpan(alt.target_zone.low, c.close)}</span>` : ''}
               ${score ? `<span class="amb-alt-score"><span class="amb-k">Score</span> ${score}</span>` : ''}
@@ -1970,10 +1993,10 @@
         + ` data-waves="${esc(JSON.stringify(count.count_wave_labels || []))}"></div>`;
     }
 
-    function tfPanel(tf, structure, cardClose) {
+    function tfPanel(tf, structure, cardClose, market) {
       if (!tf) return '';
       const st = structure || {};
-      const zoneStr = z => z ? `${fmt(z.low)}–${fmt(z.high)}` : '–';
+      const zoneStr = z => fmtZone(z, market);
       // `dist` steht NEBEN .tf-v, nicht darin: .tf-v ist `white-space:nowrap`,
       // ein eingebetteter Abstand würde Zone und Prozentzahl zu EINEM
       // unumbrechbaren Block machen und die 390px-Kachel aufreißen.
@@ -1996,7 +2019,7 @@
           return `<div class="tf-row"><span class="tf-tag">${lbl}</span>`
             + `<div class="tf-body"><div class="tf-label">${esc(c.count_label || '')}</div>`
             + `<div class="tf-meta">`
-            + pair('Inval', fmt(c.invalidation_price))
+            + pair('Inval', fmtP(c.invalidation_price, market))
             // Zonen-Abstand als drittes Glied des Paares — er wandert beim
             // Umbruch mit seiner Zone mit, statt allein in die nächste Zeile.
             + pair('Ziel', zoneStr(c.target_zone),
@@ -2014,11 +2037,11 @@
           // („A-Ende", realisiert — kein Ziel, daher ohne ~).
           const marks = [];
           if (s.invalidation_price != null)
-            marks.push(pair(esc(s.mark_label || 'Inval.'), fmt(s.invalidation_price)));
+            marks.push(pair(esc(s.mark_label || 'Inval.'), fmtP(s.invalidation_price, market)));
           if (s.orientation_price != null) {
             const isCorr = String(s.state).indexOf('correction') === 0;
-            marks.push(isCorr ? pair('A-Ende', fmt(s.orientation_price))
-                              : pair('A-Ziel-Region', '~' + fmt(s.orientation_price)));
+            marks.push(isCorr ? pair('A-Ende', fmtP(s.orientation_price, market))
+                              : pair('A-Ziel-Region', '~' + fmtP(s.orientation_price, market)));
           }
           const meta = marks.length ? `<div class="tf-meta">${marks.join('')}</div>` : '';
           return `<div class="tf-row tf-struct tf-struct-${esc(s.state)}"><span class="tf-tag">${lbl}</span>`
@@ -2058,16 +2081,16 @@
       return { date: d.last_bar_date || null, lag: d.bar_lag_trading_days };
     }
 
-    function card(c, rank, stand) {
+    function card(c, rank, stand, market) {
       const ys = (c.chart_points || []).map(p => p.price);
       const trendUp = ys.length >= 2 ? ys[ys.length - 1] >= ys[0] : true;
-      const zone = c.target_zone ? `${fmt(c.target_zone.low)}–${fmt(c.target_zone.high)}` : '–';
+      const zone = fmtZone(c.target_zone, market);
       const ez = c.target_zone_extended;
       // Easy-Entscheidung: Extension IMMER anzeigen (auch in den seltenen
       // W4-Fällen mit kurzer Netto-Strecke P0->P3, wo sie knapp unter der
       // Basiszone liegen kann). Konsequente Darstellung; Feld ist additiv.
       const extLine = ez
-        ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmt(ez.low)}–${fmt(ez.high)}`
+        ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmtZone(ez, market)}`
           + `${zoneDistSpan(ez.low, c.close)}</div>`
         : '';
       // „Zielzone erreicht/überschritten": Anfangszustand aus dem Lauf-Schlusskurs;
@@ -2086,13 +2109,13 @@
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
       // Zweite Zählung (großer Grad, Wochen) — NUR wenn vorhanden (fail-soft:
       // kein leerer Block, kein "—").
-      const zoneStr = z => z ? `${fmt(z.low)}–${fmt(z.high)}` : '–';
+      const zoneStr = z => fmtZone(z, market);
       const hd = c.higher_degree;
       const hdBlock = hd ? `<div class="hd-block">
           <div class="hd-title">Großer Grad · Wochen</div>
           <div class="hd-label">${esc(hd.count_label || '')}</div>
           <div class="hd-rows">
-            <div><span class="hd-k">Invalidierung</span><span class="hd-v">${fmt(hd.invalidation_price)}</span></div>
+            <div><span class="hd-k">Invalidierung</span><span class="hd-v">${fmtP(hd.invalidation_price, market)}</span></div>
             <div><span class="hd-k">Zielzone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span>${hd.target_zone ? zoneDistSpan(hd.target_zone.low, c.close) : ''}</div>
             <div><span class="hd-k">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
           </div>
@@ -2117,7 +2140,7 @@
             </div>
           </div>
           <div class="card-right">
-            <div class="cockpit-price" data-quote="price">${fmt(c.close)}</div>
+            <div class="cockpit-price"><span data-quote="price">${fmt(c.close)}</span>${priceSym(market) ? ` ${priceSym(market)}` : ''}</div>
             ${changeHtml(c)}
             <div class="live-row">
               <span class="live-dot" data-quote="dot" title="Live-Quote wird geladen …"></span>
@@ -2127,10 +2150,10 @@
           </div>
         </div>
         <div class="setup">${esc(c.count_label || '')}</div>
-        ${ambiguityBlock(c)}
+        ${ambiguityBlock(c, market)}
         ${donutBlock(c.score_heuristic, c.status)}
         <div class="metrics-row">
-          <div class="metric-box"><span class="m-val inval">${fmt(c.invalidation_price)}</span><span class="m-lbl">Invalidierung</span></div>
+          <div class="metric-box"><span class="m-val inval">${fmtP(c.invalidation_price, market)}</span><span class="m-lbl">Invalidierung</span></div>
           <div class="metric-box zone"><span class="m-val">${zone}</span>${c.target_zone ? zoneDistSpan(c.target_zone.low, c.close) : ''}<span class="m-lbl">Zielzone</span></div>
         </div>
         ${extLine}
@@ -2138,7 +2161,7 @@
         ${confluenceChips(c)}
         ${w3VolChip(c)}
         ${agentBlock(c)}
-        ${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close) : hdBlock}
+        ${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close, market) : hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">
             <span class="spark-title">Pivot-Verlauf</span>
@@ -2170,7 +2193,7 @@
     function renderMarket(id, market) {
       const el = document.getElementById(id);
       const stand = marktStand(market);
-      const cards = (market.candidates || []).map((c, i) => card(c, i + 1, stand)).join('');
+      const cards = (market.candidates || []).map((c, i) => card(c, i + 1, stand, id)).join('');
       const flag = MARKET_FLAG[id] ? ` <span class="flag">${MARKET_FLAG[id]}</span>` : '';
       el.innerHTML = `<h2>${esc(market.label)}${flag}</h2>` +
         (cards ? `<div class="grid">${cards}</div>`
@@ -2341,13 +2364,17 @@
 
     // Watchlist-Karte: setup -> volle Karte; sonst kompakte Karte mit Hinweis.
     function watchlistCard(c, stand) {
-      if (c.wl_status === 'setup') return card(c, '☆', stand);
+      if (c.wl_status === 'setup') return card(c, '☆', stand, c.market_key);
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
       const isErr = c.wl_status === 'error';
+      const sym = priceSym(c.market_key);
+      const priceInner = isErr
+        ? `${fmt(c.close)}${sym ? ` ${sym}` : ''}`
+        : `<span data-quote="price">${fmt(c.close)}</span>${sym ? ` ${sym}` : ''}`;
       const right = (c.close != null)
-        ? `<div class="cockpit-price"${isErr ? '' : ' data-quote="price"'}>${fmt(c.close)}</div>${changeHtml(c)}`
+        ? `<div class="cockpit-price">${priceInner}</div>${changeHtml(c)}`
           + (isErr ? '' : `<div class="live-row"><span class="live-dot" data-quote="dot"></span><span class="live-time" data-quote="time"></span></div>`)
         : `<div class="cockpit-price">–</div>`;
       const ys = (c.chart_points || []).map(p => p.price);
@@ -2369,7 +2396,7 @@
         </div>
         <div class="wl-note${isErr ? ' wl-note-err' : ''}">${esc(c.note || '')}${c.reason ? ` <span style="opacity:.7">(${esc(c.reason)})</span>` : ''}</div>
         ${isErr ? '' : tjAddBtn(c, c.market || '')}
-        ${tfPanel(c.timeframes, c.structure, c.close)}
+        ${tfPanel(c.timeframes, c.structure, c.close, c.market_key)}
         ${spark}
       </article>`;
     }
