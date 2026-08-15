@@ -10,16 +10,17 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 09.08.2026**, nach PR **#91** (Selbstwartung Stufe 2, gemerged
-`d6bd442`, Merge-Commit `239b7ab`). Zahlen gegen `main`
+**Stand: 15.08.2026**, nach PR **#92** (Wiedervorlage „Selbstwartung Stufe 3",
+gemerged `bc16222`, Merge-Commit `4d6795b`). Zahlen gegen `main`
 geprüft, nicht aus dem
-Gedächtnis: **1111 Tests** grün · Sammlung **70 Records** (20 gereift, **15
-auswertbar** von 100) · Marker **44 von 70** tragen mindestens einen
-(`in_session_creation` 34 · `episode_split_suspect` 10 · `stale_market_suspect`
+Gedächtnis: **1111 Tests** grün · Sammlung **89 Records** (51 gereift, **46
+auswertbar** von 100) · Marker **46 von 89** tragen mindestens einen
+(`in_session_creation` 36 · `episode_split_suspect` 10 · `stale_market_suspect`
 4) · Beweis-Datei `data/in_session_evidence.json` **17 Einträge** · Universum
-**353** Ticker.
+**353** Ticker. Der Sammlungs-Zuwachs (70→89) ist der ganz normale tägliche
+Cron-Betrieb zwischen 09.08. und 15.08. — kein eigener Bau-Auftrag.
 
-> **BRANCH-BASIS:** `claude/elliott-report-handover-health-oksgld`, auf
+> **BRANCH-BASIS:** `claude/in-session-marker-zahl-herleiten`, auf
 > `origin/main` aufgesetzt. Nach jedem Merge neu von `origin/main` aufsetzen —
 > **nie** auf gemergter Historie stapeln.
 
@@ -65,7 +66,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#92
+## 2. PR-INDEX #1–#94
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -166,7 +167,9 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #89 | `3ea7424` | `timeout-minutes: 20` für `eval_prices.yml` — der letzte Workflow ohne Deckel |
 | #90 | `41a8c1b` | `requests` deklariert — die Sendeschicht aller Pushes hing an einer fremden Abhängigkeit |
 | #91 | `d6bd442` | Selbstwartung Stufe 2: Wartungs-Cron + 8. Health-Regel `maintenance_stale` |
-| #92 | `(offen, dieser)` | Wiedervorlage „Selbstwartung Stufe 3“ mit Fälligkeit nach dem 21.08. |
+| #92 | `bc16222` | Wiedervorlage „Selbstwartung Stufe 3“ mit Fälligkeit nach dem 21.08. |
+| #93 | `(offen)` | Währungssymbol auf allen Preisfeldern der Karte (Draft, CI rot durch #94-Befund) |
+| #94 | `(offen, dieser)` | Gepinnte 34er-Konstante in `test_in_session_creation.py` gegen den Backfill-Anker hergeleitet |
 
 <sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
 aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
@@ -186,6 +189,7 @@ was hier steht, braucht einen echten Lauf oder Easys Gerät.
 **Erledigte Verifikationen sind ins Archiv gewandert** — unter anderem
 #21 (Sammlung persistiert), #66 (Score-Alarm feuert), #67 (Zweig-Checkout),
 #68 (Episoden-Anschluss), #78 (CI auf `main`), #81 (In-Session-Marker live),
+#94 (gepinnte 34er-Testkonstante gegen den Backfill-Anker hergeleitet),
 der Mitternachts-Lauf vom 07.08. 01:04 (beide Befunde am selben Tag von selbst
 aufgelöst), das erstmalige Greifen des #72-Gates und `last_fresh_run_date` im
 echten Lauf. Wer die Belegketten braucht: Archiv.
@@ -244,6 +248,19 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
   künftige Records ohne Code-Änderung, ohne Gate und ohne Populations-Beweis
   beseitigt. Der Marker läuft trotzdem weiter — als Nachweis, nicht als Ersatz
   für die Regel.
+  **WIDERSPRUCH GEFUNDEN (15.08., #94-Nebenbefund) — die Regel hat NICHT
+  gehalten.** Zwei weitere In-Session-Records sind seit dieser Notiz
+  entstanden: `APD` und `LULU @ 2026-08-12T16:47:59Z`. Der committete Commit
+  (`c66342a`, 16:51 UTC) liegt mitten in der NYSE-Sitzung (13:30–20:00 UTC) und
+  ist **kein** Lauf des geplanten Abend-Crons (der steht auf 21:45 UTC) — nur
+  `daily.yml` schreibt `forward_collection.json`, und dessen einzige zwei
+  Auslöser sind eben dieser Cron und `workflow_dispatch`. Es war also wieder
+  ein Hand-Dispatch während einer Sitzung, die Regel selbst wurde also
+  **gebrochen**, nicht der Mechanismus widerlegt — der Marker hat genau
+  richtig reagiert (#94 zeigt: additiv, korrekt, kein Ausschluss). **Nicht
+  weiter untersucht** (außerhalb der GRENZEN von #94, das nur die gepinnte
+  Test-Konstante repariert) — wer dispatchte und warum, ist Easys Sache zu
+  klären, nicht rekonstruierbar aus der Sandbox.
 
 - **BEFUND 06./07.08. — der Verzögerungs-Ausreißer, der die Messung begrenzt:**
   GitHub startet den geplanten Tageslauf (Soll 21:45 UTC) sonst nach
@@ -320,7 +337,11 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 
 ## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
 
-**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #91 sind gemergt.
+**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #92 und #94 sind
+gemergt. **#93** (Preisfeld-Symbole) ist weiterhin offen als Draft — die CI war
+dort rot durch genau die Konstante, die #94 jetzt repariert; nach einem Rebase
+von #93 auf diesen Stand sollte sie grün laufen (unverifiziert, das ist Easys
+nächster Schritt).
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 
