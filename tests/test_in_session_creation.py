@@ -277,18 +277,87 @@ BACKFILL_34 = [
 ]
 # ADS.DE @ 2026-07-25T13:35:26Z steht bewusst NICHT auf der Liste (Samstag).
 
+# Stempel des EINMALIGEN Backfill-Laufs vom 07.08.2026 — der Anker, über den
+# sich die 34 als abgeschlossener historischer Fakt vom laufenden Betrieb
+# unterscheiden lassen (s. Kopfkommentar zu BACKFILL_34 unten für die
+# ausführliche Begründung, warum das nötig wurde).
+BACKFILL_MARKED_UTC = "2026-08-07T00:00:00Z"
+
+# BEFUND (10.08., #93-CI-Nebenbefund; hier repariert statt nur dokumentiert):
+# `betroffene_records`/die Marker-Felder wurden hier ursprünglich über die
+# GESAMTE, im Betrieb wachsende Sammlung geprüft, mit der festen 34er-Liste als
+# Soll. Das ist KEIN Logikfehler im Marker (der arbeitet nach wie vor korrekt,
+# additiv, „markieren, nie heilen") — die Prämisse „Kriterium über den ganzen
+# Bestand == die 34 vom Backfill-Tag" galt nur, solange seit dem Backfill kein
+# einziger neuer in-Sitzung angelegter Record hinzugekommen war. Das kippte
+# bereits am 12.08.2026 durch den ganz normalen täglichen Cron: `markiere_
+# neue_records` markierte APD und LULU (Lauf-Stempel 2026-08-12T16:47:59Z) —
+# zu Recht, das ist Teil B (LAUFENDE MARKIERUNG), keine Ausnahme. Seither
+# liefert `betroffene_records` über den vollen Bestand 36 statt 34, wachsend
+# mit jedem weiteren solchen Cron-Tag.
+#
+# Das ist derselbe VERFALLS-TYP wie bei `HOLIDAY_LIST_EXPIRES`
+# (`scripts/market_calendar.py`, #91): ein zum Schreibzeitpunkt korrekter Wert,
+# der allein durch weiteren, KORREKTEN Systembetrieb (hier: tägliche Cron-Läufe
+# statt dort: Kalenderdatum) veraltet — keine nachträgliche Codeänderung nötig,
+# um ihn falsch zu machen. Der Unterschied zu `HOLIDAY_LIST_EXPIRES`: dort gibt
+# es zum Stichtag keine tragfähige Quelle mehr (die Liste MUSS von Hand verlängert
+# werden) — hier dagegen steht die Quelle der Wahrheit bereits im Datenbestand
+# selbst (`in_session_creation_marked_utc`). Ein einfaches „34 durch die aktuelle
+# Zahl ersetzen" wäre wieder nur bis zum nächsten in-Sitzung-Cron richtig — also
+# GENAU die „für eine Weile richtig"-Falle, vor der der Auftrag warnt. Die
+# Reparatur unten leitet stattdessen über `BACKFILL_MARKED_UTC` her, welche
+# Records zum abgeschlossenen historischen Fakt gehören, und lässt das laufende
+# Wachstum außerhalb dieses Ankers unangetastet — dauerhaft korrekt, nicht nur
+# heute.
+
 
 def test_das_kriterium_liefert_genau_die_34():
-    treffer, unklar = ins.betroffene_records(_coll()["records"])
+    """Das Kriterium selbst, geprüft am abgeschlossenen Backfill-Stand.
+
+    Nicht am HEUTIGEN Bestand — der wächst durch den laufenden Betrieb legitim
+    weiter (Teil B). Geprüft wird stattdessen genau die Teilmenge, die zum
+    Zeitpunkt des Backfills existierte: alle Records, deren `created_utc`
+    höchstens so spät liegt wie der letzte der 34 (07.08.2026, 14:46:04Z). Für
+    GENAU diese, damals abgeschlossene Population muss das Kriterium weiterhin
+    exakt die 34 liefern — das ist der historische Fakt, den dieser Test hält.
+    """
+    stichtag = max(ts for _, ts in BACKFILL_34)
+    population = [r for r in _coll()["records"]
+                  if isinstance(r.get("created_utc"), str) and r["created_utc"] <= stichtag]
+    treffer, unklar = ins.betroffene_records(population)
     assert unklar == [], "kein Record darf unberechenbar sein"
     assert sorted(ins.record_key(r) for r in treffer) == sorted(BACKFILL_34)
 
 
 def test_die_ausgelieferte_sammlung_traegt_genau_diese_34_marker():
-    """Nicht nur die Rechnung — die DATEI muss die Marker wirklich tragen."""
+    """Nicht nur die Rechnung — die DATEI muss die Marker wirklich tragen.
+
+    Isoliert über `BACKFILL_MARKED_UTC`, NICHT über alle je gesetzten Marker:
+    der laufende Betrieb markiert seither weitere, echte in-Sitzung-Records
+    (eigener `marked_utc`-Stempel je Lauf, s. Teil B) — das ist gewolltes
+    Wachstum, kein Bruch dieses historischen Fakts.
+    """
     markiert = [(r["ticker"], r["created_utc"]) for r in _coll()["records"]
-                if r.get(ins.MARKER) is True]
+                if r.get(ins.MARKER) is True
+                and r.get(ins.MARKER_UTC) == BACKFILL_MARKED_UTC]
     assert sorted(markiert) == sorted(BACKFILL_34)
+
+
+def test_alle_gesetzten_marker_stimmen_mit_dem_kriterium_ueberein():
+    """GUARDIAN-NIT (PR #94): die Isolierung auf den Backfill-Anker oben deckt
+    nur noch den historischen Teil ab — ein Regressionsfall im laufenden
+    Betrieb (ein NEUER, echter Treffer bleibt unmarkiert, oder ein Nicht-
+    Treffer wird fälschlich markiert) bliebe dort unsichtbar. Dieser Test holt
+    genau diese Vollbestand-Prüfung zurück, aber OHNE eine Zahl zu pinnen: er
+    vergleicht die MENGE der markierten Records gegen die MENGE, die das
+    Kriterium selbst über denselben, aktuellen Bestand liefert — wächst der
+    Bestand, wächst die Erwartung automatisch mit."""
+    records = _coll()["records"]
+    treffer, unklar = ins.betroffene_records(records)
+    assert unklar == [], "kein Record darf unberechenbar sein"
+    assert {ins.record_key(r) for r in records if r.get(ins.MARKER) is True} == \
+           {ins.record_key(r) for r in treffer}
 
 
 def test_der_samstags_record_ist_in_der_datei_unmarkiert():
@@ -326,8 +395,19 @@ def test_markiere_haengt_nicht_getroffenen_records_kein_feld_an():
 
 
 def test_marker_datum_ist_gesetzt_und_einheitlich():
-    stempel = {r[ins.MARKER_UTC] for r in _coll()["records"] if r.get(ins.MARKER)}
-    assert stempel == {"2026-08-07T00:00:00Z"}
+    """Jeder Marker trägt einen gesetzten Stempel; der Backfill-Anteil (per
+    `record_key` gegen die 34er-Liste isoliert, nicht per `marked_utc` — sonst
+    prüfte der Test nur sich selbst) ist dabei einheitlich EIN Stempel, wie es
+    ein einmaliger Lauf sein muss. Ohne die Isolierung wäre der Test seit dem
+    ersten laufenden In-Sitzung-Cron (12.08., APD/LULU, eigener Stempel je
+    Lauf) dauerhaft rot — das wäre kein Rückfall, sondern gewolltes Wachstum
+    aus Teil B."""
+    alle = [r for r in _coll()["records"] if r.get(ins.MARKER)]
+    assert all(isinstance(r.get(ins.MARKER_UTC), str) and r[ins.MARKER_UTC].strip()
+               for r in alle), "jeder gesetzte Marker braucht einen Stempel"
+    backfill_keys = set(BACKFILL_34)
+    stempel = {r[ins.MARKER_UTC] for r in alle if ins.record_key(r) in backfill_keys}
+    assert stempel == {BACKFILL_MARKED_UTC}
 
 
 def test_backfill_ist_idempotent_und_datiert_nicht_um():
@@ -341,9 +421,17 @@ def test_backfill_ist_idempotent_und_datiert_nicht_um():
 
 
 def test_ruckweg_entfernt_beide_felder_restlos():
+    """Zahl HERGELEITET aus dem tatsächlich markierten Bestand, nicht gepinnt —
+    der markiert wächst durch den laufenden Betrieb legitim über die 34 des
+    Backfills hinaus (Teil B). Ein hartkodiertes `== 34` würde hier exakt in
+    die vom Auftrag benannte Falle laufen: nur „für eine Weile richtig", bis
+    zum nächsten in-Sitzung-Cron. Die WERT-Aussage — mindestens die 34
+    Backfill-Records sind darunter — bleibt als Untergrenze erhalten."""
     records = _coll()["records"]
+    erwartet = sum(1 for r in records if r.get(ins.MARKER) is True)
+    assert erwartet >= 34, "der Backfill-Anteil allein darf nie unterschritten werden"
     entfernt = ins.entferne_marker(records)
-    assert entfernt == 34
+    assert entfernt == erwartet
     for r in records:
         assert ins.MARKER not in r and ins.MARKER_UTC not in r
 

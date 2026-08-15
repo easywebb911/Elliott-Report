@@ -1458,5 +1458,169 @@ leer ist — genau das ist ihr Wert.
 ---
 
 
+## Gepinnte 34er-Konstante #94 — Ursache, Fix, Mutationsprobe (15.08.2026)
+
+<sub>Belegkette zu PR #94. Anlass: CI-Nebenbefund aus #93 (Preisfeld-Symbole),
+im Handover als „OFFEN, NEU (10.08.)" vermerkt, hier eigenständig repariert.</sub>
+
+### Was die Konstante war
+
+`tests/test_in_session_creation.py` hielt seit dem Backfill vom 07.08.2026 eine
+feste Liste `BACKFILL_34` — 34 namentlich benannte Records, die zum damaligen
+Zeitpunkt (per `git stash`/Diagnose bestätigt) korrekt alle Treffer des
+In-Session-Kriteriums waren. Vier Tests prüften diese Liste auf vier
+verschiedene Arten: die Kriteriumsfunktion selbst, die ausgelieferte Datei, die
+Einheitlichkeit des Marker-Datums, und die Rückweg-Zahl.
+
+### Warum sie jetzt falsch lag — WEDER Kalender noch Stichtag, sondern
+laufender Betrieb
+
+Kein Zeitablauf im Sinn von „ein Datum ist verstrichen" (anders als
+`HOLIDAY_LIST_EXPIRES`) und kein Kalenderfehler. Die vier Tests verglichen die
+feste 34er-Liste gegen den **gesamten, im Betrieb wachsenden** Bestand
+(`data/forward_collection.json`) statt gegen den damaligen Backfill-Stand. Der
+Marker selbst arbeitet nach wie vor korrekt und additiv (`in_session.py`
+unverändert, kein Logikfehler) — er markiert **völlig zu Recht** auch neue,
+später angelegte In-Session-Records (Teil B, „LAUFENDE MARKIERUNG",
+`markiere_neue_records`, läuft in jedem Tageslauf mit). Am 12.08.2026, 16:51
+UTC, hat genau das ein weiteres Mal gegriffen: `APD` und `LULU`
+(`created_utc 2026-08-12T16:47:59Z`) wurden korrekt markiert. Bestand seither:
+**36** statt 34, mit `in_session_creation_marked_utc` **36 → 34 mit Stempel
+`2026-08-07T00:00:00Z`** (der Backfill) **+ 2 mit Stempel
+`2026-08-12T16:47:59Z`** (der laufende Betrieb) — bestätigt per direkter
+Auszählung der Datei:
+
+```
+total records 89
+marked count 36
+Counter({'2026-08-07T00:00:00Z': 34, '2026-08-12T16:47:59Z': 2})
+```
+
+Damit lieferte `betroffene_records()` über den vollen Bestand 36 statt 34,
+`entferne_marker()` löschte 36 statt der gepinnten 34, und die
+Marker-Datums-Menge war `{2026-08-07T00:00:00Z, 2026-08-12T16:47:59Z}` statt
+der erwarteten Einermenge. Alle vier Ausfälle reproduzierten sich identisch auf
+`origin/main` ohne jeden eigenen Diff (per `git stash` gegengeprüft, wie schon
+im #93-Nebenbefund dokumentiert).
+
+### Derselbe Verfalls-TYP wie `HOLIDAY_LIST_EXPIRES` — mit einem
+entscheidenden Unterschied
+
+**Ja, es ist dieselbe Klasse:** ein zum Schreibzeitpunkt korrekter Wert, der
+allein durch weiteren, **korrekten** Systembetrieb veraltet — keine
+nachträgliche Codeänderung nötig, um ihn falsch zu machen (bei
+`HOLIDAY_LIST_EXPIRES`: verstreichende Kalenderzeit; hier: tägliche
+Cron-Läufe, die neue, zu Recht markierte Records anlegen).
+
+**Der Unterschied, der die Reparatur bestimmt:** bei `HOLIDAY_LIST_EXPIRES`
+gibt es zum Stichtag **keine tragfähige Quelle** mehr — die Liste MUSS von
+Hand verlängert werden, es gibt keinen Algorithmus, der künftige Feiertage
+kennt. Hier dagegen steht die Quelle der Wahrheit **bereits im Datenbestand
+selbst**: `in_session_creation_marked_utc` unterscheidet zuverlässig zwischen
+dem einmaligen Backfill-Batch (ein Stempel, `2026-08-07T00:00:00Z`) und jedem
+späteren, laufenden Marker (eigener Stempel je Lauf). Ein einfaches „34 durch
+36 ersetzen" wäre nur bis zum nächsten In-Sitzung-Cron richtig gewesen —
+**genau die von der Aufgabe benannte Falle**. Die Reparatur ersetzt daher
+keine Zahl durch eine andere Zahl, sondern isoliert den abgeschlossenen
+historischen Fakt über seinen eigenen Anker:
+
+- `test_das_kriterium_liefert_genau_die_34`: Population auf `created_utc <=
+  max(BACKFILL_34-Stempel)` beschränkt, bevor `betroffene_records()` läuft —
+  der Stichtag folgt aus der Liste selbst, nicht aus einer neuen Konstante.
+- `test_die_ausgelieferte_sammlung_traegt_genau_diese_34_marker`: gefiltert auf
+  `MARKER_UTC == BACKFILL_MARKED_UTC` statt auf alle gesetzten Marker.
+- `test_marker_datum_ist_gesetzt_und_einheitlich`: Einheitlichkeit nur noch für
+  den Backfill-Anteil geprüft (per `record_key` gegen `BACKFILL_34` isoliert);
+  zusätzlich neu: jeder gesetzte Marker trägt überhaupt einen nichtleeren
+  Stempel — das war vorher nie einzeln geprüft.
+- `test_ruckweg_entfernt_beide_felder_restlos`: Erwartungswert **hergeleitet**
+  aus `sum(1 for r in records if r.get(ins.MARKER) is True)` statt gepinnt,
+  mit `>= 34` als Untergrenze (der Backfill-Anteil darf nie unterschritten
+  werden).
+
+Damit bleiben alle vier Tests **dauerhaft korrekt**, nicht nur heute: künftige
+In-Session-Marker aus dem laufenden Betrieb lassen die Suite grün, statt sie
+bei jedem neuen Treffer erneut rot zu machen.
+
+### Mutationsprobe (`/tmp/mutate_in_session_konstante.py`, 6 Proben)
+
+Fünf Proben drehen je einen Teil der Reparatur zurück Richtung Original-Fehler;
+die Suite muss wieder rot werden. Ergebnis: **5 von 5 rot**, Testdatei nach
+jeder Probe MD5-identisch mit dem Ausgangsstand:
+
+```
+ROT    Rueckwegs-Herleitung durch den alten Fixwert 34 ersetzt (die urspruengliche Regression)
+ROT    Kriteriums-Test wieder auf den vollen (wachsenden) Bestand statt auf den Backfill-Stichtag
+ROT    Marker-Datei-Test wieder ueber ALLE Marker statt nur den Backfill-Anteil
+ROT    Datum-Einheitlichkeit wieder ueber den gesamten markierten Bestand geprueft
+ROT    BACKFILL_MARKED_UTC verstellt (falscher Anker-Stempel)
+```
+
+Die sechste Probe kam aus dem Guardian-Review (siehe unten) hinzu und mutiert
+**nicht** den Testcode, sondern `scripts/in_session.py`: `betroffene_records()`
+schließt künstlich genau den EINEN Record aus, an dem der Nit hing (`APD @
+2026-08-12T16:47:59Z`, der zweite, post-Backfill-Treffer — nicht der
+gleichnamige Backfill-Record vom 05.08., der bleibt unberührt). Simuliert eine
+echte Produktions-Regression: ein Treffer des Kriteriums bleibt in der Datei
+unmarkiert. Beide Teilaussagen bestätigt:
+
+```
+ROT    [Produktions-Regression] neuer Vollbestand-Test faengt sie
+GRUEN  [Produktions-Regression] die 4 backfill-isolierten Tests bleiben unberuehrt
+```
+
+`scripts/in_session.py` nach der Probe MD5-identisch mit dem Ausgangsstand.
+Volle Suite danach: **1112 Tests grün, 0 rot, 0 übersprungen**
+(`PYTHONDONTWRITEBYTECODE=1 pytest -q`, `__pycache__` vor dem Lauf geräumt).
+
+### Guardian-Review — Nits, keine Blocker (15.08.2026)
+
+**Urteil: Nits.** Ziel-Mechanik als belegt bestätigt (eigener Set-Vergleich
+gegen die Datei, deckungsgleich mit `BACKFILL_34`/`BACKFILL_MARKED_UTC`).
+Zwei Nits, beide behoben statt in einen Folge-PR verschoben:
+
+1. **Coverage-Lücke:** die Isolierung auf den Backfill-Anker deckt nur noch
+   den historischen Teil ab — ein Regressionsfall im laufenden Betrieb (ein
+   neuer, echter Treffer bleibt unmarkiert) bliebe unsichtbar. **Behoben**
+   durch `test_alle_gesetzten_marker_stimmen_mit_dem_kriterium_ueberein`
+   (Mengenvergleich `betroffene_records()` gegen die tatsächlich markierten
+   Records, über den GESAMTEN aktuellen Bestand, ohne Zahl-Pinning — wächst
+   der Bestand, wächst die Erwartung automatisch mit). Die 6. Mutationsprobe
+   oben beweist, dass genau dieser Test die vom Guardian beschriebene Lücke
+   schließt.
+2. **Latente Fragilität:** `r.get("created_utc") <= stichtag` hätte bei einem
+   Record ohne `created_utc` (aktuell 0 Fälle) mit `TypeError` abgebrochen
+   statt sauber zu filtern. **Behoben** durch einen expliziten
+   `isinstance(..., str)`-Schutz vor dem Vergleich.
+
+### Widerspruch gemeldet — die Betriebsregel vom 07.08. hat nicht gehalten
+
+Bei der Diagnose fiel auf: `APD`/`LULU` (12.08., 16:51 UTC) liegen mitten in
+der NYSE-Sitzung. Der einzige Auslöser dafür ist `workflow_dispatch` (der
+geplante Abend-Cron steht auf 21:45 UTC und hat laut Registry **nie** einen
+In-Session-Record erzeugt) — die Betriebsregel „keine Hand-Dispatches während
+der Sitzungen" (Easy, 07.08.) wurde also ein weiteres Mal gebrochen, nicht der
+Marker-Mechanismus widerlegt. Im Handover unter der Betriebsregel-Zeile
+nachgetragen; **nicht weiter untersucht** — außerhalb der Grenzen dieses
+Auftrags (nur die Test-Konstante), wer/warum dispatchte ist aus der Sandbox
+nicht rekonstruierbar.
+
+### Merge-Klasse — Manual-Merge, begründet
+
+Reiner Testcode, aber mit direkter Nähe zur In-Session-Population: die
+geänderten Tests sind der einzige automatisierte Nachweis, dass der Marker
+(additiv, „markieren, nie heilen", #81-Beschluss) weiterhin exakt die
+richtigen Records trifft — kein Doku-PR, keine reine Formatierung. Ein
+Fehler in der Herleitung (z. B. ein falscher Anker-Stempel, s. Mutationsprobe
+5) würde still einen Blindflug erzeugen, in dem die Suite grün bleibt, ohne
+noch etwas Sinnvolles zu prüfen. Das rechtfertigt den Guardian-Zweitblick vor
+dem Merge, wie vom Auftrag vermutet.
+
+### Rückweg
+
+Trivial: kompletter Revert des Testdiffs. Kein Datenstand, kein Schema, keine
+Produktionslogik hängt daran — `scripts/in_session.py` ist in diesem PR
+unverändert.
+
 ---
 
