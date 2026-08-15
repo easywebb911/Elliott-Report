@@ -12,12 +12,15 @@ ihren vollständigen Belegketten im Archiv.
 
 **Stand: 15.08.2026**, nach PR **#94** (gepinnte 34er-Konstante in
 `test_in_session_creation.py` gegen den Backfill-Anker hergeleitet, gemerged
-`db5834b`, Merge-Commit `d6f7789`). Zahlen gegen `main`
+`db5834b`, Merge-Commit `d6f7789`) **und** dem Rebase von **#93** auf diesen
+Stand. Zahlen gegen den rebasten Arbeitsbaum
 geprüft, nicht aus dem
-Gedächtnis: **1112 Tests** grün auf `main` (vor diesem Rebase; Zahl inkl.
-#93 nach dem Rebase erneut geprüft, s. u.) · Sammlung **89 Records** (51
-gereift, **46 auswertbar** von 100) · Marker **46 von 89** tragen mindestens
-einen (`in_session_creation` 36 · `episode_split_suspect` 10 · `stale_market_suspect`
+Gedächtnis: **1143 Tests** grün (1112 auf `main` nach #94 + 31 aus #93s
+`test_waehrungssymbole.py` — die vier vormals CI-blockierenden
+In-Session-Fehlschläge sind seit dem Rebase auf #94 mit dabei, kein einziger
+rot) · Sammlung **89 Records** (51 gereift, **46 auswertbar** von 100) ·
+Marker **46 von 89** tragen mindestens einen (`in_session_creation` 36 ·
+`episode_split_suspect` 10 · `stale_market_suspect`
 4) · Beweis-Datei `data/in_session_evidence.json` **17 Einträge** · Universum
 **353** Ticker.
 
@@ -360,7 +363,8 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 **P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #92 und #94 sind
 gemergt. **#93** (Preisfeld-Symbole) ist auf diesen Stand rebast (dieser
 Commit) — die CI war zuvor rot durch genau die Konstante, die #94 repariert
-hat; nach dem Rebase erneut geprüft (s. „Rebase-Beleg" im Archiv).
+hat; nach dem Rebase lokal erneut geprüft: **1143 grün, 0 rot** (s. Kopf
+oben). Nur noch Easys CI-Lauf auf dem gepushten Zweig fehlt zur Bestätigung.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 
