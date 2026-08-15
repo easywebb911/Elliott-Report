@@ -257,11 +257,15 @@ def test_der_hinweis_liest_die_fertige_zahl_aus_dem_report():
 
 
 def test_der_hinweis_haengt_an_allen_drei_kartenarten():
-    assert "function card(c, rank, stand) {" in HTML
+    # BERICHTIGT 10.08.2026 (Waehrungssymbol-Auftrag): `card()` bekam einen
+    # vierten Parameter `market`, damit sie ihr Preisfeld-Symbol kennt — die
+    # Ankerzeilen hier folgen der Signatur nach, die Aussage des Tests
+    # (standHinweis erreicht alle drei Kartenarten) bleibt unveraendert.
+    assert "function card(c, rank, stand, market) {" in HTML
     assert "${standHinweis(stand)}" in HTML                      # volle Karte
     assert "${right}${isErr ? '' : standHinweis(stand)}" in HTML  # Kompaktkachel
-    assert "return card(c, '☆', stand);" in HTML                 # aufgeklappte WL-Karte
-    assert "card(c, i + 1, stand)" in HTML                       # Markt-Karten
+    assert "return card(c, '☆', stand, c.market_key);" in HTML   # aufgeklappte WL-Karte
+    assert "card(c, i + 1, stand, id)" in HTML                   # Markt-Karten
 
 
 def test_die_lauf_status_zeile_existiert_und_rechnet_nicht():

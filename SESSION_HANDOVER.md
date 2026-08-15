@@ -10,19 +10,23 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 15.08.2026**, nach PR **#92** (Wiedervorlage „Selbstwartung Stufe 3",
-gemerged `bc16222`, Merge-Commit `4d6795b`). Zahlen gegen `main`
+**Stand: 15.08.2026**, nach PR **#94** (gepinnte 34er-Konstante in
+`test_in_session_creation.py` gegen den Backfill-Anker hergeleitet, gemerged
+`db5834b`, Merge-Commit `d6f7789`) **und** dem Rebase von **#93** auf diesen
+Stand. Zahlen gegen den rebasten Arbeitsbaum
 geprüft, nicht aus dem
-Gedächtnis: **1111 Tests** grün · Sammlung **89 Records** (51 gereift, **46
-auswertbar** von 100) · Marker **46 von 89** tragen mindestens einen
-(`in_session_creation` 36 · `episode_split_suspect` 10 · `stale_market_suspect`
+Gedächtnis: **1143 Tests** grün (1112 auf `main` nach #94 + 31 aus #93s
+`test_waehrungssymbole.py` — die vier vormals CI-blockierenden
+In-Session-Fehlschläge sind seit dem Rebase auf #94 mit dabei, kein einziger
+rot) · Sammlung **89 Records** (51 gereift, **46 auswertbar** von 100) ·
+Marker **46 von 89** tragen mindestens einen (`in_session_creation` 36 ·
+`episode_split_suspect` 10 · `stale_market_suspect`
 4) · Beweis-Datei `data/in_session_evidence.json` **17 Einträge** · Universum
-**353** Ticker. Der Sammlungs-Zuwachs (70→89) ist der ganz normale tägliche
-Cron-Betrieb zwischen 09.08. und 15.08. — kein eigener Bau-Auftrag.
+**353** Ticker.
 
-> **BRANCH-BASIS:** `claude/in-session-marker-zahl-herleiten`, auf
-> `origin/main` aufgesetzt. Nach jedem Merge neu von `origin/main` aufsetzen —
-> **nie** auf gemergter Historie stapeln.
+> **BRANCH-BASIS:** `claude/elliott-report-handover-health-oksgld` (#93), per
+> `git rebase origin/main` auf den #94-Stand gehoben — **nie** auf gemergter
+> Historie stapeln, das gilt auch rückwirkend für diesen Rebase selbst.
 
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
@@ -168,8 +172,8 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #90 | `41a8c1b` | `requests` deklariert — die Sendeschicht aller Pushes hing an einer fremden Abhängigkeit |
 | #91 | `d6bd442` | Selbstwartung Stufe 2: Wartungs-Cron + 8. Health-Regel `maintenance_stale` |
 | #92 | `bc16222` | Wiedervorlage „Selbstwartung Stufe 3“ mit Fälligkeit nach dem 21.08. |
-| #93 | `(offen)` | Währungssymbol auf allen Preisfeldern der Karte (Draft, CI rot durch #94-Befund) |
-| #94 | `(offen, dieser)` | Gepinnte 34er-Konstante in `test_in_session_creation.py` gegen den Backfill-Anker hergeleitet |
+| #93 | `(offen, dieser)` | Preisfelder auf der Karte bekommen ihr Währungssymbol (€/$) — nach diesem Rebase auf #94 |
+| #94 | `d6f7789` | Gepinnte 34er-Konstante in `test_in_session_creation.py` gegen den Backfill-Anker hergeleitet |
 
 <sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
 aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
@@ -193,6 +197,25 @@ was hier steht, braucht einen echten Lauf oder Easys Gerät.
 der Mitternachts-Lauf vom 07.08. 01:04 (beide Befunde am selben Tag von selbst
 aufgelöst), das erstmalige Greifen des #72-Gates und `last_fresh_run_date` im
 echten Lauf. Wer die Belegketten braucht: Archiv.
+
+- **OFFEN, NEU (10.08., CI-Nebenbefund) — die 34er-Zahl aus #81 ist auf
+  `main` überholt, vier Tests der In-Session-Reihe sind deshalb dauerhaft ROT.**
+  `data/forward_collection.json` trägt inzwischen **36** `in_session_creation`-
+  Marker (82 Records, gewachsen durch die täglichen Cron-Läufe seit #81) —
+  `tests/test_in_session_creation.py` pinnt aber weiterhin die Zahl **34** vom
+  Anlage-Tag. Betroffen: `test_das_kriterium_liefert_genau_die_34`,
+  `test_die_ausgelieferte_sammlung_traegt_genau_diese_34_marker`,
+  `test_marker_datum_ist_gesetzt_und_einheitlich`,
+  `test_ruckweg_entfernt_beide_felder_restlos` — alle vier **unabhängig von
+  jedem Code-Diff**, reproduzierbar auf `origin/main` ohne eigene Änderung
+  (per `git stash` gegengeprüft). **Kein neuer Defekt** — der Marker selbst
+  arbeitet korrekt (#81: „markieren, nie heilen", additiv, count-neutral);
+  betroffen ist nur die **Momentaufnahme-Zahl**, die vier Tests als Konstante
+  eingefroren haben, statt sie herzuleiten. **Nicht behoben** — außerhalb des
+  Auftrags-Rahmens jeder Session seit #81, die diese Datei berührt hätte;
+  gehört als eigener, read-only geprüfter Bau-Auftrag entschieden (Konstante
+  aktualisieren vs. gegen `len([r for r in records if r["in_session_creation"]
+  is True])` herleiten).
 
 - **OFFEN (Beobachtung, 07.08. 22:16) — der DE-Abendrückzug ist wieder da, und
   das Gate hat gegriffen.** Der Abend-Cron meldet DE `last_bar_date 2026-08-06`
@@ -338,10 +361,10 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 ## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
 
 **P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #92 und #94 sind
-gemergt. **#93** (Preisfeld-Symbole) ist weiterhin offen als Draft — die CI war
-dort rot durch genau die Konstante, die #94 jetzt repariert; nach einem Rebase
-von #93 auf diesen Stand sollte sie grün laufen (unverifiziert, das ist Easys
-nächster Schritt).
+gemergt. **#93** (Preisfeld-Symbole) ist auf diesen Stand rebast (dieser
+Commit) — die CI war zuvor rot durch genau die Konstante, die #94 repariert
+hat; nach dem Rebase lokal erneut geprüft: **1143 grün, 0 rot** (s. Kopf
+oben). Nur noch Easys CI-Lauf auf dem gepushten Zweig fehlt zur Bestätigung.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 
