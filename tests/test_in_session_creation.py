@@ -323,7 +323,8 @@ def test_das_kriterium_liefert_genau_die_34():
     exakt die 34 liefern — das ist der historische Fakt, den dieser Test hält.
     """
     stichtag = max(ts for _, ts in BACKFILL_34)
-    population = [r for r in _coll()["records"] if r.get("created_utc") <= stichtag]
+    population = [r for r in _coll()["records"]
+                  if isinstance(r.get("created_utc"), str) and r["created_utc"] <= stichtag]
     treffer, unklar = ins.betroffene_records(population)
     assert unklar == [], "kein Record darf unberechenbar sein"
     assert sorted(ins.record_key(r) for r in treffer) == sorted(BACKFILL_34)
@@ -341,6 +342,22 @@ def test_die_ausgelieferte_sammlung_traegt_genau_diese_34_marker():
                 if r.get(ins.MARKER) is True
                 and r.get(ins.MARKER_UTC) == BACKFILL_MARKED_UTC]
     assert sorted(markiert) == sorted(BACKFILL_34)
+
+
+def test_alle_gesetzten_marker_stimmen_mit_dem_kriterium_ueberein():
+    """GUARDIAN-NIT (PR #94): die Isolierung auf den Backfill-Anker oben deckt
+    nur noch den historischen Teil ab — ein Regressionsfall im laufenden
+    Betrieb (ein NEUER, echter Treffer bleibt unmarkiert, oder ein Nicht-
+    Treffer wird fälschlich markiert) bliebe dort unsichtbar. Dieser Test holt
+    genau diese Vollbestand-Prüfung zurück, aber OHNE eine Zahl zu pinnen: er
+    vergleicht die MENGE der markierten Records gegen die MENGE, die das
+    Kriterium selbst über denselben, aktuellen Bestand liefert — wächst der
+    Bestand, wächst die Erwartung automatisch mit."""
+    records = _coll()["records"]
+    treffer, unklar = ins.betroffene_records(records)
+    assert unklar == [], "kein Record darf unberechenbar sein"
+    assert {ins.record_key(r) for r in records if r.get(ins.MARKER) is True} == \
+           {ins.record_key(r) for r in treffer}
 
 
 def test_der_samstags_record_ist_in_der_datei_unmarkiert():

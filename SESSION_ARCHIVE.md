@@ -1542,11 +1542,11 @@ Damit bleiben alle vier Tests **dauerhaft korrekt**, nicht nur heute: künftige
 In-Session-Marker aus dem laufenden Betrieb lassen die Suite grün, statt sie
 bei jedem neuen Treffer erneut rot zu machen.
 
-### Mutationsprobe (`/tmp/mutate_in_session_konstante.py`, 5 Proben)
+### Mutationsprobe (`/tmp/mutate_in_session_konstante.py`, 6 Proben)
 
-Jede Probe dreht einen Teil der Reparatur zurück Richtung Original-Fehler; die
-Suite muss wieder rot werden. Ergebnis: **5 von 5 rot**, Datei nach jeder Probe
-MD5-identisch mit dem Ausgangsstand:
+Fünf Proben drehen je einen Teil der Reparatur zurück Richtung Original-Fehler;
+die Suite muss wieder rot werden. Ergebnis: **5 von 5 rot**, Testdatei nach
+jeder Probe MD5-identisch mit dem Ausgangsstand:
 
 ```
 ROT    Rueckwegs-Herleitung durch den alten Fixwert 34 ersetzt (die urspruengliche Regression)
@@ -1554,13 +1554,44 @@ ROT    Kriteriums-Test wieder auf den vollen (wachsenden) Bestand statt auf den 
 ROT    Marker-Datei-Test wieder ueber ALLE Marker statt nur den Backfill-Anteil
 ROT    Datum-Einheitlichkeit wieder ueber den gesamten markierten Bestand geprueft
 ROT    BACKFILL_MARKED_UTC verstellt (falscher Anker-Stempel)
-
-5 von 5 rot
-DATEI UNVERAENDERT: OK
 ```
 
-Volle Suite danach: **1111 Tests grün, 0 rot, 0 übersprungen**
+Die sechste Probe kam aus dem Guardian-Review (siehe unten) hinzu und mutiert
+**nicht** den Testcode, sondern `scripts/in_session.py`: `betroffene_records()`
+schließt künstlich genau den EINEN Record aus, an dem der Nit hing (`APD @
+2026-08-12T16:47:59Z`, der zweite, post-Backfill-Treffer — nicht der
+gleichnamige Backfill-Record vom 05.08., der bleibt unberührt). Simuliert eine
+echte Produktions-Regression: ein Treffer des Kriteriums bleibt in der Datei
+unmarkiert. Beide Teilaussagen bestätigt:
+
+```
+ROT    [Produktions-Regression] neuer Vollbestand-Test faengt sie
+GRUEN  [Produktions-Regression] die 4 backfill-isolierten Tests bleiben unberuehrt
+```
+
+`scripts/in_session.py` nach der Probe MD5-identisch mit dem Ausgangsstand.
+Volle Suite danach: **1112 Tests grün, 0 rot, 0 übersprungen**
 (`PYTHONDONTWRITEBYTECODE=1 pytest -q`, `__pycache__` vor dem Lauf geräumt).
+
+### Guardian-Review — Nits, keine Blocker (15.08.2026)
+
+**Urteil: Nits.** Ziel-Mechanik als belegt bestätigt (eigener Set-Vergleich
+gegen die Datei, deckungsgleich mit `BACKFILL_34`/`BACKFILL_MARKED_UTC`).
+Zwei Nits, beide behoben statt in einen Folge-PR verschoben:
+
+1. **Coverage-Lücke:** die Isolierung auf den Backfill-Anker deckt nur noch
+   den historischen Teil ab — ein Regressionsfall im laufenden Betrieb (ein
+   neuer, echter Treffer bleibt unmarkiert) bliebe unsichtbar. **Behoben**
+   durch `test_alle_gesetzten_marker_stimmen_mit_dem_kriterium_ueberein`
+   (Mengenvergleich `betroffene_records()` gegen die tatsächlich markierten
+   Records, über den GESAMTEN aktuellen Bestand, ohne Zahl-Pinning — wächst
+   der Bestand, wächst die Erwartung automatisch mit). Die 6. Mutationsprobe
+   oben beweist, dass genau dieser Test die vom Guardian beschriebene Lücke
+   schließt.
+2. **Latente Fragilität:** `r.get("created_utc") <= stichtag` hätte bei einem
+   Record ohne `created_utc` (aktuell 0 Fälle) mit `TypeError` abgebrochen
+   statt sauber zu filtern. **Behoben** durch einen expliziten
+   `isinstance(..., str)`-Schutz vor dem Vergleich.
 
 ### Widerspruch gemeldet — die Betriebsregel vom 07.08. hat nicht gehalten
 
