@@ -1625,3 +1625,177 @@ unverändert.
 
 ---
 
+
+## episode_id-Kollisionsschutz #95 — Diagnose, Fix, Mutationsprobe (15.08.2026)
+
+<sub>Belegkette zu PR #95. Anlass: bekannter Backlog-Punkt „health_check kann
+episode_id-Kollisionen erzeugen".</sub>
+
+### Schritt 1 — Diagnose (read-only, vor jedem Code-Zugriff)
+
+**Die ID-Erzeugung, einzige Stelle:** `episode_id = f"{entry['ticker']}@{first_seen}"`,
+`scripts/forward_collection.py:639` (vor diesem PR), Funktion `_new_record`,
+einziger Aufrufer `update_forward_collection` (Zeile ~845). Das Schema hat
+genau **zwei Achsen** — Ticker-String und Kalendertag von `first_seen` — und
+**keinen** Schutz gegen eine zweite Anlage auf denselben Wert; kein Check vor
+dem `records.append(...)`.
+
+**Der Mechanismus ist real, nicht spekulativ — ZEHN dokumentierte
+Kollisionen, PR #68:** `SESSION_ARCHIVE.md`, Abschnitt „#68", nennt
+namentlich: HAG.DE (24.07.), ADS.DE (**dreimal**: 25./29./30.07.), MTX.DE
+(28./31.07.), ANET (28.07.), EVK.DE (29.07.), KKR, G1A.DE (31.07.) —
+insgesamt zehn Fälle, darunter real **zweimal `ADS.DE@2026-07-24`**.
+Auslöser damals: `last_run_date` war ein einziger globaler Anker; bei
+mehreren Läufen an einem Kalendertag verlor ein Record von einem Vortag
+seinen Anschluss und wurde als neue Episode angelegt — mit dem Kalendertag
+des ohnehin schon laufenden Tages als `first_seen`, identisch zu einer
+bereits bestehenden Episode desselben Tickers. #68 (Commit `ff07e78`) hat
+GENAU diesen Auslöser repariert (`episode_anchor_dates`, zwei Anker statt
+einem globalen Datum) — **aber nie die ID-Vergabe selbst geändert.** Die
+zehn Alt-Fälle sind seither additiv als `episode_split_suspect` markiert
+(`scripts/mark_episode_splits.py`), nicht rückwirkend umbenannt — das ist
+richtig und wird von diesem PR nicht angerührt.
+
+**Widerspruch im Auftrags-Titel, gemeldet statt still aufgelöst:** die
+Risikoklassen-Zeile nennt „Diagnose + gezielter Fix **in health_check**",
+GRENZEN sagt dagegen „Ändere ausschließlich die ID-Erzeugung für NEUE
+Episoden" — die ID-Erzeugung sitzt in `forward_collection.py`, nicht in
+`health_check.py`. Aufgelöst zugunsten GRENZEN (die explizite, technisch
+eindeutige Vorgabe): `health_check.py` ist dort, wo eine Kollision **sichtbar
+würde** (`collection_signature()`, Zeile 365, gruppiert nach `episode_id`
+als Dict-Key — zwei kollidierende Records fielen dort auf EINEN Schlüssel
+zusammen, `check_collection_progress` säße auf einer zu kleinen Signatur und
+könnte ein „nicht gewachsen" fälschlich melden), aber **erzeugt** wird die
+Kollision in `forward_collection.py`. `health_check.py` bleibt in diesem PR
+unangetastet (GRENZEN: „ausschließlich die ID-Erzeugung").
+
+**Ist die Kollision heute, nach #68, noch auslösbar? Ja — belegt am
+BESTEHENDEN Test, nicht neu konstruiert:** `tests/test_forward_collection.py
+::test_reappearance_after_gap_new_episode` (unverändert vorhanden) baut
+selbst schon eine Lücke-dann-Wiederauftauchen-Episode mit EINER stehenden
+Kursreihe (`_series("day1", [101, 102])`, `pdata[0][-1]` bleibt über alle
+drei Läufe **„d1"**) — die neue Episode aus Lauf 3 hätte mit dem alten
+Schema exakt dieselbe `episode_id` bekommen wie die aus Lauf 1 (beide
+`AAPL@d1`). Der Test selbst prüfte bisher nur `len(records) == 2`, nie die
+`episode_id`-WERTE — die Kollision wäre unbemerkt geblieben. Das ist kein
+Kunstfehler des alten Tests, sondern zeigt den strukturellen Kern: eine
+stehende/nachlaufende Kursreihe (die dokumentierte „Ein-Tag-Versatz"-Lage,
+`SESSION_HANDOVER.md` mehrfach beobachtet) reicht, unabhängig vom
+#68-Anschluss-Bug.
+
+**Cross-Markt-Überschneidung (US/DE) geprüft und verworfen, mit Zahlen:**
+`config.MARKETS['US']['universe']` (236 Ticker) ∩
+`config.MARKETS['DE']['universe']` (117 Ticker) = **leere Schnittmenge**
+(Python-Set-Vergleich, nachgerechnet). Alle DE-Ticker tragen die Endung
+`.DE`, kein US-Ticker trägt sie — die beiden Namensräume sind durch die
+aktuellle Universumsliste getrennt, nicht durch Code erzwungen. Das ist
+**kein aktueller Kollisionsweg**, aber auch kein strukturell garantierter —
+festgehalten als Beobachtung, nicht als Fix-Gegenstand (GRENZEN: nur die
+ID-Erzeugung, kein neuer Markt-Guard).
+
+**Fazit Schritt 1:** Ursache eindeutig aus Code UND Historie belegbar —
+kein Mini-Stopp nötig. Weiter zu Schritt 2.
+
+### Schritt 2 — Fix
+
+`_unique_episode_id(records, ticker, first_seen)` (neu,
+`scripts/forward_collection.py`): baut `ticker@first_seen`; ist dieser Wert
+unter den BESTEHENDEN `episode_id`-Werten schon vergeben, hängt sie `#2`,
+`#3`, … an, bis der Wert frei ist. Der Normalfall (keine Kollision) bleibt
+byte-identisch zum alten Format — kein Suffix, keine Formatänderung.
+
+`_new_record()` bekommt einen neuen, **optionalen** Parameter
+`episode_id: Optional[str] = None` (Default). Ohne Angabe: exakt das alte
+Verhalten (`f"{entry['ticker']}@{first_seen}"` intern) — nötig, weil
+`_new_record` an **~25 Stellen** direkt von Tests aufgerufen wird (`grep -rn
+"_new_record(" scripts tests`, nachgezählt), die keinen Kollisions-Kontext
+haben und nicht angefasst werden sollten. Der einzige Produktions-Aufrufer
+(`update_forward_collection`) berechnet die ID jetzt vorab über
+`_unique_episode_id(records, ticker, first_seen)` und reicht sie explizit
+durch — **das ist die einzige Stelle, an der sich das Verhalten ändert.**
+
+**GRENZEN eingehalten, geprüft:** `git diff --stat` gegen `origin/main` zeigt
+ausschließlich `scripts/forward_collection.py` und
+`tests/test_forward_collection.py` — kein Touch an `evaluate.py` (SHA-Pin-
+Tests bleiben grün, s. u.), Score v0, `source_timing_probe`, den drei
+additiven Markern, Cron/Workflow-Dateien oder dem `sys.path`-Baustein.
+Bestehende `episode_id`-Werte in der Sammlung: unangetastet (nur die
+NEU-Anlage ändert sich; ein Regressionstest belegt das explizit, s. u.).
+
+### Konsumenten gegrept — bricht niemand durch das `#N`-Suffix?
+
+`grep -rn "episode_id" scripts tests docs` durchsucht, jede Fundstelle
+einzeln geprüft:
+
+| Datei | Verwendung | Bricht ein Suffix? |
+|---|---|---|
+| `scripts/evaluate.py:94,146` | Pass-Through-Feld in `FROZEN_FIELDS`/`_Case`, **SHA-gepinnt** | Nein — opak, kein Parsing |
+| `scripts/health_check.py:365` | Dict-Key (`collection_signature`) | Nein — beliebiger String als Key gültig |
+| `scripts/mark_stale_market_records.py:125` | Pass-Through-Feld | Nein — opak |
+| `scripts/mark_episode_splits.py:119f` | Pass-Through-Feld | Nein — opak |
+| `docs/index.html` | — | Kein einziger Treffer (`grep` leer) |
+| `docs/validation_registry.md` | statische Prosa | Kein Generator-Script gefunden — nichts, das Format erzwingt |
+| Alle Tests (`test_evaluate.py`, `test_health_check.py`, `test_sammlungs_schutz.py`, `test_episoden_*`) | Gleichheits-/Zuweisungs-Vergleiche | Nein — keine Struktur-Annahme auf `@` |
+
+Keine Stelle im gesamten Repo **parst** `episode_id` (kein `.split("@")`,
+keine Regex, keine Längen-Annahme) — jede Verwendung ist opak. Drei
+Konsumenten (`mark_stale_market_records.py`, `mark_episode_splits.py`,
+`in_session.py`) kennen das Kollisionsrisiko bereits per eigenem Kommentar
+und benutzen deshalb schon `(ticker, created_utc)` als Ersatz-Identität —
+dieselbe Lehre, hier auf die Quelle selbst angewandt.
+
+### Wert-Test, Regressionstests — Soll-Werte explizit
+
+`test_episode_id_kollision_wird_durch_suffix_aufgeloest` (von Hand
+konstruiert, wie `test_reappearance_after_gap_new_episode`, aber mit
+`episode_id`-Assertions): drei Läufe, Lücke, stehende Kursreihe → Soll
+**exakt** `["AAPL@d1", "AAPL@d1#2"]`, nicht nur „ungleich". Ergänzt um:
+
+- `test_episode_id_ohne_kollision_bleibt_das_alte_einfache_format` — Soll
+  exakt `"AAPL@2026-07-01"`, kein Suffix im Normalfall.
+- `test_unique_episode_id_zaehlt_bei_mehrfacher_kollision_hoch` — dritte
+  Kollision auf denselben Wert ergibt exakt `#3`, nicht wieder `#2`.
+- `test_unique_episode_id_reproduziert_den_realen_68er_kollisionsfall` — der
+  reale, namentlich dokumentierte Fall `ADS.DE@2026-07-24` von Hand
+  nachgestellt; Soll exakt `"ADS.DE@2026-07-24#2"`.
+- `test_new_record_ohne_episode_id_arg_nutzt_weiter_das_alte_format` —
+  Regressionstest für die ~25 bestehenden Direktaufrufer: `_new_record` ohne
+  `episode_id`-Argument liefert bytegleich das alte Format.
+- `test_bestehende_episode_ids_bleiben_beim_naechsten_lauf_unangetastet` —
+  Regressionstest: ein Alt-Record mit bereits vergebenem `episode_id` bleibt
+  bei einem weiteren Lauf (der eine andere, neue Episode anlegt) **exakt**
+  (Dict-Gleichheit) unverändert.
+
+Volle Suite: **1149 Tests grün, 0 rot** (1143 vor diesem PR + 6 neue).
+
+### Mutationsprobe (`/tmp/mutate_episode_id.py`, 4 Proben)
+
+Cache vor jeder Probe geleert, `PYTHONDONTWRITEBYTECODE=1`, Datei danach per
+MD5 gegen den Ausgangsstand geprüft:
+
+```
+ROT    Kollisionsschutz abgeschaltet: immer die einfache ID, kein Suffix-Check
+ROT    Suffix-Schleife startet bei 1 statt 2 (kollidiert wieder mit der Basis-Form)
+ROT    Aufrufstelle: eid wird berechnet, aber nicht mehr durchgereicht
+ROT    vergeben-Menge ignoriert bestehende Records (immer leer)
+
+4 von 4 rot
+DATEI UNVERAENDERT: OK
+```
+
+### Rückweg
+
+Kompletter Revert von `scripts/forward_collection.py` und
+`tests/test_forward_collection.py` genügt. Kein Datenstand, kein Schema,
+keine gemessene Zahl hängt daran — bestehende `episode_id`-Werte in
+`data/forward_collection.json` sind durch diesen PR nicht verändert worden
+(reine Erzeugungslogik für NEUE Episoden), der Revert stellt exakt das
+vorige Verhalten wieder her.
+
+### Determinismus
+
+Vollständig deterministisch: `_unique_episode_id` liest ausschließlich die
+übergebenen `records`, kein Netz, kein Zufall, keine Systemuhr.
+
+---
+

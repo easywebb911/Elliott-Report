@@ -219,6 +219,114 @@ def test_reappearance_after_gap_new_episode():
     assert len(coll["records"]) == 2  # neue Episode angelegt
 
 
+# ---------------------------------------------------------------------------
+# episode_id-Kollisionsschutz (Backlog-Punkt, Belegkette #68-Archiv)
+# ---------------------------------------------------------------------------
+# `episode_id = ticker@first_seen` hat nur zwei Achsen und keinen Schutz gegen
+# eine zweite Anlage auf denselben Wert. #68 hat real ZEHN solcher Kollisionen
+# erzeugt (u. a. zweimal "ADS.DE@2026-07-24", SESSION_ARCHIVE.md #68) — die
+# DAMALIGE Ursache (Anschluss-Logik) ist repariert, die ID-Vergabe selbst war
+# es nie. Der Test unten zeigt: derselbe Kollisionstyp ist HEUTE noch auslösbar
+# — nicht mehr über den #68-Anschluss-Bug, sondern über eine Kursreihe, deren
+# letztes Datum sich zwischen zwei Läufen NICHT weiterbewegt (die dokumentierte
+# "Ein-Tag-Versatz"/Stillstand-Lage, SESSION_HANDOVER.md mehrfach beobachtet):
+# `test_reappearance_after_gap_new_episode` oben benutzt genau eine solche
+# stehende Kursreihe für Lauf 1 UND Lauf 3 — und prüfte bisher nur die ANZAHL
+# der Records, nie ihre `episode_id`-WERTE. Mit dem alten Schema hätten beide
+# Episoden dort die IDENTISCHE ID "AAPL@d1" bekommen.
+def test_episode_id_kollision_wird_durch_suffix_aufgeloest():
+    """Wert-Test: von Hand konstruierter Kollisionsfall, Soll-Werte explizit.
+
+    Lauf 1 legt AAPL mit `first_seen="d1"` an (aus der Kursreihe, letztes
+    Datum). Lauf 2: Lücke. Lauf 3: AAPL taucht wieder auf, GLEICHE Kursreihe
+    -> GLEICHES `first_seen="d1"` -> neue, eigenständige Episode mit
+    identischem (ticker, first_seen) wie die erste. Unter dem alten Schema:
+    Kollision. Mit dem Suffix-Schutz: exakt "AAPL@d1" und "AAPL@d1#2".
+    """
+    coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}
+    regimes = {"US": "risk_on"}
+    price = {"AAPL": _series("day1", [101, 102])}  # first_seen bleibt "d1"
+
+    fc.update_forward_collection(coll, _report(_entry("AAPL")), price, regimes,
+                                 "2026-07-01", NOW)
+    fc.update_forward_collection(coll, _report(), price, regimes,
+                                 "2026-07-02", NOW)  # Lücke
+    fc.update_forward_collection(coll, _report(_entry("AAPL")), price, regimes,
+                                 "2026-07-03", NOW)  # neue Episode, gleiches first_seen
+
+    assert len(coll["records"]) == 2
+    ids = [r["episode_id"] for r in coll["records"]]
+    assert ids == ["AAPL@d1", "AAPL@d1#2"]
+    assert coll["records"][0]["first_seen_date"] == coll["records"][1]["first_seen_date"] == "d1"
+    assert coll["records"][0]["episode_id"] != coll["records"][1]["episode_id"]
+
+
+def test_episode_id_ohne_kollision_bleibt_das_alte_einfache_format():
+    """Regressionstest: der Normalfall (keine Kollision) reproduziert exakt
+    das alte, einfache `ticker@first_seen`-Format — der Kollisionsschutz darf
+    keinen unnötigen Suffix einführen, wo keine Kollision vorliegt."""
+    coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}
+    regimes = {"US": "risk_on"}
+    price = {"AAPL": _series("2026-07-01", [])}  # first_seen == letztes (einziges) Datum
+
+    fc.update_forward_collection(coll, _report(_entry("AAPL")), price, regimes,
+                                 "2026-07-01", NOW)
+
+    assert coll["records"][0]["episode_id"] == "AAPL@2026-07-01"  # kein Suffix
+
+
+def test_unique_episode_id_zaehlt_bei_mehrfacher_kollision_hoch():
+    """Wert-Test direkt auf dem Helfer: eine dritte Kollision auf denselben
+    (ticker, first_seen) muss #3 bekommen, nicht wieder #2."""
+    records = [{"episode_id": "TKA.DE@2026-08-07"},
+               {"episode_id": "TKA.DE@2026-08-07#2"}]
+    assert fc._unique_episode_id(records, "TKA.DE", "2026-08-07") == "TKA.DE@2026-08-07#3"
+    # Unbeteiligter Ticker/Datum bleibt vom Suffix unberuehrt.
+    assert fc._unique_episode_id(records, "TKA.DE", "2026-08-08") == "TKA.DE@2026-08-08"
+
+
+def test_unique_episode_id_reproduziert_den_realen_68er_kollisionsfall():
+    """Von Hand der REALE, namentlich dokumentierte #68-Fall: zweimal
+    ADS.DE@2026-07-24 (SESSION_ARCHIVE.md #68). Mit dem heutigen Bestand
+    bereits einen Treffer enthaltend, muss der Helfer den Suffix vergeben —
+    exakt das, was #68 damals als Kollision markieren musste, wäre der
+    Schutz schon dagewesen."""
+    bestand = [{"ticker": "ADS.DE", "episode_id": "ADS.DE@2026-07-24",
+                "first_seen_date": "2026-07-24"}]
+    assert fc._unique_episode_id(bestand, "ADS.DE", "2026-07-24") == "ADS.DE@2026-07-24#2"
+
+
+def test_new_record_ohne_episode_id_arg_nutzt_weiter_das_alte_format():
+    """Regression fuer die ~25 bestehenden `_new_record`-Direktaufrufer im
+    Testbestand: ohne explizites `episode_id` (Default `None`) verhaelt sich
+    die Funktion BYTEGLEICH zum Stand vor diesem Fix — der Kollisionsschutz
+    ist ausschliesslich im Produktionspfad (`update_forward_collection`)
+    aktiv, nicht in der reinen Bau-Funktion."""
+    rec = fc._new_record(_entry("AAPL"), "US", "2026-07-01", "risk_on",
+                         "2026-07-01", NOW)
+    assert rec["episode_id"] == "AAPL@2026-07-01"
+
+
+def test_bestehende_episode_ids_bleiben_beim_naechsten_lauf_unangetastet():
+    """Regressionstest: ein bereits vergebenes episode_id (Alt-Bestand, ohne
+    Suffix) bleibt beim naechsten Lauf byte-identisch — der Kollisionsschutz
+    greift ausschliesslich bei der ANLAGE einer NEUEN Episode, nie
+    rueckwirkend auf bestehende Records."""
+    alt = {"ticker": "MSFT", "market": "US", "episode_id": "MSFT@irgendwas",
+           "first_seen_date": "irgendwas", "matured": False,
+           "last_seen_top5_date": "2026-06-01"}
+    coll = {"schema_version": 1, "last_run_date": "2026-07-01", "updated_utc": NOW,
+            "records": [dict(alt)]}
+    regimes = {"US": "risk_on"}
+    price = {"AAPL": _series("day1", [101, 102])}
+
+    fc.update_forward_collection(coll, _report(_entry("AAPL")), price, regimes,
+                                 "2026-07-02", NOW)
+
+    assert coll["records"][0] == alt  # MSFT-Record unveraendert
+    assert len(coll["records"]) == 2  # nur AAPL kam neu dazu
+
+
 def test_open_record_matures_after_falling_out_of_top5():
     # Survivorship: Ticker fällt aus Top-5, Record reift trotzdem bis matured.
     # first_seen wird beim Anlegen = letzter Kurs-Tag gesetzt; Reifung entsteht,

@@ -10,23 +10,20 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 15.08.2026**, nach PR **#94** (gepinnte 34er-Konstante in
-`test_in_session_creation.py` gegen den Backfill-Anker hergeleitet, gemerged
-`db5834b`, Merge-Commit `d6f7789`) **und** dem Rebase von **#93** auf diesen
-Stand. Zahlen gegen den rebasten Arbeitsbaum
+**Stand: 15.08.2026**, nach PR **#93** (Preisfeld-Symbole, gemerged `0830f96`,
+Merge-Commit `9a637fe`) und **#94** (gepinnte 34er-Konstante, gemerged
+`db5834b`, Merge-Commit `d6f7789`) — beide auf `main`. Zahlen gegen `main`
 geprüft, nicht aus dem
-Gedächtnis: **1143 Tests** grün (1112 auf `main` nach #94 + 31 aus #93s
-`test_waehrungssymbole.py` — die vier vormals CI-blockierenden
-In-Session-Fehlschläge sind seit dem Rebase auf #94 mit dabei, kein einziger
-rot) · Sammlung **89 Records** (51 gereift, **46 auswertbar** von 100) ·
-Marker **46 von 89** tragen mindestens einen (`in_session_creation` 36 ·
-`episode_split_suspect` 10 · `stale_market_suspect`
+Gedächtnis: **1143 Tests** grün auf `main` (1112 nach #94 + 31 aus #93s
+`test_waehrungssymbole.py`) · Sammlung **90 Records** (51 gereift, **46
+auswertbar** von 100) · Marker **46 von 90** tragen mindestens einen
+(`in_session_creation` 36 · `episode_split_suspect` 10 · `stale_market_suspect`
 4) · Beweis-Datei `data/in_session_evidence.json` **17 Einträge** · Universum
 **353** Ticker.
 
-> **BRANCH-BASIS:** `claude/elliott-report-handover-health-oksgld` (#93), per
-> `git rebase origin/main` auf den #94-Stand gehoben — **nie** auf gemergter
-> Historie stapeln, das gilt auch rückwirkend für diesen Rebase selbst.
+> **BRANCH-BASIS:** `claude/episode-id-kollision`, auf `origin/main` (enthält
+> #93 und #94) aufgesetzt. Nach jedem Merge neu von `origin/main` aufsetzen —
+> **nie** auf gemergter Historie stapeln.
 
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
@@ -70,7 +67,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#94
+## 2. PR-INDEX #1–#95
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -172,8 +169,9 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #90 | `41a8c1b` | `requests` deklariert — die Sendeschicht aller Pushes hing an einer fremden Abhängigkeit |
 | #91 | `d6bd442` | Selbstwartung Stufe 2: Wartungs-Cron + 8. Health-Regel `maintenance_stale` |
 | #92 | `bc16222` | Wiedervorlage „Selbstwartung Stufe 3“ mit Fälligkeit nach dem 21.08. |
-| #93 | `(offen, dieser)` | Preisfelder auf der Karte bekommen ihr Währungssymbol (€/$) — nach diesem Rebase auf #94 |
-| #94 | `d6f7789` | Gepinnte 34er-Konstante in `test_in_session_creation.py` gegen den Backfill-Anker hergeleitet |
+| #93 | `0830f96` | Preisfelder auf der Karte bekommen ihr Währungssymbol (€/$) |
+| #94 | `db5834b` | Gepinnte 34er-Konstante in `test_in_session_creation.py` gegen den Backfill-Anker hergeleitet |
+| #95 | `(offen, dieser)` | episode_id-Kollisionsschutz für neue Episoden (Backlog-Punkt, Belegkette #68) |
 
 <sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
 aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
@@ -194,6 +192,7 @@ was hier steht, braucht einen echten Lauf oder Easys Gerät.
 #21 (Sammlung persistiert), #66 (Score-Alarm feuert), #67 (Zweig-Checkout),
 #68 (Episoden-Anschluss), #78 (CI auf `main`), #81 (In-Session-Marker live),
 #94 (gepinnte 34er-Testkonstante gegen den Backfill-Anker hergeleitet),
+#95 (episode_id-Kollisionsschutz für neue Episoden),
 der Mitternachts-Lauf vom 07.08. 01:04 (beide Befunde am selben Tag von selbst
 aufgelöst), das erstmalige Greifen des #72-Gates und `last_fresh_run_date` im
 echten Lauf. Wer die Belegketten braucht: Archiv.
@@ -360,11 +359,9 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 
 ## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
 
-**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #92 und #94 sind
-gemergt. **#93** (Preisfeld-Symbole) ist auf diesen Stand rebast (dieser
-Commit) — die CI war zuvor rot durch genau die Konstante, die #94 repariert
-hat; nach dem Rebase lokal erneut geprüft: **1143 grün, 0 rot** (s. Kopf
-oben). Nur noch Easys CI-Lauf auf dem gepushten Zweig fehlt zur Bestätigung.
+**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #94 sind
+gemergt. **#95** (dieser, episode_id-Kollisionsschutz) liegt Easy zur
+Manual-Merge-Entscheidung vor.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 

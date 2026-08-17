@@ -633,10 +633,49 @@ def _open_episode(records: List[Dict], ticker: str, anchors: set) -> Optional[Di
 # ---------------------------------------------------------------------------
 # Episoden-Anlage + Reifung (pure)
 # ---------------------------------------------------------------------------
+def _unique_episode_id(records: Sequence[Dict], ticker: str, first_seen: str) -> str:
+    """``ticker@first_seen`` — mit einem ``#N``-Suffix NUR dann, wenn diese ID
+    unter den BESTEHENDEN Records schon vergeben ist.
+
+    GRUND (Backlog-Punkt, #68-Archiv): ``episode_id`` hat nur zwei Achsen —
+    Ticker-String und Kalendertag von ``first_seen`` — und keinerlei Schutz
+    gegen eine zweite Anlage auf denselben Wert. Das ist kein theoretisches
+    Risiko: der #68-Anschluss-Fehler hat real bereits ZEHN Kollisionen erzeugt
+    (u. a. zweimal ``ADS.DE@2026-07-24``, SESSION_ARCHIVE.md #68), erkennbar
+    nur über die Ersatz-Identität ``(ticker, created_utc)`` — nachgezogen in
+    ``mark_stale_market_records.record_key`` und ``mark_episode_splits``, mit
+    demselben Kommentar: „NICHT episode_id … das kollidiert real". #68 hat die
+    DAMALIGE Ursache (Anschluss-Logik) repariert, aber nicht die ID-Vergabe
+    selbst geändert — jede KÜNFTIGE Anlage zweier Episoden auf denselben
+    (ticker, first_seen) würde weiterhin kollidieren, unabhängig davon, wie sie
+    zustande kommt. Diese Funktion macht Eindeutigkeit zur GARANTIE statt zur
+    Wahrscheinlichkeit: sie prüft gegen den tatsächlichen Bestand, nicht gegen
+    eine vermutete Ursache. Der Normalfall (keine Kollision) bleibt exakt das
+    alte, lesbare Format — nur der Kollisionsfall bekommt einen Suffix.
+    """
+    vergeben = {r.get("episode_id") for r in records if isinstance(r, dict)}
+    basis = f"{ticker}@{first_seen}"
+    if basis not in vergeben:
+        return basis
+    n = 2
+    while f"{basis}#{n}" in vergeben:
+        n += 1
+    return f"{basis}#{n}"
+
+
 def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
-                run_date: str, now_iso: str) -> Dict:
+                run_date: str, now_iso: str,
+                episode_id: Optional[str] = None) -> Dict:
+    """``episode_id`` optional, damit bestehende Aufrufer (Tests, die eine
+    einzelne Episode ohne Kollisions-Kontext bauen) unverändert bleiben — ohne
+    Angabe gilt exakt das alte, einfache ``ticker@first_seen``-Format. Der
+    Produktionscode in ``update_forward_collection`` reicht die per
+    ``_unique_episode_id`` gegen den echten Bestand geprüfte ID explizit
+    durch."""
+    if episode_id is None:
+        episode_id = f"{entry['ticker']}@{first_seen}"
     return {
-        "episode_id": f"{entry['ticker']}@{first_seen}",
+        "episode_id": episode_id,
         "ticker": entry["ticker"],
         "market": market,
         "first_seen_date": first_seen,
@@ -811,9 +850,10 @@ def update_forward_collection(
                 continue
             pdata = price_data.get(ticker)
             first_seen = pdata[0][-1] if (pdata and len(pdata[0])) else run_date
+            eid = _unique_episode_id(records, ticker, first_seen)
             records.append(
                 _new_record(entry, mk, first_seen, regimes.get(mk, "unknown"),
-                            run_date, now_iso)
+                            run_date, now_iso, eid)
             )
 
     # 2) ALLE offenen Records reifen (auch aus Top-5 gefallene).
