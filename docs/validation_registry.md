@@ -1266,3 +1266,87 @@ vor n ≥ 100) gilt unverändert.
   Revert = die Beschriftungen in `docs/index.html` und die sechs oben
   genannten Registry-Zeilen auf „Zielzone"/„Ziel"/„Kursziel" zurücksetzen;
   kein Code, kein Datenstand, keine gemessene Zahl hängt daran.
+
+- **22.08.2026 — Tageslauf-Cron 21:45 UTC → 22:45 UTC (PR #98, Commit
+  `fce0942`, gemergt als `a839268`): DATUMSANKER für die Population, keine
+  Definitions- oder Auswertungsänderung.** `.github/workflows/daily.yml`
+  läuft ab sofort eine Stunde später — Anlass war ein wiederkehrendes
+  Datenqualitätsproblem, keine Score-/Ranking-Entscheidung. Dieser Eintrag
+  setzt um, was `SESSION_HANDOVER.md` (Abschnitt 4, „P1 — messen, nicht
+  bauen") vorab festgeschrieben hatte, **wörtlich zitiert**:
+  > Ergebnis ist die Entscheidungsgrundlage für eine Verschiebung der
+  > Tageslauf-Cron; **erst danach** darf jemand an `45 21 * * 1-5` rühren,
+  > und *das* gehört dann in die Registry, nicht die Messung selbst.
+
+  **Beleg 1 — Sonden-Rohdaten** (`data/source_timing_probe.jsonl`, befristete
+  Wegwerf-Messung, s. u. „Aufräumen"): **110 Datenpunkte über 11 Handelstage**
+  (07., 10., 11., 12., 13., 14., 17., 18., 19., 20., 21.08.2026 — Sa/So
+  ausgenommen), je 5 Messungen/Tag für DE **und** US (55 + 55). **DE zeigt an
+  5 der 11 Tage** (07., 10., 11., 12., 13.08.) einen Rückzug — `last_bar_date`
+  fällt beim 5. Tageslauf desselben Tages (~22:09–22:22 UTC) hinter den Stand
+  des 4. Laufs (~20:04–20:06 UTC) zurück, weil die Quelle die eben gelieferte
+  DE-Tagesbar wieder zurückzieht/korrigiert. **US zeigt diesen Rückzug an
+  KEINEM der 55 US-Datenpunkte.** Der ERSTE Lauf mit vollständiger
+  Tagesbar (10/10 Ticker, aktuelles Datum) je Handelstag liegt zwischen
+  **19:35 UTC (Min., 21.08.) und 20:04 UTC (Max., 11./12.08.)**, Median
+  **19:54 UTC** — eine Stunde Verschiebung (22:45 statt 21:45 UTC) liegt also
+  selbst mit dem größten in dieser Datei gemessenen Startverzug (Woche 1 bis
+  ~54 Min., s. PR #98) sicher hinter dem spätesten beobachteten
+  Rückzugsfenster.
+  **Redaktionelle Korrektur gegenüber PR #98s Text (keine neue Erkenntnis,
+  nur nachgezählt):** PR #98 selbst nannte „100 Datenpunkte/10 Tage/5 von
+  10 Tagen" — zu dem Zeitpunkt war der 21.08. bereits in der Datei
+  committet (letzte `source_timing_probe`-Zeile `2026-08-21T21:55:32Z`,
+  **vor** dem PR-98-Commit `fce0942` vom 22.08. 15:48 UTC), wurde im PR-Text
+  aber nicht neu ausgezählt. Dieser Eintrag verwendet die tatsächliche,
+  frisch nachgerechnete Datei (110/11/5-von-11/0-von-55) — die Schlussfolgerung
+  ändert sich dadurch nicht, nur die Nachkommastelle der Beleglage.
+  **Aufräumen weiterhin offen** (SESSION_HANDOVER.md, P1, Punkt 2): die
+  Sonde hat sich am 21.08.2026 planmäßig selbst abgeschaltet
+  (No-op, read-only bestätigt in PR #97); `scripts/source_timing_probe.py`,
+  dessen Workflow-Datei und `data/source_timing_probe.jsonl` sind seither
+  totes Gewicht, deren Löschung ist ein separater, noch offener Schritt —
+  nicht Teil dieses Eintrags.
+
+  **Beleg 2 — Live-Vorfall in der Produktion** (Nacht 21./22.08.2026):
+  health_check-Warnung „DE: Kurse 1 Handelstag zurück — erwartet
+  2026-08-20, tatsächlich 2026-08-19" — dieselbe Rückzugs-Signatur wie in
+  Beleg 1, diesmal im echten Tageslauf statt in der Sonde. Quelle: PR #98
+  (dort als „Produktions-Log dieser Nacht" dokumentiert). Diese Sitzung
+  konnte den exakten Lauf/Commit dahinter nicht ein zweites Mal
+  nachschlagen — der hiesige Checkout ist ein flacher Klon
+  (`git rev-parse --is-shallow-repository` → `true`, bekanntes
+  Sandbox-Artefakt, s. PRs #96/#97/#98), dessen `report.json`-Historie erst
+  bei `2026-08-21T22:00:27Z` endet; PR #98 bleibt daher die Quelle für
+  dieses Zitat, nicht ein selbst nachgeprüfter Commit.
+
+  **Konsequenz für die Registry-Auswertung (der eigentliche Zweck dieses
+  Eintrags):** Episoden aus Tagesläufen **bis einschließlich Freitag,
+  21.08.2026** (letzter Lauf unter der ALTEN Zeit, `run_timestamp_utc`
+  `2026-08-21T21:57:38Z`, committet `173865b`) entstanden unter dem
+  21:45-UTC-Cron. `daily.yml` checkt bei jedem Lauf den aktuellen
+  Zweig-Stand aus (`ref: github.ref_name`, nicht den auslösenden SHA), daher
+  ist der Merge-Zeitpunkt der scharfe Schnitt: `a839268` landete am
+  22.08.2026 um 16:04:51 UTC auf `main`. Der 22.08./23.08. ist Sa/So (kein
+  Lauf); **der erste Tageslauf unter der NEUEN 22:45-UTC-Zeit ist damit
+  Montag, 24.08.2026** (vorbehaltlich keines gemeinsamen Feiertags an diesem
+  Datum — keiner gelistet). **Für eine spätere Auswertung:** Episoden mit
+  `first_seen_date <= 2026-08-21` liegen vor dem Schnitt, Episoden mit
+  `first_seen_date >= 2026-08-24` danach — falls sich Verteilungseigenschaften
+  (z. B. `entry_close`-Präzision, Konfluenz-Treffer, `vol_ratio_*`) vor/nach
+  diesem Datum unterscheiden sollten, ist dieser Anker die Stelle, um das
+  nachzuvollziehen. Dieselbe Praxis wie beim Universums-Wechsel 23.07.2026
+  oben: die **Zählweise** (Episoden-Definition, n≥100-Schwelle,
+  Primär-/Sensitivitätsrechnung) ändert sich NICHT — nur die Population, aus
+  der künftig neue Episoden entstehen, kann sich (marginal, nur an
+  DE-Rückzugstagen) unterscheiden.
+
+  **Bewusst NICHT geändert:** `scripts/evaluate.py` (SHA-gepinnt seit
+  29.07.2026, hier nicht angefasst), die Erfolgs-Definition, die
+  n≥100-Sperre, die Primär-/Sensitivitätsrechnung, `market_calendar.py`s
+  `GRACE_HOURS`/`TOLERANCE_HOURS` (reine Zeitverschiebung, keine neue
+  Warte-/Retry-Logik, s. PR #98). Score, Ranking und Filterung sind von einer
+  Cron-Uhrzeit ohnehin strukturell unabhängig.
+  Revert = diesen Eintrag entfernen; er beschreibt ausschließlich bereits in
+  PR #98 gemergten Code (dort eigenständig revertierbar) und fügt selbst
+  keinen Code, keinen Datenstand und keine gemessene Zahl hinzu.
