@@ -87,7 +87,7 @@ def test_markt_erkennung_ist_die_bestehende_quelle_kein_zweiter_test():
     # Zielzone — Metrik-Box (über die `zone`-Variable, s. u.).
     'const zone = fmtZone(c.target_zone, market);',
     # Extension.
-    '<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmtZone(ez, market)}`',
+    '<div class="ext-zone"><span class="ext-lbl" title="${FIB_EVIDENZ}">Extension</span>${fmtZone(ez, market)}`',
     # Großer-Grad-Block (Fallback ohne `timeframes`) — dieselben drei Felder
     # nochmal, damit ein älterer Report-Stand nicht unsymbolisiert aussieht.
     '<span class="hd-k">Invalidierung</span><span class="hd-v">${fmtP(hd.invalidation_price, market)}</span>',
