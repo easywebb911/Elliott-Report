@@ -14,16 +14,16 @@ Ab dem Tag, an dem ein Kandidat auf einer Karte erscheint, werden über einen
 Horizont von **10 Handelstagen** ausschließlich vorwärts (forward-only)
 gesammelt:
 
-- **`target_hit`** — Basis-Zielzone erreicht **VOR** der Invalidierung (binär).
+- **`target_hit`** — Basis-Beobachtungszone erreicht **VOR** der Invalidierung (binär).
 - **`ext_hit`** — Extension-Zone erreicht **VOR** der Invalidierung (binär).
 
 > **Entry-Regel (Prinzip, festgeschrieben 23.07.2026 — PRU-Befund).** Ein Kandidat
 > ist nur **auswertbar**, wenn bei Record-Anlage der Schlusskurs **UNTER
-> `target_zone.low`** liegt — das Ziel darf erst **nach** der Anlage erreicht
+> `target_zone.low`** liegt — die Zone darf erst **nach** der Anlage erreicht
 > werden, sonst ist der „Treffer" ein Look-ahead-Artefakt und keine Vorhersage.
 > Analog für `ext_hit` mit `extension.low`. **Hintergrund:** die stillschweigenden
 > Annahmen der Backtest-Literatur (ein Signal wird zum Signalzeitpunkt eröffnet,
-> das Ziel liegt noch voraus) müssen hier als **explizite Regeln** stehen — der
+> die Zone liegt noch voraus) müssen hier als **explizite Regeln** stehen — der
 > PRU-Befund vom 23.07. zeigte, dass sie sonst still verletzt werden. Umsetzung:
 > Guard in `mature_record` ab 23.07. (s. u. „Änderungs-Log").
 - **`invalidated`** — Invalidierung zuerst gerissen (binär).
@@ -36,7 +36,7 @@ gesammelt:
 Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
 
 1. Die **Trefferquote** schlägt einen **Zufalls-Benchmark** (gleiche Aktien,
-   zufällige Einstiegstage, gleiche relative Ziel-/Stop-Distanzen)
+   zufällige Einstiegstage, gleiche relative Zonen-/Stop-Distanzen)
    **Holm-korrigiert signifikant**, UND
 2. die **Bootstrap-CI-Untergrenze der AUC** (Score vs. `target_hit`) liegt
    **> 0,5**.
@@ -48,7 +48,7 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   nicht; die n-Schwelle zählt `eval_counts(...)[2]` (auswertbar).
 - **PRU-Guard / „Kurs schon bei Anlage über der Zone" (ab 23.07.2026, s. u.):**
   War der Schlusskurs am Anlage-Tag bereits **≥ Zonen-Unterkante**, ist ein
-  späterer „Treffer" ein **Look-ahead-Artefakt** (das Ziel war zum Anlage-
+  späterer „Treffer" ein **Look-ahead-Artefakt** (die Zone war zum Anlage-
   Zeitpunkt schon erreicht, keine Vorhersage). Solche Records reifen **normal**
   aus (Invalidierung, `max_gain/drawdown/r_multiple` voll gültig), aber
   `target_hit`/`ext_hit` sind **gesperrt** (auf 0, nie 1) und `pre_reached_target`
@@ -113,7 +113,7 @@ Rein für die Review-Ansicht (Hamburger-Menü → „Validierung / Backtesting")
   deterministisch aus der vollen Historie neu aufgebaut.
 - **`confluence`** (ab 23.07.2026 gesammelt) — **reines Mess-Feld**: welche breit
   beachteten Crowd-Marken (52-Wochen-Hoch, 200-Tage-Linie, nächste runde Zahl)
-  innerhalb ±1 % mit Zielzone bzw. Invalidierung zusammenfallen (`{target, invalidation}`).
+  innerhalb ±1 % mit Beobachtungszone bzw. Invalidierung zusammenfallen (`{target, invalidation}`).
   **Point-in-time zum Anlage-Zeitpunkt eingefroren** (nie nachträglich geändert).
   **KEINE Score-/Ranking-Wirkung** (Registry-Vorbehalt). Zweck: die spätere
   n ≥ 100-Auswertung kann als **eigene Dimension** testen, ob Konfluenz-Zonen öfter
@@ -1237,3 +1237,32 @@ vor n ≥ 100) gilt unverändert.
   Revert = diesen Eintrag und den zugehörigen Punkt unter „Regeln" entfernen;
   es hängt kein Code und kein Datenstand daran, und keine gemessene Zahl
   ändert sich.
+
+- **22.08.2026 — Beschriftung „Zielzone"/„Kursziel" → „Beobachtungszone"
+  (REINE Anzeige, keine Definitionsänderung).** Fibonacci-Retracement-/
+  Extension-Level zeigen in rigoros getesteten Studien (Batchelor & Ramyar
+  2006; Tsinaslanidis, Guijarro & Voukelatos 2022) keine über den Zufall
+  hinausgehende Trefferquote — die alte Bezeichnung suggerierte mehr
+  Vorhersagekraft, als die Evidenzlage hergibt. Betroffen: `docs/index.html`
+  (Karten-Metrik, Zonen-Badge, Zeitebenen-Hinweis, Konfluenz-Chip, Methodik-
+  Legende, Validierungs-Übersicht, Trade-Journal, Lauf-Status) sowie die
+  aktuell gültigen Abschnitte dieses Registers oben (`target_hit`-Definition,
+  Entry-Regel, Zufalls-Benchmark, PRU-Guard-Regel, `confluence`-Feld).
+  **Bewusst NICHT angepasst:** die datierten Einträge in diesem
+  Änderungs-Log (23.07.–08.08.2026) behalten ihren damaligen Wortlaut —
+  sie sind ein Verlaufsprotokoll dessen, was zum jeweiligen Zeitpunkt
+  entschieden/beobachtet wurde, kein lebendes Glossar; dieselbe Regel gilt
+  hier bereits für Feld-*Definitionen* („v1 wird nie umdefiniert") und wird
+  für die Wortwahl der Historie konsequent fortgeführt. Das interne Feld
+  `target_zone` (Report-JSON, `config.py`, `elliott_pipeline.py`) sowie der
+  Skip-Grund-Code `target_exceeded` bleiben unverändert — es ändert sich
+  ausschließlich, wie das Ergebnis dieser Felder BESCHRIFTET wird, nicht der
+  Wert, die Berechnung, der Score oder die Filterung.
+  **Ebenfalls NICHT geändert** (bewusst außerhalb des Auftrags, kein
+  Fibonacci-Bezug): „A-Ziel-Region" (`docs/index.html`, `tfPanel` — die
+  projizierte Marke nach einem kompletten Impuls ist das rohe W4-Extrem,
+  keine Fibonacci-Ratio) und „Tap-Ziel"/„Poller-Ziele" (UI-/Tech-Jargon,
+  keine Kurszone).
+  Revert = die Beschriftungen in `docs/index.html` und die sechs oben
+  genannten Registry-Zeilen auf „Zielzone"/„Ziel"/„Kursziel" zurücksetzen;
+  kein Code, kein Datenstand, keine gemessene Zahl hängt daran.

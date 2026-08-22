@@ -206,7 +206,7 @@
     .metric-box .zone-dist { display:block; margin-top:2px; }
     .hd-rows .zone-dist { margin-top:1px; }
     .ext-zone .zone-dist, .tf-pair .zone-dist { margin-left:5px; }
-    /* „Zielzone erreicht/überschritten" — dezente Ehrlichkeit, KEIN Alarm-Rot.
+    /* „Beobachtungszone erreicht/überschritten" — dezente Ehrlichkeit, KEIN Alarm-Rot.
        Kurs ≥ Zonen-Unterkante = Setup (teil-)verbraucht. Live-Quote darf es
        aktualisieren (quotePatch). Erscheint nur, wenn der Kurs die Zone erreicht. */
     .zone-badge {
@@ -308,9 +308,9 @@
     .tf-struct-correction_running .tf-label { color:var(--txt-sub); }
     .tf-struct-correction_complete .tf-tag,
     .tf-struct-correction_complete .tf-label { color:var(--accent); }
-    /* „Ziel erreicht/überschritten" je Zeitebene — kompakter Ableger des
+    /* „Zone erreicht/überschritten" je Zeitebene — kompakter Ableger des
        #28-Zonen-Badges (gleiche Schwellen, dezent, KEIN Alarm-Rot). Erscheint
-       nur, wenn der Karten-Kurs die Ziel-Zone dieser Zeitebene erreicht hat. */
+       nur, wenn der Karten-Kurs die Beobachtungszone dieser Zeitebene erreicht hat. */
     .tf-hint { display:inline-block; margin-top:4px; padding:1px 6px; border-radius:6px;
       font-size:.54rem; font-weight:700; letter-spacing:.03em; white-space:nowrap;
       color:var(--txt-sub); background:var(--bg-met); border:1px solid var(--brd); }
@@ -1384,7 +1384,7 @@
                       + `· ${_val.evaluable} auswertbar`;
       cnt.title = excluded > 0
         ? `${excluded} gereifte(r) Record(s) vom PRU-Guard ausgeschlossen `
-          + `(Kurs schon bei Anlage über der Zielzone → „Treffer" wäre Look-ahead) — `
+          + `(Kurs schon bei Anlage über der Beobachtungszone → „Treffer" wäre Look-ahead) — `
           + `zählen nicht zur n≥${_val.eval_min_n}-Auswertung.`
         : '';
       // WICHTIG: KEINE Trefferquoten/Zwischenergebnisse vor der Schwelle.
@@ -1405,11 +1405,11 @@
       // Dezente Status-Ableitung, keine Erfolgs-Rhetorik.
       // Invalidierung bleibt immer gültig (auch für ausgeschlossene Records).
       if (r.invalidated === 1) return { label: 'invalidiert ✗', cls: 'st-inval' };
-      // PRU-Guard: ausgeschlossene Records zeigen NIE „Ziel ✓" (der „Treffer" wäre
+      // PRU-Guard: ausgeschlossene Records zeigen NIE „Zone ✓" (der „Treffer" wäre
       // Look-ahead) — ehrlicher Ausschluss-Status statt Erfolgs-Häkchen.
       if (_recExcluded(r)) return { label: 'ausgeschlossen · Kurs schon über Zone', cls: 'st-excluded' };
       if (r.ext_hit === 1)     return { label: 'Extension ✓✓', cls: 'st-ext' };
-      if (r.target_hit === 1)  return { label: 'Ziel ✓', cls: 'st-target' };
+      if (r.target_hit === 1)  return { label: 'Zone ✓', cls: 'st-target' };
       if (r.matured)           return { label: 'gereift · neutral', cls: 'st-neutral' };
       return { label: 'offen', cls: 'st-open' };
     }
@@ -1494,7 +1494,7 @@
          <div class="ep-kv-grid">
            <span class="k">Auszählung</span><span class="v">${esc(r.count_label || '–')}</span>
            <span class="k">Einstiegskurs</span><span class="v">${fmt(r.entry_close)}</span>
-           <span class="k">Zielzone</span><span class="v">${fmt(tz.low)}–${fmt(tz.high)}</span>
+           <span class="k">Beobachtungszone</span><span class="v">${fmt(tz.low)}–${fmt(tz.high)}</span>
            <span class="k">Extension</span><span class="v">${fmt(ez.low)}–${fmt(ez.high)}</span>
            <span class="k">Invalidierung</span><span class="v">${fmt(r.invalidation_price)}</span>
            <span class="k">max. Gewinn 10T</span><span class="v">${r.max_gain_10d == null ? '–' : fmt(r.max_gain_10d) + ' %'}</span>
@@ -1619,7 +1619,7 @@
          <div class="ep-legend">
            <span><i style="border-color:var(--spark-end)"></i>Zählung (0–${Math.max(0, waves.length - 1)})</span>
            <span><i style="border-color:var(--ora)"></i>Verlauf nach Einstieg</span>
-           <span><i style="border-color:var(--grn)"></i>Zielzone</span>
+           <span><i style="border-color:var(--grn)"></i>Beobachtungszone</span>
            <span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>
          </div>`;
     }
@@ -1647,7 +1647,7 @@
       const s = priceSym(market);
       return (v === '–' || !s) ? v : `${v} ${s}`;
     }
-    // BEREICH (Zielzone, Extension): Symbol EINMAL am Ende des Bereichs, nicht
+    // BEREICH (Beobachtungszone, Extension): Symbol EINMAL am Ende des Bereichs, nicht
     // an jeder Zahl einzeln — "21,93–22,5 €", nicht "21,93 €–22,5 €".
     function fmtZone(z, market) {
       if (!z) return '–';
@@ -1662,7 +1662,7 @@
     // BEZUGSKANTE ist bewusst die UNTERKANTE der Zone. Das ist DIESELBE Kante,
     // an der die Pipeline `target_exceeded` schneidet und an der die
     // Erfolgsmessung der Forward-Sammlung einen Treffer zählt (close >= low).
-    // Eine andere Kante hier wäre eine zweite, stille Definition von „Ziel" —
+    // Eine andere Kante hier wäre eine zweite, stille Definition von „Zone" —
     // dieselbe Zahl müsste dann an zwei Stellen etwas Verschiedenes heißen.
     //
     // REIN im Frontend gerechnet: kein Report-Feld, kein Score, kein Filter.
@@ -1697,7 +1697,14 @@
     // angezeigter Kurs (Report-Kurs beim Rendern, danach der Live-Quote-Tick).
     // Ohne darstellbaren Wert kommt gar nichts zurück — nie „NaN", nie „–".
     const ZONE_DIST_TITLE = 'Abstand vom aktuellen Kurs zur Zonen-Unterkante '
-      + '(dieselbe Kante wie beim Ziel-erreicht-Hinweis und der Erfolgsmessung)';
+      + '(dieselbe Kante wie beim Zone-erreicht-Hinweis und der Erfolgsmessung)';
+    // Beleg-Hinweis (22.08.2026): Fibonacci-Retracement-/Extension-Level zeigen in
+    // rigoros getesteten Studien keine über den Zufall hinausgehende Trefferquote —
+    // die Beschriftung ist deshalb bewusst beobachtungs- statt vorhersagebasiert.
+    // Reiner Anzeige-Text, keine Score-/Ranking-/Berechnungswirkung.
+    const FIB_EVIDENZ = 'Fibonacci-Niveaus: keine über den Zufall hinausgehende '
+      + 'Trefferquote wissenschaftlich belegt (Quelle: Batchelor & Ramyar 2006; '
+      + 'Tsinaslanidis et al. 2022).';
     function zoneDistSpan(low, price) {
       if (low === null || low === undefined || !isFinite(Number(low))) return '';
       const txt = zoneDistText(zoneDistPct(low, price));
@@ -1896,7 +1903,7 @@
     // Long-Count" statt zu verschweigen (Watchlist-Lesson aus #17). 390px-fest:
     // Tag-Tag fix, Rest flexibel, Zahlen tabellarisch, umbruchsicher.
     // Konfluenz-Chips (Lit-Check a): breit beachtete Crowd-Marken, die mit der
-    // Zielzone bzw. Invalidierung zusammenfallen. REINE Anzeige — kein Score/
+    // Beobachtungszone bzw. Invalidierung zusammenfallen. REINE Anzeige — kein Score/
     // Ranking. Erscheint nur, wenn Marken vorhanden sind. 390px: umbruchsicher.
     const _CONF_LABEL = { '52w_high': '52W-Hoch', '200d': '200d-Linie', 'round': 'runde Zahl' };
     function confluenceChips(c) {
@@ -1907,7 +1914,7 @@
         const chips = marks.map(m => `<span class="conf-chip">${esc(_CONF_LABEL[m] || m)}</span>`).join('');
         return `<div class="conf-row"><span class="conf-lbl">Konfluenz ${where}</span>${chips}</div>`;
       };
-      const inner = row(conf.target, 'Zielzone') + row(conf.invalidation, 'Invalidierung');
+      const inner = row(conf.target, 'Beobachtungszone') + row(conf.invalidation, 'Invalidierung');
       return inner ? `<div class="conf-block">${inner}</div>` : '';
     }
 
@@ -1924,7 +1931,7 @@
     // nutzt ab v2 das ERWEITERTE Vokabular (Impuls-Fenster + ABC-Korrektur-Lesart);
     // fail-soft-Fallback auf v1, solange ein älterer report.json ohne v2 geladen ist.
     // Ehrlichkeits-Sprache, kein eigener Donut, Alt-Score dezent. Eine Korrektur-
-    // Alternative hat keine Zielzone/Score (kind='correction') -> Zeile ohne beide.
+    // Alternative hat keine Beobachtungszone/Score (kind='correction') -> Zeile ohne beide.
     function ambiguityBlock(c, market) {
       const useV2 = c && typeof c.valid_count_total_v2 === 'number';
       const n = useV2 ? c.valid_count_total_v2 : (c && c.valid_count_total);
@@ -1940,7 +1947,7 @@
             <div class="amb-alt-label">${esc(alt.count_label || '')}</div>
             <div class="amb-alt-meta">
               <span><span class="amb-k">Inval</span> ${fmtP(alt.invalidation_price, market)}</span>
-              ${zone ? `<span><span class="amb-k">Ziel</span> ${zone}`
+              ${zone ? `<span><span class="amb-k">Zone</span> ${zone}`
                        + `${zoneDistSpan(alt.target_zone.low, c.close)}</span>` : ''}
               ${score ? `<span class="amb-alt-score"><span class="amb-k">Score</span> ${score}</span>` : ''}
             </div>
@@ -2005,8 +2012,8 @@
       const rows = [['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat']].map(([k, lbl]) => {
         const c = tf[k];
         if (c) {  // valider Long-Count -> volle Anzeige (= long_setup)
-          // „Ziel erreicht/überschritten" je Zeitebene — GLEICHE Schwellen wie das
-          // #28-Zonen-Badge (Kurs ≥ Ziel-Low = erreicht, ≥ Ziel-High = überschritten).
+          // „Zone erreicht/überschritten" je Zeitebene — GLEICHE Schwellen wie das
+          // #28-Zonen-Badge (Kurs ≥ Zone-Low = erreicht, ≥ Zone-High = überschritten).
           // Anfangszustand aus dem Karten-Kurs; live via quotePatch (data-tf-hint).
           const tz = c.target_zone;
           const _ts = (typeof cardClose === 'number' && isFinite(cardClose) && tz)
@@ -2014,7 +2021,7 @@
           const hint = tz
             ? `<span class="tf-hint${_ts === 'over' ? ' tf-hint-over' : ''}" data-tf-hint`
               + ` data-zl="${tz.low}" data-zh="${tz.high}"${_ts ? '' : ' hidden'}>`
-              + `${_ts === 'over' ? 'Ziel überschritten' : (_ts === 'reached' ? 'Ziel erreicht' : '')}</span>`
+              + `${_ts === 'over' ? 'Zone überschritten' : (_ts === 'reached' ? 'Zone erreicht' : '')}</span>`
             : '';
           return `<div class="tf-row"><span class="tf-tag">${lbl}</span>`
             + `<div class="tf-body"><div class="tf-label">${esc(c.count_label || '')}</div>`
@@ -2022,7 +2029,7 @@
             + pair('Inval', fmtP(c.invalidation_price, market))
             // Zonen-Abstand als drittes Glied des Paares — er wandert beim
             // Umbruch mit seiner Zone mit, statt allein in die nächste Zeile.
-            + pair('Ziel', zoneStr(c.target_zone),
+            + pair('Zone', zoneStr(c.target_zone),
                    c.target_zone ? zoneDistSpan(c.target_zone.low, cardClose) : '')
             + pair('Ext', zoneStr(c.target_zone_extended),
                    c.target_zone_extended ? zoneDistSpan(c.target_zone_extended.low, cardClose) : '')
@@ -2090,19 +2097,20 @@
       // W4-Fällen mit kurzer Netto-Strecke P0->P3, wo sie knapp unter der
       // Basiszone liegen kann). Konsequente Darstellung; Feld ist additiv.
       const extLine = ez
-        ? `<div class="ext-zone"><span class="ext-lbl">Extension</span>${fmtZone(ez, market)}`
+        ? `<div class="ext-zone"><span class="ext-lbl" title="${FIB_EVIDENZ}">Extension</span>${fmtZone(ez, market)}`
           + `${zoneDistSpan(ez.low, c.close)}</div>`
         : '';
-      // „Zielzone erreicht/überschritten": Anfangszustand aus dem Lauf-Schlusskurs;
-      // Live-Quote aktualisiert es später (quotePatch → _setZoneBadge). Anker
-      // data-zl/data-zh; erscheint nur, wenn Kurs ≥ Zonen-Unterkante.
+      // „Beobachtungszone erreicht/überschritten": Anfangszustand aus dem
+      // Lauf-Schlusskurs; Live-Quote aktualisiert es später (quotePatch →
+      // _setZoneBadge). Anker data-zl/data-zh; erscheint nur, wenn Kurs ≥
+      // Zonen-Unterkante.
       const _zs = (c.close != null && c.target_zone)
         ? (c.close >= c.target_zone.high ? 'over' : (c.close >= c.target_zone.low ? 'reached' : ''))
         : '';
       const zoneBadge = c.target_zone
         ? `<div class="zone-badge zone-badge-${_zs || 'none'}" data-zone-badge`
           + ` data-zl="${c.target_zone.low}" data-zh="${c.target_zone.high}"${_zs ? '' : ' hidden'}>`
-          + `${_zs === 'over' ? 'Zielzone überschritten' : (_zs === 'reached' ? 'Zielzone erreicht' : '')}</div>`
+          + `${_zs === 'over' ? 'Beobachtungszone überschritten' : (_zs === 'reached' ? 'Beobachtungszone erreicht' : '')}</div>`
         : '';
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
@@ -2116,8 +2124,8 @@
           <div class="hd-label">${esc(hd.count_label || '')}</div>
           <div class="hd-rows">
             <div><span class="hd-k">Invalidierung</span><span class="hd-v">${fmtP(hd.invalidation_price, market)}</span></div>
-            <div><span class="hd-k">Zielzone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span>${hd.target_zone ? zoneDistSpan(hd.target_zone.low, c.close) : ''}</div>
-            <div><span class="hd-k">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
+            <div><span class="hd-k" title="${FIB_EVIDENZ}">Beobachtungszone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span>${hd.target_zone ? zoneDistSpan(hd.target_zone.low, c.close) : ''}</div>
+            <div><span class="hd-k" title="${FIB_EVIDENZ}">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
           </div>
           ${degreeSpark(hd)}
         </div>` : '';
@@ -2154,7 +2162,7 @@
         ${donutBlock(c.score_heuristic, c.status)}
         <div class="metrics-row">
           <div class="metric-box"><span class="m-val inval">${fmtP(c.invalidation_price, market)}</span><span class="m-lbl">Invalidierung</span></div>
-          <div class="metric-box zone"><span class="m-val">${zone}</span>${c.target_zone ? zoneDistSpan(c.target_zone.low, c.close) : ''}<span class="m-lbl">Zielzone</span></div>
+          <div class="metric-box zone"><span class="m-val">${zone}</span>${c.target_zone ? zoneDistSpan(c.target_zone.low, c.close) : ''}<span class="m-lbl" title="${FIB_EVIDENZ}">Beobachtungszone</span></div>
         </div>
         ${extLine}
         ${zoneBadge}
@@ -2510,7 +2518,7 @@
     // ── Top-5-Historie je Watchlist-Kachel (Part A) ──────────────────────────
     // Reines Frontend: liest die schon geladene forward_collection und zeigt je
     // Episode des Tickers eine kompakte Zeile (Datum · Markt · Zählung · Anlage-
-    // Kurs · Zielzone · Status). Antippen öffnet die bestehende Backtesting-
+    // Kurs · Beobachtungszone · Status). Antippen öffnet die bestehende Backtesting-
     // Detail-Ansicht (Wiederverwendung). Fail-soft ohne Episoden.
     let _wlColl = null;   // gecachte forward_collection-Records
 
@@ -2533,7 +2541,7 @@
           </span>
           <span class="wl-hist-label">${esc(r.count_label || '–')}</span>
           <span class="wl-hist-line2"><span class="wl-hist-k">Anlage</span> ${fmt(r.entry_close)}`
-        + ` · <span class="wl-hist-k">Ziel</span> ${tz}</span>
+        + ` · <span class="wl-hist-k">Zone</span> ${tz}</span>
         </button>`;
     }
 
@@ -3125,7 +3133,7 @@
         ? `${fmt(e.tool.target_zone.low)}–${fmt(e.tool.target_zone.high)}` : '–';
       return `<div class="tj-frozen">Beim Anlegen: ${esc(e.tool && e.tool.setup || '–')}
           · Score ${e.tool && e.tool.score != null ? fmt(e.tool.score) : '–'}
-          · Zielzone ${zone}
+          · Beobachtungszone ${zone}
           · Invalidierung ${e.tool && e.tool.invalidation != null ? fmt(e.tool.invalidation) : '–'}
           · Stand ${esc(e.tool && e.tool.report_utc || '–')}</div>`;
     }
@@ -3219,7 +3227,7 @@
         </div>
         <div class="tj-frozen">Wird eingefroren: ${esc(v.setup || '–')}
           · Score ${v.score != null ? fmt(v.score) : '–'}
-          · Zielzone ${zone}
+          · Beobachtungszone ${zone}
           · Invalidierung ${v.invalidation != null ? fmt(v.invalidation) : '–'}</div>
         <div class="tj-form">
           <label for="tj-ne-p">Einstiegskurs</label>
@@ -3889,14 +3897,14 @@
         ['Count-Label', 'Die erkannte Auszählung, z. B. <code>Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)</code>. Nur Long-Setups werden gezeigt.'],
         ['Wellen-Ziffern', 'Kleine Ziffern auf den letzten Pivots der Sparkline: <code>0–2</code> beim W2-Setup (P0–P2), <code>0–4</code> beim W4-Setup (P0–P4). 0 ist der Start-Pivot.'],
         ['Invalidierung', 'K.-o.-Kurs, unter dem die Zählung ungültig wird: beim W2-Setup der Start-Pivot P0 (W2 darf W1 nicht &gt;100 % zurücklaufen), beim W4-Setup P1 (W4 darf W1 nicht überlappen).'],
-        ['Zielzone', 'Basis-Ziel per Fibonacci: W3 = P2 + <code>[1.0–1.618] × W1-Länge</code>; W5 = P4 + <code>[0.618–1.0] × W1</code>.'],
-        ['Extension', 'Ambitionierteres Ziel (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt.'],
-        ['Zonen-Abstand (%)', 'Die kleine Prozentzahl an Zielzone und Extension: wie weit die <b>Unterkante</b> der Zone vom <b>aktuell angezeigten</b> Kurs entfernt liegt — <code>(Unterkante / Kurs − 1) × 100</code>. Startet mit dem Kurs des Laufs und rechnet bei jedem Live-Quote-Tick mit, damit Kurs und Prozentzahl auf derselben Karte nie auseinanderlaufen. <b>Warum die Unterkante?</b> Genau an dieser Kante schneidet der <code>target_exceeded</code>-Filter, und genau ab ihr zählt die Erfolgsmessung der Forward-Sammlung einen Treffer — eine andere Kante hier wäre eine zweite, stille Definition von „Ziel“. Ein Minus heißt: die Kante liegt bereits unter dem Kurs. Rein im Frontend gerechnet, kein Report-Feld, kein Score-, Filter- oder Sammlungs-Einfluss. Bewusst <b>neutral</b> gefärbt — der Abstand ist ein Fakt, keine Bewertung.'],
+        ['Beobachtungszone', 'Fibonacci-basierte Beobachtungsmarke: W3 = P2 + <code>[1.0–1.618] × W1-Länge</code>; W5 = P4 + <code>[0.618–1.0] × W1</code>. <b>Beleg-Hinweis:</b> Fibonacci-Retracement-/Extension-Level zeigen in rigoros getesteten Studien keine über den Zufall hinausgehende Trefferquote (Quelle: Batchelor &amp; Ramyar 2006; Tsinaslanidis et al. 2022) — die Zone markiert eine Beobachtung, keine Kursprognose.'],
+        ['Extension', 'Ambitioniertere Beobachtungszone (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt. Derselbe Beleg-Vorbehalt wie bei der Beobachtungszone gilt hier unverändert.'],
+        ['Zonen-Abstand (%)', 'Die kleine Prozentzahl an Beobachtungszone und Extension: wie weit die <b>Unterkante</b> der Zone vom <b>aktuell angezeigten</b> Kurs entfernt liegt — <code>(Unterkante / Kurs − 1) × 100</code>. Startet mit dem Kurs des Laufs und rechnet bei jedem Live-Quote-Tick mit, damit Kurs und Prozentzahl auf derselben Karte nie auseinanderlaufen. <b>Warum die Unterkante?</b> Genau an dieser Kante schneidet der <code>target_exceeded</code>-Filter, und genau ab ihr zählt die Erfolgsmessung der Forward-Sammlung einen Treffer — eine andere Kante hier wäre eine zweite, stille Definition von „Zone“. Ein Minus heißt: die Kante liegt bereits unter dem Kurs. Rein im Frontend gerechnet, kein Report-Feld, kein Score-, Filter- oder Sammlungs-Einfluss. Bewusst <b>neutral</b> gefärbt — der Abstand ist ein Fakt, keine Bewertung.'],
         ['Donut / Farbe', 'Der Score als Ring. Schwellen: <code>≥ 60</code> grün, <code>≥ 30</code> orange, <code>≥ 15</code> rot, darunter/ohne Wert grau.'],
         ['Großer Grad', 'Zweite, unabhängige Zählung auf <b>Wochen</b>-Basis für die Top-5 (höherer Wellengrad). Zweitblick zur Einordnung — fließt nicht in den Score ein.'],
-        ['Ziel erreicht / überschritten', 'Dezenter Hinweis an einer Zeitebenen-Zeile (Tag/Woche/Monat), sobald der aktuelle Kurs die Zielzone dieser Zeitebene erreicht (<code>≥ Ziel-Low</code>) bzw. überschritten hat (<code>≥ Ziel-High</code>) — gleiche Schwellen wie das Zonen-Badge der Hauptkarte. <b>Warum überhaupt „erreicht"?</b> Auf großen Zeitebenen bestätigt der ZigZag einen neuen Pivot erst nach einer deutlichen Gegenbewegung (auf Monatskerzen leicht ±5 Balken Verzögerung). Eine ältere Zählung kann darum noch „Ende W2, W3 erwartet" anzeigen, obwohl der Kurs die damalige W3-Projektion längst durchlaufen hat — der Hinweis macht genau das sichtbar.'],
+        ['Zone erreicht / überschritten', 'Dezenter Hinweis an einer Zeitebenen-Zeile (Tag/Woche/Monat), sobald der aktuelle Kurs die Beobachtungszone dieser Zeitebene erreicht (<code>≥ Zone-Low</code>) bzw. überschritten hat (<code>≥ Zone-High</code>) — gleiche Schwellen wie das Zonen-Badge der Hauptkarte. <b>Warum überhaupt „erreicht"?</b> Auf großen Zeitebenen bestätigt der ZigZag einen neuen Pivot erst nach einer deutlichen Gegenbewegung (auf Monatskerzen leicht ±5 Balken Verzögerung). Eine ältere Zählung kann darum noch „Ende W2, W3 erwartet" anzeigen, obwohl der Kurs die damalige W3-Projektion längst durchlaufen hat — der Hinweis macht genau das sichtbar.'],
         ['ABC-Korrektur', 'Nach einem kompletten 5-Wellen-Impuls erkennt der Struktur-Befund (Watchlist) eine einfache <b>Zigzag-Korrektur A-B-C</b> auf den bestätigten Pivots: A läuft gegen die Impulsrichtung, B retraced A ohne den Impuls-Endpunkt zu überschreiten, C fällt/steigt jenseits des A-Endes. Eine bestätigte Korrektur-Lesart hat <b>Vorrang</b> vor dem erneuten Impuls-Lesen der letzten Pivots und fließt als zusätzliche Lesart in „Zählung 1 von N" ein. <b>Keine Prognose:</b> „Korrektur komplett · neuer Impuls möglich" ist eine Struktur-Beschreibung, kein Setup-Versprechen — Score/Ranking bleiben unberührt.'],
-        ['Konfluenz', 'Chips an Zielzone/Invalidierung, wenn dort eine breit beachtete Marke liegt — ausführlich unten unter <b>Konfluenz-Marken</b>.'],
+        ['Konfluenz', 'Chips an Beobachtungszone/Invalidierung, wenn dort eine breit beachtete Marke liegt — ausführlich unten unter <b>Konfluenz-Marken</b>.'],
         ['Live-Punkt', 'Kurs-Aktualität im Kartenkopf: grün pulsierend = Live-Quote aktiv, grau = Quelle nicht erreichbar/veraltet, gedimmt = Tab inaktiv (Polling pausiert).'],
       ].map(([k, v]) => `<div class="legend-row"><span class="legend-k">${k}</span><span class="legend-v">${v}</span></div>`).join('');
 
@@ -3927,7 +3935,7 @@
          <div class="score-formula">
            Konfluenz heißt: eine breit beachtete <b>Crowd-Marke</b> — 52-Wochen-Hoch,
            200-Tage-Linie oder die nächste runde Zahl — fällt innerhalb ±1&nbsp;% mit
-           unserer Zielzone oder Invalidierung zusammen. Solche Level wirken, weil
+           unserer Beobachtungszone oder Invalidierung zusammen. Solche Level wirken, weil
            <b>viele Händler auf diese Marke schauen</b> und dort handeln — nicht, weil
            an der Zahl selbst etwas Besonderes wäre. Der Chip zeigt also, wo sich
            Aufmerksamkeit bündelt. Bewusst <b>ohne
@@ -3958,7 +3966,7 @@
             Math.round(evaluable / eval_min_n * 100)));
           const excl = excluded > 0
             ? `<p class="vsum-note">${excluded} Fälle zählen nicht mit: Der Kurs
-                 war schon am Ziel, als sie auf die Liste kamen.</p>`
+                 war schon in der Beobachtungszone, als sie auf die Liste kamen.</p>`
             : '';
           head =
             `<div class="vsum-hero">
@@ -3967,7 +3975,7 @@
                <div class="vsum-num"><b>${evaluable}</b><span>auswertbar</span></div>
              </div>
              <p class="vsum-say">Jede Empfehlung wird 10 Börsentage lang beobachtet:
-               Wurde das Kursziel erreicht, bevor die Zählung ungültig wurde?</p>
+               Wurde die Beobachtungszone erreicht, bevor die Zählung ungültig wurde?</p>
              <div class="vsum-bar"><i style="width:${pct}%"></i></div>
              <p class="vsum-say">Ausgewertet wird ab ${eval_min_n} auswertbaren Fällen —
                vorher wären die Zahlen Zufall. Aktuell: ${evaluable} von ${eval_min_n}.</p>
@@ -4002,7 +4010,7 @@
                höhere Punktzahlen wirklich öfter treffen. Beides muss zutreffen —
                eine gute Quote allein reicht nicht.</p>
              <p><strong>Warum werden Fälle ausgeschlossen?</strong> Stand der Kurs
-               schon am Ziel, als der Titel auf die Liste kam, wäre ein „Treffer"
+               schon in der Beobachtungszone, als der Titel auf die Liste kam, wäre ein „Treffer"
                keine Vorhersage gewesen. Solche Fälle bleiben in den Daten, zählen
                aber nicht mit.</p>
              <p><strong>Was noch mitgemessen wird:</strong> markante Kursmarken an
@@ -4076,7 +4084,7 @@
         fetch_error: 'Fetch-Fehler', empty_data: 'leere Daten',
         too_few_pivots: 'zu wenig Pivots', no_valid_count: 'kein reg. Setup',
         short_setup_excluded: 'Short verworfen',
-        target_exceeded: 'Zielzone erreicht',
+        target_exceeded: 'Beobachtungszone erreicht',
       };
       const _now = new Date();
       const ageH = ts ? (_now.getTime() - new Date(ts).getTime()) / 3.6e6 : null;
@@ -4365,25 +4373,25 @@
       }
     }
 
-    // „Zielzone erreicht/überschritten"-Badge aus einem Preis neu setzen (aus
-    // dem Lauf-Schlusskurs beim Rendern ODER live via quotePatch). Rein Anzeige.
+    // „Beobachtungszone erreicht/überschritten"-Badge aus einem Preis neu setzen
+    // (aus dem Lauf-Schlusskurs beim Rendern ODER live via quotePatch). Rein Anzeige.
     function _setZoneBadge(badge, price) {
       if (!badge) return;
       const zl = parseFloat(badge.dataset.zl), zh = parseFloat(badge.dataset.zh);
       if (!isFinite(zl) || !isFinite(zh) || typeof price !== 'number' || !isFinite(price)) return;
-      if (price >= zh) { badge.textContent = 'Zielzone überschritten'; badge.className = 'zone-badge zone-badge-over'; badge.hidden = false; }
-      else if (price >= zl) { badge.textContent = 'Zielzone erreicht'; badge.className = 'zone-badge zone-badge-reached'; badge.hidden = false; }
+      if (price >= zh) { badge.textContent = 'Beobachtungszone überschritten'; badge.className = 'zone-badge zone-badge-over'; badge.hidden = false; }
+      else if (price >= zl) { badge.textContent = 'Beobachtungszone erreicht'; badge.className = 'zone-badge zone-badge-reached'; badge.hidden = false; }
       else { badge.hidden = true; }
     }
 
-    // Zeitebenen-Zeilen-Hinweis „Ziel erreicht/überschritten" aus einem Preis neu
+    // Zeitebenen-Zeilen-Hinweis „Zone erreicht/überschritten" aus einem Preis neu
     // setzen — GLEICHE Schwellen-Semantik wie _setZoneBadge (#28), nur kompakt.
     function _setTfHint(el, price) {
       if (!el) return;
       const zl = parseFloat(el.dataset.zl), zh = parseFloat(el.dataset.zh);
       if (!isFinite(zl) || !isFinite(zh) || typeof price !== 'number' || !isFinite(price)) return;
-      if (price >= zh) { el.textContent = 'Ziel überschritten'; el.className = 'tf-hint tf-hint-over'; el.hidden = false; }
-      else if (price >= zl) { el.textContent = 'Ziel erreicht'; el.className = 'tf-hint'; el.hidden = false; }
+      if (price >= zh) { el.textContent = 'Zone überschritten'; el.className = 'tf-hint tf-hint-over'; el.hidden = false; }
+      else if (price >= zl) { el.textContent = 'Zone erreicht'; el.className = 'tf-hint'; el.hidden = false; }
       else { el.hidden = true; }
     }
 
