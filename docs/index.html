@@ -1306,10 +1306,10 @@
       if (wd === 0 || wd === 6) return false;
       return !MARKET_FULL_CLOSURE.has(d.toISOString().slice(0, 10));
     }
-    function _lastExpectedRun(now) {       // jüngster vergangener Werktags-Lauf 21:45 UTC
+    function _lastExpectedRun(now) {       // jüngster vergangener Werktags-Lauf 22:45 UTC
       const GRACE_MS = 6 * 3.6e6;
       const cand = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(),
-        now.getUTCDate(), 21, 45, 0));
+        now.getUTCDate(), 22, 45, 0));
       for (let i = 0; i < 400; i++) {
         if (cand.getTime() + GRACE_MS <= now.getTime() && _isTradingDay(cand)) return cand;
         cand.setUTCDate(cand.getUTCDate() - 1);

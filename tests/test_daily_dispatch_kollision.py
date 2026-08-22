@@ -179,7 +179,16 @@ def test_der_konflikt_fall_bleibt_leise():
 
 
 def test_cron_zeit_unangetastet():
-    assert 'cron: "45 21 * * 1-5"' in DAILY
+    """Soll-Wert seit 22.08.2026: 22:45 UTC (vorher 21:45) — bewusste
+    Verschiebung, kein Bug. Beleg: die source_timing_probe-Rohdaten (#97)
+    zeigen einen DE-Rückzug (last_bar_date fällt bei einem späteren Lauf
+    desselben Tages zurück) an 5 von 10 Tagen zwischen dem 4. und 5.
+    Tageslauf, gedeckt durch den Live-Vorfall vom 21./22.08.2026 (DE-Kurse
+    1 Handelstag zurück). Eine Stunde später liegt sicher nach dem
+    beobachteten Rückzugsfenster (letzter vollständiger DE+US-Datenpunkt in
+    den Rohdaten spätestens 20:04 UTC), auch mit dem größten gemessenen
+    Startverzug (~54 Min., Woche 1)."""
+    assert 'cron: "45 22 * * 1-5"' in DAILY
 
 
 def test_der_curl_aufruf_nutzt_die_variablen_und_keine_literale():

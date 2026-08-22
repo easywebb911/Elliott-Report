@@ -1,19 +1,32 @@
 name: Daily Elliott Report
 
-# Läuft nach US-Börsenschluss (21:45 UTC) + manuell per Tap (workflow_dispatch).
+# Läuft nach US-Börsenschluss (22:45 UTC) + manuell per Tap (workflow_dispatch).
 # Committet data/report.json (+ Spiegel) UND data/forward_collection.json
 # (+ Spiegel) auf main — die Forward-Sammlung MUSS persistiert werden, sonst
 # resettet sie jeden Lauf und n wächst nie (siehe SESSION_HANDOVER.md).
 # Fail-soft: Ein fehlerhafter Lauf committet nichts, bricht aber sichtbar ab,
 # statt kaputte Daten zu veröffentlichen.
+#
+# CRON-VERSCHIEBUNG 22.08.2026 (21:45 -> 22:45 UTC, eine Stunde später):
+# die Sonden-Rohdaten (data/source_timing_probe.jsonl, #97) zeigen einen
+# DE-Rückzug (last_bar_date fällt bei einem späteren Lauf desselben Tages auf
+# ein früheres Datum zurück) an 5 von 10 Tagen, jeweils zwischen dem 4. und 5.
+# Tageslauf — deckt sich mit dem Live-Vorfall vom 21./22.08.2026
+# ("DE: Kurse 1 Handelstag zurück — erwartet 2026-08-20, tatsächlich
+# 2026-08-19"). Erster vollständiger Tagesbar-Datenpunkt (10/10 Ticker) für
+# BEIDE Märkte in den Rohdaten: Min 19:36, Median 19:54, Max 20:04 UTC — eine
+# Stunde Verschiebung liegt selbst mit dem größten gemessenen Startverzug
+# (~54 Min., Woche 1) sicher danach. Trade-off: Karten erscheinen künftig ca.
+# eine Stunde später am Abend, dafür entfallen die DE-Rückzugs-Fehlwarnungen
+# im health_check. Reine Zeitverschiebung, keine Retry-/Wartelogik.
 
 on:
   schedule:
-    # Nur Werktage (Mo–Fr) 21:45 UTC — Sa/So gibt es keine neuen Tageskerzen.
+    # Nur Werktage (Mo–Fr) 22:45 UTC — Sa/So gibt es keine neuen Tageskerzen.
     # Gemeinsame Feiertage (NYSE ∩ Xetra) fängt das Gate in der Pipeline ab
     # (scripts/market_calendar.py); der Staleness-Wächter kennt denselben
     # Kalender → keine Wochenend-/Feiertags-Fehlalarme.
-    - cron: "45 21 * * 1-5"
+    - cron: "45 22 * * 1-5"
   workflow_dispatch:          # Tap-Start (auch am Wochenende möglich)
     inputs:
       push_selftest:

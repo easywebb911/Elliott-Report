@@ -261,9 +261,10 @@ def test_verkuerzte_handelstage_wirken_nur_NACHSICHTIG():
     assert cal.letzter_beendeter_handelstag("US", t) == _dt.date(2026, 11, 26)
     # Ein Stand von gestern erzeugt damit KEINEN Rückstand (nachsichtig) …
     assert cal.handelstage_rueckstand_sitzung("2026-11-26", "US", t) == 0
-    # … und der Abend-Cron (21:45 UTC = 16:45 ET) liegt nach JEDEM dieser
-    # Schlüsse, ist also nicht betroffen.
-    abends = _dt.datetime(2026, 11, 27, 21, 45, tzinfo=UTC)
+    # … und der Abend-Cron (22:45 UTC = 17:45 ET, seit 22.08.2026 verschoben
+    # von 21:45) liegt nach JEDEM dieser Schlüsse, ist also nicht betroffen —
+    # eine Verschiebung NACH SPÄTER kann diese Garantie nur verstärken.
+    abends = _dt.datetime(2026, 11, 27, 22, 45, tzinfo=UTC)
     assert cal.sitzung_beendet("US", abends) is True
     assert cal.letzter_beendeter_handelstag("US", abends) == _dt.date(2026, 11, 27)
 
