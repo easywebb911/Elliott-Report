@@ -35,7 +35,7 @@ docs/                         # GitHub-Pages-Root (Settings → Pages → main /
   icon.svg
   data/report.json            # gespiegelter Report (siehe Pfad-Hinweis unten)
 tests/                        # pytest: ZigZag, Regeln, JSON-Schema, Determinismus
-.github/workflows/daily.yml   # Cron 21:45 UTC + manueller Tap-Start
+.github/workflows/daily.yml   # Cron 22:45 UTC + manueller Tap-Start
 requirements.txt              # Versions-Ranges (keine harten Pins)
 ```
 
@@ -94,7 +94,7 @@ Karte den Status **„heuristisch · unvalidiert“**. **Kein Service Worker**
 
 ## Automatisierung
 
-`.github/workflows/daily.yml` läuft täglich **21:45 UTC** (nach US-Close) und
+`.github/workflows/daily.yml` läuft täglich **22:45 UTC** (nach US-Close) und
 zusätzlich manuell (`workflow_dispatch`). Er baut den Report, validiert das
 JSON und committet Änderungen auf `main` — **`report.json` UND
 `forward_collection.json`** (je + `docs/data/`-Spiegel), damit die

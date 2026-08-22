@@ -23,8 +23,10 @@ from __future__ import annotations
 import datetime as _dt
 from typing import Optional
 
-# Tägliche Lauf-Zeit (UTC), passend zu daily.yml-Cron "45 21 * * 1-5".
-RUN_HOUR = 21
+# Tägliche Lauf-Zeit (UTC), passend zu daily.yml-Cron "45 22 * * 1-5"
+# (verschoben 22.08.2026 von 21:45, s. daily.yml-Kopfkommentar für den Beleg —
+# DE-Rückzug in den source_timing_probe-Rohdaten + Live-Vorfall vom 21./22.08.).
+RUN_HOUR = 22
 RUN_MIN = 45
 # Zeitpuffer, bis ein erwarteter Lauf als abgeschlossen/committet gilt.
 GRACE_HOURS = 6

@@ -45,15 +45,17 @@ def test_is_trading_day():
 def test_last_expected_run_skips_weekend():
     # 2026-07-24 = Freitag. Am Sonntag/Montag früh ist der letzte erwartete
     # Lauf der Freitag (kein Sa/So-Lauf).
-    assert cal.last_expected_run(_at(2026, 7, 26)) == _at(2026, 7, 24, 21, 45)  # So
-    assert cal.last_expected_run(_at(2026, 7, 27)) == _at(2026, 7, 24, 21, 45)  # Mo früh
+    # RUN_HOUR/RUN_MIN seit 22.08.2026: 22:45 (vorher 21:45) — Cron-Verschiebung
+    # wegen des DE-Rückzugs in den source_timing_probe-Rohdaten (#97).
+    assert cal.last_expected_run(_at(2026, 7, 26)) == _at(2026, 7, 24, 22, 45)  # So
+    assert cal.last_expected_run(_at(2026, 7, 27)) == _at(2026, 7, 24, 22, 45)  # Mo früh
 
 
 def test_last_expected_run_skips_holiday(monkeypatch):
     # Montag als Voll-Schließtag → am Dienstag früh ist der Freitag der letzte
     # erwartete Lauf (Montag zählt nicht).
     monkeypatch.setitem(cal.FULL_CLOSURE, "2026-07-27", "TestFeiertag")
-    assert cal.last_expected_run(_at(2026, 7, 28)) == _at(2026, 7, 24, 21, 45)
+    assert cal.last_expected_run(_at(2026, 7, 28)) == _at(2026, 7, 24, 22, 45)
 
 
 # ---------------------------------------------------------------------------

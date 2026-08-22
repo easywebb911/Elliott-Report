@@ -338,8 +338,15 @@ def test_die_cron_eintraege_liegen_55_minuten_vor_den_zielzeiten():
 
 
 def test_der_tageslauf_bleibt_unangetastet():
+    """Cron-Soll-Wert seit 22.08.2026: 22:45 UTC (vorher 21:45) — die
+    Sonden-Rohdaten DIESES Moduls waren der Beleg für die Verschiebung (DE-
+    Rückzug an 5/10 Tagen zwischen 4. und 5. Tageslauf, gedeckt durch den
+    Live-Vorfall vom 21./22.08.). Der Name dieses Tests bezieht sich auf den
+    STRUKTURELLEN Schutz vor unbeabsichtigten Nebenwirkungen der Sonde auf
+    daily.yml (Concurrency-Gruppe, Cron-Anzahl) — nicht auf den Zeit-WERT
+    selbst, der hier bewusst per separatem Auftrag geändert wurde."""
     daily = (ROOT / ".github/workflows/daily.yml").read_text(encoding="utf-8")
-    assert 'cron: "45 21 * * 1-5"' in daily
+    assert 'cron: "45 22 * * 1-5"' in daily
     assert daily.count("- cron:") == 1
     assert "group: daily-elliott" in daily
 
