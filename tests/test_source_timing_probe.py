@@ -369,6 +369,25 @@ def test_nach_ablauf_wird_NICHTS_abgerufen_und_nichts_geschrieben(monkeypatch, c
 
 
 def test_offline_misst_nicht(monkeypatch, capsys):
+    """Prüft den OFFLINE-Zweig in `main()` — der greift erst NACH der
+    Ablauf-Prüfung (`if abgelaufen(): ...; if OFFLINE: ...`), deshalb muss
+    dieser Test wie seine Geschwister weiter unten (`test_bei_einem_fehler_
+    wird_SOFORT_aufgehoert` u. a.) `abgelaufen` explizit auf False fixieren.
+
+    OHNE diese Fixierung lief der Test bis 21.08.2026 zufällig richtig, weil
+    die WIRKLICHE Kalenderuhr zufällig noch vor `PROBE_END_DATE` lag — er hat
+    also nie wirklich den OFFLINE-Zweig isoliert geprüft, sondern nur, dass
+    HEUTE ≤ PROBE_END_DATE war. Seit 22.08.2026 ist der Stichtag planmäßig
+    verstrichen (das ist die WEGWERF-Bestimmung des Moduls selbst, s. Kopf-
+    Docstring von `source_timing_probe.py`, und read-only bestätigt: ein
+    echter, ungemockter `main()`-Lauf am 22.08.2026 druckt exakt „Messfenster
+    beendet … kein Abruf, nichts geschrieben" und lässt
+    `data/source_timing_probe.jsonl` byte-identisch) — seither griff im Test
+    ungewollt der ABLAUF-Zweig zuerst und maskierte den OFFLINE-Zweig, den der
+    Test eigentlich prüfen soll. Das ist die geplante Abschaltung, kein neuer
+    Fehler in `main()` — die Fixierung macht den Test wieder unabhängig vom
+    Kalender, wie alle Nachbartests in diesem Abschnitt."""
+    monkeypatch.setattr(probe, "abgelaufen", lambda heute=None: False)
     monkeypatch.setenv("ELLIOTT_OFFLINE", "1")
     monkeypatch.setattr(pipe, "fetch_yfinance",
                         lambda t: (_ for _ in ()).throw(AssertionError("kein Abruf")))
