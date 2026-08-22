@@ -86,8 +86,11 @@ def test_markt_erkennung_ist_die_bestehende_quelle_kein_zweiter_test():
     '<span class="m-val inval">${fmtP(c.invalidation_price, market)}</span>',
     # Zielzone — Metrik-Box (über die `zone`-Variable, s. u.).
     'const zone = fmtZone(c.target_zone, market);',
-    # Extension.
-    '<div class="ext-zone"><span class="ext-lbl" title="${FIB_EVIDENZ}">Extension</span>${fmtZone(ez, market)}`',
+    # Extension. Anker seit 23.08.2026 (Beleglage-Auftrag) auf FIB_EVIDENZ_EXT
+    # und die zusätzliche `evidence-weak`-Klasse aktualisiert -- derselbe
+    # `fmtZone(ez, market)`-Aufruf, den dieser Test eigentlich prüft, ist
+    # unverändert an derselben Stelle.
+    '<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(ez, market)}`',
     # Großer-Grad-Block (Fallback ohne `timeframes`) — dieselben drei Felder
     # nochmal, damit ein älterer Report-Stand nicht unsymbolisiert aussieht.
     '<span class="hd-k">Invalidierung</span><span class="hd-v">${fmtP(hd.invalidation_price, market)}</span>',

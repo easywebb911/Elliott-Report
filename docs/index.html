@@ -194,6 +194,25 @@
       font-size:.66rem; color:var(--txt-dim); font-variant-numeric:tabular-nums;
     }
     .ext-zone .ext-lbl { text-transform:uppercase; letter-spacing:.08em; margin-right:5px; }
+    /* Extension = ambitionierteres Fibonacci-Level, dünnere Beleglage als
+       schon die Basis-Beobachtungszone (23.08.2026): Batchelor & Ramyar 2006
+       testeten Extensions/Projektionen EXPLIZIT und fanden auch dort keinen
+       Unterschied zum Zufall. .evidence-weak macht das an JEDER
+       Extension-Anzeigestelle auf den ersten Blick erkennbar — reduzierte
+       Deckkraft + gestrichelte Unterstreichung des Labels, DIESELBE
+       Darstellungsform (Text/Zeile) wie bisher, kein Band-statt-Linie-Umbau
+       (das ist ein separater, späterer Auftrag). Reine Anzeige, keine
+       Score-/Ranking-/Berechnungswirkung. */
+    .evidence-weak { opacity:.68; }
+    .evidence-weak .ext-lbl, .evidence-weak .hd-k, .evidence-weak .tf-k,
+    .evidence-weak.k {
+      border-bottom:1px dashed var(--txt-dim); padding-bottom:1px;
+    }
+    .evidence-badge {
+      display:inline-block; margin-left:6px; padding:1px 6px; border-radius:6px;
+      font-size:.56rem; font-weight:700; letter-spacing:.02em; text-transform:none;
+      color:var(--txt-dim); background:var(--bg-met); border:1px dashed var(--brd);
+    }
     /* Zonen-Abstand in Prozent (01.08.2026). NEUTRALE Farbe, immer die
        dimmste Stufe: der Abstand ist ein FAKT, kein Gut/Schlecht — deshalb
        bewusst kein Grün/Rot und keine Vorzeichen-Farbe. Tabellarische Ziffern,
@@ -1495,7 +1514,7 @@
            <span class="k">Auszählung</span><span class="v">${esc(r.count_label || '–')}</span>
            <span class="k">Einstiegskurs</span><span class="v">${fmt(r.entry_close)}</span>
            <span class="k">Beobachtungszone</span><span class="v">${fmt(tz.low)}–${fmt(tz.high)}</span>
-           <span class="k">Extension</span><span class="v">${fmt(ez.low)}–${fmt(ez.high)}</span>
+           <span class="k evidence-weak" title="${FIB_EVIDENZ_EXT}">Extension</span><span class="v evidence-weak">${fmt(ez.low)}–${fmt(ez.high)}</span>
            <span class="k">Invalidierung</span><span class="v">${fmt(r.invalidation_price)}</span>
            <span class="k">max. Gewinn 10T</span><span class="v">${r.max_gain_10d == null ? '–' : fmt(r.max_gain_10d) + ' %'}</span>
            <span class="k">max. Rückgang 10T</span><span class="v">${r.max_drawdown_10d == null ? '–' : fmt(r.max_drawdown_10d) + ' %'}</span>
@@ -1705,6 +1724,15 @@
     const FIB_EVIDENZ = 'Fibonacci-Niveaus: keine über den Zufall hinausgehende '
       + 'Trefferquote wissenschaftlich belegt (Quelle: Batchelor & Ramyar 2006; '
       + 'Tsinaslanidis et al. 2022).';
+    // Extension-spezifischer Zusatz (23.08.2026): Batchelor & Ramyar 2006
+    // testeten Extensions/Projektionen EXPLIZIT (nicht nur Retracements) und
+    // fanden auch dort keinen Unterschied zum Zufall — die Beleglage ist für
+    // Extension-Level damit noch dünner als für die Basis-Beobachtungszone,
+    // die immerhin von mehreren unabhängigen Studien direkt untersucht wurde.
+    // Reiner Anzeige-Text, keine Score-/Ranking-/Berechnungswirkung.
+    const FIB_EVIDENZ_EXT = FIB_EVIDENZ + ' Für Extensions/Projektionen ist die '
+      + 'Beleglage noch dünner: Batchelor & Ramyar (2006) testeten explizit auch '
+      + 'Extensions und fanden auch dort keinen Unterschied zum Zufall.';
     function zoneDistSpan(low, price) {
       if (low === null || low === undefined || !isFinite(Number(low))) return '';
       const txt = zoneDistText(zoneDistPct(low, price));
@@ -2007,7 +2035,7 @@
       // `dist` steht NEBEN .tf-v, nicht darin: .tf-v ist `white-space:nowrap`,
       // ein eingebetteter Abstand würde Zone und Prozentzahl zu EINEM
       // unumbrechbaren Block machen und die 390px-Kachel aufreißen.
-      const pair = (kk, vv, dist) => `<span class="tf-pair"><span class="tf-k">${kk}</span>`
+      const pair = (kk, vv, dist, cls) => `<span class="tf-pair${cls ? ' ' + cls : ''}"><span class="tf-k">${kk}</span>`
         + `<span class="tf-v">${vv}</span>${dist || ''}</span>`;
       const rows = [['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat']].map(([k, lbl]) => {
         const c = tf[k];
@@ -2032,7 +2060,8 @@
             + pair('Zone', zoneStr(c.target_zone),
                    c.target_zone ? zoneDistSpan(c.target_zone.low, cardClose) : '')
             + pair('Ext', zoneStr(c.target_zone_extended),
-                   c.target_zone_extended ? zoneDistSpan(c.target_zone_extended.low, cardClose) : '')
+                   c.target_zone_extended ? zoneDistSpan(c.target_zone_extended.low, cardClose) : '',
+                   'evidence-weak')
             + `</div>${hint}${degreeSpark(c)}</div></div>`;
         }
         // Kein Long-Count -> ehrlicher Struktur-Befund statt bloßem „kein Count".
@@ -2097,8 +2126,9 @@
       // W4-Fällen mit kurzer Netto-Strecke P0->P3, wo sie knapp unter der
       // Basiszone liegen kann). Konsequente Darstellung; Feld ist additiv.
       const extLine = ez
-        ? `<div class="ext-zone"><span class="ext-lbl" title="${FIB_EVIDENZ}">Extension</span>${fmtZone(ez, market)}`
-          + `${zoneDistSpan(ez.low, c.close)}</div>`
+        ? `<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(ez, market)}`
+          + `${zoneDistSpan(ez.low, c.close)}`
+          + `<span class="evidence-badge" title="${FIB_EVIDENZ_EXT}">spekulativ</span></div>`
         : '';
       // „Beobachtungszone erreicht/überschritten": Anfangszustand aus dem
       // Lauf-Schlusskurs; Live-Quote aktualisiert es später (quotePatch →
@@ -2125,7 +2155,7 @@
           <div class="hd-rows">
             <div><span class="hd-k">Invalidierung</span><span class="hd-v">${fmtP(hd.invalidation_price, market)}</span></div>
             <div><span class="hd-k" title="${FIB_EVIDENZ}">Beobachtungszone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span>${hd.target_zone ? zoneDistSpan(hd.target_zone.low, c.close) : ''}</div>
-            <div><span class="hd-k" title="${FIB_EVIDENZ}">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
+            <div class="evidence-weak"><span class="hd-k" title="${FIB_EVIDENZ_EXT}">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
           </div>
           ${degreeSpark(hd)}
         </div>` : '';
@@ -3898,7 +3928,7 @@
         ['Wellen-Ziffern', 'Kleine Ziffern auf den letzten Pivots der Sparkline: <code>0–2</code> beim W2-Setup (P0–P2), <code>0–4</code> beim W4-Setup (P0–P4). 0 ist der Start-Pivot.'],
         ['Invalidierung', 'K.-o.-Kurs, unter dem die Zählung ungültig wird: beim W2-Setup der Start-Pivot P0 (W2 darf W1 nicht &gt;100 % zurücklaufen), beim W4-Setup P1 (W4 darf W1 nicht überlappen).'],
         ['Beobachtungszone', 'Fibonacci-basierte Beobachtungsmarke: W3 = P2 + <code>[1.0–1.618] × W1-Länge</code>; W5 = P4 + <code>[0.618–1.0] × W1</code>. <b>Beleg-Hinweis:</b> Fibonacci-Retracement-/Extension-Level zeigen in rigoros getesteten Studien keine über den Zufall hinausgehende Trefferquote (Quelle: Batchelor &amp; Ramyar 2006; Tsinaslanidis et al. 2022) — die Zone markiert eine Beobachtung, keine Kursprognose.'],
-        ['Extension', 'Ambitioniertere Beobachtungszone (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt. Derselbe Beleg-Vorbehalt wie bei der Beobachtungszone gilt hier unverändert.'],
+        ['Extension', 'Ambitioniertere Beobachtungszone (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt. <b>Beleg-Hinweis:</b> die Beleglage ist hier noch dünner als bei der Basis-Beobachtungszone — Batchelor &amp; Ramyar (2006) testeten Extensions/Projektionen EXPLIZIT und fanden auch dort keinen Unterschied zum Zufall. Auf der Karte deshalb zusätzlich blasser dargestellt und mit dem Hinweis „spekulativ" markiert.'],
         ['Zonen-Abstand (%)', 'Die kleine Prozentzahl an Beobachtungszone und Extension: wie weit die <b>Unterkante</b> der Zone vom <b>aktuell angezeigten</b> Kurs entfernt liegt — <code>(Unterkante / Kurs − 1) × 100</code>. Startet mit dem Kurs des Laufs und rechnet bei jedem Live-Quote-Tick mit, damit Kurs und Prozentzahl auf derselben Karte nie auseinanderlaufen. <b>Warum die Unterkante?</b> Genau an dieser Kante schneidet der <code>target_exceeded</code>-Filter, und genau ab ihr zählt die Erfolgsmessung der Forward-Sammlung einen Treffer — eine andere Kante hier wäre eine zweite, stille Definition von „Zone“. Ein Minus heißt: die Kante liegt bereits unter dem Kurs. Rein im Frontend gerechnet, kein Report-Feld, kein Score-, Filter- oder Sammlungs-Einfluss. Bewusst <b>neutral</b> gefärbt — der Abstand ist ein Fakt, keine Bewertung.'],
         ['Donut / Farbe', 'Der Score als Ring. Schwellen: <code>≥ 60</code> grün, <code>≥ 30</code> orange, <code>≥ 15</code> rot, darunter/ohne Wert grau.'],
         ['Großer Grad', 'Zweite, unabhängige Zählung auf <b>Wochen</b>-Basis für die Top-5 (höherer Wellengrad). Zweitblick zur Einordnung — fließt nicht in den Score ein.'],

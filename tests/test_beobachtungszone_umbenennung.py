@@ -105,10 +105,12 @@ def test_registry_historie_bewusst_unangetastet():
     "'Zone erreicht'",
     # Großer Grad (higher_degree) — Zielzone UND Extension mit Beleg-Hinweis.
     '<span class="hd-k" title="${FIB_EVIDENZ}">Beobachtungszone</span>',
-    '<span class="hd-k" title="${FIB_EVIDENZ}">Extension</span>',
-    # Extension auf der Haupt-Karte — Punkt 4 des Auftrags: gleicher Beleg,
-    # keine visuelle Sonderbehandlung.
-    '<span class="ext-lbl" title="${FIB_EVIDENZ}">Extension</span>',
+    # Extension: seit 23.08.2026 (Beleglage-Auftrag) EIGENER Beleg-Hinweis
+    # (FIB_EVIDENZ_EXT) + `evidence-weak`-Klasse — die im PR #96 dieses
+    # Kommentars noch angekündigte "keine visuelle Sonderbehandlung" war
+    # ausdrücklich als späterer, separater Auftrag vorgesehen; das ist er.
+    '<span class="hd-k" title="${FIB_EVIDENZ_EXT}">Extension</span>',
+    '<span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>',
     # Konfluenz-Chip, Episode-Detail, Chart-Legende, Trade-Journal.
     "row(conf.target, 'Beobachtungszone')",
     '<span class="k">Beobachtungszone</span>',
