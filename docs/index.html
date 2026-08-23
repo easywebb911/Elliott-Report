@@ -277,7 +277,7 @@
     .amb-alt-score { color:var(--txt-sub); }
     @media (prefers-reduced-motion: reduce) {
       .amb-summary::before, .agent-summary::after,
-      .nerd-summary::after { transition:none; }
+      .nerd-summary::after, .cp-summary::after { transition:none; }
     }
     /* Zweite Zählung (großer Grad / Wochen): dezent abgesetzter Block unter den
        Kacheln. Erscheint nur, wenn higher_degree existiert. */
@@ -877,6 +877,32 @@
       color:var(--txt-dim); font-weight:700; margin-right:3px; }
     .agent-foot { font-size:.55rem; color:var(--txt-dim); margin-top:6px;
       font-variant-numeric:tabular-nums; }
+    /* Chart-Vorschau (23.08.2026): Kursverlauf + Zonen-Bänder + 10-Handelstage-
+       Vorschau, je Karte klappbar. DASSELBE Auf-/Zuklapp-Muster wie
+       .agent-block/.agent-summary (KI-Kommentar) — eigene Klassen statt
+       Wiederverwendung derselben, damit ein künftiger Umbau des einen Feldes
+       das andere nicht versehentlich mitzieht. Standardzustand eingeklappt
+       (kein open-Attribut) UND lazy gerendert (s. Toggle-Verdrahtung unten) —
+       das SVG entsteht erst beim tatsächlichen Aufklappen, nicht bei jedem
+       Karten-Render für alle Top-5-Kandidaten gleichzeitig. */
+    .cp-block { margin:0 12px 12px; padding:2px 10px; border:1px solid var(--brd);
+      border-radius:10px; background:rgba(148,163,184,.05); }
+    .cp-summary { display:flex; align-items:center; gap:7px; min-height:44px;
+      cursor:pointer; list-style:none; -webkit-tap-highlight-color:transparent; }
+    .cp-summary::-webkit-details-marker { display:none; }
+    .cp-summary::after { content:"▸"; margin-left:auto; color:var(--txt-dim);
+      font-size:.7rem; transition:transform .15s; }
+    .cp-block[open] .cp-summary::after { transform:rotate(90deg); }
+    .cp-summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px;
+      border-radius:6px; }
+    .cp-body { padding:0 0 8px; }
+    .cp-title { font-size:.58rem; text-transform:uppercase; letter-spacing:.09em;
+      color:var(--txt-sub); font-weight:800; }
+    .cp-badge { font-size:.52rem; font-weight:700; letter-spacing:.03em;
+      text-transform:uppercase; color:var(--txt-dim); background:var(--bg-met);
+      border:1px solid var(--brd); border-radius:999px; padding:1px 6px; }
+    .cp-caption { font-size:.62rem; color:var(--txt-dim); font-style:italic;
+      margin-top:6px; line-height:1.35; }
     /* Chip-Zeile entfernt (doppelt zu den Kacheln; Entfernen-× lebt auf der Kachel). */
     /* Situativer Sync-Status: „noch nicht gesynct"-Chip NUR wenn wirklich etwas
        ungesynct ist (Erfolg meldet ein kurzer Toast, kein Dauertext). */
@@ -1644,6 +1670,115 @@
          </div>`;
     }
 
+    // Chart-Vorschau (23.08.2026, Bau-Auftrag "Kursverlauf + Zonen auf der
+    // Karte"): EIN wiederverwendbares Chart-Element für Haupt-Card (Tagesgrad)
+    // UND „Großer Grad · Wochen"-Block. GRENZEN: keine neue Berechnung, keine
+    // Kursprognose — rechts vom letzten echten Kurspunkt ("heute") werden
+    // AUSSCHLIESSLICH die bereits existierenden Zonen-Bänder unverändert in
+    // die Zukunft fortgeführt; es entsteht KEINE neue Kurslinie im
+    // Vorschau-Bereich (struktureller Test dafür: tests/test_chart_vorschau.py).
+    // Bewusst eine EIGENE Funktion statt einer Extraktion aus `drawEpisodeChart`
+    // — dieselbe Technik (Pivot-Linie, Zonen-Bänder, y-Domäne), aber
+    // `drawEpisodeChart` bleibt unangetastet (GRENZEN), kein Regressionsrisiko
+    // für die bestehende Episode-Detail-Ansicht.
+    //
+    // Geometrie als eigene Konstanten (nicht in der Funktion verschachtelt),
+    // damit der Wert-Test sie unverändert mitlesen kann statt sie ein zweites
+    // Mal zu behaupten.
+    const CP_CHART_W_MIN = 200, CP_CHART_H = 200, CP_CHART_PX = 8,
+          CP_CHART_PYT = 20, CP_CHART_PYB = 16;
+    // Anteil der Chart-Breite für den Vorschau-Bereich — fest, NICHT von der
+    // (unregelmäßig getakteten) Pivot-Anzahl abgeleitet: Pivots liegen nicht
+    // im Gleichabstand über der Zeit, ein daraus abgeleiteter Anteil würde eine
+    // Zeitpräzision vortäuschen, die die Pivot-Darstellung nicht hat.
+    const CP_PREVIEW_FRAC = 0.24;
+    // Vorschau-Horizont: DERSELBE Forward-Testing-Horizont wie die
+    // Validierungs-Registry (scripts/forward_collection.py: HORIZON_DAYS = 10)
+    // — keine neue, eigene Zeitspanne für die Anzeige erfunden.
+    const PREVIEW_HORIZON_DAYS = 10;
+
+    function drawZonePreviewChart(el, opts) {
+      const o = opts || {};
+      const pts = Array.isArray(o.points) ? o.points : [];
+      const ys = pts.map(p => Number(p && p.price)).filter(v => isFinite(v));
+      if (ys.length < 2) {
+        el.innerHTML = '<div class="ep-chart-empty">Kein Kursverlauf verfügbar.</div>';
+        return;
+      }
+      const n = ys.length;
+      // Zonen-Werte UNVERÄNDERT über die fibBand-Formel (ATR-Band, #101) —
+      // exakt dieselbe Formel/Quelle wie an den vier Zahlen-Anzeigestellen,
+      // damit Chart und Zahlen-Anzeige nie auseinanderlaufen können.
+      const tz = fibBand(o.zone, o.atr) || {};
+      const ez = fibBand(o.zoneExt, o.atr) || {};
+      const inval = (o.inval == null) ? null : Number(o.inval);
+
+      const domain = ys.slice();
+      [tz.low, tz.high, ez.low, ez.high, inval].forEach(v => {
+        if (v != null && !isNaN(v)) domain.push(Number(v));
+      });
+      const min = Math.min(...domain), max = Math.max(...domain), span = (max - min) || 1;
+
+      const W = Math.max(el.clientWidth || 320, CP_CHART_W_MIN), H = CP_CHART_H,
+            PX = CP_CHART_PX, PYt = CP_CHART_PYT, PYb = CP_CHART_PYB;
+      const plotW = W - 2 * PX;
+      const histW = plotW * (1 - CP_PREVIEW_FRAC);
+      const todayX = PX + histW;
+      // xOf gilt NUR für die historischen Punkte (Index 0..n-1) — der letzte
+      // Punkt landet exakt auf todayX, das ist der Übergang "echt" -> "Vorschau".
+      const xOf = i => PX + (n > 1 ? (i / (n - 1)) : 0.5) * histW;
+      const yOf = v => H - PYb - ((v - min) / span) * (H - PYt - PYb);
+
+      // Zonen-Bänder über die VOLLE Breite (0..W) — sie gelten historisch UND
+      // fortgeführt in der Vorschau. Gleiche Technik wie drawEpisodeChart,
+      // Extension zusätzlich mit gestricheltem Rand (#100: "blasser,
+      // spekulativer" Charakter, hier auch im Chart erkennbar statt nur beim
+      // Zahlen-Label).
+      const band = (lo, hi, fill, rand) => {
+        if (lo == null || hi == null || isNaN(lo) || isNaN(hi)) return '';
+        const y1 = yOf(Math.max(lo, hi)), y2 = yOf(Math.min(lo, hi));
+        return `<rect x="0" y="${y1.toFixed(1)}" width="${W}" height="${Math.max(0, y2 - y1).toFixed(1)}" fill="${fill}"${rand || ''}/>`;
+      };
+      const extBand = band(ez.low, ez.high, 'rgba(34,197,94,0.07)',
+        ' stroke="var(--txt-dim)" stroke-width="1" stroke-dasharray="4 3"');
+      const tgtBand = band(tz.low, tz.high, 'rgba(34,197,94,0.15)');
+
+      let invLine = '';
+      if (inval != null && !isNaN(inval)) {
+        const iy = yOf(inval).toFixed(1);
+        invLine = `<line x1="0" y1="${iy}" x2="${W}" y2="${iy}" stroke="var(--red)" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.75"/>`;
+      }
+
+      // Historische Schlusskurslinie — NUR bis zum letzten echten Pivot
+      // (xOf(n-1) === todayX per Konstruktion). Danach entsteht bewusst KEIN
+      // weiterer Linien-Punkt (struktureller Test prüft genau das).
+      let lineD = `M${xOf(0).toFixed(1)},${yOf(ys[0]).toFixed(1)}`;
+      for (let i = 1; i < n; i++) lineD += `L${xOf(i).toFixed(1)},${yOf(ys[i]).toFixed(1)}`;
+      const histLine = `<path d="${lineD}" fill="none" stroke="var(--spark-end)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      const endDot = `<circle cx="${xOf(n - 1).toFixed(1)}" cy="${yOf(ys[n - 1]).toFixed(1)}" r="3.4" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.5"/>`;
+
+      // "heute"-Trennlinie: der einzige Beleg im Bild, dass rechts davon keine
+      // Kursdaten mehr existieren, nur fortgeführte Zonen.
+      const todayLine = `<line x1="${todayX.toFixed(1)}" y1="${PYt}" x2="${todayX.toFixed(1)}" y2="${H - PYb}" stroke="var(--txt-dim)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>`;
+      const todayLabel = `<text x="${todayX.toFixed(1)}" y="${(PYt - 6).toFixed(1)}" class="wave-num" text-anchor="middle">heute</text>`;
+      const previewMidX = todayX + (W - PX - todayX) / 2;
+      const previewLabel = `<text x="${previewMidX.toFixed(1)}" y="${(PYt - 6).toFixed(1)}" class="wave-num" text-anchor="middle" opacity="0.7">Vorschau</text>`;
+
+      el.innerHTML =
+        `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+           ${extBand}${tgtBand}${invLine}
+           ${histLine}${endDot}
+           ${todayLine}${todayLabel}${previewLabel}
+         </svg>
+         <div class="ep-legend">
+           <span><i style="border-color:var(--spark-end)"></i>Kursverlauf</span>
+           <span><i style="border-color:var(--grn)"></i>Beobachtungszone</span>
+           <span><i style="border-color:var(--txt-dim);border-top-style:dashed"></i>Extension (spekulativ)</span>
+           <span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>
+         </div>
+         <div class="cp-caption">Vorschau ${PREVIEW_HORIZON_DAYS} Handelstage — keine Kursprognose, nur die Zonen unverändert fortgeführt.</div>`;
+    }
+
     function fmt(n) {
       if (n === null || n === undefined) return '–';
       return Number(n).toLocaleString('de-DE', { maximumFractionDigits: 2 });
@@ -2046,6 +2181,34 @@
         + ` data-waves="${esc(JSON.stringify(count.count_wave_labels || []))}"></div>`;
     }
 
+    // Klappbares Chart-Vorschau-Feld (23.08.2026) — DASSELBE Auf-/Zuklapp-
+    // Muster wie das KI-Kommentar-Feld (agentBlock), s. .cp-*-CSS oben.
+    // Standardmäßig eingeklappt UND lazy gerendert: die Nutzlast (Pivot-Punkte,
+    // Zonen, ATR) wandert nur als data-Attribut mit — `drawZonePreviewChart`
+    // läuft erst beim tatsächlichen Aufklappen (Toggle-Verdrahtung, s. u.), nie
+    // beim Karten-Render selbst. Fail-soft wie `degreeSpark`: unter zwei
+    // Pivot-Punkten entsteht gar kein Feld statt eines leeren/kaputten Charts.
+    function chartPreviewBlock(opts, degreeLabel) {
+      const pts = opts && opts.points;
+      if (!Array.isArray(pts) || pts.length < 2) return '';
+      const payload = {
+        points: pts.map(p => ({ price: p && p.price })),
+        inval: opts.inval ?? null,
+        zone: opts.zone || null,
+        zoneExt: opts.zoneExt || null,
+        atr: (typeof opts.atr === 'number' && isFinite(opts.atr)) ? opts.atr : null,
+      };
+      return `<details class="cp-block">
+        <summary class="cp-summary">
+          <span class="cp-title">Kursverlauf + Zonen</span>
+          <span class="cp-badge">${esc(degreeLabel || '')}</span>
+        </summary>
+        <div class="cp-body">
+          <div class="ep-chart cp-chart" data-cp="${esc(JSON.stringify(payload))}"></div>
+        </div>
+      </details>`;
+    }
+
     function tfPanel(tf, structure, cardClose, market, atr) {
       if (!tf) return '';
       const st = structure || {};
@@ -2176,6 +2339,9 @@
             <div class="evidence-weak"><span class="hd-k" title="${FIB_EVIDENZ_EXT}">Extension</span><span class="hd-v">${zoneStr(fibBand(hd.target_zone_extended, c.atr_14))}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
           </div>
           ${degreeSpark(hd)}
+          ${chartPreviewBlock({ points: hd.chart_points, inval: hd.invalidation_price,
+                                 zone: hd.target_zone, zoneExt: hd.target_zone_extended,
+                                 atr: c.atr_14 }, 'Wochen')}
         </div>` : '';
       // N×-Zähler (rückblickend): wie oft der Ticker in den Top 5 stand
       // (Episoden, nicht Tage). Nur ab N ≥ 2 (1× ist Rauschen). Reine Anzeige.
@@ -2225,6 +2391,9 @@
           </div>
           <div class="spark-svg" data-pts="${esc(JSON.stringify(ys))}" data-dates="${esc(JSON.stringify((c.chart_points || []).map(p => p.date || '')))}" data-inval="${c.invalidation_price ?? ''}" data-waves="${esc(JSON.stringify(c.count_wave_labels || []))}"></div>
         </div>
+        ${chartPreviewBlock({ points: c.chart_points, inval: c.invalidation_price,
+                               zone: c.target_zone, zoneExt: c.target_zone_extended,
+                               atr: c.atr_14 }, 'Tagesgrad')}
         ${tjAddBtn(c, c.market || '')}
       </article>`;
     }
@@ -4611,6 +4780,22 @@
         if (inDetail) renderEpisodeListView(); else closeBacktesting();
       }
     });
+
+    // Chart-Vorschau: lazy rendern — das SVG entsteht erst beim tatsächlichen
+    // Aufklappen (Performance-Vorgabe: nicht bei jedem Karten-Render für alle
+    // Top-5-Kandidaten gleichzeitig). `toggle` bubbelt nicht, aber die
+    // Capture-Phase erreicht trotzdem jedes Element auf dem Weg zum Ziel —
+    // ein EINZIGER Listener auf `document` genügt für alle Karten.
+    document.addEventListener('toggle', (ev) => {
+      const det = ev.target;
+      if (!(det instanceof HTMLElement) || !det.classList.contains('cp-block') || !det.open) return;
+      const el = det.querySelector('.cp-chart');
+      if (!el || el.dataset.rendered) return;
+      el.dataset.rendered = '1';
+      let payload = {};
+      try { payload = JSON.parse(el.dataset.cp || '{}'); } catch (e) { payload = {}; }
+      drawZonePreviewChart(el, payload);
+    }, true);
 
     refresh();
   </script>

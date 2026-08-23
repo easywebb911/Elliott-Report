@@ -143,11 +143,16 @@ def test_watchlistcard_tfpanel_aufruf_bekommt_jetzt_c_atr_14():
 
 
 def test_fibband_wird_nicht_faelschlich_auf_score_oder_invalidierung_angewendet():
-    """Gegenprobe über die GANZE Datei: `fibBand(` taucht NUR an den vier
-    Zonen-Stellen auf, nirgends bei Invalidierung/Score."""
+    """Gegenprobe über die GANZE Datei: `fibBand(` taucht NUR an den bekannten
+    Zonen-Stellen auf, nirgends bei Invalidierung/Score.
+
+    NACHTRAG (23.08.2026, Chart-Vorschau-Auftrag): `drawZonePreviewChart`
+    bringt zwei weitere, legitime Aufrufe (Zone + Extension) hinzu — 9 -> 11.
+    Dieselbe Formel, dieselbe Quelle, s. `test_chart_vorschau.py`."""
     treffer = HTML.count("fibBand(")
     # Definition (1) + 4 Card-/HD-Aufrufe (zone, ez, hd.target_zone,
-    # hd.target_zone_extended) + 2 tfPanel-Aufrufe + 2 Episode-Detail-Aufrufe.
-    assert treffer == 9, f"unerwartete Anzahl fibBand(...)-Fundstellen: {treffer}"
+    # hd.target_zone_extended) + 2 tfPanel-Aufrufe + 2 Episode-Detail-Aufrufe
+    # + 2 Chart-Vorschau-Aufrufe (drawZonePreviewChart: zone, zoneExt).
+    assert treffer == 11, f"unerwartete Anzahl fibBand(...)-Fundstellen: {treffer}"
     assert "fibBand(c.invalidation_price" not in HTML
     assert "fibBand(c.score_heuristic" not in HTML
