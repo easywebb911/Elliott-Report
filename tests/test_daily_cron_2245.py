@@ -21,9 +21,21 @@ ZWEI NETZE (Muster aus test_waehrungssymbole.py/test_beobachtungszone_
 umbenennung.py):
   (a) Von-Hand-dekodierter Cron-Soll-Wert (nicht nur „Datei geändert").
   (b) Konsumenten-Anker — alle Stellen, die von der 21:45-UTC-Annahme
-      abhingen, zeigen jetzt konsistent 22:45; die zwei GRENZEN-Ausnahmen
-      (source_timing_probe.py/.yml, validation_registry.md) bleiben bewusst
-      unangetastet — mit Gegenprobe, damit ein stiller Umbau dort auffiele.
+      abhingen, zeigen jetzt konsistent 22:45; die GRENZEN-Ausnahme
+      validation_registry.md bleibt bewusst unangetastet — mit Gegenprobe,
+      damit ein stiller Umbau dort auffiele.
+
+NACHTRAG (23.08.2026, separater Löschauftrag): die ZWEITE GRENZEN-Ausnahme
+dieser Datei — `source_timing_probe.py`/dessen Workflow-Datei/die
+`.jsonl`-Rohdaten — war zum Zeitpunkt DIESES PRs (#98/#99) bewusst
+unangetastet, WEIL die Sonde damals noch lief bzw. gerade erst abgeschaltet
+hatte. Der geplante Löschweg (im Workflow-Kopf und in
+`docs/validation_registry.md` selbst als „separater, noch offener Schritt"
+angekündigt) ist inzwischen in einem eigenen, späteren PR gegangen worden —
+die Datei existiert nicht mehr. Die zugehörige Gegenprobe unten
+(`test_source_timing_probe_workflow_bewusst_unangetastet`) prüfte GENAU
+DIESE Nicht-Existenz-Grenze; sie ist durch die tatsächliche Löschung erfüllt
+und wurde durch eine Bestätigung ihrer Abwesenheit ersetzt (siehe dort).
 """
 from __future__ import annotations
 
@@ -35,7 +47,6 @@ ROOT = Path(__file__).resolve().parent.parent
 DAILY = (ROOT / ".github/workflows/daily.yml").read_text(encoding="utf-8")
 MAINTENANCE = (ROOT / ".github/workflows/maintenance.yml").read_text(encoding="utf-8")
 STALENESS = (ROOT / ".github/workflows/staleness_check.yml").read_text(encoding="utf-8")
-PROBE_WF = (ROOT / ".github/workflows/source_timing_probe.yml").read_text(encoding="utf-8")
 HTML = (ROOT / "docs/index.html").read_text(encoding="utf-8")
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 CALENDAR_SRC = (ROOT / "scripts/market_calendar.py").read_text(encoding="utf-8")
@@ -113,16 +124,16 @@ def test_maintenance_und_staleness_kommentare_konsistent():
 
 
 # ---------------------------------------------------------------------------
-# Gegenprobe: die zwei bewussten GRENZEN-Ausnahmen bleiben unangetastet
+# Gegenprobe: die verbleibende bewusste GRENZEN-Ausnahme bleibt unangetastet
 # ---------------------------------------------------------------------------
-def test_source_timing_probe_workflow_bewusst_unangetastet():
-    """GRENZEN: source_timing_probe.py, dessen Workflow-Datei und die
-    .jsonl-Rohdaten NICHT verändern. Die Kommentare dort nennen deshalb
-    weiterhin die ALTE Uhrzeit (21:45) — bewusst stehen gelassen, siehe
-    PR-Text für die Begründung. Diese Gegenprobe stellt sicher, dass ein
-    versehentlicher Umbau hier auffiele."""
-    assert "21:45 UTC" in PROBE_WF
-    assert "22:45" not in PROBE_WF
+def test_source_timing_probe_workflow_ist_jetzt_geloescht():
+    """Ersetzt `test_source_timing_probe_workflow_bewusst_unangetastet`
+    (Stand PR #98/#99: die Sonden-Workflow-Datei sollte NICHT angefasst
+    werden, solange sie noch existierte). Seit dem separaten Löschauftrag
+    vom 23.08.2026 existiert die Datei gar nicht mehr — die alte
+    Gegenprobe (Inhalt zeigt weiterhin '21:45 UTC') ist damit gegenstandslos.
+    Neue Gegenprobe: die Datei ist wirklich weg, kein stiller Teil-Rückbau."""
+    assert not (ROOT / ".github/workflows/source_timing_probe.yml").exists()
 
 
 def test_validation_registry_bewusst_unangetastet():

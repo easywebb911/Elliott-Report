@@ -22,21 +22,23 @@ alle.
 STAND 08.08.2026 — ehrlich gezählt, nicht geschätzt: dieser Block existierte in
 `scripts/` **neunmal**. Genutzt wird der gemeinsame Baustein bisher von
 `health_check.py` und `notify.py` (Auftrags-Rahmen); **sieben** Eigenkopien
-stehen noch. Die Liste ist kein Kommentar, der altert — ein Test vergleicht sie
-mit der Wirklichkeit und wird rot, sobald sie nicht mehr stimmt:
+standen noch (**sechs** seit 23.08.2026 — `source_timing_probe.py` wurde mit
+der Wegwerf-Messung komplett entfernt, kein Umbau). Die Liste ist kein
+Kommentar, der altert — ein Test vergleicht sie mit der Wirklichkeit und wird
+rot, sobald sie nicht mehr stimmt:
 
 EIGENKOPIEN-ANFANG
     elliott_pipeline.py · evaluate.py · in_session.py ·
     mark_in_session_creation.py · collect_in_session_evidence.py ·
-    mark_stale_market_records.py · source_timing_probe.py
+    mark_stale_market_records.py
 EIGENKOPIEN-ENDE
 
 Dass Kopien auseinanderlaufen, ist dort keine Vermutung mehr, sondern schon
 passiert: fünf legen beide Verzeichnisse mit Dubletten-Schutz auf den Pfad,
-`source_timing_probe.py` beide **ohne** Schutz, `mark_stale_market_records.py`
-nur `scripts/` (dort heute unschädlich — es importiert `config` nicht). Der
-Umbau der sieben ist bewusst NICHT Teil dieser Änderung; er gehört in einen
-eigenen Auftrag, weil `elliott_pipeline.py` zum Messlauf-Pfad zählt.
+`mark_stale_market_records.py` nur `scripts/` (dort heute unschädlich — es
+importiert `config` nicht). Der Umbau der verbliebenen sechs ist bewusst
+NICHT Teil dieser Änderung; er gehört in einen eigenen Auftrag, weil
+`elliott_pipeline.py` zum Messlauf-Pfad zählt.
 
 BENUTZUNG — als erste Zeile vor `import config`:
 
