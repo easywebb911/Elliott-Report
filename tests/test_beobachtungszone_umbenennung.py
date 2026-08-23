@@ -99,8 +99,9 @@ def test_registry_historie_bewusst_unangetastet():
     '<span class="m-lbl" title="${FIB_EVIDENZ}">Beobachtungszone</span>',
     "'Beobachtungszone überschritten'",
     "'Beobachtungszone erreicht'",
-    # Zeitebenen-Panel (tfPanel): kompaktes Label + Hinweis.
-    "pair('Zone', zoneStr(c.target_zone),",
+    # Zeitebenen-Panel (tfPanel): kompaktes Label + Hinweis. Seit 23.08.2026
+    # (ATR-Band-Auftrag) mit fibBand()-Polsterung — s. dortiger PR-Text.
+    "pair('Zone', zoneStr(fibBand(c.target_zone, atr)),",
     "'Zone überschritten'",
     "'Zone erreicht'",
     # Großer Grad (higher_degree) — Zielzone UND Extension mit Beleg-Hinweis.

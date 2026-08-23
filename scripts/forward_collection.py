@@ -732,6 +732,13 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "vol_ratio_w3_w1": entry.get("vol_ratio_w3_w1"),
         "vol_ratio_w4_w3": entry.get("vol_ratio_w4_w3"),
         "vol_ratio_w2_w1": entry.get("vol_ratio_w2_w1"),
+        # ATR(14) (Messfeld v2, ab 23.08.2026) — bei Anlage in der Pipeline
+        # berechnet, hier NUR aus dem Kandidaten eingefroren (wie das
+        # Volumen-Profil). Reine Anzeige-Band-Breite im Episode-Detail; kein
+        # Score-/Ranking-/Reifungs-Einfluss. Alt-Episoden (vor diesem Datum)
+        # haben das Feld nicht -> None, Anzeige bleibt fail-soft die
+        # ungepolsterte Zone.
+        "atr_14": entry.get("atr_14"),
         # (B) Alternation W2<->W4 (NUR end_of_w4) aus den eingefrorenen Pivots —
         # Rohwerte + Flag; end_of_w2 -> alle null.
         **_alternation_fields(entry.get("chart_points"), entry.get("count_wave_labels")),

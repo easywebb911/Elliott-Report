@@ -1502,7 +1502,8 @@
         `${r.ticker || '?'} ${FLAG[r.market] || ''} · ${r.first_seen_date || ''}`;
       const st = episodeStatus(r);
       const body = document.getElementById('bt-body');
-      const tz = r.target_zone || {}, ez = r.target_zone_extended || {};
+      const tz = fibBand(r.target_zone, r.atr_14) || {};
+      const ez = fibBand(r.target_zone_extended, r.atr_14) || {};
       body.innerHTML =
         `<div class="ep-detail-meta">
            <span>Score <b>${fmt(r.score_heuristic)}</b></span>
@@ -1673,6 +1674,23 @@
       const s = priceSym(market);
       const base = `${fmt(z.low)}–${fmt(z.high)}`;
       return s ? `${base} ${s}` : base;
+    }
+
+    // Band statt Linie (23.08.2026, ATR(14)-Auftrag): die Beobachtungszone/
+    // Extension war bisher eine PRÄZISE Zwei-Werte-Grenze — mehr Genauigkeit,
+    // als eine einzelne Tagesbewegung tatsächlich hergibt. `atr` (ATR(14),
+    // Messfeld v2 aus der Pipeline) polstert die BESTEHENDE Zone NUR für die
+    // Anzeige symmetrisch nach außen (±ATR/2 je Seite, Faktor 1,0×ATR als
+    // Gesamt-Bandbreite — Herleitung an echten Zahlen s. PR-Text). Die
+    // Fibonacci-Berechnung selbst (zone.low/.high, Score, target_exceeded,
+    // die Zonen-Abstands-Kante) bleibt unberührt — reine Anzeige-
+    // Verbreiterung, keine neue Zonen-Definition. Ohne (endliches) ATR
+    // (Offline-/Demo-Modus, Alt-Episoden ohne das Feld) unverändert die
+    // scharfe Original-Zone — fail-soft, kein erfundenes Polster.
+    function fibBand(zone, atr) {
+      if (!zone || !Number.isFinite(atr)) return zone;
+      const pad = atr / 2;
+      return { low: zone.low - pad, high: zone.high + pad };
     }
 
     // ---------------------------------------------------------------------
@@ -2028,7 +2046,7 @@
         + ` data-waves="${esc(JSON.stringify(count.count_wave_labels || []))}"></div>`;
     }
 
-    function tfPanel(tf, structure, cardClose, market) {
+    function tfPanel(tf, structure, cardClose, market, atr) {
       if (!tf) return '';
       const st = structure || {};
       const zoneStr = z => fmtZone(z, market);
@@ -2057,9 +2075,9 @@
             + pair('Inval', fmtP(c.invalidation_price, market))
             // Zonen-Abstand als drittes Glied des Paares — er wandert beim
             // Umbruch mit seiner Zone mit, statt allein in die nächste Zeile.
-            + pair('Zone', zoneStr(c.target_zone),
+            + pair('Zone', zoneStr(fibBand(c.target_zone, atr)),
                    c.target_zone ? zoneDistSpan(c.target_zone.low, cardClose) : '')
-            + pair('Ext', zoneStr(c.target_zone_extended),
+            + pair('Ext', zoneStr(fibBand(c.target_zone_extended, atr)),
                    c.target_zone_extended ? zoneDistSpan(c.target_zone_extended.low, cardClose) : '',
                    'evidence-weak')
             + `</div>${hint}${degreeSpark(c)}</div></div>`;
@@ -2120,13 +2138,13 @@
     function card(c, rank, stand, market) {
       const ys = (c.chart_points || []).map(p => p.price);
       const trendUp = ys.length >= 2 ? ys[ys.length - 1] >= ys[0] : true;
-      const zone = fmtZone(c.target_zone, market);
+      const zone = fmtZone(fibBand(c.target_zone, c.atr_14), market);
       const ez = c.target_zone_extended;
       // Easy-Entscheidung: Extension IMMER anzeigen (auch in den seltenen
       // W4-Fällen mit kurzer Netto-Strecke P0->P3, wo sie knapp unter der
       // Basiszone liegen kann). Konsequente Darstellung; Feld ist additiv.
       const extLine = ez
-        ? `<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(ez, market)}`
+        ? `<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(fibBand(ez, c.atr_14), market)}`
           + `${zoneDistSpan(ez.low, c.close)}`
           + `<span class="evidence-badge" title="${FIB_EVIDENZ_EXT}">spekulativ</span></div>`
         : '';
@@ -2154,8 +2172,8 @@
           <div class="hd-label">${esc(hd.count_label || '')}</div>
           <div class="hd-rows">
             <div><span class="hd-k">Invalidierung</span><span class="hd-v">${fmtP(hd.invalidation_price, market)}</span></div>
-            <div><span class="hd-k" title="${FIB_EVIDENZ}">Beobachtungszone</span><span class="hd-v">${zoneStr(hd.target_zone)}</span>${hd.target_zone ? zoneDistSpan(hd.target_zone.low, c.close) : ''}</div>
-            <div class="evidence-weak"><span class="hd-k" title="${FIB_EVIDENZ_EXT}">Extension</span><span class="hd-v">${zoneStr(hd.target_zone_extended)}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
+            <div><span class="hd-k" title="${FIB_EVIDENZ}">Beobachtungszone</span><span class="hd-v">${zoneStr(fibBand(hd.target_zone, c.atr_14))}</span>${hd.target_zone ? zoneDistSpan(hd.target_zone.low, c.close) : ''}</div>
+            <div class="evidence-weak"><span class="hd-k" title="${FIB_EVIDENZ_EXT}">Extension</span><span class="hd-v">${zoneStr(fibBand(hd.target_zone_extended, c.atr_14))}</span>${hd.target_zone_extended ? zoneDistSpan(hd.target_zone_extended.low, c.close) : ''}</div>
           </div>
           ${degreeSpark(hd)}
         </div>` : '';
@@ -2199,7 +2217,7 @@
         ${confluenceChips(c)}
         ${w3VolChip(c)}
         ${agentBlock(c)}
-        ${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close, market) : hdBlock}
+        ${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close, market, c.atr_14) : hdBlock}
         <div class="spark-wrap">
           <div class="spark-header">
             <span class="spark-title">Pivot-Verlauf</span>
@@ -3929,6 +3947,7 @@
         ['Invalidierung', 'K.-o.-Kurs, unter dem die Zählung ungültig wird: beim W2-Setup der Start-Pivot P0 (W2 darf W1 nicht &gt;100 % zurücklaufen), beim W4-Setup P1 (W4 darf W1 nicht überlappen).'],
         ['Beobachtungszone', 'Fibonacci-basierte Beobachtungsmarke: W3 = P2 + <code>[1.0–1.618] × W1-Länge</code>; W5 = P4 + <code>[0.618–1.0] × W1</code>. <b>Beleg-Hinweis:</b> Fibonacci-Retracement-/Extension-Level zeigen in rigoros getesteten Studien keine über den Zufall hinausgehende Trefferquote (Quelle: Batchelor &amp; Ramyar 2006; Tsinaslanidis et al. 2022) — die Zone markiert eine Beobachtung, keine Kursprognose.'],
         ['Extension', 'Ambitioniertere Beobachtungszone (nur Anzeige, kein Score-Einfluss): W3-Ext = P2 + <code>[1.618–2.618] × W1</code>; W5-Ext = P4 + <code>[0.382–0.618] × |P3−P0|</code>. Wird ausgeblendet, wenn sie degeneriert unter die Basis fällt. <b>Beleg-Hinweis:</b> die Beleglage ist hier noch dünner als bei der Basis-Beobachtungszone — Batchelor &amp; Ramyar (2006) testeten Extensions/Projektionen EXPLIZIT und fanden auch dort keinen Unterschied zum Zufall. Auf der Karte deshalb zusätzlich blasser dargestellt und mit dem Hinweis „spekulativ" markiert.'],
+        ['Band-Breite (ATR)', 'Seit 23.08.2026 wird die angezeigte Spanne von Beobachtungszone und Extension zusätzlich um <code>±ATR(14)/2</code> nach außen gepolstert (ATR = mittlere Tagesspanne der letzten 14 Handelstage; Faktor 1,0×ATR als Gesamt-Bandbreite) — ein unscharfes Band statt einer scharf gezogenen Linie, weil eine einzelne Tagesbewegung selten exakt auf den berechneten Fibonacci-Wert trifft. Reine Anzeige-Verbreiterung: die Fibonacci-Werte oben, der Score und die Zonen-Abstands-Kante bleiben unverändert. Ohne ATR (Offline-/Demo-Modus, ältere Episoden) erscheint weiterhin die scharfe Original-Zone.'],
         ['Zonen-Abstand (%)', 'Die kleine Prozentzahl an Beobachtungszone und Extension: wie weit die <b>Unterkante</b> der Zone vom <b>aktuell angezeigten</b> Kurs entfernt liegt — <code>(Unterkante / Kurs − 1) × 100</code>. Startet mit dem Kurs des Laufs und rechnet bei jedem Live-Quote-Tick mit, damit Kurs und Prozentzahl auf derselben Karte nie auseinanderlaufen. <b>Warum die Unterkante?</b> Genau an dieser Kante schneidet der <code>target_exceeded</code>-Filter, und genau ab ihr zählt die Erfolgsmessung der Forward-Sammlung einen Treffer — eine andere Kante hier wäre eine zweite, stille Definition von „Zone“. Ein Minus heißt: die Kante liegt bereits unter dem Kurs. Rein im Frontend gerechnet, kein Report-Feld, kein Score-, Filter- oder Sammlungs-Einfluss. Bewusst <b>neutral</b> gefärbt — der Abstand ist ein Fakt, keine Bewertung.'],
         ['Donut / Farbe', 'Der Score als Ring. Schwellen: <code>≥ 60</code> grün, <code>≥ 30</code> orange, <code>≥ 15</code> rot, darunter/ohne Wert grau.'],
         ['Großer Grad', 'Zweite, unabhängige Zählung auf <b>Wochen</b>-Basis für die Top-5 (höherer Wellengrad). Zweitblick zur Einordnung — fließt nicht in den Score ein.'],
