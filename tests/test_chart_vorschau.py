@@ -123,6 +123,78 @@ def test_lazy_rendering_ueber_toggle_event_verdrahtet():
     assert ", true);" in block  # Capture-Phase — `toggle` bubbelt nicht
 
 
+def test_beobachtungszone_legende_zeigt_die_flaeche_nicht_die_linie():
+    """Bugfix (Folge-Auftrag nach #104, Easy-Meldung): das Legenden-Symbol vor
+    "Beobachtungszone" zeigte bisher dieselbe helle Linien-Optik wie
+    "Kursverlauf" (`border-color:var(--grn)`, geerbt von `.ep-legend i`s
+    Linien-CSS) — im Chart ist die Beobachtungszone aber eine gefüllte
+    FLÄCHE (`tgtBand`), keine Linie. Soll-Wert: dieselbe Füllfarbe wie
+    `tgtBand` (`rgba(34,197,94,0.15)`), kein Rand (echte Fläche, kein
+    Linien-Rest aus der geerbten CSS)."""
+    koerper = _fn("drawZonePreviewChart")
+    assert '<span><i style="background:rgba(34,197,94,0.15);border:none;height:9px"></i>Beobachtungszone</span>' in koerper
+    # Gegenprobe: die alte, falsche Linien-Optik ist weg.
+    assert '<span><i style="border-color:var(--grn)"></i>Beobachtungszone</span>' not in koerper
+
+
+def test_extension_legende_zeigt_ebenfalls_die_flaeche_mit_gestricheltem_rand():
+    """Zusätzlich gefundene, gleichartige Diskrepanz (AUFTRAG Punkt 3): das
+    Extension-Symbol zeigte bisher NUR den gestrichelten Rand als Linie,
+    ohne die (blasse) Füllfarbe der tatsächlichen `extBand`-Fläche. Jetzt:
+    dieselbe Füllfarbe (`rgba(34,197,94,0.07)`) UND derselbe gestrichelte
+    Rand (`var(--txt-dim)`) wie im Chart — keine neue, eigene Farbe."""
+    koerper = _fn("drawZonePreviewChart")
+    assert ('<span><i style="background:rgba(34,197,94,0.07);border:1px dashed var(--txt-dim);height:9px">'
+            '</i>Extension (spekulativ)</span>') in koerper
+
+
+def test_kursverlauf_und_invalidierung_legende_bleiben_unveraendert_korrekt():
+    """Gegenprobe (AUFTRAG Punkt 3): diese zwei Einträge sind TATSÄCHLICH
+    Linien im Chart (`histLine` solide, `invLine` gestrichelt) — ihre
+    Linien-Symbole waren schon vorher korrekt und bleiben unangetastet."""
+    koerper = _fn("drawZonePreviewChart")
+    assert '<span><i style="border-color:var(--spark-end)"></i>Kursverlauf</span>' in koerper
+    assert '<span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>' in koerper
+
+
+def test_drawepisodechart_legende_bleibt_bewusst_unangetastet():
+    """GRENZEN: nur die NEUE #104-Chart-Legende wird korrigiert. Die
+    bestehende `drawEpisodeChart`-Legende (dieselbe zugrundeliegende
+    Diskrepanz, aber vorbestehend und außerhalb dieses Auftrags) bleibt
+    exakt wie sie war — kein Fix, kein Nebenschaden."""
+    koerper = _fn("drawEpisodeChart")
+    assert '<span><i style="border-color:var(--grn)"></i>Beobachtungszone</span>' in koerper
+
+
+def test_legenden_swatches_stimmen_ECHT_mit_der_gerenderten_flaeche_ueberein():
+    """Der Wert-Test aus dem Auftrag: kein String-Vergleich zweier Literale,
+    sondern ein echter Lauf von `drawZonePreviewChart` — die tatsächlich
+    gerenderte `fill`-Farbe von `tgtBand`/`extBand` im SVG wird gegen die
+    tatsächlich gerenderte `background`-Farbe der Legenden-Swatches
+    verglichen. Soll-Wert explizit benannt: beide MÜSSEN identisch sein."""
+    rec = _MA_REC
+    opts = {
+        "points": [{"price": p} for p in [pt["price"] for pt in rec["chart_points"]]],
+        "inval": rec["invalidation_price"],
+        "zone": rec["target_zone"],
+        "zoneExt": rec["target_zone_extended"],
+        "atr": rec["atr_14"],
+    }
+    ergebnis = _js(f"""
+      const opts = {json.dumps(opts)};
+      const el = {{ clientWidth: 340, innerHTML: '' }};
+      drawZonePreviewChart(el, opts);
+      const svg = el.innerHTML;
+      const tgtFill = svg.match(/<rect[^>]*fill="(rgba\\(34,197,94,0\\.15\\))"/)[1];
+      const extFill = svg.match(/<rect[^>]*fill="(rgba\\(34,197,94,0\\.07\\))"[^>]*stroke=/)[1];
+      const tgtSwatch = svg.match(/<i style="background:(rgba\\(34,197,94,0\\.15\\));border:none[^"]*"><\\/i>Beobachtungszone/)[1];
+      const extSwatch = svg.match(/<i style="background:(rgba\\(34,197,94,0\\.07\\));border:1px dashed[^"]*"><\\/i>Extension/)[1];
+      console.log(JSON.stringify({{ tgtFill, extFill, tgtSwatch, extSwatch }}));
+    """)
+    assert ergebnis["tgtSwatch"] == ergebnis["tgtFill"] == "rgba(34,197,94,0.15)"
+    assert ergebnis["extSwatch"] == ergebnis["extFill"] == "rgba(34,197,94,0.07)"
+
+
 def test_extension_band_bekommt_gestrichelten_rand_im_chart():
     """#100-Optik ('spekulativ') jetzt auch im Chart, nicht nur beim
     Zahlen-Label: gestrichelter Rand NUR auf dem Extension-Band."""
