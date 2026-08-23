@@ -1663,6 +1663,9 @@ def _wl_base_entry(ticker: str) -> Dict:
         "invalidation_price": None,
         "target_zone": None,
         "target_zone_extended": None,
+        # ATR(14) (Messfeld v2, seit #101): additiv, fail-soft None per Default —
+        # dieselbe Semantik wie target_zone/invalidation_price oben.
+        "atr_14": None,
         "chart_points": [],
         "count_wave_labels": [],
         "higher_degree": None,
@@ -1680,9 +1683,18 @@ def _wl_base_entry(ticker: str) -> Dict:
 
 
 def _wl_no_setup_entry(ticker: str, dates: List[str], closes: List[float],
-                       reason: Optional[str], detail: str) -> Dict:
+                       reason: Optional[str], detail: str,
+                       atr_14: Optional[float] = None) -> Dict:
     """Watchlist-Karte OHNE regelkonformes Long-Setup — Kurs + Hinweis statt
-    Verschweigen (bei eigener Watchlist will man den Stand sehen)."""
+    Verschweigen (bei eigener Watchlist will man den Stand sehen).
+
+    ATR(14) (Guardian-Nit aus #101, additiv): `timeframes.week`/`.month`
+    können HIER durchaus einen validen Long-Count mit `target_zone` tragen
+    (der Titel hat nur auf TAGESBASIS kein Setup) — `atr_14` wird deshalb
+    genau wie bei Setup-Einträgen (`build_candidate`) durchgereicht, damit
+    `tfPanel`s Band-Darstellung für diese Zeilen dieselbe Polsterung zeigt.
+    Dieselbe Quelle, dieselbe Berechnung (scripts/volatility.py) — kein
+    zweiter ATR-Wert, keine neue Logik."""
     e = _wl_base_entry(ticker)
     close = closes[-1] if closes else None
     prev = closes[-2] if len(closes) >= 2 else close
@@ -1698,6 +1710,7 @@ def _wl_no_setup_entry(ticker: str, dates: List[str], closes: List[float],
     e["wl_status"] = "no_setup"
     e["note"] = "kein regelkonformes Long-Setup"
     e["reason"] = reason or NO_VALID_COUNT
+    e["atr_14"] = atr_14
     return e
 
 
@@ -1781,7 +1794,7 @@ def build_watchlist_entry(
         entry["note"] = ""
         entry["reason"] = ""
         return entry
-    e = _wl_no_setup_entry(ticker, dates, closes, reason, detail)
+    e = _wl_no_setup_entry(ticker, dates, closes, reason, detail, atr_14=atr_14)
     e["timeframes"] = timeframes
     e["structure"] = structure
     return e

@@ -129,7 +129,10 @@ def test_watchlist_kompaktkarte_traegt_ihr_symbol_und_reicht_market_key_weiter()
     bekommen, derselben Quelle wie die Karten-Historie."""
     koerper = _fn("watchlistCard")
     assert "priceSym(c.market_key)" in koerper
-    assert "tfPanel(c.timeframes, c.structure, c.close, c.market_key)" in koerper
+    # 5. Parameter `c.atr_14` seit dem ATR-Band-Folge-Auftrag (behebt den
+    # Guardian-Nit aus #101) — der Markt-Parameter (`c.market_key`) selbst
+    # ist davon unberührt, nur um den ATR-Parameter ergänzt.
+    assert "tfPanel(c.timeframes, c.structure, c.close, c.market_key, c.atr_14)" in koerper
 
 
 def test_quote_patch_kennt_keine_waehrung_das_ist_der_punkt():
