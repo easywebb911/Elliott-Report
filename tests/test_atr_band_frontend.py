@@ -13,12 +13,19 @@ BEWUSST UNANGETASTET (Widerspruch gemeldet, nicht umgangen — s. PR-Text):
     laut PR #100 schon VORHER Flächen (kein Linie-Problem) und wurden dort
     ausdrücklich als außerhalb des Auftrags markiert
     (`test_ep_chart_baender_bewusst_unangetastet`). Diese Grenze bleibt.
-  - `watchlistCard()`s eigener `tfPanel(...)`-Aufruf (kompakte Watchlist-Karte
-    OHNE Top-5-Setup) bekommt aus Auftrags-Minimalismus keinen ATR-Parameter —
-    diese Fälle carrien in `_wl_no_setup_entry` ohnehin kein `atr_14`-Feld.
   - Der Großer-Grad-Block (Wochen-Grad) nutzt den TÄGLICHEN `c.atr_14` (keine
     eigene Wochen-ATR-Berechnung) — eine bekannte, im PR-Text benannte
     Vereinfachung, kein neuer Netz-/Rechen-Aufwand für dieses Feld.
+
+NACHTRAG (Folge-Auftrag, behebt Guardian-Nit aus #101): `watchlistCard()`s
+eigener `tfPanel(...)`-Aufruf (kompakte Watchlist-Karte OHNE Top-5-Setup)
+bekam ursprünglich bewusst KEINEN ATR-Parameter, weil `_wl_no_setup_entry`
+kein `atr_14`-Feld trug — das erzeugte eine optische Inkonsistenz (No-Setup-
+Titel mit validem Wochen-/Monats-Long-Count zeigten dort eine ungepolsterte
+Zone). Behoben: `_wl_no_setup_entry` friert `atr_14` jetzt genauso ein wie
+Setup-Einträge, und `watchlistCard()` reicht `c.atr_14` durch — siehe
+`test_watchlistcard_tfpanel_aufruf_bekommt_jetzt_c_atr_14` unten und die
+Backend-Tests in `tests/test_atr_no_setup_band.py`.
 
 ZWEI NETZE (Muster aus test_extension_beleglage.py):
   (a) Positiv-Anker — `fibBand` existiert mit der erwarteten Formel, und alle
@@ -125,13 +132,14 @@ def test_drawepisodechart_baender_bewusst_unangetastet():
     assert "fibBand" not in koerper
 
 
-def test_watchlistcard_tfpanel_aufruf_bewusst_ohne_atr_parameter():
-    """Auftrags-Minimalismus: die kompakte Watchlist-Karte (kein Top-5-Setup)
-    bekommt keinen ATR-Parameter — `_wl_no_setup_entry` trägt ohnehin kein
-    `atr_14`-Feld (s. Backend-Tests)."""
+def test_watchlistcard_tfpanel_aufruf_bekommt_jetzt_c_atr_14():
+    """Guardian-Nit aus #101 behoben (Folge-Auftrag): die kompakte
+    Watchlist-Karte (kein Top-5-Setup) reicht jetzt `c.atr_14` genau wie die
+    Setup-Karten durch — `_wl_no_setup_entry` trägt das Feld seither additiv
+    (s. `tests/test_atr_no_setup_band.py`). Vorher (bewusst dokumentierter
+    Nit, jetzt behoben) fehlte hier der 5. Parameter komplett."""
     koerper = _fn("watchlistCard")
-    assert "tfPanel(c.timeframes, c.structure, c.close, c.market_key)" in koerper
-    assert "c.atr_14" not in koerper
+    assert "tfPanel(c.timeframes, c.structure, c.close, c.market_key, c.atr_14)" in koerper
 
 
 def test_fibband_wird_nicht_faelschlich_auf_score_oder_invalidierung_angewendet():
