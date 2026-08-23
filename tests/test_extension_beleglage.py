@@ -23,6 +23,14 @@ ZWEI NETZE (Muster aus test_beobachtungszone_umbenennung.py):
   (b) Negativ-/Regressions-Anker — die Retracement-Zone („Beobachtungszone")
       trägt an KEINER dieser vier Stellen die neue Klasse, und die aus PR #96
       bestehenden Beobachtungszone-Anker bleiben unverändert grün.
+
+NACHTRAG (23.08.2026, ATR-Band-Auftrag): die `zoneStr(c.target_zone)`/
+`zoneStr(c.target_zone_extended)`/`fmtZone(ez, market)`-Aufrufe unten sind auf
+`zoneStr(fibBand(c.target_zone, atr))` usw. aktualisiert — das ist die
+GEPLANTE Line-zu-Band-Umstellung dieses neuen Auftrags (s. dortiger PR-Text),
+keine unbeabsichtigte Änderung. Alles andere in dieser Datei (Klassen-Namen,
+Beleg-Hinweise, die Retracement-/Extension-Asymmetrie selbst) bleibt exakt
+wie in PR #100.
 """
 from __future__ import annotations
 
@@ -68,7 +76,7 @@ def test_fib_evidenz_ext_erweitert_die_bestehende_konstante():
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("anker", [
     # 1. Haupt-Karte (card()): Zeile + Badge, neuer Beleg-Hinweis.
-    '<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(ez, market)}',
+    '<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(fibBand(ez, c.atr_14), market)}',
     '<span class="evidence-badge" title="${FIB_EVIDENZ_EXT}">spekulativ</span></div>',
     # 2. Großer Grad (higher_degree-Block): Zeile abgeschwächt.
     '<div class="evidence-weak"><span class="hd-k" title="${FIB_EVIDENZ_EXT}">Extension</span>',
@@ -90,8 +98,8 @@ def test_pair_helper_hat_optionalen_klassen_parameter():
     koerper = _fn("tfPanel")
     assert "const pair = (kk, vv, dist, cls) =>" in koerper
     assert "pair('Inval', fmtP(c.invalidation_price, market))" in koerper
-    assert "pair('Zone', zoneStr(c.target_zone)," in koerper
-    assert "pair('Ext', zoneStr(c.target_zone_extended)," in koerper
+    assert "pair('Zone', zoneStr(fibBand(c.target_zone, atr))," in koerper
+    assert "pair('Ext', zoneStr(fibBand(c.target_zone_extended, atr))," in koerper
     assert "'evidence-weak')" in koerper
 
 
@@ -111,8 +119,9 @@ def test_retracement_beobachtungszone_traegt_nirgends_evidence_weak():
         "die Retracement-Metrik-Box bleibt ohne evidence-weak"
 
     tf_body = _fn("tfPanel")
-    assert "pair('Zone', zoneStr(c.target_zone),\n                   c.target_zone ? zoneDistSpan(c.target_zone.low, cardClose) : '')" in tf_body, \
-        "der 'Zone'-Aufruf (Retracement) bekommt KEINEN cls-Parameter"
+    assert ("pair('Zone', zoneStr(fibBand(c.target_zone, atr)),\n"
+            "                   c.target_zone ? zoneDistSpan(c.target_zone.low, cardClose) : '')"
+            ) in tf_body, "der 'Zone'-Aufruf (Retracement) bekommt KEINEN cls-Parameter"
 
     ep_body = _fn("showEpisodeDetail")
     assert '<span class="k">Beobachtungszone</span>' in ep_body
@@ -139,7 +148,7 @@ def test_alte_beobachtungszone_anker_aus_pr96_bleiben_unveraendert():
         '<span class="m-lbl" title="${FIB_EVIDENZ}">Beobachtungszone</span>',
         "'Beobachtungszone überschritten'",
         "'Beobachtungszone erreicht'",
-        "pair('Zone', zoneStr(c.target_zone),",
+        "pair('Zone', zoneStr(fibBand(c.target_zone, atr)),",
         '<span class="hd-k" title="${FIB_EVIDENZ}">Beobachtungszone</span>',
         '<span class="k">Beobachtungszone</span>',
     ):

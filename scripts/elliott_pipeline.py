@@ -42,6 +42,7 @@ import forward_collection as fc  # noqa: E402
 import notify  # noqa: E402 — Score-Alert-Push (fail-soft, no-op ohne NTFY_TOPIC)
 from numeric import finite  # noqa: E402 — EIN Finit-Prädikat für alle Guards
 from rules import validate_impulse, validate_partial_to_w4  # noqa: E402
+from volatility import atr14  # noqa: E402 — EINE ATR(14)-Berechnung für alle Aufrufer
 from zigzag import Pivot, zigzag  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -107,6 +108,12 @@ class FetchOutcome:
     dropped_dates: Tuple[str, ...] = ()
     dropped_last_row: int = 0
     dropped_mid_row: int = 0
+    # ATR(14) (Messfeld v2, 23.08.2026): EIN Skalar (aktueller Wert, nicht
+    # Reihe), aus High/Low/Close DESSELBEN Downloads — kein Extra-Call. Fail-
+    # soft None: fehlen High/Low (z. B. offline/synthetisch) oder ist die
+    # Reihe zu kurz für 14 True-Range-Werte, bleibt das Messfeld ehrlich leer
+    # statt eines aus Lücken gemittelten Werts. Siehe scripts/volatility.py.
+    atr_14: Optional[float] = None
 
 
 # Ein Fetcher liefert ein FetchOutcome (Daten ODER Skip-Grund + Detail).
@@ -246,7 +253,7 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
         )
 
     (dates, closes, volumes, dropped, bad_vol,
-     dropped_dates, dropped_last, dropped_mid) = _extract_bars(df)
+     dropped_dates, dropped_last, dropped_mid, highs, lows) = _extract_bars(df)
     if len(closes) < mb:
         return FetchOutcome(
             reason=EMPTY_DATA,
@@ -264,7 +271,8 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
                         dropped_bars=dropped, invalid_volume_bars=bad_vol,
                         dropped_dates=tuple(dropped_dates),
                         dropped_last_row=dropped_last,
-                        dropped_mid_row=dropped_mid)
+                        dropped_mid_row=dropped_mid,
+                        atr_14=atr14(highs, lows, closes))
 
 
 def _extract_bars(df):
@@ -297,16 +305,31 @@ def _extract_bars(df):
     Bar: das Volumen ist ein rein additives Messfeld ohne Score-Wirkung, ein
     Verwerfen würde die Zählung von der Volumen-Verfügbarkeit abhängig machen.
 
-    Returnt ``(dates, closes, volumes|None, dropped_bars, invalid_volume_bars)``.
+    Returnt ``(dates, closes, volumes|None, dropped_bars, invalid_volume_bars,
+    dropped_dates, dropped_last_row, dropped_mid_row, highs|None, lows|None)``.
+
+    High/Low (23.08.2026, ATR-Auftrag): GENAU wie Volumen additiv aus
+    DEMSELBEN Download mitgenommen, ausgerichtet auf dieselben (gefilterten)
+    Bars — kein Extra-Call, keine zweite Quelle. Ein einzelner unbrauchbarer
+    High/Low-Wert wird (wie beim Volumen) NICHT der ganze Bar verworfen,
+    sondern nur das betroffene Feld ``None`` — die ATR-Berechnung selbst
+    entscheidet fail-soft, ob sie mit einer Lücke im Fenster noch rechnen darf
+    (siehe ``scripts/volatility.py``).
     """
     has_vol = "Volume" in getattr(df, "columns", [])
+    has_high = "High" in getattr(df, "columns", [])
+    has_low = "Low" in getattr(df, "columns", [])
     close_col = df["Close"].tolist()
     vol_col = df["Volume"].tolist() if has_vol else None
+    high_col = df["High"].tolist() if has_high else None
+    low_col = df["Low"].tolist() if has_low else None
     idx = list(df.index)
 
     dates: List[str] = []
     closes: List[float] = []
     volumes: List[Optional[float]] = []
+    highs: List[Optional[float]] = []
+    lows: List[Optional[float]] = []
     dropped = bad_vol = 0
     # Diagnose (30.07.2026): Datum und Position der verworfenen Zeilen. Ändert
     # NICHTS am Verwerfen selbst — nur die Auskunft darüber.
@@ -341,6 +364,18 @@ def _extract_bars(df):
             _merke_verworfen(i)
             continue
         closes.append(c)
+        if high_col is not None:
+            try:
+                h = float(high_col[i])
+            except (TypeError, ValueError, IndexError):
+                h = float("nan")
+            highs.append(h if finite(h) else None)
+        if low_col is not None:
+            try:
+                lo = float(low_col[i])
+            except (TypeError, ValueError, IndexError):
+                lo = float("nan")
+            lows.append(lo if finite(lo) else None)
         if vol_col is None:
             continue
         try:
@@ -354,7 +389,8 @@ def _extract_bars(df):
             bad_vol += 1
 
     return (dates, closes, (volumes if has_vol else None), dropped, bad_vol,
-            dropped_dates, dropped_last, dropped_mid)
+            dropped_dates, dropped_last, dropped_mid,
+            (highs if has_high else None), (lows if has_low else None))
 
 
 def fetch_synthetic(ticker: str) -> FetchOutcome:
@@ -1168,6 +1204,7 @@ def build_candidate(
     ticker: str, dates: List[str], closes: List[float],
     exclude_target_reached: bool = True,
     volumes: Optional[Sequence[float]] = None,
+    atr_14: Optional[float] = None,
 ) -> Tuple[Optional[Dict], Optional[str], str]:
     """Baut einen Kandidaten-Eintrag.
 
@@ -1247,6 +1284,10 @@ def build_candidate(
         "invalidation_price": setup["invalidation_price"],
         "target_zone": setup["target_zone"],
         "target_zone_extended": setup["target_zone_extended"],
+        # ATR(14) (Messfeld v2, 23.08.2026, additiv, REINE Anzeige/Band-Breite):
+        # kein Einfluss auf score_heuristic/Ranking/Fibonacci-Berechnung. Fail-
+        # soft None (siehe FetchOutcome.atr_14).
+        "atr_14": atr_14,
         "score_heuristic": score_setup(setup),
         "chart_points": chart_points,
         "count_wave_labels": count_wave_labels,
@@ -1344,6 +1385,7 @@ def _scan_market(
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
     series_sink: Optional[Dict[str, Tuple[int, str, str]]] = None,
+    atr_sink: Optional[Dict[str, float]] = None,
 ) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]], List[Tuple[str, str]]]:
     """Verarbeitet ein Universum (fail-soft je Ticker) — ohne I/O/Logging.
 
@@ -1426,8 +1468,12 @@ def _scan_market(
         # Volumen (Messfeld v1) parallel mitnehmen — additiv, kein Re-Fetch.
         if volume_sink is not None and outcome.volumes is not None:
             volume_sink[ticker] = outcome.volumes
+        # ATR (Messfeld v2) analog mitnehmen — additiv, kein Re-Fetch.
+        if atr_sink is not None and outcome.atr_14 is not None:
+            atr_sink[ticker] = outcome.atr_14
         entry, reason, detail = build_candidate(ticker, dates, closes,
-                                                volumes=outcome.volumes)
+                                                volumes=outcome.volumes,
+                                                atr_14=outcome.atr_14)
         if entry is None:
             _record_skip(ticker, reason or NO_VALID_COUNT, detail)
             continue
@@ -1441,6 +1487,7 @@ def build_market(
     market_key: str, fetcher: Fetcher, weekly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
+    atr_sink: Optional[Dict[str, float]] = None,
 ) -> Dict:
     """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
 
@@ -1459,7 +1506,7 @@ def build_market(
     _series: Dict[str, Tuple[int, str, str]] = {}
     (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
      _letztes_bar) = _scan_market(
-        universe, fetcher, price_sink, volume_sink, _series)
+        universe, fetcher, price_sink, volume_sink, _series, atr_sink)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
@@ -1668,6 +1715,7 @@ def build_watchlist_entry(
     monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
+    atr_sink: Optional[Dict[str, float]] = None,
 ) -> Dict:
     """Volle Analyse EINES Watchlist-Tickers. Wiederverwendet bereits geladene
     Kurse aus price_sink; sonst frischer Fetch. Immer eine Karte (fail-soft).
@@ -1681,6 +1729,9 @@ def build_watchlist_entry(
     # Volumen (Messfeld v1) aus dem Sink wiederverwenden (kein Re-Fetch); bei
     # frischem Abruf unten aus dem Outcome. Fehlt es -> None (Profil wird null).
     volumes = volume_sink.get(ticker) if volume_sink else None
+    # ATR (Messfeld v2) analog aus dem Sink wiederverwenden — sonst None (dann
+    # bleibt die Band-Breite auf der Karte fail-soft leer).
+    atr_14 = atr_sink.get(ticker) if atr_sink else None
     if data is None:
         outcome = fetcher(ticker)
         if outcome.reason is not None or outcome.data is None:
@@ -1690,10 +1741,13 @@ def build_watchlist_entry(
             return _wl_error_entry(ticker, outcome.reason, outcome.detail)
         dates, closes = outcome.data
         volumes = outcome.volumes
+        atr_14 = outcome.atr_14
         if price_sink is not None:
             price_sink[ticker] = (dates, closes)
         if volume_sink is not None and outcome.volumes is not None:
             volume_sink[ticker] = outcome.volumes
+        if atr_sink is not None and outcome.atr_14 is not None:
+            atr_sink[ticker] = outcome.atr_14
     else:
         dates, closes = data
 
@@ -1716,7 +1770,7 @@ def build_watchlist_entry(
     # sie); daher target_exceeded-Filter hier AUS (nur die Markt-Top-5 filtern).
     entry, reason, detail = build_candidate(ticker, dates, closes,
                                             exclude_target_reached=False,
-                                            volumes=volumes)
+                                            volumes=volumes, atr_14=atr_14)
     if entry is not None:
         # Long-Setup vorhanden -> volle Karte inkl. großem Grad (Wochen).
         entry["higher_degree"] = week_count          # == vorher (higher_degree_for)
@@ -1756,6 +1810,7 @@ def build_watchlist(
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     tickers: Optional[Sequence[str]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
+    atr_sink: Optional[Dict[str, float]] = None,
 ) -> Dict:
     """Baut die Watchlist-Sektion (separat von den Märkten, ranking-neutral)."""
     tks = list(tickers) if tickers is not None else load_watchlist()
@@ -1763,7 +1818,7 @@ def build_watchlist(
     counts = {"setup": 0, "no_setup": 0, "error": 0}
     for tk in tks:
         e = build_watchlist_entry(tk, fetcher, weekly_fetcher, monthly_fetcher,
-                                  price_sink, volume_sink)
+                                  price_sink, volume_sink, atr_sink)
         # BEWUSST `market_key`, nicht `market`: die Karten übergeben dem
         # Journal-Knopf bereits `c.market || ''` (bisher immer leer). Ein Feld
         # namens `market` würde also still ändern, was ins Journal geschrieben
@@ -1818,10 +1873,16 @@ def build_report(
     monthly_fetcher (optional): NUR für die Watchlist (Monatsgrad). Die
     Markt-Pipeline (Top-5) bekommt ihn NICHT — sie bleibt Tag+Woche.
     """
+    # ATR (Messfeld v2, 23.08.2026): REIN INTERNER Cache gegen Doppel-Fetch
+    # zwischen Markt-Scan und Watchlist (Muster wie `_series` in build_market)
+    # — bewusst KEIN Parameter von build_report selbst: main()/die Forward-
+    # Sammlung sehen ihn nie (GRENZEN des Auftrags: ATR darf evaluate.py/die
+    # Sammlung nicht erreichen).
+    atr_sink: Dict[str, float] = {}
     markets: Dict[str, Dict] = {}
     for key in config.MARKETS:
         markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink,
-                                    volume_sink)
+                                    volume_sink, atr_sink)
         _annotiere_bar_rueckstand(markets[key], run_timestamp_utc)
     # Sammlungs-Schutz (05.08.2026): welche Märkte legen heute KEINE neuen
     # Episoden an? Die Entscheidung fällt hier, damit sie im Report steht und
@@ -1834,7 +1895,8 @@ def build_report(
     # Watchlist NACH den Märkten und in EIGENEM Feld -> Ranking unberührt, und
     # die Forward-Sammlung (liest nur markets[].candidates) sieht sie nie.
     watchlist = build_watchlist(fetcher, weekly_fetcher, monthly_fetcher,
-                                price_sink, volume_sink=volume_sink)
+                                price_sink, volume_sink=volume_sink,
+                                atr_sink=atr_sink)
     return {
         "schema_version": config.SCHEMA_VERSION,
         "run_timestamp_utc": run_timestamp_utc,

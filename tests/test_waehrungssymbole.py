@@ -84,13 +84,14 @@ def test_markt_erkennung_ist_die_bestehende_quelle_kein_zweiter_test():
     '<div class="cockpit-price"><span data-quote="price">${fmt(c.close)}</span>${priceSym(market) ? ` ${priceSym(market)}` : \'\'}</div>',
     # Invalidierung — Metrik-Box.
     '<span class="m-val inval">${fmtP(c.invalidation_price, market)}</span>',
-    # Zielzone — Metrik-Box (über die `zone`-Variable, s. u.).
-    'const zone = fmtZone(c.target_zone, market);',
-    # Extension. Anker seit 23.08.2026 (Beleglage-Auftrag) auf FIB_EVIDENZ_EXT
-    # und die zusätzliche `evidence-weak`-Klasse aktualisiert -- derselbe
-    # `fmtZone(ez, market)`-Aufruf, den dieser Test eigentlich prüft, ist
+    # Zielzone — Metrik-Box (über die `zone`-Variable, s. u.). Anker seit
+    # 23.08.2026 (ATR-Band-Auftrag) auf `fibBand(...)` aktualisiert — derselbe
+    # `fmtZone(..., market)`-Aufruf, den dieser Test eigentlich prüft, ist
     # unverändert an derselben Stelle.
-    '<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(ez, market)}`',
+    'const zone = fmtZone(fibBand(c.target_zone, c.atr_14), market);',
+    # Extension. Anker seit 23.08.2026 (ATR-Band-Auftrag) ebenso auf
+    # `fibBand(...)` aktualisiert.
+    '<div class="ext-zone evidence-weak"><span class="ext-lbl" title="${FIB_EVIDENZ_EXT}">Extension</span>${fmtZone(fibBand(ez, c.atr_14), market)}`',
     # Großer-Grad-Block (Fallback ohne `timeframes`) — dieselben drei Felder
     # nochmal, damit ein älterer Report-Stand nicht unsymbolisiert aussieht.
     '<span class="hd-k">Invalidierung</span><span class="hd-v">${fmtP(hd.invalidation_price, market)}</span>',
@@ -98,7 +99,8 @@ def test_markt_erkennung_ist_die_bestehende_quelle_kein_zweiter_test():
     # `card()` reicht `market` in jede Sub-Funktion durch, die Preisfelder
     # zeigt — Alternativ-Zählung und Zeitebenen-Panel.
     "${ambiguityBlock(c, market)}",
-    "${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close, market) : hdBlock}",
+    # Seit 23.08.2026 (ATR-Band-Auftrag) mit dem 5. `c.atr_14`-Parameter.
+    "${c.timeframes ? tfPanel(c.timeframes, c.structure, c.close, market, c.atr_14) : hdBlock}",
 ])
 def test_fundstelle_vorhanden(anker):
     assert anker in HTML, anker
@@ -117,7 +119,8 @@ def test_card_bekommt_den_markt_von_beiden_aufrufern():
 
 def test_ambiguityblock_und_tfpanel_haben_den_markt_parameter():
     assert "function ambiguityBlock(c, market) {" in HTML
-    assert "function tfPanel(tf, structure, cardClose, market) {" in HTML
+    # 5. Parameter `atr` seit 23.08.2026 (ATR-Band-Auftrag).
+    assert "function tfPanel(tf, structure, cardClose, market, atr) {" in HTML
 
 
 def test_watchlist_kompaktkarte_traegt_ihr_symbol_und_reicht_market_key_weiter():
