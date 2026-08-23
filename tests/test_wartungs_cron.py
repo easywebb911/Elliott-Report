@@ -227,33 +227,21 @@ def test_leere_feiertagsliste_ist_ein_befund_kein_freifahrtschein(monkeypatch):
     assert len(befunde) == 1 and befunde[0]["rule"] == "feiertagsliste"
 
 
-# Von Hand: PROBE_END_DATE = 2026-08-21. Am Tag selbst noch still (`heute <=
-# ende`), ab dem 22.08. genau EIN Hinweis.
-@pytest.mark.parametrize("tag, soll", [
-    ("2026-08-20", False), ("2026-08-21", False), ("2026-08-22", True),
-    ("2026-12-31", True),
-])
-def test_sonde_abgelaufen_an_eingefrorenen_stichtagen(tag, soll):
-    befunde = mc.check_sonde_abgelaufen(_dt.date.fromisoformat(tag))
-    assert bool(befunde) is soll
-    if soll:
-        assert befunde[0]["rule"] == "sonde_abgelaufen"
-        assert "Löschweg" in befunde[0]["message"]
-
-
-def test_der_sonden_hinweis_kommt_GENAU_EINMAL():
-    """Einmaligkeit ueber den State, nicht ueber die Warn-Drossel.
-
-    Ueber die Drossel kaeme derselbe Hinweis alle drei Wochen bis in alle
-    Ewigkeit — bei einer Sache, die nicht brennt, ist das Rauschen.
-    """
-    spaet = _dt.date(2026, 9, 1)
-    erst = mc.sammle_befunde(spaet, base=ROOT, bereits_gemeldet=())
-    assert any(f["rule"] == "sonde_abgelaufen" for f in erst)
-    danach = mc.sammle_befunde(spaet, base=ROOT,
-                               bereits_gemeldet=("sonde_abgelaufen",))
-    assert not any(f["rule"] == "sonde_abgelaufen" for f in danach), \
-        "der einmalige Hinweis wiederholt sich"
+# Löschweg abgeschlossen (23.08.2026): `check_sonde_abgelaufen` selbst hatte
+# NUR den Zweck, genau diese Löschung anzustoßen (Hinweis "Löschweg: ...vier
+# Dateien..."). Die Sonde (Workflow, Skript, Testdatei, Rohdaten) ist jetzt
+# weg — die Funktion, ihr `EINMALIG`-Eintrag und die beiden Tests, die sie
+# an eingefrorenen Stichtagen bzw. auf Einmaligkeit prüften, sind mit ihr
+# entfernt (vorher: `test_sonde_abgelaufen_an_eingefrorenen_stichtagen`,
+# `test_der_sonden_hinweis_kommt_GENAU_EINMAL`). Gegenprobe unten: der
+# Wächter bleibt sonst unverändert (`EINMALIG` existiert weiter, nur leer).
+def test_sonde_abgelaufen_regel_ist_mit_der_sonde_selbst_entfernt():
+    assert not hasattr(mc, "check_sonde_abgelaufen")
+    assert not hasattr(mc, "probe")
+    assert mc.EINMALIG == ()
+    befunde = mc.sammle_befunde(_dt.date(2026, 9, 1), base=ROOT,
+                                bereits_gemeldet=())
+    assert not any(f["rule"] == "sonde_abgelaufen" for f in befunde)
 
 
 def test_score_review_by_wird_NICHT_gedoppelt():

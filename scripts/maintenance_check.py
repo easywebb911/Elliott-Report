@@ -65,12 +65,6 @@ except Exception as exc:  # pragma: no cover — defensiv
     cal = None
     _IMPORT_FEHLER["market_calendar"] = f"{type(exc).__name__}: {exc}"
 
-try:
-    import source_timing_probe as probe  # noqa: E402
-except Exception as exc:  # pragma: no cover — defensiv
-    probe = None
-    _IMPORT_FEHLER["source_timing_probe"] = f"{type(exc).__name__}: {exc}"
-
 import health_check as hc  # noqa: E402 — EINE Flanken-Logik, kein Nachbau
 import notify  # noqa: E402 — EINE ntfy-Schicht
 
@@ -201,33 +195,12 @@ def check_feiertagsliste(heute: _dt.date,
                 "vorlauf_tage": vorlauf})]
 
 
-def check_sonde_abgelaufen(heute: _dt.date) -> List[Dict]:
-    """Mess-Sonde über ihr Enddatum hinaus → EINMALIGER Hinweis.
-
-    Bewusst kein wiederkehrender Befund: die Sonde schaltet sich selbst ab
-    (`abgelaufen()` → no-op), es brennt also nichts. Sie läuft nur weiter als
-    fünf leere Cron-Läufe pro Werktag, und dafür genügt ein Hinweis. Die
-    Einmaligkeit wird über den State geführt (siehe ``EINMALIG``), nicht über
-    die Warn-Drossel — sonst käme derselbe Hinweis alle drei Wochen bis zum
-    Sankt-Nimmerleins-Tag.
-    """
-    if probe is None:
-        return []            # Sonde weg = Aufräumen erledigt, kein Befund
-    ende = getattr(probe, "PROBE_END_DATE", None)
-    if not isinstance(ende, _dt.date) or heute <= ende:
-        return []
-    return [_finding(
-        "sonde_abgelaufen", WARN,
-        f"Mess-Sonde ist seit {ende.isoformat()} abgelaufen und läuft als "
-        f"no-op weiter (5 Cron-Läufe je Werktag). Löschweg: "
-        f".github/workflows/source_timing_probe.yml, "
-        f"scripts/source_timing_probe.py, tests/test_source_timing_probe.py, "
-        f"data/source_timing_probe.jsonl.",
-        detail={"probe_end_date": ende.isoformat(), "einmalig": True})]
-
-
-#: Regeln, die nach dem ERSTEN Push dauerhaft schweigen.
-EINMALIG = ("sonde_abgelaufen",)
+#: Regeln, die nach dem ERSTEN Push dauerhaft schweigen. Aktuell leer: die
+#: einzige einmalige Regel (`sonde_abgelaufen`, Hinweis auf die abgelaufene
+#: Mess-Sonde) hat ihren Zweck erfüllt — der Löschweg wurde am 23.08.2026
+#: gegangen (Workflow, Skript, Testdatei, Rohdaten entfernt, siehe PR-Text).
+#: Der Mechanismus selbst bleibt für künftige einmalige Hinweise bestehen.
+EINMALIG: Tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +468,6 @@ def sammle_befunde(heute: _dt.date, base: Optional[Path] = None,
     """Alle Prüfungen. ``bereits_gemeldet`` unterdrückt EINMALIGE Hinweise."""
     out: List[Dict] = []
     out.extend(check_feiertagsliste(heute))
-    out.extend(check_sonde_abgelaufen(heute))
     out.extend(check_konstanten_drift())
     out.extend(check_spiegel(base=base))
     out.extend(check_workflow_struktur(base))
