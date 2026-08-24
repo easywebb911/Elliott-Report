@@ -319,32 +319,48 @@ _MA_LOWS = [580.0] + [580.0 - t / 2 for t in _MA_TR]
 
 
 def test_ma_illustratives_atr_ergibt_die_erwartete_groessenordnung():
+    """NACHTRAG (Folge-Auftrag "Extension-Legende"): der exakte Prozentsatz
+    war gegen MAs eingefrorenen Schlusskurs (580,63 am 23.08.2026) gepinnt —
+    `MA["close"]` wandert aber täglich mit dem Pipeline-Lauf (`REPORT` wird
+    LIVE aus `docs/data/report.json` gelesen, s. o.), wodurch der Test bereits
+    auf unverändertem `origin/main` grundlos rot war (per `git stash`
+    bestätigt, s. PR-Text). Auf einen Plausibilitäts-BEREICH umgestellt
+    (0,5–5 % — liquider Large-Cap) statt eines eingefrorenen exakten Werts;
+    `atr==8.5` (die illustrative, hand-konstruierte Serie) bleibt exakt
+    geprüft, das ist datenunabhängig."""
     assert sum(_MA_TR) / ATR_PERIOD == 8.5
     val = atr14(_MA_HIGHS, _MA_LOWS, _MA_CLOSES)
     assert val == 8.5
-    # ~1,46 % des committeten Schlusskurses — plausibel für einen Large-Cap.
-    assert val / MA["close"] * 100 == pytest.approx(1.4639, abs=1e-3)
+    pct = val / MA["close"] * 100
+    assert 0.5 < pct < 5.0, f"ATR-Anteil am Schlusskurs wirkt unplausibel: {pct:.2f} %"
 
 
 def test_ma_band_breite_gegen_echte_zonen_und_invalidierungs_zahlen():
     """Faktor 1.0×ATR als GESAMT-Bandbreite, symmetrisch (±ATR/2 je Seite) um
-    die bestehende (unveränderte!) Fibonacci-Zone gelegt. Die Zahlen zeigen:
-    das Band ist deutlich sichtbar (+32,6 % Zonenbreite), aber klar
-    UNTERGEORDNET gegenüber dem Invalidierungs-Abstand (Polster = 14,6 % davon,
-    Gesamtband = 29,2 % davon) — weder unsichtbar noch dominant."""
+    die bestehende (unveränderte!) Fibonacci-Zone gelegt.
+
+    NACHTRAG (Folge-Auftrag "Extension-Legende"): die exakten Zonen-/
+    Invalidierungs-Zahlen waren gegen einen eingefrorenen MA-Schnappschuss
+    gepinnt — `tz`/`invalidation_price` wandern aber täglich (derselbe
+    Cron-Datendrift wie oben und wie in #108 für `forward_collection.json`
+    gefunden). Umgestellt auf zwei Prüfungen, die unabhängig vom Tagesstand
+    gelten: (1) eine ECHTE, datenunabhängige Formel-Invariante — das Band ist
+    IMMER exakt um `atr` breiter als die Original-Zone; (2) ein
+    Plausibilitäts-Bereich für "sichtbar, aber untergeordnet gegenüber dem
+    Invalidierungs-Abstand" statt einer eingefrorenen exakten Prozentzahl."""
     atr = 8.5
     pad = atr / 2
     tz = MA["target_zone"]
     band = {"low": round(tz["low"] - pad, 4), "high": round(tz["high"] + pad, 4)}
-    assert band == {"low": 597.6647, "high": 632.2401}
 
     orig_width = tz["high"] - tz["low"]
     new_width = band["high"] - band["low"]
-    assert orig_width == pytest.approx(26.0754, abs=1e-3)
-    assert new_width == pytest.approx(34.5754, abs=1e-3)
-    assert (new_width / orig_width - 1) * 100 == pytest.approx(32.58, abs=0.05)
+    # Formel-Invariante: unabhängig vom Tagesstand von tz IMMER exakt atr breiter.
+    assert new_width - orig_width == pytest.approx(atr, abs=1e-6)
 
     inval_dist = MA["close"] - MA["invalidation_price"]
-    assert inval_dist == pytest.approx(29.09, abs=1e-2)
-    assert pad / inval_dist * 100 == pytest.approx(14.61, abs=0.05)
-    assert atr / inval_dist * 100 == pytest.approx(29.22, abs=0.05)
+    assert inval_dist > 0, "Kurs liegt nicht mehr über der Invalidierung — Datensatz prüfen"
+    pad_pct = pad / inval_dist * 100
+    atr_pct = atr / inval_dist * 100
+    assert 1 < pad_pct < 60, f"Polster wirkt unplausibel klein/groß: {pad_pct:.1f} %"
+    assert 1 < atr_pct < 90, f"Gesamtband wirkt unplausibel klein/groß: {atr_pct:.1f} %"
