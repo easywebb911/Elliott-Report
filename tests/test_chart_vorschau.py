@@ -9,11 +9,22 @@ gerendert (Performance-Vorgabe: kein SVG vor dem tatsächlichen Aufklappen).
 
 GRENZEN: keine neue Berechnung — die Zonen-Grenzen kommen unverändert über
 `fibBand(zone, atr)` (#101), derselbe Aufruf wie an den vier bestehenden
-Zahlen-Anzeigestellen. `drawEpisodeChart` selbst bleibt unangetastet (eigene,
-neue Funktion `drawZonePreviewChart` statt Extraktion — kein Regressions-
-risiko für die bestehende Episode-Detail-Ansicht, s. `test_atr_band_
-frontend.py::test_drawepisodechart_baender_bewusst_unangetastet`, das nach
-diesem Auftrag weiterhin grün bleibt).
+Zahlen-Anzeigestellen. `drawEpisodeChart`s ZEICHEN-Logik (Bänder/Linien
+selbst) bleibt unangetastet (eigene, neue Funktion `drawZonePreviewChart`
+statt Extraktion — kein Regressionsrisiko für die bestehende Episode-Detail-
+Ansicht, s. `test_atr_band_frontend.py::test_drawepisodechart_
+baender_bewusst_unangetastet`, das weiterhin grün bleibt).
+
+NACHTRAG (Folge-Auftrag nach #105): `drawEpisodeChart`s eigene Legende hatte
+DIESELBE Diskrepanz wie #104s neuer Chart (Beobachtungszone-Symbol zeigte
+eine helle Linie statt der tatsächlichen Flächen-Füllung) — #105 hatte das
+bewusst NICHT mitgefixt (außerhalb der damaligen Grenzen) und einen
+Gegenprobe-Test hinterlassen. Dieser Auftrag überträgt exakt dieselbe
+#105-Korrektur (identischer Füllfarbe-Literal, keine neue Farbe) auf
+`drawEpisodeChart`s Legende — NUR die Legende, nicht die Bänder/Linien
+selbst. Der alte Gegenprobe-Test (`test_drawepisodechart_legende_bleibt_
+bewusst_unangetastet`) ist jetzt `test_drawepisodechart_legende_ist_jetzt_
+ebenfalls_korrigiert` mit geändertem Soll-Wert.
 
 Zwei Netze (Muster aus test_zonen_abstand.py):
   (a) Literale/String-Anker — laufen überall, ohne Zusatz-Abhängigkeit.
@@ -157,13 +168,58 @@ def test_kursverlauf_und_invalidierung_legende_bleiben_unveraendert_korrekt():
     assert '<span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>' in koerper
 
 
-def test_drawepisodechart_legende_bleibt_bewusst_unangetastet():
-    """GRENZEN: nur die NEUE #104-Chart-Legende wird korrigiert. Die
-    bestehende `drawEpisodeChart`-Legende (dieselbe zugrundeliegende
-    Diskrepanz, aber vorbestehend und außerhalb dieses Auftrags) bleibt
-    exakt wie sie war — kein Fix, kein Nebenschaden."""
+def test_drawepisodechart_legende_ist_jetzt_ebenfalls_korrigiert():
+    """SOLL-WERT GEÄNDERT (Folge-Auftrag nach #105): #105 hatte diese
+    Diskrepanz in `drawEpisodeChart`s eigener Legende bewusst NICHT
+    angefasst (außerhalb der damaligen Auftragsgrenzen) und stattdessen
+    diesen Test als Gegenprobe hinterlassen, dass sie unangetastet bleibt.
+    Dieser Auftrag überträgt exakt dieselbe #105-Korrektur (identischer
+    Füllfarbe-Literal `rgba(34,197,94,0.15)`, keine neue Farbe) auf
+    `drawEpisodeChart` — der alte Soll-Wert (reine Linien-Optik) ist damit
+    absichtlich überholt, nicht mehr die Erwartung."""
     koerper = _fn("drawEpisodeChart")
-    assert '<span><i style="border-color:var(--grn)"></i>Beobachtungszone</span>' in koerper
+    assert '<span><i style="background:rgba(34,197,94,0.15);border:none;height:9px"></i>Beobachtungszone</span>' in koerper
+    # Gegenprobe: die alte, falsche Linien-Optik ist weg.
+    assert '<span><i style="border-color:var(--grn)"></i>Beobachtungszone</span>' not in koerper
+    # Die drei echten Linien-Einträge (Zählung, Verlauf nach Einstieg,
+    # Invalidierung) bleiben unverändert — GRENZEN: nur Beobachtungszone.
+    assert '<span><i style="border-color:var(--spark-end)"></i>Zählung (0–${Math.max(0, waves.length - 1)})</span>' in koerper
+    assert '<span><i style="border-color:var(--ora)"></i>Verlauf nach Einstieg</span>' in koerper
+    assert '<span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>' in koerper
+
+
+# Echter Beispiel-Record, Quelle: data/forward_collection.json, episode_id
+# "PANW@2026-07-22" — hat chart_points, target_zone, invalidation_price.
+_PANW = next(
+    r for r in json.loads((ROOT / "data/forward_collection.json").read_text(encoding="utf-8"))["records"]
+    if r.get("episode_id") == "PANW@2026-07-22"
+)
+
+
+def test_drawepisodechart_legenden_swatch_stimmt_ECHT_mit_der_gerenderten_flaeche_ueberein():
+    """Der Wert-Test aus dem Auftrag, für `drawEpisodeChart`: kein
+    String-Vergleich zweier Literale, sondern ein echter Lauf der Funktion —
+    die tatsächlich gerenderte `fill`-Farbe von `tgtBand` im SVG wird gegen
+    die tatsächlich gerenderte `background`-Farbe des Beobachtungszone-
+    Legenden-Swatches verglichen. Soll-Wert explizit benannt: beide MÜSSEN
+    identisch sein, nämlich `rgba(34,197,94,0.15)`."""
+    if not _NODE:
+        pytest.skip("kein node vorhanden — die Literal-Tests decken denselben Fall")
+    quelle = _fn("drawEpisodeChart")
+    r = _PANW
+    script = f"""
+      const el = {{ clientWidth: 340, innerHTML: '' }};
+      drawEpisodeChart(el, {json.dumps(r)});
+      const svg = el.innerHTML;
+      const tgtFill = svg.match(/<rect[^>]*fill="(rgba\\(34,197,94,0\\.15\\))"/)[1];
+      const swatch = svg.match(/<i style="background:(rgba\\(34,197,94,0\\.15\\));border:none[^"]*"><\\/i>Beobachtungszone/)[1];
+      console.log(JSON.stringify({{ tgtFill, swatch }}));
+    """
+    proc = subprocess.run([_NODE, "-e", quelle + "\n" + script],
+                           capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    ergebnis = json.loads(proc.stdout)
+    assert ergebnis["swatch"] == ergebnis["tgtFill"] == "rgba(34,197,94,0.15)"
 
 
 def test_legenden_swatches_stimmen_ECHT_mit_der_gerenderten_flaeche_ueberein():
