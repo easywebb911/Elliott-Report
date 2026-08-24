@@ -77,14 +77,19 @@ def test_chartpreviewblock_nutzt_dasselbe_klapp_muster_wie_ki_kommentar():
 
 def test_beide_einsatzstellen_sind_verdrahtet():
     """Item 1a (Haupt-Card, `c.chart_points`) und 1b (Großer-Grad-Block,
-    `hd.chart_points`) — je EIN Aufruf, je mit dem passenden Degree-Label."""
+    `hd.chart_points`) — je EIN Aufruf, je mit dem passenden Degree-Label.
+
+    NACHTRAG (Folge-Auftrag "Pivot-Nummerierung"): die Aufrufe bekamen einen
+    fünften Feldnamen (`waves: c.count_wave_labels`/`hd.count_wave_labels`)
+    — dieselbe Quelle wie `drawSparkline`s Nummerierung, keine neue
+    Berechnung. Die Soll-Strings hier entsprechend erweitert."""
     card_body = _fn("card")
     assert "chartPreviewBlock({ points: c.chart_points, inval: c.invalidation_price,\n" \
            "                               zone: c.target_zone, zoneExt: c.target_zone_extended,\n" \
-           "                               atr: c.atr_14 }, 'Tagesgrad')" in card_body
+           "                               atr: c.atr_14, waves: c.count_wave_labels }, 'Tagesgrad')" in card_body
     assert "chartPreviewBlock({ points: hd.chart_points, inval: hd.invalidation_price,\n" \
            "                                 zone: hd.target_zone, zoneExt: hd.target_zone_extended,\n" \
-           "                                 atr: c.atr_14 }, 'Wochen')" in card_body
+           "                                 atr: c.atr_14, waves: hd.count_wave_labels }, 'Wochen')" in card_body
 
 
 def test_hd_chart_nutzt_denselben_taeglichen_atr_wie_die_hd_zahlen():
@@ -92,7 +97,7 @@ def test_hd_chart_nutzt_denselben_taeglichen_atr_wie_die_hd_zahlen():
     eigene Wochen-ATR — sonst würden Zahl und Chart im selben Block
     unterschiedliche Bänder zeigen."""
     koerper = _fn("card")
-    assert "atr: c.atr_14 }, 'Wochen')" in koerper
+    assert "atr: c.atr_14, waves: hd.count_wave_labels }, 'Wochen')" in koerper
 
 
 def test_drawzonepreviewchart_nutzt_fibband_fuer_beide_zonen():
