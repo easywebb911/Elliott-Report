@@ -506,3 +506,100 @@ def test_ohne_ausreichend_pivots_entsteht_kein_kaputtes_chart():
       console.log(JSON.stringify({ hatLeerHinweis: el.innerHTML.includes('Kein Kursverlauf') }));
     """)
     assert ergebnis["hatLeerHinweis"] is True
+
+
+# ---------------------------------------------------------------------------
+# Pivot-Nummerierung (24.08.2026, Folge-Auftrag "Pivot-Nummerierung")
+# ---------------------------------------------------------------------------
+def _ma_opts_mit_waves():
+    rec = _MA_REC
+    return rec, {
+        "points": [{"price": p} for p in [pt["price"] for pt in rec["chart_points"]]],
+        "inval": rec["invalidation_price"],
+        "zone": rec["target_zone"],
+        "zoneExt": rec["target_zone_extended"],
+        "atr": rec["atr_14"],
+        "waves": rec["count_wave_labels"],
+    }
+
+
+def test_pivotnummerierung_existiert_und_nutzt_dieselbe_quelle_wie_drawsparkline():
+    """`drawZonePreviewChart` übernimmt DIESELBE Nummerierungslogik wie
+    `drawSparkline` (waveByIdx aus `count_wave_labels`, Kollisions-Schwelle
+    9px) — Quelle für beide Funktionen ist dasselbe Feld, keine zweite,
+    abweichende Berechnung."""
+    koerper = _fn("drawZonePreviewChart")
+    assert "const waveByIdx = new Map(waves.map(w => [w.index, w.wave]));" in koerper
+    assert "if (x - lastLabelX < 9) continue;" in koerper
+    # dieselbe Kollisions-Konstante wie drawSparkline (dort: `>= 9`, hier
+    # äquivalent als Abbruchbedingung `< 9` formuliert).
+    spark_koerper = _fn("drawSparkline")
+    assert "(x - lastLabelX) >= 9" in spark_koerper
+
+
+def test_pivotnummerierung_wird_additiv_durchgereicht_keine_neue_berechnung():
+    """`chartPreviewBlock` reicht `opts.waves` nur weiter — dieselbe Quelle
+    (`count_wave_labels`), die auch `drawSparkline` über `data-waves` bekommt
+    (s. `card()`-Aufrufstellen, Feld `count_wave_labels`)."""
+    koerper = _fn("chartPreviewBlock")
+    assert "waves: Array.isArray(opts.waves) ? opts.waves : [],\n" in koerper
+    card_body = _fn("card")
+    assert "waves: c.count_wave_labels }, 'Tagesgrad')" in card_body
+    assert "waves: hd.count_wave_labels }, 'Wochen')" in card_body
+
+
+def test_wert_test_anzahl_pivot_labels_entspricht_count_wave_labels_MA():
+    """Der Wert-Test aus dem Auftrag: echter node-Lauf, die Anzahl der
+    gerenderten Nummerierungs-Labels wird gegen den echten Datensatz
+    verglichen. AUSLEGUNG (Exzellenz-Selbstprüfung Punkt 2, s. PR-Text):
+    "Anzahl der historischen Pivot-Punkte" bedeutet hier — wie bei
+    `drawSparkline`, dessen Logik 1:1 übertragen wird — die Anzahl der
+    WELLEN-NUMMERIERTEN Punkte (`count_wave_labels.length`), NICHT die
+    Gesamtzahl aller `chart_points` (`drawSparkline` nummeriert die
+    Vorlauf-Punkte vor `countStart` ebenfalls nicht)."""
+    rec, opts = _ma_opts_mit_waves()
+    soll_anzahl = len(rec["count_wave_labels"])
+    assert soll_anzahl > 0, "MA-Testdatensatz hat keine count_wave_labels mehr — Beispiel-Ticker prüfen"
+    ergebnis = _js(f"""
+      const opts = {json.dumps(opts)};
+      const el = {{ clientWidth: 340, innerHTML: '' }};
+      drawZonePreviewChart(el, opts);
+      const svg = el.innerHTML;
+      const ziffernLabels = [...svg.matchAll(/<text[^>]*class="wave-num"[^>]*>(\\d+)<\\/text>/g)];
+      console.log(JSON.stringify({{ anzahl: ziffernLabels.length, ziffern: ziffernLabels.map(m => m[1]) }}));
+    """)
+    assert ergebnis["anzahl"] == soll_anzahl, \
+        f"{ergebnis['anzahl']} Labels gerendert, erwartet {soll_anzahl} (count_wave_labels von MA)"
+    # Reihenfolge/Werte stimmen mit den echten Wellen-Nummern überein.
+    erwartete_ziffern = [str(w["wave"]) for w in sorted(rec["count_wave_labels"], key=lambda w: w["index"])]
+    assert ergebnis["ziffern"] == erwartete_ziffern
+
+
+def test_strukturell_keine_pivot_labels_im_vorschau_bereich():
+    """Struktureller Test aus dem Auftrag: JEDES Nummerierungs-Label liegt
+    bei x <= todayX — keins rutscht in den Vorschau-Bereich (dort gibt es
+    keine echten Pivot-Punkte, nur fortgeführte Zonen-Bänder)."""
+    rec, opts = _ma_opts_mit_waves()
+    ergebnis = _js(f"""
+      const opts = {json.dumps(opts)};
+      const el = {{ clientWidth: 340, innerHTML: '' }};
+      drawZonePreviewChart(el, opts);
+      const svg = el.innerHTML;
+      const labelXs = [...svg.matchAll(/<text x="([\\d.]+)"[^>]*class="wave-num"[^>]*>\\d+<\\/text>/g)].map(m => parseFloat(m[1]));
+      console.log(JSON.stringify({{ labelXs }}));
+    """)
+    assert len(ergebnis["labelXs"]) > 0, "Testvoraussetzung: mindestens ein Label muss gerendert worden sein"
+    todayX = 254.24  # wie im strukturellen Kurslinien-Test, W=340
+    for x in ergebnis["labelXs"]:
+        assert x <= todayX + 0.5, f"Pivot-Label bei x={x} liegt im Vorschau-Bereich (todayX={todayX})"
+
+
+def test_drawsparkline_und_drawepisodechart_bleiben_unangetastet():
+    """GRENZEN: keine Änderung am bestehenden Pivot-Verlauf-Chart selbst —
+    nur Wiederverwendung seiner Logik im neuen Chart."""
+    spark_koerper = _fn("drawSparkline")
+    assert "const waveByIdx = new Map(waves.map(w => [w.index, w.wave]));" in spark_koerper
+    assert "if (waveByIdx.has(i) && (x - lastLabelX) >= 9) {" in spark_koerper
+    ep_koerper = _fn("drawEpisodeChart")
+    assert "fibBand" not in ep_koerper
+    assert "drawZonePreviewChart" not in ep_koerper
