@@ -743,6 +743,23 @@
     .vsum-stamp { display:inline-block; font-size:0.6875rem; color:var(--txt-dim);
       border:1px solid var(--brd); border-radius:999px; padding:2px 9px;
       margin:2px 0 16px; }
+    /* ── Status-Verteilung (23.08.2026, Easy-Wunsch) ──────────────────────
+       Sechs Status, EINE Quelle: episodeStatus() — dieselbe Klassifikation,
+       die auch jede einzelne Episode-Zeile im Backtesting-Overlay als Badge
+       zeigt. Reine Zwischenstands-Zählung, KEINE Bewertung — deshalb bewusst
+       ohne Grün/Rot-Erfolgs-Semantik im Balken selbst (nur Wiedererkennung
+       der bestehenden st-*-Farben). */
+    .vsdist { margin:0 0 14px; }
+    .vsdist-bar { display:flex; height:10px; border-radius:999px;
+      background:var(--bg-met); overflow:hidden; margin:0 0 8px; }
+    .vsdist-bar i { display:block; height:100%; }
+    .vsdist-rows { display:grid; grid-template-columns:1fr 1fr; gap:4px 10px;
+      font-size:0.71875rem; color:var(--txt-sub); margin:0 0 8px; }
+    .vsdist-rows span { display:flex; align-items:center; gap:5px; white-space:nowrap; }
+    .vsdist-rows i { width:9px; height:9px; border-radius:3px; flex:none; display:inline-block; }
+    .vsdist-rows b { color:var(--txt); font-weight:700; font-variant-numeric:tabular-nums; }
+    .vsdist-rows em { color:var(--txt-dim); font-style:normal; font-variant-numeric:tabular-nums; }
+    .vsdist-note { font-size:0.6875rem; color:var(--txt-dim); line-height:1.4; margin:0 0 14px; }
     /* „Details für Nerds" — dasselbe Muster wie der KI-Kommentar. */
     .nerd-block { border:1px solid var(--brd); border-radius:10px;
       background:rgba(148,163,184,.05); padding:2px 10px; }
@@ -1457,6 +1474,64 @@
       if (r.target_hit === 1)  return { label: 'Zone ✓', cls: 'st-target' };
       if (r.matured)           return { label: 'gereift · neutral', cls: 'st-neutral' };
       return { label: 'offen', cls: 'st-open' };
+    }
+
+    // Status-Verteilung (23.08.2026, Easy-Wunsch): EINE Zähl-Quelle —
+    // episodeStatus() wird für JEDEN Record aufgerufen, keine zweite,
+    // abweichende Klassifikation. Deshalb: die Reihenfolge/Priorität ist
+    // exakt dieselbe wie bei den einzelnen Episode-Badges (Invalidierung vor
+    // Ausschluss) — ein Record, der zugleich ausgeschlossen UND invalidiert
+    // ist, zählt hier als „invalidiert", nicht als „ausgeschlossen" (s.
+    // Hinweistext in statusDistributionHtml). Reihenfolge der Kategorien wie
+    // von Easy im Auftrag genannt.
+    const VSDIST_ORDER = [
+      ['st-open', 'offen'], ['st-ext', 'Extension'], ['st-target', 'Zone'],
+      ['st-inval', 'invalidiert'], ['st-neutral', 'gereift · neutral'],
+      ['st-excluded', 'ausgeschlossen'],
+    ];
+    // Farben: dieselben CSS-Variablen wie die bestehenden st-*-Badges.
+    // Ausnahme "gereift · neutral": die Badges nutzen dieselbe --txt-dim-
+    // Farbe wie "offen" (im Text ausreichend, da unterschiedliche
+    // Beschriftung) — im gestapelten Balken bräuchte das zwei sichtbar
+    // unterscheidbare Segmente, deshalb hier --txt-sub statt --txt-dim für
+    // "neutral" (beide bereits bestehende Graustufen der App, keine neue
+    // Farbe erfunden).
+    const VSDIST_COLOR = {
+      'st-open': 'var(--txt-dim)', 'st-ext': 'var(--spark)', 'st-target': 'var(--grn)',
+      'st-inval': 'var(--red)', 'st-neutral': 'var(--txt-sub)', 'st-excluded': 'var(--ora)',
+    };
+    function fmtPct1(n) {
+      return Number(n).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+    function statusDistribution(records) {
+      const counts = {};
+      VSDIST_ORDER.forEach(([cls]) => { counts[cls] = 0; });
+      records.forEach(r => { const cls = episodeStatus(r).cls; if (cls in counts) counts[cls]++; });
+      const total = records.length;
+      return VSDIST_ORDER.map(([cls, label]) => ({
+        cls, label, n: counts[cls],
+        pct: total ? Math.round(counts[cls] / total * 1000) / 10 : 0,
+      }));
+    }
+    // Reine Zwischenstands-Zählung, KEINE Bewertung — s. GRENZEN. Fail-soft:
+    // ohne Records kein Block (kein "0 %"-Rauschen).
+    function statusDistributionHtml(records) {
+      if (!Array.isArray(records) || !records.length) return '';
+      const dist = statusDistribution(records);
+      const bar = dist.map(d => d.pct > 0
+        ? `<i style="width:${d.pct}%;background:${VSDIST_COLOR[d.cls]}" title="${esc(d.label)}: ${d.n} (${fmtPct1(d.pct)} %)"></i>`
+        : '').join('');
+      const rows = dist.map(d =>
+        `<span><i style="background:${VSDIST_COLOR[d.cls]}"></i>${esc(d.label)} <b>${d.n}</b> <em>${fmtPct1(d.pct)} %</em></span>`
+      ).join('');
+      return `<div class="vsdist">
+          <div class="vsdist-bar">${bar}</div>
+          <div class="vsdist-rows">${rows}</div>
+          <p class="vsdist-note">Zwischenstand aller ${records.length} gesammelten Fälle, keine
+            Bewertung — heuristisch · unvalidiert. 1 Fall ist zugleich ausgeschlossen und
+            invalidiert und zählt hier als „invalidiert" (wie bei den einzelnen Fällen) — bei
+            der n-Schwelle (6 ausgeschlossene Fälle) zählt er weiterhin als ausgeschlossen.</p>
+        </div>`;
     }
 
     function openBacktesting() {
@@ -4169,10 +4244,12 @@
     async function openValidierung() {
       closeMenu();
       openInfo('Validierung', '<p class="info-lead">lädt …</p>');
-      // KLARTEXT-KOPF (28.07.2026): drei Zahlen, zwei Sätze, ein Balken.
-      // Vorher stand hier das komplette Register als Fließtext — korrekt, aber
-      // am Handy unbrauchbar. Alles Fachliche steckt jetzt in „Details für
-      // Nerds"; nichts ist weggefallen, es ist nur zugeklappt.
+      // KLARTEXT-KOPF (28.07.2026, ergänzt 23.08.2026 um die Status-
+      // Verteilung): drei Zahlen, zwei Sätze, ein Balken — jetzt VORAB die
+      // Verteilung der sechs Status über alle gesammelten Fälle, sichtbar
+      // ohne "Details für Nerds" aufzuklappen (Easy-Wunsch). Alles Fachliche
+      // steckt weiterhin in „Details für Nerds"; nichts ist weggefallen, es
+      // ist nur zugeklappt.
       let head = '';
       try {
         if (_val) {
@@ -4186,8 +4263,20 @@
             ? `<p class="vsum-note">${excluded} Fälle zählen nicht mit: Der Kurs
                  war schon in der Beobachtungszone, als sie auf die Liste kamen.</p>`
             : '';
+          // Status-Verteilung: dieselbe Sammlung wie die Watchlist-Historie
+          // (_wlColl, aus loadCollection() gefüllt) — kein neuer Datenabruf,
+          // nur ein Fallback, falls sie beim Öffnen noch nicht geladen war.
+          let records = _wlColl;
+          if (!Array.isArray(records)) {
+            try {
+              const coll = await loadCollection();
+              records = (coll && Array.isArray(coll.records)) ? coll.records : null;
+            } catch (_) { records = null; }
+          }
+          const dist = records ? statusDistributionHtml(records) : '';
           head =
-            `<div class="vsum-hero">
+            `${dist}
+             <div class="vsum-hero">
                <div class="vsum-num"><b>${collected}</b><span>gesammelt</span></div>
                <div class="vsum-num"><b>${matured}</b><span>fertig beobachtet</span></div>
                <div class="vsum-num"><b>${evaluable}</b><span>auswertbar</span></div>
@@ -4218,24 +4307,33 @@
       } catch (_) { /* fail-soft */ }
 
       // Alles Fachliche zugeklappt — Default zu, wie beim KI-Kommentar.
+      // STARK GEKÜRZT (23.08.2026, Easy-Wunsch: "Kauderwelsch" verständlicher
+      // machen). Pflichtinhalt jetzt: die sechs Status aus der Verteilung
+      // oben, in einfacher Sprache erklärt — vorher standen sie NIRGENDS als
+      // Fließtext, nur als Badges in der Fall-Liste. "Was noch mitgemessen
+      // wird" (Konfluenz/Volumen/Ambiguität/KI-Kommentar) trägt weder zum
+      // Verständnis der Status noch zur Grundmethodik bei — entfernt statt
+      // gekürzt (GRENZEN/Auftrag Punkt 5). "Warum ausgeschlossen" ist jetzt
+      // Teil der Status-Liste (kein doppelter Absatz mehr).
       const nerds =
         `<details class="nerd-block">
            <summary class="nerd-summary">Details für Nerds</summary>
            <div class="md-body" style="padding-bottom:8px">
-             <p><strong>Wann gilt der Score als belegt?</strong> Nur wenn die
-               Trefferquote besser ist als blindes Raten (statistisch abgesichert,
-               mehrfach gegengeprüft) <em>und</em> ein zweites Maß bestätigt, dass
-               höhere Punktzahlen wirklich öfter treffen. Beides muss zutreffen —
-               eine gute Quote allein reicht nicht.</p>
-             <p><strong>Warum werden Fälle ausgeschlossen?</strong> Stand der Kurs
-               schon in der Beobachtungszone, als der Titel auf die Liste kam, wäre ein „Treffer"
-               keine Vorhersage gewesen. Solche Fälle bleiben in den Daten, zählen
-               aber nicht mit.</p>
-             <p><strong>Was noch mitgemessen wird:</strong> markante Kursmarken an
-               den Zonenrändern, das Verhalten nach dem Hoch, Handelsvolumen je
-               Welle, wie eindeutig die Zählung war, und wie kritisch der
-               KI-Kommentar ausfiel. Alles nur beobachtet, nichts davon fließt in
-               die Punktzahl.</p>
+             <p><strong>Die sechs Status je Fall:</strong></p>
+             <ul>
+               <li><b>offen</b> — die 10 Handelstage laufen noch, es gibt noch kein Ergebnis.</li>
+               <li><b>Extension</b> — sogar die weiter entfernte Extension-Zone wurde erreicht.</li>
+               <li><b>Zone</b> — die Beobachtungszone wurde erreicht, bevor die Zählung ungültig wurde.</li>
+               <li><b>invalidiert</b> — die Zählung wurde ungültig, bevor eine Zone erreicht wurde.</li>
+               <li><b>gereift · neutral</b> — die 10 Tage sind um, aber weder eine Zone noch die Invalidierung wurde erreicht.</li>
+               <li><b>ausgeschlossen</b> — der Kurs stand schon in der Beobachtungszone, als der Titel
+                 auf die Liste kam; ein Erreichen wäre keine echte Vorhersage gewesen. Bleibt in den
+                 Daten, zählt aber nicht zur Auswertung.</li>
+             </ul>
+             <p><strong>Zwei Rechnungen, nicht eine:</strong> die Haupt-Rechnung zählt erst ab
+               ${_val ? _val.eval_min_n : 100} auswertbaren Fällen. Eine zweite, unterstützende
+               Rechnung läuft zusätzlich ohne Fälle mit besonderen Auffälligkeiten (markiert, s.
+               Register unten) — erst wenn beide zum selben Bild passen, gilt etwas als belegt.</p>
              <p>Darunter steht das vollständige Register im Original — die
                Definitionen sind datiert und werden nie nachträglich geändert.</p>
            </div>
