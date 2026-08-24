@@ -1833,6 +1833,31 @@
       const histLine = `<path d="${lineD}" fill="none" stroke="var(--spark-end)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
       const endDot = `<circle cx="${xOf(n - 1).toFixed(1)}" cy="${yOf(ys[n - 1]).toFixed(1)}" r="3.4" fill="var(--spark-end)" stroke="var(--bg-card)" stroke-width="1.5"/>`;
 
+      // Pivot-Nummerierung (24.08.2026, Easy-Wunsch): DIESELBE Logik wie im
+      // bestehenden Pivot-Verlauf-Chart (drawSparkline) — nur die Punkte der
+      // gezählten Struktur (aus count_wave_labels) tragen ihre Wellen-Ziffer
+      // (0 = Start), mit derselben Kollisions-Schwelle (9px horizontaler
+      // Mindestabstand). AUSSCHLIESSLICH im historischen Teil (i < n; xOf(i)
+      // erreicht per Konstruktion nie die "heute"-Linie) — im Vorschau-
+      // Bereich gibt es keine echten Punkte, nur fortgeführte Zonen-Bänder.
+      // Vertikale Flip-Schwelle an PYt SKALIERT statt der dortigen festen 14
+      // übernommen: drawSparkline ist H=56/PY=7 (Schwelle 14 = 2×PY), dieser
+      // Chart ist H=200/PYt=20 — dieselbe 2×Rand-Formel, nur auf die
+      // tatsächliche Chart-Höhe bezogen (die Zahl 14 selbst 1:1 zu
+      // übernehmen wäre bei diesem Chart falsch: er ist fast 4× so hoch, ein
+      // Punkt bei y=20 läge dann fälschlich "unten" statt am oberen Rand).
+      const waves = Array.isArray(o.waves) ? o.waves : [];
+      const waveByIdx = new Map(waves.map(w => [w.index, w.wave]));
+      let pivotLabels = '', lastLabelX = -999;
+      for (let i = 0; i < n; i++) {
+        if (!waveByIdx.has(i)) continue;
+        const x = xOf(i), y = yOf(ys[i]);
+        if (x - lastLabelX < 9) continue;
+        const ly = (y < 2 * PYt) ? (y + 11) : (y - 6);
+        pivotLabels += `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" class="wave-num" text-anchor="middle">${waveByIdx.get(i)}</text>`;
+        lastLabelX = x;
+      }
+
       // "heute"-Trennlinie: der einzige Beleg im Bild, dass rechts davon keine
       // Kursdaten mehr existieren, nur fortgeführte Zonen.
       const todayLine = `<line x1="${todayX.toFixed(1)}" y1="${PYt}" x2="${todayX.toFixed(1)}" y2="${H - PYb}" stroke="var(--txt-dim)" stroke-width="1" stroke-dasharray="3 3" opacity="0.7"/>`;
@@ -1843,7 +1868,7 @@
       el.innerHTML =
         `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
            ${extBand}${tgtBand}${invLine}
-           ${histLine}${endDot}
+           ${histLine}${endDot}${pivotLabels}
            ${todayLine}${todayLabel}${previewLabel}
          </svg>
          <div class="ep-legend">
@@ -2273,6 +2298,9 @@
         zone: opts.zone || null,
         zoneExt: opts.zoneExt || null,
         atr: (typeof opts.atr === 'number' && isFinite(opts.atr)) ? opts.atr : null,
+        // Pivot-Nummerierung (24.08.2026): dieselbe Quelle wie drawSparkline
+        // (Pivot-Verlauf) — nur weiterreichen, keine neue Berechnung.
+        waves: Array.isArray(opts.waves) ? opts.waves : [],
       };
       return `<details class="cp-block">
         <summary class="cp-summary">
@@ -2417,7 +2445,7 @@
           ${degreeSpark(hd)}
           ${chartPreviewBlock({ points: hd.chart_points, inval: hd.invalidation_price,
                                  zone: hd.target_zone, zoneExt: hd.target_zone_extended,
-                                 atr: c.atr_14 }, 'Wochen')}
+                                 atr: c.atr_14, waves: hd.count_wave_labels }, 'Wochen')}
         </div>` : '';
       // N×-Zähler (rückblickend): wie oft der Ticker in den Top 5 stand
       // (Episoden, nicht Tage). Nur ab N ≥ 2 (1× ist Rauschen). Reine Anzeige.
@@ -2469,7 +2497,7 @@
         </div>
         ${chartPreviewBlock({ points: c.chart_points, inval: c.invalidation_price,
                                zone: c.target_zone, zoneExt: c.target_zone_extended,
-                               atr: c.atr_14 }, 'Tagesgrad')}
+                               atr: c.atr_14, waves: c.count_wave_labels }, 'Tagesgrad')}
         ${tjAddBtn(c, c.market || '')}
       </article>`;
     }
