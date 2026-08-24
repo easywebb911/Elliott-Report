@@ -188,8 +188,42 @@ def test_drawepisodechart_legende_ist_jetzt_ebenfalls_korrigiert():
     assert '<span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>' in koerper
 
 
+def test_drawepisodechart_hat_jetzt_einen_extension_legenden_eintrag():
+    """Folge-Auftrag nach #106: `drawEpisodeChart` zeichnet die Extension-
+    Zone durchaus (`extBand = band(ez.low, ez.high, 'rgba(34,197,94,0.07)')`,
+    Zeile direkt über dem SVG-Body), hatte dafür aber KEINEN Legenden-
+    Eintrag — anders als der #104/#105-Chart, der "Extension (spekulativ)"
+    bereits mit Füllung+gestricheltem Rand zeigt. Exakt derselbe Wortlaut/
+    dieselben Farb-Literale werden hier übernommen, direkt nach
+    "Beobachtungszone" eingefügt (dieselbe Reihenfolge wie #104/#105)."""
+    koerper = _fn("drawEpisodeChart")
+    assert "extBand = band(ez.low, ez.high, 'rgba(34,197,94,0.07)');" in koerper
+    assert ('<span><i style="background:rgba(34,197,94,0.07);border:1px dashed var(--txt-dim);height:9px">'
+            '</i>Extension (spekulativ)</span>') in koerper
+    # Reihenfolge: Beobachtungszone direkt gefolgt von Extension, dann Invalidierung.
+    beob = koerper.index("Beobachtungszone</span>")
+    ext = koerper.index("Extension (spekulativ)</span>")
+    inval = koerper.index("Invalidierung</span>")
+    assert beob < ext < inval
+    # Die vier bestehenden Einträge bleiben in Wortlaut/Position unverändert.
+    assert '<span><i style="border-color:var(--spark-end)"></i>Zählung (0–${Math.max(0, waves.length - 1)})</span>' in koerper
+    assert '<span><i style="border-color:var(--ora)"></i>Verlauf nach Einstieg</span>' in koerper
+    assert '<span><i style="background:rgba(34,197,94,0.15);border:none;height:9px"></i>Beobachtungszone</span>' in koerper
+    assert '<span><i style="border-color:var(--red);border-top-style:dashed"></i>Invalidierung</span>' in koerper
+
+
+def test_ext104105_chart_und_legenden_struktur_unangetastet():
+    """GRENZEN: keine Änderung an #104/#105/#106s bereits korrekten
+    Legenden/Zeichenlogik — nur `drawEpisodeChart` betroffen."""
+    koerper = _fn("drawZonePreviewChart")
+    assert ('<span><i style="background:rgba(34,197,94,0.07);border:1px dashed var(--txt-dim);height:9px">'
+            '</i>Extension (spekulativ)</span>') in koerper
+    assert "extBand = band(ez.low, ez.high, 'rgba(34,197,94,0.07)'," in koerper  # unverändert (mit Rand-Param)
+
+
 # Echter Beispiel-Record, Quelle: data/forward_collection.json, episode_id
-# "PANW@2026-07-22" — hat chart_points, target_zone, invalidation_price.
+# "PANW@2026-07-22" — hat chart_points, target_zone, target_zone_extended,
+# invalidation_price.
 _PANW = next(
     r for r in json.loads((ROOT / "data/forward_collection.json").read_text(encoding="utf-8"))["records"]
     if r.get("episode_id") == "PANW@2026-07-22"
@@ -220,6 +254,47 @@ def test_drawepisodechart_legenden_swatch_stimmt_ECHT_mit_der_gerenderten_flaech
     assert proc.returncode == 0, proc.stderr
     ergebnis = json.loads(proc.stdout)
     assert ergebnis["swatch"] == ergebnis["tgtFill"] == "rgba(34,197,94,0.15)"
+
+
+def test_drawepisodechart_extension_legenden_swatch_stimmt_ECHT_mit_der_gerenderten_flaeche_ueberein():
+    """Derselbe Wert-Test wie oben, jetzt für den neuen Extension-Eintrag:
+    ein echter Lauf von `drawEpisodeChart`, die tatsächlich gerenderte
+    `fill`-Farbe von `extBand` gegen die tatsächlich gerenderte `background`-
+    Farbe des Extension-Swatches verglichen. Soll-Wert: beide identisch
+    `rgba(34,197,94,0.07)`.
+
+    TRANSPARENT DOKUMENTIERT (Exzellenz-Selbstprüfung Punkt 2): `extBand` in
+    `drawEpisodeChart` selbst hat KEINEN `stroke` (nur `fill` — der `band()`-
+    Helfer dieser Funktion nimmt gar keinen Rand-Parameter, anders als
+    `drawZonePreviewChart`s `band()`). Der gestrichelte Rand im Legenden-
+    Swatch ist also eine bewusste, vom Auftrag ausdrücklich verlangte
+    Konsistenz-Entscheidung mit dem #104/#105-Chart (gleiches Symbol für
+    "Extension (spekulativ)" app-weit) — KEIN 1:1-Abbild von `extBand`s
+    eigenem SVG-Attribut. Dieser Test prüft deshalb die FÜLLFARBE exakt
+    (echte Übereinstimmung) und bestätigt zusätzlich explizit, dass
+    `extBand` selbst keinen `stroke` trägt — damit dieser Unterschied
+    sichtbar bleibt, nicht stillschweigend verschwindet."""
+    if not _NODE:
+        pytest.skip("kein node vorhanden — die Literal-Tests decken denselben Fall")
+    quelle = _fn("drawEpisodeChart")
+    r = _PANW
+    script = f"""
+      const el = {{ clientWidth: 340, innerHTML: '' }};
+      drawEpisodeChart(el, {json.dumps(r)});
+      const svg = el.innerHTML;
+      const extRectMatch = svg.match(/<rect[^>]*fill="(rgba\\(34,197,94,0\\.07\\))"[^>]*\\/>/);
+      const extFill = extRectMatch[1];
+      const extRectHatStroke = /stroke=/.test(extRectMatch[0]);
+      const swatch = svg.match(/<i style="background:(rgba\\(34,197,94,0\\.07\\));border:1px dashed var\\(--txt-dim\\);height:9px"><\\/i>Extension \\(spekulativ\\)/)[1];
+      console.log(JSON.stringify({{ extFill, extRectHatStroke, swatch }}));
+    """
+    proc = subprocess.run([_NODE, "-e", quelle + "\n" + script],
+                           capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    ergebnis = json.loads(proc.stdout)
+    assert ergebnis["swatch"] == ergebnis["extFill"] == "rgba(34,197,94,0.07)"
+    assert ergebnis["extRectHatStroke"] is False, \
+        "extBand hat jetzt einen Rand — das wäre eine Änderung der Chart-Zeichenlogik (GRENZEN)"
 
 
 def test_legenden_swatches_stimmen_ECHT_mit_der_gerenderten_flaeche_ueberein():
