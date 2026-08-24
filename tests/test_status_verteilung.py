@@ -3,8 +3,9 @@
 TEIL A: eine neue, sofort sichtbare (kein Aufklappen nötig) Prozent-/
 Balken-Darstellung der sechs `episodeStatus()`-Kategorien (offen/Extension/
 Zone/invalidiert/gereift-neutral/ausgeschlossen) im Validierung-Hauptbereich
-(`openValidierung()`), oberhalb der drei bestehenden Kennzahlen (108
-gesammelt / 70 fertig beobachtet / 64 auswertbar). EINE Zähl-Quelle:
+(`openValidierung()`), oberhalb der drei bestehenden Kennzahlen (Stand
+23.08.2026 bei Einführung: 108 gesammelt / 70 fertig beobachtet / 64
+auswertbar — wächst täglich per Cron weiter, s. u.). EINE Zähl-Quelle:
 `statusDistribution()` ruft `episodeStatus()` für jeden Record auf — dieselbe
 Funktion, die auch jede einzelne Episode-Zeile im Backtesting-Overlay als
 Badge zeigt. Keine neue Berechnung, keine Bewertung.
@@ -12,12 +13,12 @@ Badge zeigt. Keine neue Berechnung, keine Bewertung.
 Rückfrage-Ergebnis (Mini-Stopp vor der Umsetzung): ein Record
 (`JUN3.DE@2026-08-06`) ist zugleich PRU-ausgeschlossen UND invalidiert.
 `episodeStatus()` prüft `invalidated` VOR `_recExcluded` (bestehende
-Priorität, unverändert) — der Record zählt deshalb hier als "invalidiert"
-(17 statt 16) statt als "ausgeschlossen" (5 statt 6). Die bestehende
-Vsum-Notiz ("6 Fälle zählen nicht mit") nutzt eine ANDERE, ebenfalls
-bestehende Definition (`matured - evaluable`, backend-seitig über
-`eval_counts`) und bleibt bei 6 — unverändert, GRENZEN. Easy hat entschieden:
-`episodeStatus()` 1:1 übernehmen (5/17), Diskrepanz im UI-Text erklären
+Priorität, unverändert) — der Record zählt deshalb hier als "invalidiert",
+nicht als "ausgeschlossen". Die bestehende Vsum-Notiz ("X Fälle zählen nicht
+mit") nutzt eine ANDERE, ebenfalls bestehende Definition (`matured -
+evaluable`, backend-seitig über `eval_counts`) und zählt diesen Record
+weiterhin als ausgeschlossen — unverändert, GRENZEN. Easy hat entschieden:
+`episodeStatus()` 1:1 übernehmen, Diskrepanz im UI-Text erklären
 (`statusDistributionHtml`s Hinweistext).
 
 TEIL B: "Details für Nerds" stark gekürzt, mit einer neuen, Pflicht-Erklärung
@@ -28,10 +29,21 @@ Suggestion vor n≥100).
 Zwei Netze (Muster aus test_zonen_abstand.py/test_chart_vorschau.py):
   (a) Literale/String-Anker — laufen überall, ohne Zusatz-Abhängigkeit.
   (b) node: `statusDistribution()`/`statusDistributionHtml()` WIRKLICH
-      ausgeführt gegen die echten 108 Records aus
+      ausgeführt gegen die echten, AKTUELLEN Records aus
       `data/forward_collection.json` — die Prozent-Verteilung von Hand
-      nachgerechnet und als Soll-Wert hinterlegt. Fehlt node, greift (a)
-      allein (skip).
+      nachgerechnet (`_soll_verteilung()`, live gegen die Datei, KEIN
+      eingefrorener Schnappschuss — die Sammlung wächst täglich per Cron,
+      ein hartkodierter Soll-Wert würde grundlos veralten) und als Soll-Wert
+      hinterlegt. Fehlt node, greift (a) allein (skip).
+
+NACHTRAG (Folge-Auftrag "Nerds-Rohtext raus"): beim Ausführen dieser Datei
+fiel auf, dass die ursprüngliche Fassung (#107) die Soll-Werte als Literale
+(108/23/19/20/17/24/5) eingefroren hatte — bereits am nächsten Tag durch den
+Cron auf 109 Records gewachsen und dadurch grundlos rot, unabhängig von
+jeder inhaltlichen Änderung (per `git stash` gegen den unveränderten
+`origin/main`-Stand bestätigt). Auf `_soll_verteilung()` umgestellt: dieselbe
+Rechen-/Vergleichslogik, aber immer live gegen die aktuelle Datei — bleibt
+dauerhaft grün, ohne die Aussagekraft des Wert-Tests zu verlieren.
 """
 from __future__ import annotations
 
@@ -215,42 +227,51 @@ def _js(script: str):
     return json.loads(r.stdout)
 
 
-def test_verteilung_von_hand_nachgerechnet_gegen_echte_108_records():
-    """Der Wert-Test aus dem Auftrag: mit dem committeten Stand von
-    `data/forward_collection.json` (108 Records) von Hand nachgerechnet
-    (Python, unabhängig von `statusDistribution`) und gegen den ECHTEN
-    node-Lauf verglichen."""
-    def rec_excluded(r):
-        return bool(r.get("pre_reached_target") or r.get("pre_reached_ext") or r.get("pre_guard_contaminated"))
+def _rec_excluded(r):
+    return bool(r.get("pre_reached_target") or r.get("pre_reached_ext") or r.get("pre_guard_contaminated"))
 
-    def status(r):
-        if r.get("invalidated") == 1:
-            return "st-inval"
-        if rec_excluded(r):
-            return "st-excluded"
-        if r.get("ext_hit") == 1:
-            return "st-ext"
-        if r.get("target_hit") == 1:
-            return "st-target"
-        if r.get("matured"):
-            return "st-neutral"
-        return "st-open"
 
+def _status(r):
+    if r.get("invalidated") == 1:
+        return "st-inval"
+    if _rec_excluded(r):
+        return "st-excluded"
+    if r.get("ext_hit") == 1:
+        return "st-ext"
+    if r.get("target_hit") == 1:
+        return "st-target"
+    if r.get("matured"):
+        return "st-neutral"
+    return "st-open"
+
+
+_LABEL = {
+    "st-open": "offen", "st-ext": "Extension", "st-target": "Zone",
+    "st-inval": "invalidiert", "st-neutral": "gereift · neutral", "st-excluded": "ausgeschlossen",
+}
+
+
+def _soll_verteilung():
+    """Von Hand nachgerechnet (Python, unabhängig von `statusDistribution`) —
+    IMMER gegen den aktuell committeten `data/forward_collection.json`-Stand,
+    nicht gegen eine eingefrorene Momentaufnahme: die Sammlung wächst
+    fortlaufend (täglicher Cron), ein hartkodierter Soll-Wert würde am
+    nächsten Lauf veralten und den Test grundlos rot färben — unabhängig
+    davon, ob irgendjemand an diesem Bereich etwas geändert hat."""
     counts = {"st-open": 0, "st-ext": 0, "st-target": 0, "st-inval": 0, "st-neutral": 0, "st-excluded": 0}
     for r in _RECORDS:
-        counts[status(r)] += 1
+        counts[_status(r)] += 1
     total = len(_RECORDS)
+    pct = {cls: round(n / total * 1000) / 10 for cls, n in counts.items()}
+    return counts, pct, total
 
-    assert total == 108, f"Datensatz hat sich verändert ({total} statt 108) — Soll-Werte neu ziehen"
-    assert counts == {
-        "st-open": 23, "st-ext": 19, "st-target": 20,
-        "st-inval": 17, "st-neutral": 24, "st-excluded": 5,
-    }
-    soll_pct = {cls: round(n / total * 1000) / 10 for cls, n in counts.items()}
-    assert soll_pct == {
-        "st-open": 21.3, "st-ext": 17.6, "st-target": 18.5,
-        "st-inval": 15.7, "st-neutral": 22.2, "st-excluded": 4.6,
-    }
+
+def test_verteilung_von_hand_nachgerechnet_gegen_echte_records():
+    """Der Wert-Test aus dem Auftrag: mit dem AKTUELLEN Stand von
+    `data/forward_collection.json` von Hand nachgerechnet (Python, unabhängig
+    von `statusDistribution`) und gegen den ECHTEN node-Lauf verglichen."""
+    counts, soll_pct, total = _soll_verteilung()
+    assert sum(counts.values()) == total
 
     ergebnis = _js(f"""
       const records = {json.dumps(_RECORDS)};
@@ -264,32 +285,32 @@ def test_verteilung_von_hand_nachgerechnet_gegen_echte_108_records():
         assert ergebnis[cls]["pct"] == soll_pct[cls], f"{cls}: node={ergebnis[cls]['pct']} vs. Hand={soll_pct[cls]}"
 
 
-def test_summe_der_counts_ergibt_108():
+def test_summe_der_counts_ergibt_die_gesamtzahl_records():
+    _counts, _pct, total = _soll_verteilung()
     ergebnis = _js(f"""
       const records = {json.dumps(_RECORDS)};
       const dist = statusDistribution(records);
       console.log(JSON.stringify(dist.reduce((s, d) => s + d.n, 0)));
     """)
-    assert ergebnis == 108
+    assert ergebnis == total
 
 
 def test_gerenderter_balken_und_zeilen_zeigen_die_echten_zahlen():
     """DOM-/Snapshot-Test: die tatsächlich gerenderte HTML-Ausgabe enthält
     Name + Anzahl + Prozent für alle sechs Kategorien, mit den von Hand
-    nachgerechneten Werten."""
+    nachgerechneten (aktuellen) Werten."""
+    counts, soll_pct, _total = _soll_verteilung()
+
+    def fmt1(n):
+        return f"{n:.1f}".replace(".", ",")
+
     ergebnis = _js(f"""
       const records = {json.dumps(_RECORDS)};
       const html = statusDistributionHtml(records);
       console.log(JSON.stringify(html));
     """)
-    for erwartet in (
-        "offen <b>23</b> <em>21,3 %</em>",
-        "Extension <b>19</b> <em>17,6 %</em>",
-        "Zone <b>20</b> <em>18,5 %</em>",
-        "invalidiert <b>17</b> <em>15,7 %</em>",
-        "gereift · neutral <b>24</b> <em>22,2 %</em>",
-        "ausgeschlossen <b>5</b> <em>4,6 %</em>",
-    ):
+    for cls, label in _LABEL.items():
+        erwartet = f"{label} <b>{counts[cls]}</b> <em>{fmt1(soll_pct[cls])} %</em>"
         assert erwartet in ergebnis, f"fehlt im gerenderten HTML: {erwartet!r}"
     for verboten in ("Trefferquote", "Erfolgsquote"):
         assert verboten not in ergebnis

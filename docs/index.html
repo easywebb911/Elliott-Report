@@ -4240,7 +4240,12 @@
       openInfo('Methodik', html);
     }
 
-    // b) Validierung — rendert docs/validation_registry.md + Panel-Zähler.
+    // b) Validierung — Panel-Zähler + Status-Verteilung + Kurzerklärung.
+    // Der rohe Registry-Volltext wird NICHT mehr im Frontend gerendert
+    // (23.08.2026, Easy-Wunsch: "Wirr Warr" raus) — nur noch ein Verweis auf
+    // die Datei im Repo. docs/validation_registry.md selbst bleibt
+    // vollständig/ungekürzt im Repo bestehen, wird nur nicht mehr ungefragt
+    // ausgerollt.
     async function openValidierung() {
       closeMenu();
       openInfo('Validierung', '<p class="info-lead">lädt …</p>');
@@ -4295,17 +4300,6 @@
              + 'werden. Der Stand steht auch im ☰ → Lauf-Status.</p>';
       }
 
-      let mdHtml = '<p class="info-lead">Register konnte nicht geladen werden.</p>';
-      try {
-        const bust = '?t=' + Date.now();
-        let md = null;
-        for (const p of ['validation_registry.md', '../docs/validation_registry.md']) {
-          try { const r = await fetch(p + bust, { cache: 'no-store' }); if (r.ok) { md = await r.text(); break; } }
-          catch (_) {}
-        }
-        if (md) mdHtml = `<div class="md-body">${_renderMarkdown(md)}</div>`;
-      } catch (_) { /* fail-soft */ }
-
       // Alles Fachliche zugeklappt — Default zu, wie beim KI-Kommentar.
       // STARK GEKÜRZT (23.08.2026, Easy-Wunsch: "Kauderwelsch" verständlicher
       // machen). Pflichtinhalt jetzt: die sechs Status aus der Verteilung
@@ -4334,53 +4328,16 @@
                ${_val ? _val.eval_min_n : 100} auswertbaren Fällen. Eine zweite, unterstützende
                Rechnung läuft zusätzlich ohne Fälle mit besonderen Auffälligkeiten (markiert, s.
                Register unten) — erst wenn beide zum selben Bild passen, gilt etwas als belegt.</p>
-             <p>Darunter steht das vollständige Register im Original — die
-               Definitionen sind datiert und werden nie nachträglich geändert.</p>
+             <p>Das vollständige, ungekürzte Validierungsprotokoll mit allen datierten
+               Einträgen liegt im Projekt-Repository:
+               <a href="https://github.com/${GH_OWNER}/${GH_REPO}/blob/${GH_BRANCH}/docs/validation_registry.md"
+                  target="_blank" rel="noopener noreferrer">docs/validation_registry.md</a> —
+               die Definitionen werden dort nie nachträglich geändert.</p>
            </div>
-           ${mdHtml}
          </details>`;
 
       // Overlay evtl. inzwischen geschlossen? Nur schreiben, wenn noch offen.
       if (_infoOpen) document.getElementById('info-body').innerHTML = head + nerds;
-    }
-
-    // Minimaler, sicherer Markdown-Renderer (nur die im Register genutzten
-    // Konstrukte). HTML wird zuerst escaped -> kein Injection-Risiko. Aufeinander
-    // folgende Zeilen desselben Block-Typs werden zusammengefasst (weich
-    // umbrochene Absätze/mehrzeilige Blockquotes ergeben EINEN Block).
-    function _renderMarkdown(md) {
-      const inline = (s) => esc(s)
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      const lines = md.replace(/\r/g, '').split('\n');
-      let out = '';
-      let para = [];      // gepufferte Absatz-Zeilen
-      let quote = [];     // gepufferte Blockquote-Zeilen
-      let inList = false;
-      const flushPara = () => { if (para.length) { out += `<p>${inline(para.join(' '))}</p>`; para = []; } };
-      const flushQuote = () => { if (quote.length) { out += `<blockquote>${inline(quote.join(' '))}</blockquote>`; quote = []; } };
-      const closeList = () => { if (inList) { out += '</ul>'; inList = false; } };
-      const flushAll = () => { flushPara(); flushQuote(); closeList(); };
-      for (const raw of lines) {
-        const line = raw.replace(/\s+$/, '');
-        let m;
-        if (!line.trim()) { flushAll(); continue; }
-        if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
-          flushAll();
-          const lvl = Math.min(m[1].length, 2);
-          out += `<h${lvl}>${inline(m[2])}</h${lvl}>`;
-        } else if ((m = line.match(/^>\s?(.*)$/))) {
-          flushPara(); closeList(); quote.push(m[1]);
-        } else if ((m = line.match(/^[-*]\s+(.*)$/))) {
-          flushPara(); flushQuote();
-          if (!inList) { out += '<ul>'; inList = true; }
-          out += `<li>${inline(m[1])}</li>`;
-        } else {
-          flushQuote(); closeList(); para.push(line);
-        }
-      }
-      flushAll();
-      return out;
     }
 
     // c) Lauf-Status — liest die additive Diag-Zusammenfassung aus report.json.
