@@ -1,0 +1,21 @@
+# WEGWERF-EXPERIMENT — TEMPORÄR
+#
+# Einmaliger, harmloser Test-Workflow für die Feasibility-Frage "kann ein
+# Actions-Workflow in diesem Repo einen anderen per workflow_dispatch mit dem
+# Standard-GITHUB_TOKEN automatisch auslösen?" (Bau-Auftrag vom 25.08.2026).
+# Tut NICHTS Produktives, fasst keine Daten/Dateien an, schreibt nur eine
+# harmlose Log-Zeile. Wird nach Abschluss des Tests vollständig entfernt.
+name: "WEGWERF-EXPERIMENT — TEMPORÄR: Ziel-Workflow"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  log-only:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harmloser Log-Eintrag
+        run: echo "WEGWERF-EXPERIMENT: Ziel-Workflow lief um $(date -u +%Y-%m-%dT%H:%M:%SZ)Z"
