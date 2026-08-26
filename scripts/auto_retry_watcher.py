@@ -66,6 +66,7 @@ import argparse
 import datetime as _dt
 import json
 import os
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -149,11 +150,33 @@ class NetzwerkFehler(Exception):
     wiederholt werden."""
 
 
+def _klassifiziere_http_fehler(status: int, reason: str,
+                                rate_limit_remaining: Optional[str] = None,
+                                retry_after: Optional[str] = None) -> Exception:
+    """Reine Klassifikation eines HTTP-Fehlers in ein Exception-Objekt — kein
+    Netz, direkt unit-testbar (Guardian-Nit 27.08.2026: die Klassifikation
+    selbst war vorher nur indirekt über injizierte Fake-Exceptions getestet,
+    nie über echte Status-/Header-Kombinationen).
+
+    Primäres Rate-Limit: HTTP 403 mit `X-RateLimit-Remaining: 0`.
+    Sekundäres Rate-Limit (Abuse-Detection): HTTP 403 mit `Retry-After`-Header
+    (kein `X-RateLimit-Remaining` dabei) ODER HTTP 429.
+    Jeder andere 403/4xx/5xx: kein Rate-Limit, sondern ein "sonstiger" Fehler
+    (z. B. fehlende Berechtigung, falscher Workflow-Dateiname)."""
+    ist_primaeres_limit = status == 403 and rate_limit_remaining == "0"
+    ist_sekundaeres_limit = status == 403 and retry_after is not None
+    if status == 429 or ist_primaeres_limit or ist_sekundaeres_limit:
+        return RateLimitFehler(f"HTTP {status}: {reason}")
+    return RuntimeError(f"HTTP {status}: {reason}")
+
+
 def _dispatch_post(url: str, headers: Dict, payload: Dict,
                     timeout: int) -> int:  # pragma: no cover
     """Reiner HTTP-POST an die GitHub-Dispatch-API. Gibt den HTTP-Status
     zurück (Erfolg = 204, kein Body). Stdlib statt `requests` — keine neue
-    Abhängigkeit für einen einzigen Aufruf."""
+    Abhängigkeit für einen einzigen Aufruf. Die eigentliche Fehler-
+    Klassifikation steckt in `_klassifiziere_http_fehler` (testbar ohne
+    Netz) — diese Funktion holt nur die Header heraus."""
     import urllib.error
     import urllib.request
 
@@ -163,14 +186,15 @@ def _dispatch_post(url: str, headers: Dict, payload: Dict,
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status
     except urllib.error.HTTPError as exc:
-        remaining = None
+        remaining = retry_after = None
         try:
-            remaining = exc.headers.get("X-RateLimit-Remaining") if exc.headers else None
+            if exc.headers:
+                remaining = exc.headers.get("X-RateLimit-Remaining")
+                retry_after = exc.headers.get("Retry-After")
         except Exception:  # noqa: BLE001 — defensiv, Header-Zugriff kann variieren
-            remaining = None
-        if exc.code == 429 or (exc.code == 403 and remaining == "0"):
-            raise RateLimitFehler(f"HTTP {exc.code}: {exc.reason}") from exc
-        raise RuntimeError(f"HTTP {exc.code}: {exc.reason}") from exc
+            remaining = retry_after = None
+        raise _klassifiziere_http_fehler(
+            exc.code, exc.reason, remaining, retry_after) from exc
     except urllib.error.URLError as exc:
         raise NetzwerkFehler(str(exc.reason)) from exc
 
@@ -186,7 +210,7 @@ def dispatch_retry(owner: str, repo: str, token: str,
     Jeder andere Fehler: sofortiger Abbruch, gemeldet (kein blindes
     Wiederholen unbekannter Fehlerarten)."""
     post = post or _dispatch_post
-    schlaf = schlaf or (lambda s: __import__("time").sleep(s))
+    schlaf = schlaf or time.sleep
     url = (f"https://api.github.com/repos/{owner}/{repo}/actions/workflows/"
            f"{workflow_datei}/dispatches")
     headers = {
@@ -293,8 +317,9 @@ def run(now: _dt.datetime, owner: str, repo: str, token: str, ntfy_topic: str,
     neuer_state = dict(state)
     neuer_state["retries"] = retries
 
+    zustand_geschrieben = True
     if schreiben:
-        write_state(neuer_state, now_iso, base)
+        zustand_geschrieben = write_state(neuer_state, now_iso, base)
 
     text = (f"Automatischer Retry Nr. {retry_nummer} von "
             f"{MAX_RETRIES_PRO_TAG} ausgelöst, aufgrund Fehlschlags von "
@@ -304,6 +329,33 @@ def run(now: _dt.datetime, owner: str, repo: str, token: str, ntfy_topic: str,
         priority="default", tags="arrows_counterclockwise")
     _log(f"Retry {retry_nummer}/{MAX_RETRIES_PRO_TAG} ausgelöst für "
          f"{quelle_run_url}.")
+
+    # GUARDIAN-FUND 27.08.2026: ein Dispatch, der ausgelöst wurde, dessen
+    # Zähler-Eintrag aber NICHT persistiert werden konnte, wäre die einzige
+    # Verteidigung (Leitplanke 1) unbemerkt aufgeweicht — der nächste
+    # Watcher-Lauf läse den zu niedrigen alten Stand und gewährte einen
+    # zusätzlichen Retry über die Tagesgrenze hinaus. Deshalb: eigener,
+    # lauter Push + eigene `aktion`, statt den bool-Rückgabewert von
+    # `write_state` stillschweigend zu verwerfen. Der SEPARATE Fall "lokal
+    # geschrieben, aber der anschließende Git-Push in der Workflow-YAML
+    # schlägt fehl" liegt außerhalb der Sicht dieses Skripts — dafür hat
+    # `daily_retry_watcher.yml` einen eigenen `if: steps.commit.outcome ==
+    # 'failure'`-Push-Schritt (Muster aus daily.yml).
+    if not zustand_geschrieben:
+        warntext = (f"Auto-Retry Nr. {retry_nummer} wurde ausgelöst, aber der "
+                    f"Zähler-State ({STATE_PATH}) konnte lokal NICHT "
+                    f"geschrieben werden — die Tagesgrenze könnte beim "
+                    f"nächsten Fehlschlag zu hoch ausfallen. Manuelle Prüfung "
+                    f"nötig.")
+        notify.send_ntfy(
+            ntfy_topic, "Elliott: Auto-Retry State-Fehler", warntext,
+            priority="high", tags="rotating_light")
+        _warne("Zähler-State konnte nicht geschrieben werden — Retry wurde "
+               "trotzdem ausgelöst.")
+        return {"aktion": "retry_ausgeloest_state_fehler",
+                "retry_number": retry_nummer, "gepusht": bool(gepusht),
+                "state": neuer_state}
+
     return {"aktion": "retry_ausgeloest", "retry_number": retry_nummer,
             "gepusht": bool(gepusht), "state": neuer_state}
 

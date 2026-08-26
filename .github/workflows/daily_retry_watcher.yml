@@ -76,6 +76,7 @@ jobs:
       # State persistieren. NUR diese eine Datei, gleiches Rebase-Retry-Muster
       # wie daily.yml/maintenance.yml (Race-Haertung, siehe Kommentar oben).
       - name: Retry-State committen
+        id: commit
         if: always()
         run: |
           git config user.name "github-actions[bot]"
@@ -101,3 +102,30 @@ jobs:
               exit 1
             fi
           fi
+
+      # GUARDIAN-FUND 27.08.2026: ein Dispatch kann bereits ausgeloest worden
+      # sein (voriger Schritt), OHNE dass der Zaehler-Commit hier auf main
+      # ankommt (z. B. hartnaeckiger Rebase-Konflikt). Ohne eigenen Alarm
+      # waere das nur im Actions-Log sichtbar, nicht per Push (Leitplanke 2:
+      # "reparieren, aber nicht still"). Bewusst inline curl, ausserhalb des
+      # Python-Pfads, wie die Fehlschlag-Pushes in daily.yml/maintenance.yml.
+      - name: Push bei State-Persistenz-Fehlschlag
+        # `failure()` MUSS explizit dabei stehen: ohne einen der Spezial-
+        # Ausdruecke (`always`/`failure`/`success`/`cancelled`) haengt GitHub
+        # Actions implizit `&& success()` an eine eigene `if:`-Bedingung —
+        # nach dem `exit 1` im vorigen Schritt waere dieser Schritt sonst
+        # trotz passender Bedingung uebersprungen worden.
+        if: failure() && steps.commit.outcome == 'failure'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          if [ -z "$NTFY_TOPIC" ]; then
+            echo "kein NTFY_TOPIC → kein Push (graceful)."; exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -m 10 \
+            -H "Title: Elliott: Auto-Retry State-Push fehlgeschlagen" \
+            -H "Priority: high" -H "Tags: rotating_light" \
+            -d "Ein Auto-Retry wurde ggf. ausgeloest, der Zaehler-Commit kam aber nach 3 Versuchen nicht auf main an. Zaehler-Stand pruefen: ${RUN_URL}" \
+            "https://ntfy.sh/${NTFY_TOPIC}" || echo "ntfy-Push fehlgeschlagen (fail-soft)"
+          exit 0

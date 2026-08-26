@@ -169,6 +169,48 @@ def test_netzwerkfehler_erschoepft_nach_versuchen_wird_gemeldet():
     assert ergebnis["art"] == "netzwerk"
 
 
+# ---------------------------------------------------------------------------
+# _klassifiziere_http_fehler: die eigentliche Rate-Limit-Erkennung, ohne Netz
+# (Guardian-Fund 27.08.2026: vorher nur indirekt ueber injizierte Fake-
+# Exceptions getestet, nie ueber echte Status-/Header-Kombinationen).
+# ---------------------------------------------------------------------------
+def test_primaeres_rate_limit_403_mit_remaining_null():
+    exc = w._klassifiziere_http_fehler(403, "Forbidden", rate_limit_remaining="0")
+    assert isinstance(exc, w.RateLimitFehler)
+
+
+def test_429_ist_immer_rate_limit():
+    exc = w._klassifiziere_http_fehler(429, "Too Many Requests")
+    assert isinstance(exc, w.RateLimitFehler)
+
+
+def test_sekundaeres_rate_limit_403_mit_retry_after():
+    exc = w._klassifiziere_http_fehler(403, "Forbidden", retry_after="60")
+    assert isinstance(exc, w.RateLimitFehler)
+
+
+def test_403_ohne_rate_limit_indiz_ist_kein_rate_limit():
+    """Eine normale Berechtigungs-Ablehnung (kein Rate-Limit-Header) darf
+    NICHT als Rate-Limit klassifiziert werden — sonst würde die Rate-Limit-
+    Regel (kein Retry, sofort melden) einen Fall verdecken, bei dem das
+    eigentliche Problem eine fehlende Berechtigung ist."""
+    exc = w._klassifiziere_http_fehler(403, "Forbidden")
+    assert not isinstance(exc, w.RateLimitFehler)
+    assert isinstance(exc, RuntimeError)
+
+
+def test_403_mit_remaining_ueber_null_ist_kein_rate_limit():
+    exc = w._klassifiziere_http_fehler(403, "Forbidden", rate_limit_remaining="5")
+    assert not isinstance(exc, w.RateLimitFehler)
+
+
+def test_404_und_422_sind_kein_rate_limit():
+    for status in (404, 422, 500):
+        exc = w._klassifiziere_http_fehler(status, "x")
+        assert not isinstance(exc, w.RateLimitFehler)
+        assert isinstance(exc, RuntimeError)
+
+
 def test_unbekannter_fehler_wird_nicht_blind_wiederholt():
     aufrufe = []
 
@@ -287,6 +329,23 @@ def test_exakter_wortlaut_erschoepft_push(tmp_path, monkeypatch):
     assert "manuelle Prüfung nötig" in text
 
 
+def test_write_state_fehlschlag_wird_laut_gemeldet_nicht_verschluckt(tmp_path,
+                                                                      monkeypatch):
+    """Guardian-Fund 27.08.2026: ein Dispatch, dessen Zaehler-Eintrag lokal
+    NICHT geschrieben werden konnte, muss einen eigenen, sichtbaren Push
+    ausloesen — sonst waere die Tagesgrenze beim naechsten Lauf unbemerkt zu
+    hoch (der State auf Platte kennt den Slot nicht)."""
+    sent = _capture_ntfy(monkeypatch)
+    monkeypatch.setattr(w, "write_state", lambda *a, **k: False)
+    ergebnis = w.run(NOW, "o", "r", "tok", "topic", 1, "https://x", "failure",
+                      base=tmp_path, post=_fake_post_immer_erfolgreich)
+    assert ergebnis["aktion"] == "retry_ausgeloest_state_fehler"
+    # ZWEI Pushes: der normale Retry-Push UND der State-Fehler-Alarm.
+    assert len(sent) == 2
+    assert any("State-Fehler" in s["title"] or "NICHT geschrieben" in s["body"]
+               for s in sent)
+
+
 def test_rate_limit_beim_dispatch_verbraucht_keinen_retry_slot(tmp_path, monkeypatch):
     sent = _capture_ntfy(monkeypatch)
 
@@ -385,6 +444,15 @@ def test_daily_yml_und_evaluate_py_unveraendert_von_diesem_mechanismus():
                      "MAX_RETRIES_PRO_TAG", "auto_retry_state"):
         assert verboten not in DAILY_YML
         assert verboten not in EVALUATE_QUELLE
+
+
+def test_workflow_meldet_state_persistenz_fehlschlag_laut():
+    """Guardian-Fund 27.08.2026: ein Git-Push-Fehlschlag des Zaehler-Commits
+    (separat vom Python-Dispatch-Schritt) muss ebenfalls per Push sichtbar
+    sein, nicht nur im Actions-Log."""
+    assert "id: commit" in WORKFLOW
+    assert "Push bei State-Persistenz-Fehlschlag" in WORKFLOW
+    assert "if: failure() && steps.commit.outcome == 'failure'" in WORKFLOW
 
 
 def test_daily_yml_deklariert_keinen_retry_input_dispatch_bleibt_ohne_inputs():
