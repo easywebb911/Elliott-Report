@@ -1,0 +1,103 @@
+# Selbstwartung Stufe 3 — automatischer Retry bei Tageslauf-Fehlschlag.
+#
+# ERSTE PRODUKTIVE SELBST-HANDLUNG im Repo (GO von Easy nach ausfuehrlicher
+# Risikoabwaegung, siehe PR-Text). Stufe 1/2 (health_check.py im Tageslauf,
+# maintenance_check.py woechentlich) duerfen NUR MELDEN, nie HANDELN — ein
+# statischer Test (tests/test_wartungs_cron.py::test_der_wartungslauf_HANDELT_nie)
+# verbietet unlink/subprocess/workflow_dispatch explizit in
+# scripts/maintenance_check.py. Dieser Watcher ist ein EIGENES, NEUES Skript
+# (scripts/auto_retry_watcher.py) — das Verbot dort bleibt unangetastet.
+#
+# HARTE GRENZE, NICHT KONFIGURIERBAR: maximal 3 automatische Retries pro
+# Kalendertag (UTC) — fest im Code (scripts/auto_retry_watcher.py,
+# MAX_RETRIES_PRO_TAG), nicht per Parameter/Secret hier veraenderbar.
+#
+# Reagiert AUSSCHLIESSLICH auf den Workflow "Daily Elliott Report" (per
+# `workflows:`-Filter unten) und AUSSCHLIESSLICH auf `conclusion == 'failure'`
+# des Gesamtlaufs (per `if:` am Job) — NICHT auf health_check-Warnungen
+# innerhalb eines technisch erfolgreichen Laufs. Bewusste Vorentscheidung,
+# siehe PR-Text; eine Erweiterung ist ein separater, spaeterer Auftrag.
+#
+# KEINE AENDERUNG AN daily.yml: `workflow_run` wird komplett hier, im
+# beobachtenden Workflow, konfiguriert — das beobachtete daily.yml bleibt
+# unangetastet.
+name: "Daily Auto-Retry Watcher"
+
+on:
+  workflow_run:
+    workflows: ["Daily Elliott Report"]
+    types: [completed]
+
+permissions:
+  actions: write   # fuer den workflow_dispatch-Aufruf auf daily.yml
+  contents: write  # fuer den State-Commit (data/auto_retry_state.json)
+
+# Eigene Gruppe, unabhaengig von daily.yml — verhindert zusaetzlich zur
+# Serialisierung von daily.yml selbst, dass zwei Watcher-Laeufe gleichzeitig
+# denselben State lesen/schreiben (Verteidigung in der Tiefe, nicht die
+# einzige Verteidigungslinie).
+concurrency:
+  group: daily-retry-watcher
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Retry-Entscheidung, Dispatch und Push
+        working-directory: scripts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+          SOURCE_RUN_URL: ${{ github.event.workflow_run.html_url }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: python auto_retry_watcher.py
+
+      # State persistieren. NUR diese eine Datei, gleiches Rebase-Retry-Muster
+      # wie daily.yml/maintenance.yml (Race-Haertung, siehe Kommentar oben).
+      - name: Retry-State committen
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          [ -f data/auto_retry_state.json ] \
+            && git add data/auto_retry_state.json || true
+          if git diff --cached --quiet; then
+            echo "Kein State-Wechsel — nichts zu committen."
+          else
+            git commit -m "chore(auto-retry): Retry-State [skip ci]"
+            pushed=""
+            for i in 1 2 3; do
+              git rebase --abort >/dev/null 2>&1 || true
+              if git pull --rebase origin main && git push origin HEAD:main; then
+                pushed="yes"; break
+              fi
+              echo "Push-Versuch $i fehlgeschlagen — neuer Anlauf."
+              sleep $((i * 3))
+            done
+            git rebase --abort >/dev/null 2>&1 || true
+            if [ -z "$pushed" ]; then
+              echo "::error::Retry-State-Push nach 3 Versuchen fehlgeschlagen."
+              exit 1
+            fi
+          fi

@@ -24,6 +24,13 @@ NEUTRALE_UMGEBUNG = (
     "GITHUB_SERVER_URL",
     "GITHUB_REPOSITORY",
     "GITHUB_RUN_ID",
+    # auto_retry_watcher.main() (Auto-Retry-Watcher, Stufe 3, 27.08.2026):
+    # der Standard-Token + die drei vom Watcher-Workflow durchgereichten
+    # Angaben zum ausloesenden daily.yml-Lauf.
+    "GITHUB_TOKEN",
+    "SOURCE_RUN_ID",
+    "SOURCE_RUN_URL",
+    "SOURCE_CONCLUSION",
 )
 
 
