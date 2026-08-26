@@ -98,7 +98,11 @@ VORLAUF_FEIERTAGSLISTE_TAGE = 90
 #: jemand bemerken soll, und ein VERSCHWUNDENES ist der Defekt vom 27.07.2026
 #: (das Secret war gesetzt, aber der Step reichte es nicht durch — Score-Alert
 #: und Health-Check waren dadurch still).
-ERWARTETE_SECRETS = {"NTFY_TOPIC", "ANTHROPIC_API_KEY"}
+#: GITHUB_TOKEN kam mit dem Auto-Retry-Watcher (Stufe 3, 27.08.2026) hinzu —
+#: der bereits vorhandene, automatische Standard-Token, kein neues Secret in
+#: den Repo-Einstellungen; hier trotzdem gelistet, weil die Prüfung jede
+#: `secrets.X`-Referenz gleich behandelt.
+ERWARTETE_SECRETS = {"NTFY_TOPIC", "ANTHROPIC_API_KEY", "GITHUB_TOKEN"}
 
 #: Konstanten, die in `config.py` UND als Literal im Frontend stehen.
 #: Verankert über den benannten `const`-Namen, NIE über die nackte Zahl — sonst
