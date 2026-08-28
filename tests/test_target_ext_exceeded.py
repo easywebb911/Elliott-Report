@@ -47,6 +47,26 @@ def test_jun3de_reale_werte_werden_jetzt_vor_aufnahme_verworfen():
     assert grund == pipe.TARGET_EXT_EXCEEDED
 
 
+def test_grenzfall_exakt_auf_extension_zonen_schwelle_wird_verworfen():
+    """Lehre aus #81 (>= vs. > an einer Schwelle): der Grenzfall selbst muss
+    einen dedizierten Test haben, nicht nur der Normalfall. `close ==
+    target_zone_extended.low` MUSS greifen (inklusiv, wie die bestehende
+    Basiszonen-Schwelle es auch schon war)."""
+    target_zone = {"low": 140.0, "high": 150.0}
+    target_zone_extended = {"low": 130.0, "high": 138.0}
+    grund = pipe._zone_bereits_erreicht_grund(130.0, target_zone, target_zone_extended)
+    assert grund == pipe.TARGET_EXT_EXCEEDED
+
+
+def test_grenzfall_knapp_unter_extension_zonen_schwelle_bleibt_zugelassen():
+    """Gegenprobe zum Grenzfall: einen Tick UNTER der Schwelle darf NICHT
+    verworfen werden (sonst wäre die Schwelle nicht wirklich `>=`)."""
+    target_zone = {"low": 140.0, "high": 150.0}
+    target_zone_extended = {"low": 130.0, "high": 138.0}
+    grund = pipe._zone_bereits_erreicht_grund(129.9999, target_zone, target_zone_extended)
+    assert grund is None
+
+
 def test_jun3de_reale_werte_waeren_am_alten_basiszonen_check_vorbeigerutscht():
     """Gegenprobe, damit der Vorher/Nachher-Unterschied belegt ist, nicht nur
     behauptet: die ALTE Prüfung (nur target_zone.low) hätte NICHT gegriffen."""
