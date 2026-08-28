@@ -1350,3 +1350,45 @@ vor n ≥ 100) gilt unverändert.
   Revert = diesen Eintrag entfernen; er beschreibt ausschließlich bereits in
   PR #98 gemergten Code (dort eigenständig revertierbar) und fügt selbst
   keinen Code, keinen Datenstand und keine gemessene Zahl hinzu.
+- **28.08.2026 — Filter `target_exceeded` prüft jetzt zusätzlich die
+  Extension-Zone (Populations-Änderung, PR #112, Commit `9d4aa52`, Grenzfall-
+  Tests `e911dff`).** Read-only-Diagnose vom 26.08.2026 (separater,
+  eigenständiger Diagnose-Auftrag ohne Code-Änderung, zwei Tage vor diesem
+  PR) belegte eine Lücke: der
+  Vor-Aufnahme-Filter aus dem 23./24.07.2026-Eintrag oben prüfte **nur**
+  `close ≥ target_zone.low` (Basiszone) — **nicht** gegen
+  `target_zone_extended.low`. Bei **Ende-W4-Setups** skaliert die Extension-
+  Zone über die Netto-Strecke P0→P3 (`config.TARGET_EXTENSIONS["w5_ext"]`),
+  die Basiszone über W1 (`["w5"]`) — je nach Pivot-Geometrie kann
+  `target_zone_extended.low` **unter** `target_zone.low` liegen. Ein Titel mit
+  Kurs zwischen beiden Schwellen rutschte so durch den Filter und wurde erst
+  **zehn Handelstage später** beim Reifungslauf über den separaten
+  23.07.2026-PRU-Guard (`pre_reached_ext`) nachträglich als „ausgeschlossen"
+  markiert. **Belegter Anlassfall: JUN3.DE@2026-08-06** — `entry_close`
+  25,82, `target_zone.low` 25,9843 (Filter ließ durch), `target_zone_extended.low`
+  25,8148 (Guard griff erst beim Reifen).
+  **Maßnahme (additiv, kein Umbau):** neue, pure Entscheidungsfunktion
+  `_zone_bereits_erreicht_grund()` in `scripts/elliott_pipeline.py` prüft
+  beide Schwellen unabhängig; neuer, eigener Skip-Grund `target_ext_exceeded`
+  (Konstante `TARGET_EXT_EXCEEDED`) — **getrennt** vom bestehenden
+  `target_exceeded`, nicht vermischt. Eigener Diag-Zähler + Log-Zeile,
+  Frontend-Label „Extension-Zone erreicht" (`docs/index.html`, `RLABEL`).
+  **Bewusst NICHT geändert:** der 23.07.2026-PRU-Guard
+  (`forward_collection.py`, `pre_reached_ext`-Marker) bleibt als zweites Netz
+  bestehen, auch wenn er künftig seltener greifen sollte; die Watchlist
+  (`exclude_target_reached=False`) bleibt unverändert sichtbar; Score,
+  Ranking, `evaluate.py`, die n≥100-Sperre, die Primär-/Sensitivitätsrechnung.
+  **KEINE rückwirkende Änderung** an bereits gesammelten Episoden — auch
+  JUN3.DE@2026-08-06 selbst bleibt mit seiner ursprünglichen, nachträglichen
+  `pre_reached_ext`-Markierung unverändert in der Sammlung stehen.
+  **Für eine spätere Auswertung:** Episoden mit `created_utc` **vor** dem
+  Merge dieses PRs (Merge-Zeitpunkt/-SHA: s. GitHub-Merge-Datensatz zu PR
+  #112) entstanden unter der ALTEN, nur-Basiszonen-Filterlogik; Episoden
+  **danach** unter der NEUEN, geschärften Logik — falls sich
+  Verteilungseigenschaften (insbesondere die Häufigkeit von `pre_reached_ext`-
+  Fällen ohne begleitendes `pre_reached_target`) vor/nach diesem Schnitt
+  unterscheiden sollten, ist dieser Absatz der Anker, um das nachzuvollziehen
+  — dieselbe Praxis wie beim Cron-Zeit-Anker vom 22.08.2026 oben.
+  Revert = PR #112 zurücknehmen (`TARGET_EXT_EXCEEDED`-Zweig, neue Funktion,
+  Diag-Zähler, Frontend-Label entfernen); bereits gesammelte Episoden sind von
+  dieser Änderung nicht betroffen, kein Datenstand wird ungültig.

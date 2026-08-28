@@ -68,10 +68,42 @@ SHORT_SETUP_EXCLUDED = "short_setup_excluded"
 # verhindert die Neuanlage über Zone, der Guard schützt die Messung, falls doch je
 # einer durchkommt.
 TARGET_EXCEEDED = "target_exceeded"
+# Lücken-Schluss (Diagnose vom 26.08., belegter Anlassfall JUN3.DE@2026-08-06):
+# target_zone.low ist NICHT immer die niedrigste Schwelle — bei end_of_w4-Setups
+# skaliert target_zone_extended über die Netto-Strecke P0->P3 statt über W1
+# (config.TARGET_EXTENSIONS["w5_ext"] vs. ["w5"]), wodurch extended.low UNTER
+# target_zone.low liegen kann. JUN3.DE rutschte so durch den ursprünglichen
+# Filter (entry_close 25,82 < target_zone.low 25,9843), obwohl der Kurs bereits
+# über target_zone_extended.low (25,8148) stand, und wurde erst beim
+# Reifungslauf über den #28-Guard (pre_reached_ext) nachträglich als
+# "ausgeschlossen" markiert. Eigener Grund, damit im Diag-Log/Report sichtbar
+# bleibt, WELCHE der beiden Schwellen ausschlaggebend war — kein Umbau von
+# target_exceeded, additiv daneben.
+TARGET_EXT_EXCEEDED = "target_ext_exceeded"
 SKIP_REASONS = (
     FETCH_ERROR, EMPTY_DATA, TOO_FEW_PIVOTS, NO_VALID_COUNT, SHORT_SETUP_EXCLUDED,
-    TARGET_EXCEEDED,
+    TARGET_EXCEEDED, TARGET_EXT_EXCEEDED,
 )
+
+
+def _zone_bereits_erreicht_grund(
+    close: float, target_zone: Dict[str, float],
+    target_zone_extended: Dict[str, float],
+) -> Optional[str]:
+    """Reine Entscheidungsfunktion (kein Pivot-/Setup-Zugriff) — direkt mit
+    echten Werten testbar (z. B. JUN3.DE@2026-08-06). Prüft BEIDE Schwellen
+    unabhängig, da target_zone_extended.low je nach Setup-Geometrie unter
+    ODER über target_zone.low liegen kann (s. Kommentar bei TARGET_EXT_EXCEEDED)
+    — keine Annahme über deren Reihenfolge.
+
+    Reihenfolge der Prüfung (Basiszone zuerst) ist eine reine Diagnose-Wahl: ob
+    ein Kandidat verworfen wird, hängt nicht davon ab, welche Schwelle zuerst
+    geprüft wird — nur WELCHER Grund gemeldet wird, falls beide zuträfen."""
+    if close >= target_zone["low"]:
+        return TARGET_EXCEEDED
+    if close >= target_zone_extended["low"]:
+        return TARGET_EXT_EXCEEDED
+    return None
 
 
 # Verworfene-Bar-Daten je Ticker im Report: gekappt, damit ein systemischer
@@ -1215,9 +1247,11 @@ def build_candidate(
     Detail fürs Log ergänzt.
 
     exclude_target_reached: Markt-Pipeline (Default True) verwirft Setups, deren
-    Kurs die Zielzone bereits erreicht hat (close >= target_zone.low) VOR dem
-    Ranking (Skip target_exceeded). Die Watchlist ruft mit False auf — dort bleibt
-    das Setup sichtbar (Badge aus #28 markiert den Zustand).
+    Kurs bereits die Zielzone ODER die Extension-Zone erreicht hat (close >=
+    target_zone.low bzw. >= target_zone_extended.low) VOR dem Ranking (Skip
+    target_exceeded bzw. target_ext_exceeded, s. _zone_bereits_erreicht_grund).
+    Die Watchlist ruft mit False auf — dort bleibt das Setup sichtbar (Badge aus
+    #28 markiert den Zustand).
     """
     pivots = zigzag(closes, config.ZIGZAG_WINDOW, dates)
     if len(pivots) < 3:
@@ -1243,18 +1277,33 @@ def build_candidate(
             f"{setup['count_label']}",
         )
 
-    # Zielzone erreicht = nicht mehr handelbar -> VOR dem Ranking verwerfen
-    # (Rang 6+ rückt nach). NUR Markt-Pipeline (exclude_target_reached=True); die
-    # Watchlist ruft mit False auf und zeigt das Setup weiter (Badge markiert es).
-    # Schwelle = target_zone.low (identisch zur #28-Guard-/Entry-Regel-Schwelle).
-    tlow = setup["target_zone"]["low"]
-    if exclude_target_reached and close >= tlow:
-        return (
-            None,
-            TARGET_EXCEEDED,
-            f"{setup['setup']} close={round(close, 4)} >= target_zone.low={tlow} "
-            f"(Zielzone erreicht, nicht mehr handelbar)",
-        )
+    # Zielzone ODER Extension-Zone erreicht = nicht mehr handelbar -> VOR dem
+    # Ranking verwerfen (Rang 6+ rückt nach). NUR Markt-Pipeline
+    # (exclude_target_reached=True); die Watchlist ruft mit False auf und zeigt
+    # das Setup weiter (Badge markiert es). Schwellen = target_zone.low /
+    # target_zone_extended.low (Basiszonen-Schwelle identisch zur #28-Guard-/
+    # Entry-Regel-Schwelle; Erweiterung um die Extension-Schwelle: 26.08.2026,
+    # JUN3.DE-Diagnose — s. Kommentar bei TARGET_EXT_EXCEEDED oben).
+    if exclude_target_reached:
+        grund = _zone_bereits_erreicht_grund(
+            close, setup["target_zone"], setup["target_zone_extended"])
+        if grund == TARGET_EXCEEDED:
+            tlow = setup["target_zone"]["low"]
+            return (
+                None,
+                TARGET_EXCEEDED,
+                f"{setup['setup']} close={round(close, 4)} >= target_zone.low={tlow} "
+                f"(Zielzone erreicht, nicht mehr handelbar)",
+            )
+        if grund == TARGET_EXT_EXCEEDED:
+            elow = setup["target_zone_extended"]["low"]
+            return (
+                None,
+                TARGET_EXT_EXCEEDED,
+                f"{setup['setup']} close={round(close, 4)} >= "
+                f"target_zone_extended.low={elow} "
+                f"(Extension-Zone erreicht, nicht mehr handelbar)",
+            )
 
     chart_points = [p.as_dict() for p in pivots[-12:]]
     # Wellen-Ziffern für die Sparkline (additiv): die GEZÄHLTE Struktur sind
@@ -1531,7 +1580,8 @@ def build_market(
         f"too_few_pivots={reason_counts[TOO_FEW_PIVOTS]}, "
         f"no_valid_count={reason_counts[NO_VALID_COUNT]}, "
         f"short_setup_excluded={reason_counts[SHORT_SETUP_EXCLUDED]}, "
-        f"target_exceeded={reason_counts[TARGET_EXCEEDED]}"
+        f"target_exceeded={reason_counts[TARGET_EXCEEDED]}, "
+        f"target_ext_exceeded={reason_counts[TARGET_EXT_EXCEEDED]}"
     )
     _log(f"[elliott][diag] {market_key} großer Grad: "
          f"{higher_count}/{len(top)} Top-Kandidaten mit Wochen-Count")
