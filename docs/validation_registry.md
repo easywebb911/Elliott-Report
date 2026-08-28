@@ -1350,10 +1350,11 @@ vor n ≥ 100) gilt unverändert.
   Revert = diesen Eintrag entfernen; er beschreibt ausschließlich bereits in
   PR #98 gemergten Code (dort eigenständig revertierbar) und fügt selbst
   keinen Code, keinen Datenstand und keine gemessene Zahl hinzu.
-- **26.08.2026 — Filter `target_exceeded` prüft jetzt zusätzlich die
+- **28.08.2026 — Filter `target_exceeded` prüft jetzt zusätzlich die
   Extension-Zone (Populations-Änderung, PR #112, Commit `9d4aa52`, Grenzfall-
-  Tests `e911dff`).** Read-only-Diagnose vom 26.08.2026 (davor: separater,
-  eigenständiger Diagnose-Auftrag ohne Code-Änderung) belegte eine Lücke: der
+  Tests `e911dff`).** Read-only-Diagnose vom 26.08.2026 (separater,
+  eigenständiger Diagnose-Auftrag ohne Code-Änderung, zwei Tage vor diesem
+  PR) belegte eine Lücke: der
   Vor-Aufnahme-Filter aus dem 23./24.07.2026-Eintrag oben prüfte **nur**
   `close ≥ target_zone.low` (Basiszone) — **nicht** gegen
   `target_zone_extended.low`. Bei **Ende-W4-Setups** skaliert die Extension-
