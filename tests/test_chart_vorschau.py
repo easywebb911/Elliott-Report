@@ -106,6 +106,45 @@ def test_drawzonepreviewchart_nutzt_fibband_fuer_beide_zonen():
     assert "const ez = fibBand(o.zoneExt, o.atr) || {};" in koerper
 
 
+def test_zeichenreihenfolge_beobachtungszone_zuerst_dann_extension():
+    """Netz (a), String-Anker (30.08.2026, Diagnose-Folge-Auftrag): im
+    Überlappungsbereich (Breite = ATR, s. Diagnose-Bericht 30.08.2026) läge
+    die solide Beobachtungszonen-Füllung sonst UNTER dem gestrichelten
+    Extension-Rand statt darüber. `tgtBand` muss deshalb VOR `extBand` im
+    Template-String stehen -- Dokumentreihenfolge = SVG-Zeichenreihenfolge
+    (später gezeichnete Elemente liegen in SVG optisch oben)."""
+    koerper = _fn("drawZonePreviewChart")
+    assert "${tgtBand}${extBand}${invLine}" in koerper
+    assert "${extBand}${tgtBand}" not in koerper
+
+
+def test_zeichenreihenfolge_wirkt_wirklich_im_gerenderten_svg_markup():
+    """Netz (b), echter node-Lauf: nicht nur der Quelltext-String, sondern
+    das TATSÄCHLICH gerenderte SVG-Markup wird geprüft -- das erste
+    `<rect ...>` mit `fill="rgba(34,197,94,0.15)"` (Beobachtungszone) muss
+    VOR dem `<rect ...>` mit `fill="rgba(34,197,94,0.07)"` (Extension)
+    erscheinen. Echte Gegenprobe, keine Tautologie zum Quelltext-Test oben."""
+    opts = {
+        "points": [{"price": 100.0}, {"price": 110.0}, {"price": 105.0}],
+        "inval": 95.0,
+        "zone": {"low": 120.0, "high": 130.0},
+        "zoneExt": {"low": 125.0, "high": 140.0},  # bewusst überlappend
+        "atr": 4.0,
+    }
+    ergebnis = _js(f"""
+      const opts = {json.dumps(opts)};
+      const el = {{ clientWidth: 340, innerHTML: '' }};
+      drawZonePreviewChart(el, opts);
+      const svg = el.innerHTML;
+      const posTgt = svg.indexOf('fill="rgba(34,197,94,0.15)"');
+      const posExt = svg.indexOf('fill="rgba(34,197,94,0.07)"');
+      console.log(JSON.stringify({{ posTgt, posExt }}));
+    """)
+    assert ergebnis["posTgt"] != -1 and ergebnis["posExt"] != -1
+    assert ergebnis["posTgt"] < ergebnis["posExt"], \
+        "Beobachtungszone (tgtBand) muss vor Extension (extBand) im SVG-Markup stehen"
+
+
 def test_drawepisodechart_bleibt_unangetastet():
     """Gegenprobe: `drawEpisodeChart` (bestehende Episode-Detail-Chart-Logik)
     wurde NICHT verändert — keine neue Funktion extrahiert/eingebaut,
@@ -414,8 +453,10 @@ def test_chart_zonen_grenzen_entsprechen_exakt_fibband_MA_tagesgrad():
       const yOf = v => H - PYb - ((v - min) / span) * (H - PYt - PYb);
       const priceOfY = y => min + (H - PYb - y) / (H - PYt - PYb) * span;
 
-      // tgtBand-Rect aus dem SVG-String ziehen (erstes rect nach dem
-      // extBand-Rect, s. Reihenfolge in drawZonePreviewChart).
+      // tgtBand-/extBand-Rects aus dem SVG-String ziehen -- per Füllfarbe
+      // identifiziert (nicht per Position/Index), deshalb unabhängig von der
+      // Zeichenreihenfolge in drawZonePreviewChart (seit 30.08.2026:
+      // tgtBand zuerst, extBand danach -- s. eigener Reihenfolge-Test).
       const rectRe = /<rect x="0" y="([\\d.]+)" width="[\\d.]+" height="([\\d.]+)" fill="(rgba\\(34,197,94,0\\.\\d+\\))"/g;
       const rects = [...svg.matchAll(rectRe)];
       const ext = rects.find(m => m[3] === 'rgba(34,197,94,0.07)');
