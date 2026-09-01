@@ -28,11 +28,13 @@ ebenfalls_korrigiert` mit geändertem Soll-Wert.
 
 Zwei Netze (Muster aus test_zonen_abstand.py):
   (a) Literale/String-Anker — laufen überall, ohne Zusatz-Abhängigkeit.
-  (b) node: die Rechenkerne WIRKLICH ausgeführt, inkl. eines echten
-      Beispiel-Tickers (MA, aus `data/report.json`, Lauf 23.08.2026) — die im
-      Chart gerenderte Pixel-Geometrie wird auf die Zonen-Zahl zurückgerechnet
-      und gegen `fibBand(...)` verglichen (kein Rundungs-/Umrechnungsfehler
-      zwischen Zahl und Chart). Fehlt node, greift (a) allein (skip).
+  (b) node: die Rechenkerne WIRKLICH ausgeführt, inkl. eines echten,
+      dynamisch ausgewählten Beispiel-Kandidaten aus `data/report.json`
+      (NICHT mehr fest "MA" — s. Nachtrag 01.09.2026 bei `_MA_REC` weiter
+      unten) — die im Chart gerenderte Pixel-Geometrie wird auf die
+      Zonen-Zahl zurückgerechnet und gegen `fibBand(...)` verglichen (kein
+      Rundungs-/Umrechnungsfehler zwischen Zahl und Chart). Fehlt node,
+      greift (a) allein (skip).
 """
 from __future__ import annotations
 
@@ -390,12 +392,50 @@ def test_caption_nennt_klar_keine_prognose():
 # ---------------------------------------------------------------------------
 _NODE = shutil.which("node") or shutil.which("nodejs")
 
-# Echter Beispiel-Ticker, Quelle: data/report.json, Lauf 23.08.2026, US-Markt,
-# Kandidat "MA" (Mastercard) — alle vier Zonen-/ATR-Felder vorhanden.
+# Echter Beispiel-Kandidat, Quelle: data/report.json, US-Markt — dynamisch
+# ausgewählt (NACHTRAG 01.09.2026, Folge-Auftrag "Hartkodierte Ticker-
+# Annahmen"): fest "MA" (Mastercard) brach mit StopIteration, sobald der
+# tägliche Cron MA aus den aktuellen Top-Kandidaten verdrängte (live bereits
+# eingetreten, s. PR-Text) — CI-Collection komplett unterbrochen statt nur
+# einzelner roter Tests, dieselbe Fehlerklasse wie #108/#109. Der Name
+# `_MA_REC` bleibt (minimale Diff-Fläche für die ~15 Verweise unten), meint
+# aber ab jetzt "der ausgewählte Referenz-Kandidat", nicht mehr zwingend MA.
+#
+# Auswahlkriterium rein STRUKTURELL (nicht wert-/preisgebunden wie beim
+# ATR-Volatilitäts-Test in test_atr_volatility.py — die hiesigen Tests
+# rechnen ihre Soll-Werte immer live aus dem gewählten Kandidaten selbst
+# zurück, brauchen also keine bestimmte Preisklasse): der erste Kandidat mit
+# allen Feldern, die die Tests unten tatsächlich lesen, inkl. eines
+# vollständig befüllten `higher_degree`-Blocks (für die "_woche"-Tests) und
+# mindestens 2 Kurspunkten (sonst zeigt der Chart nur den Leer-Hinweis).
 _MA = json.loads((ROOT / "data/report.json").read_text(encoding="utf-8"))
+
+
+def _hat_vollstaendige_chart_felder(c: dict) -> bool:
+    if not (c.get("chart_points") and len(c["chart_points"]) >= 2
+            and c.get("invalidation_price") is not None
+            and c.get("target_zone") and c.get("target_zone_extended")
+            and c.get("atr_14") is not None and c.get("count_wave_labels")):
+        return False
+    hd = c.get("higher_degree")
+    return bool(hd and hd.get("chart_points") and len(hd["chart_points"]) >= 2
+                and hd.get("invalidation_price") is not None
+                and hd.get("target_zone") and hd.get("target_zone_extended")
+                and hd.get("count_wave_labels"))
+
+
 _MA_REC = next(
-    c for c in _MA["markets"]["US"]["candidates"] if c["ticker"] == "MA"
+    (c for c in _MA["markets"]["US"]["candidates"]
+     if _hat_vollstaendige_chart_felder(c)),
+    None,
 )
+if _MA_REC is None:
+    pytest.skip(
+        "kein US-Kandidat mit vollständigen Chart-/Zonen-/higher_degree-"
+        "Feldern gefunden — node-Werte-Tests übersprungen statt "
+        "StopIteration",
+        allow_module_level=True,
+    )
 
 
 def _js(script: str):
