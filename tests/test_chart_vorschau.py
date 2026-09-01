@@ -509,6 +509,42 @@ def test_chart_zonen_grenzen_entsprechen_exakt_fibband_MA_woche():
     assert ergebnis["svgLaenge"] > 0
 
 
+def test_extension_oberkante_hat_kleineren_y_pixel_als_beobachtungszone_MA_woche():
+    """Wert-Test aus dem Auftrag vom 31.08.2026 (Easy-Rückmeldung zu #113):
+    NICHT nur rechnerisch (fibBand-Rohwerte) belegen, sondern die ECHTEN
+    `<rect>`-Attribute aus dem gerenderten SVG-Markup auslesen und NUMERISCH
+    vergleichen. SVG-Koordinaten: kleinerer y = visuell weiter oben — die
+    Extension-Box (höherer Preis, 588,00+ATR/2) MUSS eine kleinere y-Oberkante
+    haben als die Beobachtungszone-Box (550,18+ATR/2), sonst wäre die
+    Fibonacci-Erwartung im gerenderten Bild verletzt."""
+    rec = _MA_REC
+    hd = rec["higher_degree"]
+    opts = {
+        "points": [{"price": p} for p in [pt["price"] for pt in hd["chart_points"]]],
+        "inval": hd["invalidation_price"],
+        "zone": hd["target_zone"],
+        "zoneExt": hd["target_zone_extended"],
+        "atr": rec["atr_14"],
+    }
+    ergebnis = _js(f"""
+      const opts = {json.dumps(opts)};
+      const el = {{ clientWidth: 340, innerHTML: '' }};
+      drawZonePreviewChart(el, opts);
+      const svg = el.innerHTML;
+      const tgtMatch = svg.match(/<rect x="0" y="([\\d.]+)"[^>]*fill="rgba\\(34,197,94,0\\.15\\)"/);
+      const extMatch = svg.match(/<rect x="0" y="([\\d.]+)"[^>]*fill="rgba\\(34,197,94,0\\.07\\)"/);
+      console.log(JSON.stringify({{
+        tgtTopY: parseFloat(tgtMatch[1]), extTopY: parseFloat(extMatch[1]),
+      }}));
+    """)
+    tgt_top_y = ergebnis["tgtTopY"]
+    ext_top_y = ergebnis["extTopY"]
+    assert ext_top_y < tgt_top_y, (
+        f"Extension-Oberkante (y={ext_top_y}) muss VOR/OBERHALB der "
+        f"Beobachtungszone-Oberkante (y={tgt_top_y}) liegen (kleinerer "
+        f"SVG-y-Wert = weiter oben)")
+
+
 def test_strukturell_keine_kurslinie_im_vorschau_bereich():
     """Struktureller Test aus dem Auftrag: der Vorschau-Bereich (rechts von
     "heute") enthält NACHWEISLICH keine Kurslinie — nur EIN `<path>` (die
