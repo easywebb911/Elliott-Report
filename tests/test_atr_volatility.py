@@ -22,11 +22,12 @@ VIER NETZE:
       gesetzt, `build_candidate` trägt es additiv ein.
   (3) Sink-Caching (Muster wie `volume_sink`): Markt-Scan und Watchlist teilen
       sich den ATR-Wert eines Tickers ohne Re-Fetch.
-  (4) Ein REALER Ticker (MA, echte, committete Zahlen aus docs/data/report.json)
-      mit einer hand-konstruierten, realistischen Tagesspannen-Serie (kein
-      Netzzugriff in dieser Sandbox möglich — siehe PR-Text) belegt die
-      resultierende Band-Breite mit echten Vergleichszahlen (Zonenbreite,
-      Invalidierungs-Abstand).
+  (4) Ein REALER, dynamisch ausgewählter Ticker (echte, committete Zahlen aus
+      docs/data/report.json — NICHT mehr fest "MA", s. Nachtrag 01.09.2026
+      weiter unten) mit einer hand-konstruierten, realistischen
+      Tagesspannen-Serie (kein Netzzugriff in dieser Sandbox möglich — siehe
+      PR-Text) belegt die resultierende Band-Breite mit echten
+      Vergleichszahlen (Zonenbreite, Invalidierungs-Abstand).
 """
 from __future__ import annotations
 
@@ -300,16 +301,53 @@ def test_new_record_ohne_atr_im_kandidaten_ist_none_kein_absturz():
 
 
 # ---------------------------------------------------------------------------
-# (5) REALER Ticker (MA) — echte committete Zahlen + hand-konstruierte,
+# (5) REALER Ticker — echte, committete Zahlen + hand-konstruierte,
 # realistische Tagesspannen-Serie. Belegt die BAND-FORMEL (Faktor 1.0×ATR als
 # Gesamtbreite, ±ATR/2 je Seite) mit echten Vergleichszahlen.
-# ---------------------------------------------------------------------------
+#
+# NACHTRAG (01.09.2026, Folge-Auftrag "Hartkodierte Ticker-Annahmen"): der
+# feste Ticker "MA" wurde durch eine dynamische Auswahl ersetzt — der
+# tägliche Cron kann MA jederzeit aus den aktuellen Top-Kandidaten verdrängen
+# (`StopIteration` bei der Test-Collection, CI komplett unterbrochen statt
+# nur einzelner roter Tests, dieselbe Fehlerklasse wie #108/#109).
+#
+# WICHTIG, per Rückfrage mit Easy geklärt: die hand-konstruierte
+# Tagesspannen-Serie unten (ATR≈8,50) ist NICHT generisch für jeden Kurs
+# plausibel — sie wurde für eine Kursklasse um ~580 $ konstruiert (~1,46 %
+# des Schlusskurses). Ein zufällig gewählter Kandidat mit z. B. 20 $ oder
+# 3000 $ Kurs würde den Plausibilitäts-Bereich unten verfehlen, OHNE dass
+# das etwas mit einem echten Bug zu tun hätte. Deshalb: dynamische Auswahl
+# NICHT "irgendein Kandidat", sondern gefiltert auf eine plausible
+# Large-Cap-Preisspanne (100–2.000 $) — bleibt datengetrieben, verwässert
+# aber nicht die Aussagekraft der Prüfung.
 REPORT = json.loads((ROOT / "docs/data/report.json").read_text(encoding="utf-8"))
-MA = next(c for c in REPORT["markets"]["US"]["candidates"] if c["ticker"] == "MA")
+_REF_PREIS_MIN, _REF_PREIS_MAX = 100.0, 2000.0
+
+
+def _waehle_referenz_kandidat():
+    for c in REPORT["markets"]["US"]["candidates"]:
+        close = c.get("close")
+        if (c.get("atr_14") is not None and c.get("target_zone")
+                and c.get("invalidation_price") is not None
+                and isinstance(close, (int, float))
+                and _REF_PREIS_MIN <= close <= _REF_PREIS_MAX):
+            return c
+    return None
+
+
+MA = _waehle_referenz_kandidat()
+if MA is None:
+    pytest.skip(
+        f"kein US-Kandidat mit vollständigen ATR-/Zonen-/Invalidierungs-"
+        f"Feldern und Kurs zwischen {_REF_PREIS_MIN:.0f} und "
+        f"{_REF_PREIS_MAX:.0f} $ gefunden — Tests (5) übersprungen statt "
+        f"StopIteration",
+        allow_module_level=True,
+    )
 
 # Hand-konstruierte Tagesspannen (kein Netzzugriff in dieser Sandbox möglich,
 # s. PR-Text) — 14 True-Range-Werte, die im Mittel exakt 8,50 ergeben (~1,46 %
-# von MAs committetem Schlusskurs 580,63 — plausible Größenordnung für einen
+# eines Schlusskurses um ~580 $ — plausible Größenordnung für einen
 # liquiden Large-Cap-Titel dieser Preisklasse). Kein Gap (Close bleibt
 # konstant bei 580) -> TR = High-Low je Tag, leicht nachrechenbar.
 _MA_TR = [8, 9, 7, 10, 8, 9, 7, 10, 8, 9, 7, 10, 8, 9]
