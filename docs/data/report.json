@@ -1,31 +1,31 @@
 {
   "disclaimer": "Heuristische Elliott-Wellen-Auszählung, unvalidiert. Keine Anlageberatung.",
-  "generated_in_seconds": 73.2,
+  "generated_in_seconds": 118.9,
   "generator": "elliott_pipeline",
   "health": {
-    "checked_utc": "2026-09-03T00:39:33Z",
+    "checked_utc": "2026-09-04T00:24:13Z",
     "findings": [
       {
         "detail": {
           "crit_ab": 2,
-          "expected_bar_date": "2026-09-02",
+          "expected_bar_date": "2026-09-03",
           "lag_trading_days": 1,
-          "last_bar_date": "2026-09-01"
+          "last_bar_date": "2026-09-02"
         },
         "market": "DE",
-        "message": "DE: Kurse 1 Handelstag zurück — erwartet 2026-09-02, tatsächlich 2026-09-01",
+        "message": "DE: Kurse 1 Handelstag zurück — erwartet 2026-09-03, tatsächlich 2026-09-02",
         "rule": "bar_freshness",
         "severity": "warn"
       },
       {
         "detail": {
           "crit_ab": 2,
-          "expected_bar_date": "2026-09-02",
+          "expected_bar_date": "2026-09-03",
           "lag_trading_days": 1,
-          "last_bar_date": "2026-09-01"
+          "last_bar_date": "2026-09-02"
         },
         "market": "US",
-        "message": "US: Kurse 1 Handelstag zurück — erwartet 2026-09-02, tatsächlich 2026-09-01",
+        "message": "US: Kurse 1 Handelstag zurück — erwartet 2026-09-03, tatsächlich 2026-09-02",
         "rule": "bar_freshness",
         "severity": "warn"
       },
@@ -41,7 +41,7 @@
     ],
     "heartbeat": false,
     "push_gated": null,
-    "pushed": true,
+    "pushed": false,
     "status": "warn",
     "thresholds": {
       "agent_min_ok": 5,
@@ -58,15 +58,177 @@
         {
           "agent_comment": {
             "concern_level": "high",
-            "gegenargument": "Die fehlende Alternation zwischen W2 (39,24 % Retrace) und W4 (35,06 % Retrace) ist ein klassischer Verstoß gegen Elliott-Regeln — beide Korrektionen liegen zu nah beieinander und zeigen keine strukturelle Unterscheidung. Zusätzlich existiert eine gleichwertige Alternative (Impuls 1–5 mit W3 erwartet), die das System selbst als valide einstuft, was die Eindeutigkeit der vorliegenden Zählung in Frage stellt.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Die Zählung interpretiert die aktuelle Position als Ende der vierten Welle eines Impulses, woraufhin eine fünfte Welle nach oben in die Zone 20,99–21,74 erwartet wird. Das Setup basiert auf einer W4-Retracement von 35,06 % und soll ein Long-Signal am aktuellen Kurs von 19,86 darstellen.",
+            "gegenargument": "W3-Volumen ist mit 0,8815 relativ zu W1 schwach und unterschreitet typische Impuls-Standards (sollte >1,0 sein); W4-Volumen (0,9099 zu W3) ist ebenfalls unterdurchschnittlich. Die Alternative (Long-Setup am Ende W2) existiert parallel und wird explizit genannt — das deutet auf Mehrdeutigkeit in der Struktur hin. Mit nur 2 validen Zählungen und 2 Top-5-Erscheinungen ist die Konfidenz begrenzt.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem aktuellen Kurs (35,66) am Ende von W4. W5 wird erwartet und soll in die Zone 36,26–37,34 führen. Alternation ist vorhanden (W2: 85,87% Retrace vs. W4: 41,51%), und die Extension liegt bei 37,51–39,35.",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "alt_count": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 30.18,
+            "score_heuristic": 68.68,
+            "target_zone": {
+              "high": 46.5256,
+              "low": 41.94
+            }
+          },
+          "alt_count_v2": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 30.18,
+            "kind": "impulse",
+            "score_heuristic": 68.68,
+            "target_zone": {
+              "high": 46.5256,
+              "low": 41.94
+            }
+          },
+          "appearance_count": 2,
+          "atr_14": 0.7957,
+          "change_abs": -0.7,
+          "change_pct": -1.9252,
+          "chart_points": [
+            {
+              "date": "2026-02-27",
+              "index": 375,
+              "kind": "H",
+              "price": 33.4386
+            },
+            {
+              "date": "2026-03-20",
+              "index": 390,
+              "kind": "L",
+              "price": 25.1865
+            },
+            {
+              "date": "2026-04-17",
+              "index": 408,
+              "kind": "H",
+              "price": 31.0333
+            },
+            {
+              "date": "2026-04-28",
+              "index": 415,
+              "kind": "L",
+              "price": 28.3348
+            },
+            {
+              "date": "2026-05-11",
+              "index": 423,
+              "kind": "H",
+              "price": 30.8964
+            },
+            {
+              "date": "2026-05-15",
+              "index": 427,
+              "kind": "L",
+              "price": 28.8432
+            },
+            {
+              "date": "2026-06-01",
+              "index": 438,
+              "kind": "H",
+              "price": 33.2039
+            },
+            {
+              "date": "2026-06-11",
+              "index": 446,
+              "kind": "L",
+              "price": 29.7818
+            },
+            {
+              "date": "2026-07-06",
+              "index": 463,
+              "kind": "H",
+              "price": 32.6
+            },
+            {
+              "date": "2026-07-16",
+              "index": 471,
+              "kind": "L",
+              "price": 30.18
+            },
+            {
+              "date": "2026-08-07",
+              "index": 487,
+              "kind": "H",
+              "price": 37.6
+            },
+            {
+              "date": "2026-08-13",
+              "index": 491,
+              "kind": "L",
+              "price": 34.52
+            }
+          ],
+          "close": 35.66,
+          "company_name": "Bechtle AG",
+          "confluence": {
+            "invalidation": [],
+            "target": []
+          },
+          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
+          "count_wave_labels": [
+            {
+              "index": 7,
+              "wave": 0
+            },
+            {
+              "index": 8,
+              "wave": 1
+            },
+            {
+              "index": 9,
+              "wave": 2
+            },
+            {
+              "index": 10,
+              "wave": 3
+            },
+            {
+              "index": 11,
+              "wave": 4
+            }
+          ],
+          "direction": "long",
+          "higher_degree": null,
+          "invalidation_price": 32.6,
+          "name": "BC8.DE",
+          "score_heuristic": 83.46,
+          "sector": "Technology",
+          "status": "heuristisch · unvalidiert",
+          "target_zone": {
+            "high": 37.3382,
+            "low": 36.2616
+          },
+          "target_zone_extended": {
+            "high": 39.3516,
+            "low": 37.5065
+          },
+          "ticker": "BC8.DE",
+          "valid_count_total": 2,
+          "valid_count_total_v2": 2,
+          "vol_profile": {
+            "w1": 259417.11,
+            "w2": 190186.56,
+            "w3": 228683.88,
+            "w4": 208087.0
+          },
+          "vol_ratio_w2_w1": null,
+          "vol_ratio_w3_w1": 0.8815,
+          "vol_ratio_w4_w3": 0.9099
+        },
+        {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Alternation ist nicht beobachtet worden — W2 und W4 zeigen ähnliche Retracement-Prozentsätze (39,24 % vs. 35,06 %), was ein klassisches Elliott-Kriterium verletzt. Zudem ist das W3-zu-W1-Volumen mit 1,45 nur schwach, während W4-zu-W3 mit 1,97 deutlich höher ausfällt — ein Muster, das eher auf Schwäche in der Impulsstruktur hindeutet. Die Alternative (W2-Ende, W3 erwartet) konkurriert direkt und wird vom System selbst als plausibel eingestuft.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Die Zählung interpretiert die aktuelle Position als Ende der vierten Welle eines Impulses, woraufhin eine fünfte Welle nach oben in die Zone 20,99–21,74 erwartet wird. Das Setup basiert auf einer W4-Retracement von 35,06 % und soll sich dem Invalidierungsniveau bei 18,80 nähern.",
             "model": "claude-haiku-4-5-20251001"
           },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 18.04,
-            "score_heuristic": 58.82,
+            "score_heuristic": 59.5,
             "target_zone": {
               "high": 24.1848,
               "low": 22.51
@@ -76,91 +238,91 @@
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 18.04,
             "kind": "impulse",
-            "score_heuristic": 58.82,
+            "score_heuristic": 59.5,
             "target_zone": {
               "high": 24.1848,
               "low": 22.51
             }
           },
           "appearance_count": 2,
-          "atr_14": 0.4757,
-          "change_abs": -0.14,
-          "change_pct": -0.7,
+          "atr_14": 0.4657,
+          "change_abs": 0.1,
+          "change_pct": 0.5035,
           "chart_points": [
             {
               "date": "2026-03-30",
-              "index": 397,
+              "index": 396,
               "kind": "H",
               "price": 16.9626
             },
             {
               "date": "2026-04-07",
-              "index": 401,
+              "index": 400,
               "kind": "L",
               "price": 13.9073
             },
             {
               "date": "2026-04-10",
-              "index": 404,
+              "index": 403,
               "kind": "H",
               "price": 15.2961
             },
             {
               "date": "2026-04-24",
-              "index": 414,
+              "index": 413,
               "kind": "L",
               "price": 14.4231
             },
             {
               "date": "2026-05-14",
-              "index": 427,
+              "index": 426,
               "kind": "H",
               "price": 17.9942
             },
             {
               "date": "2026-06-10",
-              "index": 446,
+              "index": 445,
               "kind": "L",
               "price": 16.4864
             },
             {
               "date": "2026-06-18",
-              "index": 452,
+              "index": 451,
               "kind": "H",
               "price": 17.776
             },
             {
               "date": "2026-06-26",
-              "index": 458,
+              "index": 457,
               "kind": "L",
               "price": 16.8634
             },
             {
               "date": "2026-07-16",
-              "index": 472,
+              "index": 471,
               "kind": "H",
               "price": 18.8
             },
             {
               "date": "2026-07-27",
-              "index": 479,
+              "index": 478,
               "kind": "L",
               "price": 18.04
             },
             {
               "date": "2026-08-14",
-              "index": 493,
+              "index": 492,
               "kind": "H",
               "price": 20.75
             },
             {
               "date": "2026-08-24",
-              "index": 499,
+              "index": 498,
               "kind": "L",
               "price": 19.8
             }
           ],
-          "close": 19.86,
+          "close": 19.96,
           "company_name": "NORMA Group SE",
           "confluence": {
             "invalidation": [],
@@ -193,7 +355,7 @@
           "higher_degree": null,
           "invalidation_price": 18.8,
           "name": "NOEJ.DE",
-          "score_heuristic": 78.81,
+          "score_heuristic": 79.52,
           "sector": "Industrials",
           "status": "heuristisch · unvalidiert",
           "target_zone": {
@@ -220,336 +382,92 @@
         {
           "agent_comment": {
             "concern_level": "high",
-            "gegenargument": "W3 zeigt mit 2,27× das Volumen von W1 deutlich mehr Kraft als W4 (0,77× von W3), was für einen Impuls untypisch ist — normalerweise sollte W5 mindestens W3-Energie haben oder W3 sollte nicht die längste sein. Zudem liegt die W4-Retracement bei nur 33,97 %, was sehr flach ist und Zweifel an der Welle-4-Struktur aufwirft.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W5) mit W4-Ende bei 38,02 €. W5 wird erwartet und soll in die Zone 40,25–41,08 € laufen, gestützt durch 52-Wochen-Hoch und runde Niveaus.",
-            "model": "claude-haiku-4-5-20251001"
-          },
-          "alt_count": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 34.78,
-            "score_heuristic": 57.78,
-            "target_zone": {
-              "high": 48.9963,
-              "low": 45.14
-            }
-          },
-          "alt_count_v2": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 34.78,
-            "kind": "impulse",
-            "score_heuristic": 57.78,
-            "target_zone": {
-              "high": 48.9963,
-              "low": 45.14
-            }
-          },
-          "appearance_count": 2,
-          "atr_14": 1.01,
-          "change_abs": -1.18,
-          "change_pct": -3.0102,
-          "chart_points": [
-            {
-              "date": "2026-05-12",
-              "index": 425,
-              "kind": "H",
-              "price": 37.5387
-            },
-            {
-              "date": "2026-05-19",
-              "index": 430,
-              "kind": "L",
-              "price": 32.7041
-            },
-            {
-              "date": "2026-05-27",
-              "index": 436,
-              "kind": "H",
-              "price": 36.5907
-            },
-            {
-              "date": "2026-06-03",
-              "index": 441,
-              "kind": "L",
-              "price": 33.69
-            },
-            {
-              "date": "2026-06-19",
-              "index": 453,
-              "kind": "H",
-              "price": 35.54
-            },
-            {
-              "date": "2026-06-25",
-              "index": 457,
-              "kind": "L",
-              "price": 33.26
-            },
-            {
-              "date": "2026-07-06",
-              "index": 464,
-              "kind": "H",
-              "price": 35.3
-            },
-            {
-              "date": "2026-07-08",
-              "index": 466,
-              "kind": "L",
-              "price": 33.8
-            },
-            {
-              "date": "2026-07-16",
-              "index": 472,
-              "kind": "H",
-              "price": 35.98
-            },
-            {
-              "date": "2026-07-23",
-              "index": 477,
-              "kind": "L",
-              "price": 34.78
-            },
-            {
-              "date": "2026-08-03",
-              "index": 484,
-              "kind": "H",
-              "price": 41.02
-            },
-            {
-              "date": "2026-08-21",
-              "index": 498,
-              "kind": "L",
-              "price": 38.9
-            }
-          ],
-          "close": 38.02,
-          "company_name": "Ströer SE & Co. KGaA",
-          "confluence": {
-            "invalidation": [],
-            "target": [
-              "52w_high",
-              "round"
-            ]
-          },
-          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
-          "count_wave_labels": [
-            {
-              "index": 7,
-              "wave": 0
-            },
-            {
-              "index": 8,
-              "wave": 1
-            },
-            {
-              "index": 9,
-              "wave": 2
-            },
-            {
-              "index": 10,
-              "wave": 3
-            },
-            {
-              "index": 11,
-              "wave": 4
-            }
-          ],
-          "direction": "long",
-          "higher_degree": {
-            "alt_count": null,
-            "alt_count_v2": null,
-            "chart_points": [
-              {
-                "date": "2025-06-02",
-                "index": 457,
-                "kind": "H",
-                "price": 49.862
-              },
-              {
-                "date": "2025-09-22",
-                "index": 473,
-                "kind": "L",
-                "price": 35.311
-              },
-              {
-                "date": "2025-10-06",
-                "index": 475,
-                "kind": "H",
-                "price": 38.8184
-              },
-              {
-                "date": "2025-11-10",
-                "index": 480,
-                "kind": "L",
-                "price": 32.7515
-              },
-              {
-                "date": "2026-01-05",
-                "index": 488,
-                "kind": "H",
-                "price": 35.6902
-              },
-              {
-                "date": "2026-03-23",
-                "index": 499,
-                "kind": "L",
-                "price": 27.8222
-              },
-              {
-                "date": "2026-05-04",
-                "index": 505,
-                "kind": "H",
-                "price": 37.1784
-              },
-              {
-                "date": "2026-06-22",
-                "index": 512,
-                "kind": "L",
-                "price": 33.76
-              }
-            ],
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "count_wave_labels": [
-              {
-                "index": 5,
-                "wave": 0
-              },
-              {
-                "index": 6,
-                "wave": 1
-              },
-              {
-                "index": 7,
-                "wave": 2
-              }
-            ],
-            "invalidation_price": 27.8222,
-            "target_zone": {
-              "high": 48.8984,
-              "low": 43.1162
-            },
-            "target_zone_extended": {
-              "high": 58.2546,
-              "low": 48.8984
-            },
-            "valid_count_total": 1,
-            "valid_count_total_v2": 1
-          },
-          "invalidation_price": 35.98,
-          "name": "SAX.DE",
-          "score_heuristic": 77.41,
-          "sector": "Communication Services",
-          "status": "heuristisch · unvalidiert",
-          "target_zone": {
-            "high": 41.08,
-            "low": 40.2472
-          },
-          "target_zone_extended": {
-            "high": 43.362,
-            "low": 41.658
-          },
-          "ticker": "SAX.DE",
-          "valid_count_total": 2,
-          "valid_count_total_v2": 2,
-          "vol_profile": {
-            "w1": 61429.14,
-            "w2": 62792.83,
-            "w3": 139411.62,
-            "w4": 107469.8
-          },
-          "vol_ratio_w2_w1": null,
-          "vol_ratio_w3_w1": 2.2695,
-          "vol_ratio_w4_w3": 0.7709
-        },
-        {
-          "agent_comment": {
-            "concern_level": "high",
-            "gegenargument": "Das Volumen in W2 (0,60× des W1-Volumens) ist schwach und unterstützt die Welle-2-These nicht überzeugend. Die Invalidierung liegt bei 31,56 €, was eine sehr breite Fehlertoleranz bedeutet — ein Rückgang um 17 % würde erst die Zählung brechen. Zudem fehlen Konfluenzzonen völlig (leere Arrays), was auf mangelnde Bestätigung durch andere Indikatoren hindeutet.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Nach Welle 2 bei 38,06 € wird ein Impuls erwartet, der in Welle 3 anläuft und die Zielzone 46,38–52,39 € ansteuert. Die Extension deutet auf ein mögliches Ziel bis 62,11 € hin, falls W5 folgt.",
+            "gegenargument": "Das W2-zu-W1-Volumen beträgt nur 60 %, was für eine intakte Welle 2 schwach ist. Der Kurs liegt aktuell bei 36,52 mit −4 % Tagesveränderung — das deutet auf Schwäche hin, nicht auf Setup-Stabilität. Mit nur einer validen Zählung und einem heuristischen Score von 76,71 fehlt Bestätigung durch Mehrdeutigkeit oder Alternation.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Nach Welle 2 wird ein Long-Setup erwartet, weil die Zählung einen Impuls 1–5 mit W3-Fortsetzung annimmt. Die Zielzone liegt bei 46,38–52,39, die Invalidierung bei 31,56.",
             "model": "claude-haiku-4-5-20251001"
           },
           "alt_count": null,
           "alt_count_v2": null,
           "appearance_count": 1,
-          "atr_14": 0.6857,
-          "change_abs": -0.36,
-          "change_pct": -0.937,
+          "atr_14": 0.7514,
+          "change_abs": -1.54,
+          "change_pct": -4.0462,
           "chart_points": [
             {
               "date": "2026-02-20",
-              "index": 371,
+              "index": 370,
               "kind": "H",
               "price": 37.04
             },
             {
               "date": "2026-03-20",
-              "index": 391,
+              "index": 390,
               "kind": "L",
               "price": 29.0
             },
             {
               "date": "2026-04-08",
-              "index": 402,
+              "index": 401,
               "kind": "H",
               "price": 33.44
             },
             {
               "date": "2026-04-28",
-              "index": 416,
+              "index": 415,
               "kind": "L",
               "price": 30.78
             },
             {
               "date": "2026-05-11",
-              "index": 424,
+              "index": 423,
               "kind": "H",
               "price": 33.56
             },
             {
               "date": "2026-05-19",
-              "index": 430,
+              "index": 429,
               "kind": "L",
               "price": 31.52
             },
             {
               "date": "2026-06-03",
-              "index": 441,
+              "index": 440,
               "kind": "H",
               "price": 34.74
             },
             {
               "date": "2026-06-10",
-              "index": 446,
+              "index": 445,
               "kind": "L",
               "price": 32.72
             },
             {
               "date": "2026-06-16",
-              "index": 450,
+              "index": 449,
               "kind": "H",
               "price": 34.9
             },
             {
               "date": "2026-06-24",
-              "index": 456,
+              "index": 455,
               "kind": "L",
               "price": 31.56
             },
             {
               "date": "2026-08-03",
-              "index": 484,
+              "index": 483,
               "kind": "H",
               "price": 41.28
             },
             {
               "date": "2026-08-20",
-              "index": 497,
+              "index": 496,
               "kind": "L",
               "price": 36.66
             }
           ],
-          "close": 38.06,
+          "close": 36.52,
           "company_name": "TRATON SE",
           "confluence": {
             "invalidation": [],
@@ -599,336 +517,337 @@
         {
           "agent_comment": {
             "concern_level": "high",
-            "gegenargument": "Das W2-Volumen liegt bei nur 71,76 % des W1-Volumens — eine klassische Schwäche für den Start einer neuen Impulssequenz. Zudem liegt der aktuelle Kurs (39,28 €) bereits deutlich unter der unteren Zielzone (45,96 €), was bedeutet, dass die erwartete W2-Korrektur entweder bereits überschritten oder die Zählung selbst fehlerhaft ist.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Nach einem Impuls (W1–W5) befindet sich das Papier in Welle 2 einer neuen Sequenz; die Zählung erwartet einen Einstieg am Ende dieser Korrektur mit Zielzone 45,96–50,74 € für die kommende W3.",
+            "gegenargument": "Die alternative Zählung (W2-Ende statt W4-Ende) ist gleichberechtigt vorhanden und wird explizit als valide markiert (valide_zaehlungen_v2: 2). W4 mit 33,97% Retracement liegt deutlich unter der klassischen Elliott-Norm von 38–50%, und das W3/W1-Volumenverhältnis von 2,27 ist zwar erhöht, aber W4/W3 fällt auf 0,77 ab — das schwächt die Impulskraft ab. Die Invalidierung bei 35,98 ist relativ nah (nur 1,68 Punkte unter aktuellem Kurs), was wenig Sicherheitsmarge bietet.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W4 abgeschlossen) mit W5 noch ausstehend. Der aktuelle Kurs bei 37,66 liegt in der erwarteten Zielzone 40,25–41,08, was ein Long-Setup am Ende von W4 darstellt.",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "alt_count": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 34.78,
+            "score_heuristic": 56.47,
+            "target_zone": {
+              "high": 48.9963,
+              "low": 45.14
+            }
+          },
+          "alt_count_v2": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 34.78,
+            "kind": "impulse",
+            "score_heuristic": 56.47,
+            "target_zone": {
+              "high": 48.9963,
+              "low": 45.14
+            }
+          },
+          "appearance_count": 2,
+          "atr_14": 0.9286,
+          "change_abs": -0.36,
+          "change_pct": -0.9469,
+          "chart_points": [
+            {
+              "date": "2026-05-12",
+              "index": 424,
+              "kind": "H",
+              "price": 37.5387
+            },
+            {
+              "date": "2026-05-19",
+              "index": 429,
+              "kind": "L",
+              "price": 32.7041
+            },
+            {
+              "date": "2026-05-27",
+              "index": 435,
+              "kind": "H",
+              "price": 36.5907
+            },
+            {
+              "date": "2026-06-03",
+              "index": 440,
+              "kind": "L",
+              "price": 33.69
+            },
+            {
+              "date": "2026-06-19",
+              "index": 452,
+              "kind": "H",
+              "price": 35.54
+            },
+            {
+              "date": "2026-06-25",
+              "index": 456,
+              "kind": "L",
+              "price": 33.26
+            },
+            {
+              "date": "2026-07-06",
+              "index": 463,
+              "kind": "H",
+              "price": 35.3
+            },
+            {
+              "date": "2026-07-08",
+              "index": 465,
+              "kind": "L",
+              "price": 33.8
+            },
+            {
+              "date": "2026-07-16",
+              "index": 471,
+              "kind": "H",
+              "price": 35.98
+            },
+            {
+              "date": "2026-07-23",
+              "index": 476,
+              "kind": "L",
+              "price": 34.78
+            },
+            {
+              "date": "2026-08-03",
+              "index": 483,
+              "kind": "H",
+              "price": 41.02
+            },
+            {
+              "date": "2026-08-21",
+              "index": 497,
+              "kind": "L",
+              "price": 38.9
+            }
+          ],
+          "close": 37.66,
+          "company_name": "Ströer SE & Co. KGaA",
+          "confluence": {
+            "invalidation": [],
+            "target": [
+              "52w_high",
+              "round"
+            ]
+          },
+          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
+          "count_wave_labels": [
+            {
+              "index": 7,
+              "wave": 0
+            },
+            {
+              "index": 8,
+              "wave": 1
+            },
+            {
+              "index": 9,
+              "wave": 2
+            },
+            {
+              "index": 10,
+              "wave": 3
+            },
+            {
+              "index": 11,
+              "wave": 4
+            }
+          ],
+          "direction": "long",
+          "higher_degree": {
+            "alt_count": null,
+            "alt_count_v2": null,
+            "chart_points": [
+              {
+                "date": "2025-06-02",
+                "index": 456,
+                "kind": "H",
+                "price": 49.862
+              },
+              {
+                "date": "2025-09-22",
+                "index": 472,
+                "kind": "L",
+                "price": 35.311
+              },
+              {
+                "date": "2025-10-06",
+                "index": 474,
+                "kind": "H",
+                "price": 38.8184
+              },
+              {
+                "date": "2025-11-10",
+                "index": 479,
+                "kind": "L",
+                "price": 32.7515
+              },
+              {
+                "date": "2026-01-05",
+                "index": 487,
+                "kind": "H",
+                "price": 35.6902
+              },
+              {
+                "date": "2026-03-23",
+                "index": 498,
+                "kind": "L",
+                "price": 27.8222
+              },
+              {
+                "date": "2026-05-04",
+                "index": 504,
+                "kind": "H",
+                "price": 37.1784
+              },
+              {
+                "date": "2026-06-22",
+                "index": 511,
+                "kind": "L",
+                "price": 33.76
+              }
+            ],
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "count_wave_labels": [
+              {
+                "index": 5,
+                "wave": 0
+              },
+              {
+                "index": 6,
+                "wave": 1
+              },
+              {
+                "index": 7,
+                "wave": 2
+              }
+            ],
+            "invalidation_price": 27.8222,
+            "target_zone": {
+              "high": 48.8984,
+              "low": 43.1162
+            },
+            "target_zone_extended": {
+              "high": 58.2546,
+              "low": 48.8984
+            },
+            "valid_count_total": 1,
+            "valid_count_total_v2": 1
+          },
+          "invalidation_price": 35.98,
+          "name": "SAX.DE",
+          "score_heuristic": 76.06,
+          "sector": "Communication Services",
+          "status": "heuristisch · unvalidiert",
+          "target_zone": {
+            "high": 41.08,
+            "low": 40.2472
+          },
+          "target_zone_extended": {
+            "high": 43.362,
+            "low": 41.658
+          },
+          "ticker": "SAX.DE",
+          "valid_count_total": 2,
+          "valid_count_total_v2": 2,
+          "vol_profile": {
+            "w1": 61429.14,
+            "w2": 62792.83,
+            "w3": 139411.62,
+            "w4": 107469.8
+          },
+          "vol_ratio_w2_w1": null,
+          "vol_ratio_w3_w1": 2.2695,
+          "vol_ratio_w4_w3": 0.7709
+        },
+        {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Der aktuelle Kurs von 48,22 liegt bereits 3,13 Punkte unter der unteren Zielzone (54,35). Das widerspricht der Aussage eines aktiven Long-Setups am Ende von W2 — entweder W2 ist noch nicht abgeschlossen, oder die Zählung ist bereits invalidiert. Zudem ist nur 1 valide Zählung vorhanden (top5_erscheinungen: 2 deutet auf schwache Bestätigung hin), und das W2/W1-Volumen-Verhältnis von 1,16 ist marginal.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Nach Abschluss von Welle 2 wird ein Long-Setup erwartet, bei dem Welle 3 ansteht. Die Zielzone liegt bei 54,35–55,80, die Extension reicht bis 58,15. Invalidierung bei 51,10.",
             "model": "claude-haiku-4-5-20251001"
           },
           "alt_count": null,
           "alt_count_v2": null,
           "appearance_count": 2,
-          "atr_14": 1.4714,
-          "change_abs": -0.4,
-          "change_pct": -1.0081,
+          "atr_14": 0.9207,
+          "change_abs": -0.94,
+          "change_pct": -1.9121,
           "chart_points": [
-            {
-              "date": "2026-02-02",
-              "index": 357,
-              "kind": "H",
-              "price": 26.5544
-            },
-            {
-              "date": "2026-02-06",
-              "index": 361,
-              "kind": "L",
-              "price": 25.9797
-            },
-            {
-              "date": "2026-02-26",
-              "index": 375,
-              "kind": "H",
-              "price": 28.001
-            },
-            {
-              "date": "2026-03-20",
-              "index": 391,
-              "kind": "L",
-              "price": 24.7114
-            },
-            {
-              "date": "2026-04-23",
-              "index": 413,
-              "kind": "H",
-              "price": 33.6289
-            },
-            {
-              "date": "2026-04-28",
-              "index": 416,
-              "kind": "L",
-              "price": 31.1716
-            },
-            {
-              "date": "2026-06-03",
-              "index": 441,
-              "kind": "H",
-              "price": 47.3222
-            },
-            {
-              "date": "2026-06-10",
-              "index": 446,
-              "kind": "L",
-              "price": 42.64
-            },
-            {
-              "date": "2026-06-22",
-              "index": 454,
-              "kind": "H",
-              "price": 47.46
-            },
-            {
-              "date": "2026-07-29",
-              "index": 481,
-              "kind": "L",
-              "price": 34.88
-            },
-            {
-              "date": "2026-08-17",
-              "index": 494,
-              "kind": "H",
-              "price": 42.62
-            },
-            {
-              "date": "2026-08-24",
-              "index": 499,
-              "kind": "L",
-              "price": 38.22
-            }
-          ],
-          "close": 39.28,
-          "company_name": "Jenoptik AG",
-          "confluence": {
-            "invalidation": [
-              "round"
-            ],
-            "target": [
-              "52w_high"
-            ]
-          },
-          "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-          "count_wave_labels": [
-            {
-              "index": 9,
-              "wave": 0
-            },
-            {
-              "index": 10,
-              "wave": 1
-            },
-            {
-              "index": 11,
-              "wave": 2
-            }
-          ],
-          "direction": "long",
-          "higher_degree": {
-            "alt_count": {
-              "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-              "invalidation_price": 18.053,
-              "score_heuristic": 60.0,
-              "target_zone": {
-                "high": 84.0515,
-                "low": 66.187
-              }
-            },
-            "alt_count_v2": {
-              "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-              "invalidation_price": 18.053,
-              "kind": "impulse",
-              "score_heuristic": 60.0,
-              "target_zone": {
-                "high": 84.0515,
-                "low": 66.187
-              }
-            },
-            "chart_points": [
-              {
-                "date": "2025-03-10",
-                "index": 445,
-                "kind": "H",
-                "price": 22.64
-              },
-              {
-                "date": "2025-04-07",
-                "index": 449,
-                "kind": "L",
-                "price": 15.2164
-              },
-              {
-                "date": "2025-07-14",
-                "index": 463,
-                "kind": "H",
-                "price": 20.0545
-              },
-              {
-                "date": "2025-09-08",
-                "index": 471,
-                "kind": "L",
-                "price": 16.0317
-              },
-              {
-                "date": "2025-10-20",
-                "index": 477,
-                "kind": "H",
-                "price": 20.0149
-              },
-              {
-                "date": "2025-11-03",
-                "index": 479,
-                "kind": "L",
-                "price": 18.053
-              },
-              {
-                "date": "2026-06-15",
-                "index": 511,
-                "kind": "H",
-                "price": 46.96
-              },
-              {
-                "date": "2026-07-27",
-                "index": 517,
-                "kind": "L",
-                "price": 37.28
-              }
-            ],
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
-            "count_wave_labels": [
-              {
-                "index": 3,
-                "wave": 0
-              },
-              {
-                "index": 4,
-                "wave": 1
-              },
-              {
-                "index": 5,
-                "wave": 2
-              },
-              {
-                "index": 6,
-                "wave": 3
-              },
-              {
-                "index": 7,
-                "wave": 4
-              }
-            ],
-            "invalidation_price": 20.0149,
-            "target_zone": {
-              "high": 41.2632,
-              "low": 39.7416
-            },
-            "target_zone_extended": {
-              "high": 56.3937,
-              "low": 49.0946
-            },
-            "valid_count_total": 2,
-            "valid_count_total_v2": 2
-          },
-          "invalidation_price": 34.88,
-          "name": "JEN.DE",
-          "score_heuristic": 73.4,
-          "sector": "Technology",
-          "status": "heuristisch · unvalidiert",
-          "target_zone": {
-            "high": 50.7433,
-            "low": 45.96
-          },
-          "target_zone_extended": {
-            "high": 58.4833,
-            "low": 50.7433
-          },
-          "ticker": "JEN.DE",
-          "valid_count_total": 1,
-          "valid_count_total_v2": 1,
-          "vol_profile": {
-            "w1": 160811.21,
-            "w2": 115394.5
-          },
-          "vol_ratio_w2_w1": 0.7176,
-          "vol_ratio_w3_w1": null,
-          "vol_ratio_w4_w3": null
-        },
-        {
-          "agent_comment": {
-            "concern_level": "high",
-            "gegenargument": "Das Volumen in W2 beträgt nur 66,1 % von W1 — das ist schwach für eine Korrektur und deutet auf mangelnde Überzeugung hin. Die Invalidierung liegt bei 70,74 €, was nur 7,8 % unter dem aktuellen Kurs liegt und damit sehr eng ist. Bei einem Impuls sollte W3 typischerweise länger und volumenstarker sein als W2; hier fehlt die Basis dafür.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Nach einem Impuls (W1–W5) befindet sich Volkswagen in einer Welle 2 (Korrektur), die bei 76,58 € endet. Von hier wird eine Welle 3 erwartet, mit Zielzone 79,1–82,9 €.",
-            "model": "claude-haiku-4-5-20251001"
-          },
-          "alt_count": null,
-          "alt_count_v2": null,
-          "appearance_count": 3,
-          "atr_14": 1.7829,
-          "change_abs": -1.1,
-          "change_pct": -1.4161,
-          "chart_points": [
-            {
-              "date": "2026-02-18",
-              "index": 369,
-              "kind": "H",
-              "price": 97.5891
-            },
-            {
-              "date": "2026-03-20",
-              "index": 391,
-              "kind": "L",
-              "price": 80.0399
-            },
             {
               "date": "2026-04-17",
-              "index": 409,
+              "index": 408,
               "kind": "H",
-              "price": 86.9021
+              "price": 59.3936
             },
             {
-              "date": "2026-05-04",
+              "date": "2026-05-05",
               "index": 419,
               "kind": "L",
-              "price": 78.5588
+              "price": 54.6421
             },
             {
-              "date": "2026-05-28",
-              "index": 437,
+              "date": "2026-05-11",
+              "index": 423,
               "kind": "H",
-              "price": 86.7709
+              "price": 56.4477
             },
             {
-              "date": "2026-07-01",
+              "date": "2026-05-15",
+              "index": 427,
+              "kind": "L",
+              "price": 53.2642
+            },
+            {
+              "date": "2026-05-26",
+              "index": 434,
+              "kind": "H",
+              "price": 56.5427
+            },
+            {
+              "date": "2026-06-08",
+              "index": 443,
+              "kind": "L",
+              "price": 50.55
+            },
+            {
+              "date": "2026-06-16",
+              "index": 449,
+              "kind": "H",
+              "price": 53.6
+            },
+            {
+              "date": "2026-06-23",
+              "index": 454,
+              "kind": "L",
+              "price": 52.6
+            },
+            {
+              "date": "2026-07-02",
               "index": 461,
-              "kind": "L",
-              "price": 69.94
-            },
-            {
-              "date": "2026-07-07",
-              "index": 465,
               "kind": "H",
-              "price": 75.8
+              "price": 57.25
             },
             {
-              "date": "2026-07-10",
-              "index": 468,
+              "date": "2026-07-23",
+              "index": 476,
               "kind": "L",
-              "price": 70.98
+              "price": 51.1
             },
             {
-              "date": "2026-07-15",
-              "index": 471,
-              "kind": "H",
-              "price": 74.4
-            },
-            {
-              "date": "2026-07-27",
+              "date": "2026-07-28",
               "index": 479,
-              "kind": "L",
-              "price": 70.74
-            },
-            {
-              "date": "2026-08-04",
-              "index": 485,
               "kind": "H",
-              "price": 76.9
+              "price": 53.45
             },
             {
-              "date": "2026-08-13",
-              "index": 492,
+              "date": "2026-08-06",
+              "index": 486,
               "kind": "L",
-              "price": 72.94
+              "price": 52.0
             }
           ],
-          "close": 76.58,
-          "company_name": "Volkswagen AG",
+          "close": 48.22,
+          "company_name": "LEG Immobilien SE",
           "confluence": {
             "invalidation": [],
             "target": []
@@ -950,38 +869,38 @@
           ],
           "direction": "long",
           "higher_degree": null,
-          "invalidation_price": 70.74,
-          "name": "VOW3.DE",
-          "score_heuristic": 73.12,
-          "sector": "Consumer Discretionary",
+          "invalidation_price": 51.1,
+          "name": "LEG.DE",
+          "score_heuristic": 73.83,
+          "sector": "Real Estate",
           "status": "heuristisch · unvalidiert",
           "target_zone": {
-            "high": 82.9069,
-            "low": 79.1
+            "high": 55.8023,
+            "low": 54.35
           },
           "target_zone_extended": {
-            "high": 89.0669,
-            "low": 82.9069
+            "high": 58.1523,
+            "low": 55.8023
           },
-          "ticker": "VOW3.DE",
+          "ticker": "LEG.DE",
           "valid_count_total": 1,
           "valid_count_total_v2": 1,
           "vol_profile": {
-            "w1": 1085895.86,
-            "w2": 717809.25
+            "w1": 219937.75,
+            "w2": 254739.38
           },
-          "vol_ratio_w2_w1": 0.661,
+          "vol_ratio_w2_w1": 1.1582,
           "vol_ratio_w3_w1": null,
           "vol_ratio_w4_w3": null
         }
       ],
-      "candidates_found": 32,
+      "candidates_found": 39,
       "diag": {
         "bad_bar_tickers": [
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -991,7 +910,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1001,7 +920,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1011,7 +930,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1021,7 +940,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1031,7 +950,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1041,7 +960,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1051,7 +970,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1061,7 +980,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1071,7 +990,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1081,7 +1000,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1091,7 +1010,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1101,7 +1020,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1111,7 +1030,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1121,7 +1040,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1131,7 +1050,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1141,7 +1060,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1151,7 +1070,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1161,7 +1080,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1171,7 +1090,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1181,7 +1100,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1191,7 +1110,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1201,7 +1120,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1211,7 +1130,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1221,7 +1140,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1231,7 +1150,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1241,7 +1160,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1251,7 +1170,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1261,7 +1180,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1271,7 +1190,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1281,7 +1200,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1291,7 +1210,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1301,7 +1220,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1311,7 +1230,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1321,7 +1240,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1331,7 +1250,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1341,7 +1260,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1351,7 +1270,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1361,7 +1280,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1371,7 +1290,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1381,7 +1300,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1391,7 +1310,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1401,7 +1320,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1411,7 +1330,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1421,7 +1340,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1431,7 +1350,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1441,7 +1360,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1451,7 +1370,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1461,7 +1380,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1471,7 +1390,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1481,7 +1400,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1491,7 +1410,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1501,7 +1420,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1511,7 +1430,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1521,7 +1440,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1531,7 +1450,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1541,7 +1460,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1551,7 +1470,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1561,7 +1480,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1571,7 +1490,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1581,7 +1500,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1591,7 +1510,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1601,7 +1520,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1611,7 +1530,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1621,7 +1540,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1631,7 +1550,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1641,7 +1560,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1651,7 +1570,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1661,7 +1580,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1671,7 +1590,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1681,7 +1600,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1691,7 +1610,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1701,7 +1620,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1711,7 +1630,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1721,7 +1640,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1731,7 +1650,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1741,7 +1660,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1751,7 +1670,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1761,7 +1680,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1771,7 +1690,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1781,7 +1700,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1791,7 +1710,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1801,7 +1720,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1811,7 +1730,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1821,7 +1740,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1831,7 +1750,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1841,7 +1760,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1851,7 +1770,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1861,7 +1780,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1871,7 +1790,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1881,7 +1800,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1891,7 +1810,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1901,7 +1820,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1911,7 +1830,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1921,7 +1840,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1931,7 +1850,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1941,7 +1860,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1951,7 +1870,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1961,7 +1880,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1971,7 +1890,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1981,7 +1900,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -1991,7 +1910,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2001,7 +1920,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2011,7 +1930,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2021,7 +1940,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2031,7 +1950,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2041,7 +1960,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2051,7 +1970,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2061,7 +1980,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2071,7 +1990,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2081,7 +2000,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2091,7 +2010,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2101,7 +2020,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2111,7 +2030,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2121,7 +2040,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -2137,22 +2056,22 @@
           }
         ],
         "dropped_bar_dates": {
-          "2026-09-02": 115
+          "2026-09-03": 115
         },
         "dropped_bars": 115,
         "dropped_last_row": 115,
         "dropped_mid_row": 0,
-        "expected_bar_date": "2026-09-03",
-        "higher_degree_count": 2,
+        "expected_bar_date": "2026-09-04",
+        "higher_degree_count": 1,
         "invalid_volume_bars": 0,
-        "last_bar_date": "2026-09-01",
+        "last_bar_date": "2026-09-02",
         "new_episodes_gated": true,
         "reason_counts": {
           "empty_data": 1,
           "fetch_error": 0,
-          "no_valid_count": 52,
-          "short_setup_excluded": 26,
-          "target_exceeded": 6,
+          "no_valid_count": 46,
+          "short_setup_excluded": 27,
+          "target_exceeded": 4,
           "target_ext_exceeded": 0,
           "too_few_pivots": 0
         },
@@ -2160,12 +2079,12 @@
           "bars_max": 506,
           "bars_median": 506,
           "bars_min": 506,
-          "first_bar_max": "2024-09-02",
-          "first_bar_min": "2024-09-02",
-          "last_bar_max": "2026-09-01",
-          "last_bar_min": "2026-09-01",
+          "first_bar_max": "2024-09-03",
+          "first_bar_min": "2024-09-03",
+          "last_bar_max": "2026-09-02",
+          "last_bar_min": "2026-09-02",
           "schema": 1,
-          "shape_digest": "9bf50c1cab92",
+          "shape_digest": "83f4de5cea65",
           "tickers": 116,
           "tickers_at_last_bar": 116
         },
@@ -2173,7 +2092,7 @@
       },
       "evaluated": 117,
       "label": "Deutschland",
-      "skipped": 85,
+      "skipped": 78,
       "universe_size": 117
     },
     "US": {
@@ -2181,114 +2100,114 @@
         {
           "agent_comment": {
             "concern_level": "high",
-            "gegenargument": "Alternation ist nicht beobachtet worden — W2 und W4 zeigen keine strukturelle Unterscheidung (W2: 53,8% Retrace, W4: 40,9% Retrace sind sich ähnlich). Das W3-Volumen übersteigt W1 nur marginal (1,0985x), während W4-Volumen deutlich unter W3 fällt (0,74x) — das ist schwach für einen etablierten Impuls. Die Alternative (W2-Ende, W3 erwartet) konkurriert direkt und wird nicht ausgeschlossen.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W4 abgeschlossen) und erwartet W5 aufwärts in die Zone 98,30–101,29. Der aktuelle Kurs bei 94,42 liegt unterhalb dieser Zone, was ein Long-Setup am Ende von W4 darstellen soll.",
+            "gegenargument": "Das W3-zu-W1-Volumen beträgt nur 0,8993 — unter 1,0 liegt also keine klassische Volumenbestätigung für die Impulswelle vor. Zudem existiert eine gleichwertige Alternative (W2-Ende statt W4-Ende), was auf Mehrdeutigkeit in der aktuellen Struktur hindeutet. Der aktuelle Kurs 279,79 liegt bereits nahe der unteren Zielzone, während die Invalidierung bei 237,25 sehr weit entfernt ist — das Risiko-Gewinn-Verhältnis ist ungünstig.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W5) mit W4 abgeschlossen; W5 wird erwartet und soll in die Zone 281,13–297,88 laufen. Die Alternation zwischen W2 (57,2% Retrace) und W4 (31,1% Retrace) ist vorhanden, Extension liegt in W3.",
             "model": "claude-haiku-4-5-20251001"
           },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 84.0791,
-            "score_heuristic": 67.86,
+            "invalidation_price": 212.17,
+            "score_heuristic": 60.0,
             "target_zone": {
-              "high": 119.1391,
-              "low": 109.3309
+              "high": 352.3982,
+              "low": 314.83
             }
           },
           "alt_count_v2": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 84.0791,
+            "invalidation_price": 212.17,
             "kind": "impulse",
-            "score_heuristic": 67.86,
+            "score_heuristic": 60.0,
             "target_zone": {
-              "high": 119.1391,
-              "low": 109.3309
+              "high": 352.3982,
+              "low": 314.83
             }
           },
           "appearance_count": 2,
-          "atr_14": 1.6414,
-          "change_abs": -0.75,
-          "change_pct": -0.7881,
+          "atr_14": 9.74,
+          "change_abs": -6.29,
+          "change_pct": -2.1987,
           "chart_points": [
             {
-              "date": "2026-02-18",
-              "index": 365,
+              "date": "2026-04-22",
+              "index": 408,
               "kind": "H",
-              "price": 78.1335
-            },
-            {
-              "date": "2026-03-27",
-              "index": 392,
-              "kind": "L",
-              "price": 66.7715
-            },
-            {
-              "date": "2026-04-17",
-              "index": 406,
-              "kind": "H",
-              "price": 77.0091
+              "price": 255.94
             },
             {
               "date": "2026-04-23",
-              "index": 410,
+              "index": 409,
               "kind": "L",
-              "price": 75.0168
+              "price": 238.98
             },
             {
-              "date": "2026-05-01",
-              "index": 416,
+              "date": "2026-05-07",
+              "index": 419,
               "kind": "H",
-              "price": 79.1297
+              "price": 256.51
             },
             {
-              "date": "2026-05-11",
-              "index": 422,
+              "date": "2026-05-13",
+              "index": 423,
               "kind": "L",
-              "price": 76.9105
+              "price": 236.07
             },
             {
-              "date": "2026-05-21",
-              "index": 430,
+              "date": "2026-05-18",
+              "index": 426,
               "kind": "H",
-              "price": 83.781
+              "price": 255.64
             },
             {
-              "date": "2026-06-03",
-              "index": 438,
+              "date": "2026-05-27",
+              "index": 432,
               "kind": "L",
-              "price": 80.4615
+              "price": 238.24
             },
             {
-              "date": "2026-06-12",
-              "index": 445,
+              "date": "2026-06-01",
+              "index": 435,
               "kind": "H",
-              "price": 88.293
+              "price": 274.03
             },
             {
-              "date": "2026-06-24",
+              "date": "2026-06-25",
               "index": 452,
               "kind": "L",
-              "price": 84.0791
+              "price": 193.41
             },
             {
-              "date": "2026-08-06",
-              "index": 482,
+              "date": "2026-07-17",
+              "index": 467,
               "kind": "H",
-              "price": 99.95
+              "price": 237.25
             },
             {
-              "date": "2026-08-20",
-              "index": 492,
+              "date": "2026-07-23",
+              "index": 471,
               "kind": "L",
-              "price": 93.46
+              "price": 212.17
+            },
+            {
+              "date": "2026-08-10",
+              "index": 483,
+              "kind": "H",
+              "price": 272.96
+            },
+            {
+              "date": "2026-08-17",
+              "index": 488,
+              "kind": "L",
+              "price": 254.04
             }
           ],
-          "close": 94.42,
-          "company_name": "MetLife Inc.",
+          "close": 279.79,
+          "company_name": "Adobe Inc.",
           "confluence": {
             "invalidation": [],
             "target": [
-              "52w_high"
+              "round"
             ]
           },
           "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
@@ -2316,44 +2235,209 @@
           ],
           "direction": "long",
           "higher_degree": null,
-          "invalidation_price": 88.293,
-          "name": "MET",
-          "score_heuristic": 81.14,
-          "sector": "Financials",
+          "invalidation_price": 237.25,
+          "name": "ADBE",
+          "score_heuristic": 80.56,
+          "sector": "Technology",
           "status": "heuristisch · unvalidiert",
           "target_zone": {
-            "high": 101.2915,
-            "low": 98.2999
+            "high": 297.88,
+            "low": 281.1331
           },
           "target_zone_extended": {
-            "high": 105.5039,
-            "low": 100.9046
+            "high": 303.2019,
+            "low": 284.4281
           },
-          "ticker": "MET",
+          "ticker": "ADBE",
           "valid_count_total": 2,
-          "valid_count_total_v2": 3,
+          "valid_count_total_v2": 2,
           "vol_profile": {
-            "w1": 3579800.0,
-            "w2": 4647175.0,
-            "w3": 3932419.35,
-            "w4": 2909181.82
+            "w1": 6103287.5,
+            "w2": 5235740.0,
+            "w3": 5488569.23,
+            "w4": 4144750.0
           },
           "vol_ratio_w2_w1": null,
-          "vol_ratio_w3_w1": 1.0985,
-          "vol_ratio_w4_w3": 0.7398
+          "vol_ratio_w3_w1": 0.8993,
+          "vol_ratio_w4_w3": 0.7552
+        },
+        {
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "Das W3-Volumen ist mit 0,9221 relativ zu W1 schwach und unterschreitet typische Impuls-Standards (sollte >1,0 sein); gleichzeitig existiert eine validierte Alternative (Impuls 1–5 mit Long-Setup am W2-Ende), die das gleiche Datenmaterial anders deutet — das signalisiert Mehrdeutigkeit in der Wellen-Struktur.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit W4-Ende bei 60,91 und erwartet W5 in die Zone 64,38–68,07. Alternation ist vorhanden (W2: 39,2%, W4: 40,3%), und die Extension liegt bei 63,60–66,80.",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "alt_count": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 53.81,
+            "score_heuristic": 67.12,
+            "target_zone": {
+              "high": 70.8848,
+              "low": 66.12
+            }
+          },
+          "alt_count_v2": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 53.81,
+            "kind": "impulse",
+            "score_heuristic": 67.12,
+            "target_zone": {
+              "high": 70.8848,
+              "low": 66.12
+            }
+          },
+          "appearance_count": 1,
+          "atr_14": 1.325,
+          "change_abs": -0.04,
+          "change_pct": -0.0656,
+          "chart_points": [
+            {
+              "date": "2026-03-30",
+              "index": 392,
+              "kind": "H",
+              "price": 65.9354
+            },
+            {
+              "date": "2026-04-17",
+              "index": 405,
+              "kind": "L",
+              "price": 53.5427
+            },
+            {
+              "date": "2026-04-29",
+              "index": 413,
+              "kind": "H",
+              "price": 60.4806
+            },
+            {
+              "date": "2026-05-08",
+              "index": 420,
+              "kind": "L",
+              "price": 52.7862
+            },
+            {
+              "date": "2026-05-19",
+              "index": 427,
+              "kind": "H",
+              "price": 60.4209
+            },
+            {
+              "date": "2026-05-29",
+              "index": 434,
+              "kind": "L",
+              "price": 56.3696
+            },
+            {
+              "date": "2026-06-03",
+              "index": 437,
+              "kind": "H",
+              "price": 59.3658
+            },
+            {
+              "date": "2026-07-01",
+              "index": 456,
+              "kind": "L",
+              "price": 47.94
+            },
+            {
+              "date": "2026-07-23",
+              "index": 471,
+              "kind": "H",
+              "price": 57.6
+            },
+            {
+              "date": "2026-08-05",
+              "index": 480,
+              "kind": "L",
+              "price": 53.81
+            },
+            {
+              "date": "2026-08-20",
+              "index": 491,
+              "kind": "H",
+              "price": 61.52
+            },
+            {
+              "date": "2026-08-25",
+              "index": 494,
+              "kind": "L",
+              "price": 58.41
+            }
+          ],
+          "close": 60.91,
+          "company_name": "Occidental Petroleum Corp.",
+          "confluence": {
+            "invalidation": [],
+            "target": [
+              "52w_high",
+              "round"
+            ]
+          },
+          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
+          "count_wave_labels": [
+            {
+              "index": 7,
+              "wave": 0
+            },
+            {
+              "index": 8,
+              "wave": 1
+            },
+            {
+              "index": 9,
+              "wave": 2
+            },
+            {
+              "index": 10,
+              "wave": 3
+            },
+            {
+              "index": 11,
+              "wave": 4
+            }
+          ],
+          "direction": "long",
+          "higher_degree": null,
+          "invalidation_price": 57.6,
+          "name": "OXY",
+          "score_heuristic": 80.3,
+          "sector": "Energy",
+          "status": "heuristisch · unvalidiert",
+          "target_zone": {
+            "high": 68.07,
+            "low": 64.3799
+          },
+          "target_zone_extended": {
+            "high": 66.8024,
+            "low": 63.5976
+          },
+          "ticker": "OXY",
+          "valid_count_total": 2,
+          "valid_count_total_v2": 2,
+          "vol_profile": {
+            "w1": 9398243.75,
+            "w2": 8255410.0,
+            "w3": 8666133.33,
+            "w4": 7291375.0
+          },
+          "vol_ratio_w2_w1": null,
+          "vol_ratio_w3_w1": 0.9221,
+          "vol_ratio_w4_w3": 0.8414
         },
         {
           "agent_comment": {
             "concern_level": "high",
-            "gegenargument": "Das Volumen in W3 (0,8896 relativ zu W1) ist schwach für eine Impulswelle 3, und W4 zieht sich mit 34,7% Retracement ungewöhnlich tief zurück — das deutet auf Schwäche hin und erhöht das Risiko, dass die aktuelle Struktur kein klassischer Impuls ist, sondern eine Korrektur oder ein schwächeres Muster.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit W4 als Abschluss; W5 wird erwartet und soll in die Zone 375–390 führen. Alternation ist vorhanden (W2: 20,2%, W4: 34,7%), und die Extension liegt im klassischen Bereich.",
+            "gegenargument": "Das Volumen in W3 (0.8896 relativ zu W1) ist schwach für eine Impulswelle 3, und W4 zieht mit 34.67% Retracement ungewöhnlich tief zurück — das deutet eher auf eine flache oder komplexe Korrektur hin. Die Alternative (W2-Ende, W3 erwartet) konkurriert direkt und wird vom System selbst als plausibel bewertet.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem aktuellen Kurs (356.22) am Ende von Welle 4. Welle 5 wird erwartet und soll in die Zone 375.26–389.92 laufen.",
             "model": "claude-haiku-4-5-20251001"
           },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 325.862,
-            "score_heuristic": 57.29,
+            "score_heuristic": 57.78,
             "target_zone": {
               "high": 415.1665,
               "low": 390.868
@@ -2363,91 +2447,91 @@
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 325.862,
             "kind": "impulse",
-            "score_heuristic": 57.29,
+            "score_heuristic": 57.78,
             "target_zone": {
               "high": 415.1665,
               "low": 390.868
             }
           },
           "appearance_count": 1,
-          "atr_14": 5.1729,
-          "change_abs": -1.07,
-          "change_pct": -0.3005,
+          "atr_14": 5.3657,
+          "change_abs": 1.27,
+          "change_pct": 0.3578,
           "chart_points": [
             {
               "date": "2026-03-25",
-              "index": 390,
+              "index": 389,
               "kind": "H",
               "price": 292.5977
             },
             {
               "date": "2026-03-27",
-              "index": 392,
+              "index": 391,
               "kind": "L",
               "price": 280.1379
             },
             {
               "date": "2026-04-20",
-              "index": 407,
+              "index": 406,
               "kind": "H",
               "price": 315.5684
             },
             {
               "date": "2026-04-24",
-              "index": 411,
+              "index": 410,
               "kind": "L",
               "price": 306.8975
             },
             {
               "date": "2026-05-06",
-              "index": 419,
+              "index": 418,
               "kind": "H",
               "price": 313.4878
             },
             {
               "date": "2026-05-19",
-              "index": 428,
+              "index": 427,
               "kind": "L",
               "price": 294.3739
             },
             {
               "date": "2026-05-26",
-              "index": 432,
+              "index": 431,
               "kind": "H",
               "price": 305.3643
             },
             {
               "date": "2026-06-01",
-              "index": 436,
+              "index": 435,
               "kind": "L",
               "price": 295.2499
             },
             {
               "date": "2026-06-25",
-              "index": 453,
+              "index": 452,
               "kind": "H",
               "price": 333.6171
             },
             {
               "date": "2026-06-30",
-              "index": 456,
+              "index": 455,
               "kind": "L",
               "price": 325.862
             },
             {
               "date": "2026-08-12",
-              "index": 486,
+              "index": 485,
               "kind": "H",
               "price": 365.18
             },
             {
               "date": "2026-08-20",
-              "index": 492,
+              "index": 491,
               "kind": "L",
               "price": 351.55
             }
           ],
-          "close": 354.95,
+          "close": 356.22,
           "company_name": "JPMorgan Chase & Co.",
           "confluence": {
             "invalidation": [],
@@ -2485,49 +2569,49 @@
             "chart_points": [
               {
                 "date": "2025-02-10",
-                "index": 441,
+                "index": 440,
                 "kind": "H",
-                "price": 268.4433
+                "price": 268.4432
               },
               {
                 "date": "2025-03-31",
-                "index": 448,
+                "index": 447,
                 "kind": "L",
                 "price": 205.3434
               },
               {
                 "date": "2025-09-22",
-                "index": 473,
+                "index": 472,
                 "kind": "H",
                 "price": 310.127
               },
               {
                 "date": "2025-10-13",
-                "index": 476,
+                "index": 475,
                 "kind": "L",
                 "price": 293.3938
               },
               {
                 "date": "2026-01-05",
-                "index": 488,
+                "index": 487,
                 "kind": "H",
                 "price": 326.0451
               },
               {
                 "date": "2026-03-23",
-                "index": 499,
+                "index": 498,
                 "kind": "L",
                 "price": 280.1379
               },
               {
                 "date": "2026-04-27",
-                "index": 504,
+                "index": 503,
                 "kind": "H",
                 "price": 311.0687
               },
               {
                 "date": "2026-05-11",
-                "index": 506,
+                "index": 505,
                 "kind": "L",
                 "price": 296.4744
               }
@@ -2561,7 +2645,7 @@
           },
           "invalidation_price": 333.6171,
           "name": "JPM",
-          "score_heuristic": 79.3,
+          "score_heuristic": 79.81,
           "sector": "Financials",
           "status": "heuristisch · unvalidiert",
           "target_zone": {
@@ -2588,92 +2672,92 @@
         {
           "agent_comment": {
             "concern_level": "high",
-            "gegenargument": "Das Volumen in W2 beträgt nur 86,45% von W1 — eine Korrektur sollte typischerweise kräftiger sein. Zudem liegt der aktuelle Kurs (-6,8% Tagesveränderung) bereits im Korrekturbereich; unklar, ob W2 wirklich abgeschlossen ist oder noch läuft. Die Invalidierung sitzt 55 Punkte unter dem aktuellen Kurs, was eine breite Fehlertoleranz signalisiert.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Die Zählung identifiziert einen Impuls (W1–W5) mit W2-Ende bei ~425 €. W3 wird erwartet, Zielzone liegt bei 558–635. Das Setup basiert auf Extension-Berechnung und einer Invalidierung bei 369,64.",
+            "gegenargument": "Das Volumen in W2 (0,8645 relativ zu W1) ist schwach für eine klassische Korrektur und deutet auf mangelnde Verkaufsüberzeugung hin. Zudem liegt die Invalidierung bei 369,64 — ein Abstand von über 25 % zum aktuellen Kurs (492,2), was eine ungewöhnlich breite Fehlertoleranz für eine bereits gezählte Struktur signalisiert.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "Nach einem Impuls 1–5 befindet sich DELL am Ende der Welle 2 (Korrektur). Die Zählung erwartet nun den Beginn von Welle 3 als nächste Aufwärtsbewegung in die Zone 558–635.",
             "model": "claude-haiku-4-5-20251001"
           },
           "alt_count": null,
           "alt_count_v2": null,
           "appearance_count": 1,
-          "atr_14": 24.2007,
-          "change_abs": -31.01,
-          "change_pct": -6.8003,
+          "atr_14": 27.3071,
+          "change_abs": 67.2,
+          "change_pct": 15.8118,
           "chart_points": [
             {
               "date": "2026-05-08",
-              "index": 421,
+              "index": 420,
               "kind": "H",
               "price": 260.0303
             },
             {
               "date": "2026-05-19",
-              "index": 428,
+              "index": 427,
               "kind": "L",
               "price": 234.8719
             },
             {
               "date": "2026-06-01",
-              "index": 436,
+              "index": 435,
               "kind": "H",
               "price": 465.1913
             },
             {
               "date": "2026-06-10",
-              "index": 443,
+              "index": 442,
               "kind": "L",
               "price": 369.2199
             },
             {
               "date": "2026-06-24",
-              "index": 452,
+              "index": 451,
               "kind": "H",
               "price": 433.3439
             },
             {
               "date": "2026-07-02",
-              "index": 458,
+              "index": 457,
               "kind": "L",
               "price": 393.6695
             },
             {
               "date": "2026-07-14",
-              "index": 465,
+              "index": 464,
               "kind": "H",
               "price": 456.7852
             },
             {
               "date": "2026-07-20",
-              "index": 469,
+              "index": 468,
               "kind": "L",
               "price": 381.25
             },
             {
               "date": "2026-07-22",
-              "index": 471,
+              "index": 470,
               "kind": "H",
               "price": 441.8
             },
             {
               "date": "2026-07-29",
-              "index": 476,
+              "index": 475,
               "kind": "L",
               "price": 369.64
             },
             {
               "date": "2026-08-13",
-              "index": 487,
+              "index": 486,
               "kind": "H",
               "price": 494.51
             },
             {
               "date": "2026-08-24",
-              "index": 494,
+              "index": 493,
               "kind": "L",
               "price": 433.19
             }
           ],
-          "close": 425.0,
+          "close": 492.2,
           "company_name": "Dell Technologies Inc.",
           "confluence": {
             "invalidation": [
@@ -2703,49 +2787,49 @@
             "chart_points": [
               {
                 "date": "2024-11-18",
-                "index": 429,
+                "index": 428,
                 "kind": "H",
                 "price": 140.35
               },
               {
                 "date": "2025-03-31",
-                "index": 448,
+                "index": 447,
                 "kind": "L",
                 "price": 69.9919
               },
               {
                 "date": "2025-08-11",
-                "index": 467,
+                "index": 466,
                 "kind": "H",
                 "price": 136.5401
               },
               {
                 "date": "2025-08-25",
-                "index": 469,
+                "index": 468,
                 "kind": "L",
                 "price": 120.613
               },
               {
                 "date": "2025-10-27",
-                "index": 478,
+                "index": 477,
                 "kind": "H",
                 "price": 160.5415
               },
               {
                 "date": "2026-01-26",
-                "index": 491,
+                "index": 490,
                 "kind": "L",
                 "price": 113.8988
               },
               {
                 "date": "2026-05-25",
-                "index": 508,
+                "index": 507,
                 "kind": "H",
                 "price": 420.2156
               },
               {
                 "date": "2026-06-29",
-                "index": 513,
+                "index": 512,
                 "kind": "L",
                 "price": 393.6695
               }
@@ -2804,241 +2888,98 @@
         {
           "agent_comment": {
             "concern_level": "low",
-            "gegenargument": "Das W2-zu-W1-Volumen liegt bei 0.72 — deutlich unter 1.0 — was auf schwache Verkaufsintensität in der Korrektur hindeutet und die Impulskraft anzweifelt. Die Invalidierung bei 157.97 USD ist sehr weit entfernt (16 % unter aktuellem Kurs), was eine breite Fehlertoleranz signalisiert und die Präzision der Zählung schwächt.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Die Zählung identifiziert einen Impuls (W1–W5) mit W2-Abschluss bei 189.26 USD. W3 wird erwartet, mit Zielzone 236–269 USD. Das Setup basiert auf 3 Top-5-Erscheinungen und einem heuristischen Score von 78.77.",
+            "gegenargument": "Das Volumen in W2 (0,804 relativ zu W1) ist schwach und deutet auf mangelnde Verkaufsüberzeugung hin — ein klassisches Warnsignal für die Qualität der Korrektur. Zudem liegt nur 1 validierte Zählung vor (valide_zaehlungen_v2), was auf geringe Bestätigung hindeutet. Die Invalidierungszone bei 190,01 ist sehr weit entfernt (15,4 % unter aktuellem Kurs), was die Zählung zwar defensiv macht, aber auch ihre Mehrdeutigkeit unterstreicht.",
+            "generated_at": "2026-09-04T00:24:13Z",
+            "lesart": "NVDA befindet sich nach Welle 2 in einer Impulsstruktur (1–5); Welle 3 wird erwartet und soll in die Zone 243,77–265,58 führen. Der aktuelle Kurs bei 224,41 liegt unterhalb dieser Zielzone, was auf einen noch ausstehenden Anstieg hindeutet.",
             "model": "claude-haiku-4-5-20251001"
           },
           "alt_count": null,
           "alt_count_v2": null,
           "appearance_count": 3,
-          "atr_14": 7.1093,
-          "change_abs": -6.43,
-          "change_pct": -3.2858,
+          "atr_14": 7.1729,
+          "change_abs": 6.97,
+          "change_pct": 3.2055,
           "chart_points": [
             {
-              "date": "2026-04-22",
-              "index": 409,
+              "date": "2026-03-11",
+              "index": 379,
               "kind": "H",
-              "price": 177.73
+              "price": 185.8134
             },
             {
-              "date": "2026-05-11",
-              "index": 422,
+              "date": "2026-03-30",
+              "index": 392,
               "kind": "L",
-              "price": 136.43
+              "price": 164.9777
             },
             {
-              "date": "2026-06-02",
-              "index": 437,
+              "date": "2026-04-27",
+              "index": 411,
               "kind": "H",
-              "price": 175.33
+              "price": 216.3578
+            },
+            {
+              "date": "2026-05-05",
+              "index": 417,
+              "kind": "L",
+              "price": 196.2712
+            },
+            {
+              "date": "2026-05-14",
+              "index": 424,
+              "kind": "H",
+              "price": 235.4656
             },
             {
               "date": "2026-06-10",
-              "index": 443,
+              "index": 442,
               "kind": "L",
-              "price": 151.76
+              "price": 200.42
             },
             {
-              "date": "2026-06-22",
-              "index": 450,
+              "date": "2026-06-15",
+              "index": 445,
               "kind": "H",
-              "price": 174.56
+              "price": 212.45
             },
             {
               "date": "2026-06-26",
-              "index": 454,
+              "index": 453,
               "kind": "L",
-              "price": 157.6
-            },
-            {
-              "date": "2026-07-10",
-              "index": 463,
-              "kind": "H",
-              "price": 186.96
-            },
-            {
-              "date": "2026-07-16",
-              "index": 467,
-              "kind": "L",
-              "price": 168.56
-            },
-            {
-              "date": "2026-07-23",
-              "index": 472,
-              "kind": "H",
-              "price": 176.61
-            },
-            {
-              "date": "2026-07-29",
-              "index": 476,
-              "kind": "L",
-              "price": 157.97
-            },
-            {
-              "date": "2026-08-12",
-              "index": 486,
-              "kind": "H",
-              "price": 210.5
-            },
-            {
-              "date": "2026-08-20",
-              "index": 492,
-              "kind": "L",
-              "price": 183.75
-            }
-          ],
-          "close": 189.26,
-          "company_name": "Arista Networks Inc.",
-          "confluence": {
-            "invalidation": [],
-            "target": [
-              "round"
-            ]
-          },
-          "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-          "count_wave_labels": [
-            {
-              "index": 9,
-              "wave": 0
-            },
-            {
-              "index": 10,
-              "wave": 1
-            },
-            {
-              "index": 11,
-              "wave": 2
-            }
-          ],
-          "direction": "long",
-          "higher_degree": null,
-          "invalidation_price": 157.97,
-          "name": "ANET",
-          "score_heuristic": 78.77,
-          "sector": "Technology",
-          "status": "heuristisch · unvalidiert",
-          "target_zone": {
-            "high": 268.7435,
-            "low": 236.28
-          },
-          "target_zone_extended": {
-            "high": 321.2735,
-            "low": 268.7435
-          },
-          "ticker": "ANET",
-          "valid_count_total": 1,
-          "valid_count_total_v2": 1,
-          "vol_profile": {
-            "w1": 9391790.91,
-            "w2": 6734628.57
-          },
-          "vol_ratio_w2_w1": 0.7171,
-          "vol_ratio_w3_w1": null,
-          "vol_ratio_w4_w3": null
-        },
-        {
-          "agent_comment": {
-            "concern_level": "high",
-            "gegenargument": "Das Volumen in W2 liegt bei nur 86,96% von W1 — für eine klassische Korrektur schwach. Gleichzeitig existiert eine konkurrierende Zählung (ABC-Korrektur im Aufbau), die Mehrdeutigkeit über die aktuelle Wellen-Identität signalisiert. Die Invalidierung bei 245,81 ist relativ weit entfernt (ca. 9,5% unter aktuellem Kurs), was auf geringe Konfidenz in der Wendepunkt-Bestimmung hindeutet.",
-            "generated_at": "2026-09-03T00:39:33Z",
-            "lesart": "Nach Welle 2 wird ein Impuls erwartet, der in Welle 3 startet. Die Zielzone liegt bei 272,77–284,90, die Extension bei 284,90–304,51. Das Setup positioniert sich auf einen Long-Einstieg am Ende der Korrektur.",
-            "model": "claude-haiku-4-5-20251001"
-          },
-          "alt_count": null,
-          "alt_count_v2": {
-            "count_label": "Korrektur läuft · A (ABC im Aufbau)",
-            "invalidation_price": 265.421,
-            "kind": "correction",
-            "score_heuristic": null,
-            "target_zone": null
-          },
-          "appearance_count": 3,
-          "atr_14": 5.1772,
-          "change_abs": 5.34,
-          "change_pct": 2.0087,
-          "chart_points": [
-            {
-              "date": "2026-03-02",
-              "index": 373,
-              "kind": "H",
-              "price": 245.9258
-            },
-            {
-              "date": "2026-03-24",
-              "index": 389,
-              "kind": "L",
-              "price": 232.7766
-            },
-            {
-              "date": "2026-03-31",
-              "index": 394,
-              "kind": "H",
-              "price": 241.8495
-            },
-            {
-              "date": "2026-05-08",
-              "index": 421,
-              "kind": "L",
-              "price": 218.9745
-            },
-            {
-              "date": "2026-05-22",
-              "index": 431,
-              "kind": "H",
-              "price": 231.8565
-            },
-            {
-              "date": "2026-06-02",
-              "index": 437,
-              "kind": "L",
-              "price": 221.7961
-            },
-            {
-              "date": "2026-06-12",
-              "index": 445,
-              "kind": "H",
-              "price": 239.6879
-            },
-            {
-              "date": "2026-06-18",
-              "index": 449,
-              "kind": "L",
-              "price": 227.2691
-            },
-            {
-              "date": "2026-07-07",
-              "index": 460,
-              "kind": "H",
-              "price": 265.9284
+              "price": 192.53
             },
             {
               "date": "2026-07-15",
-              "index": 466,
-              "kind": "L",
-              "price": 245.8077
-            },
-            {
-              "date": "2026-07-28",
-              "index": 475,
+              "index": 465,
               "kind": "H",
-              "price": 265.421
+              "price": 212.5
             },
             {
-              "date": "2026-08-03",
-              "index": 479,
+              "date": "2026-07-29",
+              "index": 475,
               "kind": "L",
-              "price": 253.1614
+              "price": 190.01
+            },
+            {
+              "date": "2026-08-13",
+              "index": 486,
+              "kind": "H",
+              "price": 225.3
+            },
+            {
+              "date": "2026-08-24",
+              "index": 493,
+              "kind": "L",
+              "price": 208.48
             }
           ],
-          "close": 271.19,
-          "company_name": "Johnson & Johnson",
+          "close": 224.41,
+          "company_name": "NVIDIA Corp.",
           "confluence": {
-            "invalidation": [],
-            "target": [
-              "52w_high"
-            ]
+            "invalidation": [
+              "round"
+            ],
+            "target": []
           },
           "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
           "count_wave_labels": [
@@ -3057,142 +2998,117 @@
           ],
           "direction": "long",
           "higher_degree": {
-            "alt_count": {
-              "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-              "invalidation_price": 145.4214,
-              "score_heuristic": 60.0,
-              "target_zone": {
-                "high": 381.3826,
-                "low": 319.3503
-              }
-            },
-            "alt_count_v2": {
-              "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-              "invalidation_price": 145.4214,
-              "kind": "impulse",
-              "score_heuristic": 60.0,
-              "target_zone": {
-                "high": 381.3826,
-                "low": 319.3503
-              }
-            },
+            "alt_count": null,
+            "alt_count_v2": null,
             "chart_points": [
               {
-                "date": "2024-05-13",
-                "index": 402,
+                "date": "2025-08-04",
+                "index": 465,
                 "kind": "H",
-                "price": 144.2269
+                "price": 182.457
               },
               {
-                "date": "2024-06-10",
-                "index": 406,
+                "date": "2025-09-01",
+                "index": 469,
                 "kind": "L",
-                "price": 136.8369
+                "price": 166.7979
               },
               {
-                "date": "2024-08-26",
-                "index": 417,
+                "date": "2025-10-27",
+                "index": 477,
                 "kind": "H",
-                "price": 157.1254
+                "price": 202.2321
               },
               {
-                "date": "2025-01-06",
-                "index": 436,
+                "date": "2025-12-08",
+                "index": 483,
                 "kind": "L",
-                "price": 135.6586
+                "price": 174.8068
               },
               {
-                "date": "2025-03-03",
-                "index": 444,
+                "date": "2026-01-26",
+                "index": 490,
                 "kind": "H",
-                "price": 160.4529
+                "price": 190.8972
               },
               {
-                "date": "2025-06-16",
-                "index": 459,
+                "date": "2026-03-23",
+                "index": 498,
                 "kind": "L",
-                "price": 145.4214
+                "price": 167.325
               },
               {
-                "date": "2026-02-23",
-                "index": 495,
-                "kind": "H",
-                "price": 245.7972
-              },
-              {
-                "date": "2026-05-04",
+                "date": "2026-05-11",
                 "index": 505,
+                "kind": "H",
+                "price": 225.0577
+              },
+              {
+                "date": "2026-06-22",
+                "index": 511,
                 "kind": "L",
-                "price": 218.9745
+                "price": 192.53
               }
             ],
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "count_wave_labels": [
               {
-                "index": 3,
+                "index": 5,
                 "wave": 0
               },
               {
-                "index": 4,
+                "index": 6,
                 "wave": 1
               },
               {
-                "index": 5,
-                "wave": 2
-              },
-              {
-                "index": 6,
-                "wave": 3
-              },
-              {
                 "index": 7,
-                "wave": 4
+                "wave": 2
               }
             ],
-            "invalidation_price": 160.4529,
+            "invalidation_price": 167.325,
             "target_zone": {
-              "high": 243.7688,
-              "low": 234.2974
+              "high": 285.9416,
+              "low": 250.2627
             },
             "target_zone_extended": {
-              "high": 287.0401,
-              "low": 261.0474
+              "high": 343.6743,
+              "low": 285.9416
             },
-            "valid_count_total": 2,
-            "valid_count_total_v2": 2
+            "valid_count_total": 1,
+            "valid_count_total_v2": 1
           },
-          "invalidation_price": 245.8077,
-          "name": "JNJ",
-          "score_heuristic": 78.1,
-          "sector": "Health Care",
+          "invalidation_price": 190.01,
+          "name": "NVDA",
+          "score_heuristic": 76.88,
+          "sector": "Technology",
           "status": "heuristisch · unvalidiert",
           "target_zone": {
-            "high": 284.8957,
-            "low": 272.7747
+            "high": 265.5792,
+            "low": 243.77
           },
           "target_zone_extended": {
-            "high": 304.509,
-            "low": 284.8957
+            "high": 300.8692,
+            "low": 265.5792
           },
-          "ticker": "JNJ",
+          "ticker": "NVDA",
           "valid_count_total": 1,
-          "valid_count_total_v2": 2,
+          "valid_count_total_v2": 1,
           "vol_profile": {
-            "w1": 9137460.0,
-            "w2": 7946300.0
+            "w1": 123545750.0,
+            "w2": 99333237.5
           },
-          "vol_ratio_w2_w1": 0.8696,
+          "vol_ratio_w2_w1": 0.804,
           "vol_ratio_w3_w1": null,
           "vol_ratio_w4_w3": null
         }
       ],
-      "candidates_found": 63,
+      "candidates_found": 47,
       "diag": {
         "bad_bar_tickers": [
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3202,7 +3118,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3212,7 +3128,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3222,7 +3138,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3232,7 +3148,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3242,7 +3158,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3252,7 +3168,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3262,7 +3178,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3272,7 +3188,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3282,7 +3198,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3292,7 +3208,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3302,7 +3218,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3312,7 +3228,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3322,7 +3238,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3332,7 +3248,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3342,7 +3258,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3352,7 +3268,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3362,7 +3278,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3372,7 +3288,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3382,7 +3298,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3392,7 +3308,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3402,7 +3318,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3412,7 +3328,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3422,7 +3338,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3432,7 +3348,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3442,7 +3358,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3452,7 +3368,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3462,7 +3378,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3472,7 +3388,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3482,7 +3398,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3492,7 +3408,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3502,7 +3418,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3512,7 +3428,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3522,7 +3438,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3532,7 +3448,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3542,7 +3458,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3552,7 +3468,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3562,7 +3478,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3572,7 +3488,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3582,7 +3498,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3592,7 +3508,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3602,7 +3518,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3612,7 +3528,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3622,7 +3538,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3632,7 +3548,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3642,7 +3558,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3652,7 +3568,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3662,7 +3578,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3672,7 +3588,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3682,7 +3598,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3692,7 +3608,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3702,7 +3618,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3712,7 +3628,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3722,7 +3638,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3732,7 +3648,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3742,7 +3658,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3752,7 +3668,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3762,7 +3678,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3772,7 +3688,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3782,7 +3698,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3792,7 +3708,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3802,7 +3718,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3812,7 +3728,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3822,7 +3738,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3832,7 +3748,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3842,7 +3758,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3852,7 +3768,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3862,7 +3778,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3872,7 +3788,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3882,7 +3798,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3892,7 +3808,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3902,7 +3818,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3912,7 +3828,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3922,7 +3838,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3932,7 +3848,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3942,7 +3858,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3952,7 +3868,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3962,7 +3878,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3972,7 +3888,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3982,7 +3898,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -3992,7 +3908,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4002,7 +3918,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4012,7 +3928,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4022,7 +3938,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4032,7 +3948,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4042,7 +3958,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4052,7 +3968,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4062,7 +3978,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4072,7 +3988,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4082,7 +3998,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4092,7 +4008,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4102,7 +4018,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4112,7 +4028,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4122,7 +4038,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4132,7 +4048,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4142,7 +4058,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4152,7 +4068,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4162,7 +4078,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4172,7 +4088,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4182,7 +4098,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4192,7 +4108,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4202,7 +4118,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4212,7 +4128,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4222,7 +4138,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4232,7 +4148,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4242,7 +4158,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4252,7 +4168,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4262,7 +4178,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4272,7 +4188,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4282,7 +4198,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4292,7 +4208,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4302,7 +4218,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4312,7 +4228,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4322,7 +4238,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4332,7 +4248,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4342,7 +4258,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4352,7 +4268,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4362,7 +4278,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4372,7 +4288,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4382,7 +4298,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4392,7 +4308,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4402,7 +4318,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4412,7 +4328,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4422,7 +4338,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4432,7 +4348,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4442,7 +4358,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4452,7 +4368,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4462,7 +4378,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4472,7 +4388,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4482,7 +4398,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4492,7 +4408,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4502,7 +4418,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4512,7 +4428,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4522,7 +4438,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4532,7 +4448,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4542,7 +4458,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4552,7 +4468,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4562,7 +4478,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4572,7 +4488,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4582,7 +4498,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4592,7 +4508,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4602,7 +4518,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4612,7 +4528,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4622,7 +4538,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4632,7 +4548,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4642,7 +4558,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4652,7 +4568,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4662,7 +4578,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4672,7 +4588,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4682,7 +4598,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4692,7 +4608,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4702,7 +4618,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4712,7 +4628,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4722,7 +4638,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4732,7 +4648,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4742,7 +4658,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4752,7 +4668,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4762,7 +4678,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4772,7 +4688,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4782,7 +4698,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4792,7 +4708,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4802,7 +4718,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4812,7 +4728,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4822,7 +4738,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4832,7 +4748,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4842,7 +4758,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4852,7 +4768,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4862,7 +4778,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4872,7 +4788,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4882,7 +4798,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4892,7 +4808,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4902,7 +4818,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4912,7 +4828,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4922,7 +4838,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4932,7 +4848,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4942,7 +4858,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4952,7 +4868,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4962,7 +4878,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4972,7 +4888,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4982,7 +4898,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -4992,7 +4908,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5002,7 +4918,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5012,7 +4928,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5022,7 +4938,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5032,7 +4948,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5042,7 +4958,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5052,7 +4968,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5062,7 +4978,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5072,7 +4988,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5082,7 +4998,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5092,7 +5008,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5102,7 +5018,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5112,7 +5028,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5122,7 +5038,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5132,7 +5048,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5142,7 +5058,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5152,7 +5068,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5162,7 +5078,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5172,7 +5088,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5182,7 +5098,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5192,7 +5108,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5202,7 +5118,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5212,7 +5128,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5222,7 +5138,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5232,7 +5148,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5242,7 +5158,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5252,7 +5168,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5262,7 +5178,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5272,7 +5188,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5282,7 +5198,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5292,7 +5208,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5302,7 +5218,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5312,7 +5228,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5322,7 +5238,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5332,7 +5248,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5342,7 +5258,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5352,7 +5268,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5362,7 +5278,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5372,7 +5288,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5382,7 +5298,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5392,7 +5308,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5402,7 +5318,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5412,7 +5328,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5422,7 +5338,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5432,7 +5348,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5442,7 +5358,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5452,7 +5368,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5462,7 +5378,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5472,7 +5388,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5482,7 +5398,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5492,7 +5408,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5502,7 +5418,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5512,7 +5428,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5522,7 +5438,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5532,7 +5448,7 @@
           {
             "dropped": 1,
             "dropped_dates": [
-              "2026-09-02"
+              "2026-09-03"
             ],
             "dropped_last_row": 1,
             "dropped_mid_row": 0,
@@ -5548,21 +5464,21 @@
           }
         ],
         "dropped_bar_dates": {
-          "2026-09-02": 235
+          "2026-09-03": 235
         },
         "dropped_bars": 235,
         "dropped_last_row": 235,
         "dropped_mid_row": 0,
-        "expected_bar_date": "2026-09-03",
+        "expected_bar_date": "2026-09-04",
         "higher_degree_count": 3,
         "invalid_volume_bars": 0,
-        "last_bar_date": "2026-09-01",
+        "last_bar_date": "2026-09-02",
         "new_episodes_gated": true,
         "reason_counts": {
           "empty_data": 1,
           "fetch_error": 0,
-          "no_valid_count": 103,
-          "short_setup_excluded": 55,
+          "no_valid_count": 107,
+          "short_setup_excluded": 67,
           "target_exceeded": 14,
           "target_ext_exceeded": 0,
           "too_few_pivots": 0
@@ -5570,13 +5486,13 @@
         "series": {
           "bars_max": 501,
           "bars_median": 501,
-          "bars_min": 499,
-          "first_bar_max": "2024-09-03",
-          "first_bar_min": "2024-09-03",
-          "last_bar_max": "2026-09-01",
-          "last_bar_min": "2026-09-01",
+          "bars_min": 500,
+          "first_bar_max": "2024-09-04",
+          "first_bar_min": "2024-09-04",
+          "last_bar_max": "2026-09-02",
+          "last_bar_min": "2026-09-02",
           "schema": 1,
-          "shape_digest": "82972660bbe3",
+          "shape_digest": "9a49597aacbc",
           "tickers": 235,
           "tickers_at_last_bar": 235
         },
@@ -5584,17 +5500,17 @@
       },
       "evaluated": 236,
       "label": "USA",
-      "skipped": 173,
+      "skipped": 189,
       "universe_size": 236
     }
   },
-  "run_timestamp_utc": "2026-09-03T00:39:33Z",
+  "run_timestamp_utc": "2026-09-04T00:24:13Z",
   "schema_version": 1,
   "validation": {
     "collected": 127,
     "eval_min_n": 100,
-    "evaluable": 91,
-    "matured": 97
+    "evaluable": 94,
+    "matured": 100
   },
   "watchlist": {
     "diag": {
@@ -5623,84 +5539,84 @@
             "low": 14.555
           }
         },
-        "atr_14": 0.6525,
-        "change_abs": -0.275,
-        "change_pct": -1.9031,
+        "atr_14": 0.5814,
+        "change_abs": -0.165,
+        "change_pct": -1.164,
         "chart_points": [
           {
             "date": "2026-04-17",
-            "index": 409,
+            "index": 408,
             "kind": "H",
             "price": 9.264
           },
           {
             "date": "2026-04-28",
-            "index": 416,
+            "index": 415,
             "kind": "L",
             "price": 8.746
           },
           {
             "date": "2026-05-06",
-            "index": 421,
+            "index": 420,
             "kind": "H",
             "price": 11.06
           },
           {
             "date": "2026-05-12",
-            "index": 425,
+            "index": 424,
             "kind": "L",
             "price": 9.9
           },
           {
             "date": "2026-06-03",
-            "index": 441,
+            "index": 440,
             "kind": "H",
             "price": 11.83
           },
           {
             "date": "2026-06-29",
-            "index": 459,
+            "index": 458,
             "kind": "L",
             "price": 10.075
           },
           {
             "date": "2026-07-06",
-            "index": 464,
+            "index": 463,
             "kind": "H",
             "price": 12.37
           },
           {
             "date": "2026-07-09",
-            "index": 467,
+            "index": 466,
             "kind": "L",
             "price": 11.275
           },
           {
             "date": "2026-08-05",
-            "index": 486,
+            "index": 485,
             "kind": "H",
             "price": 12.6
           },
           {
             "date": "2026-08-11",
-            "index": 490,
+            "index": 489,
             "kind": "L",
             "price": 12.03
           },
           {
             "date": "2026-08-17",
-            "index": 494,
+            "index": 493,
             "kind": "H",
             "price": 13.925
           },
           {
             "date": "2026-08-20",
-            "index": 497,
+            "index": 496,
             "kind": "L",
             "price": 12.66
           }
         ],
-        "close": 14.175,
+        "close": 14.01,
         "company_name": "thyssenkrupp AG",
         "confluence": {
           "invalidation": [],
@@ -5800,49 +5716,49 @@
             "chart_points": [
               {
                 "date": "2026-06-03",
-                "index": 441,
+                "index": 440,
                 "kind": "H",
                 "price": 11.83
               },
               {
                 "date": "2026-06-29",
-                "index": 459,
+                "index": 458,
                 "kind": "L",
                 "price": 10.075
               },
               {
                 "date": "2026-07-06",
-                "index": 464,
+                "index": 463,
                 "kind": "H",
                 "price": 12.37
               },
               {
                 "date": "2026-07-09",
-                "index": 467,
+                "index": 466,
                 "kind": "L",
                 "price": 11.275
               },
               {
                 "date": "2026-08-05",
-                "index": 486,
+                "index": 485,
                 "kind": "H",
                 "price": 12.6
               },
               {
                 "date": "2026-08-11",
-                "index": 490,
+                "index": 489,
                 "kind": "L",
                 "price": 12.03
               },
               {
                 "date": "2026-08-17",
-                "index": 494,
+                "index": 493,
                 "kind": "H",
                 "price": 13.925
               },
               {
                 "date": "2026-08-20",
-                "index": 497,
+                "index": 496,
                 "kind": "L",
                 "price": 12.66
               }
@@ -5902,84 +5818,84 @@
       {
         "alt_count": null,
         "alt_count_v2": null,
-        "atr_14": 4.9429,
-        "change_abs": -7.75,
-        "change_pct": -2.7136,
+        "atr_14": 5.075,
+        "change_abs": -4.05,
+        "change_pct": -1.4576,
         "chart_points": [
           {
             "date": "2026-05-14",
-            "index": 427,
+            "index": 426,
             "kind": "H",
             "price": 273.7
           },
           {
             "date": "2026-05-19",
-            "index": 430,
+            "index": 429,
             "kind": "L",
             "price": 256.8
           },
           {
             "date": "2026-06-02",
-            "index": 440,
+            "index": 439,
             "kind": "H",
             "price": 278.7
           },
           {
             "date": "2026-06-10",
-            "index": 446,
+            "index": 445,
             "kind": "L",
             "price": 258.4
           },
           {
             "date": "2026-06-22",
-            "index": 454,
+            "index": 453,
             "kind": "H",
             "price": 279.0
           },
           {
             "date": "2026-06-26",
-            "index": 458,
+            "index": 457,
             "kind": "L",
             "price": 267.5
           },
           {
             "date": "2026-07-03",
-            "index": 463,
+            "index": 462,
             "kind": "H",
             "price": 284.1
           },
           {
             "date": "2026-07-17",
-            "index": 473,
+            "index": 472,
             "kind": "L",
             "price": 264.55
           },
           {
             "date": "2026-08-04",
-            "index": 485,
+            "index": 484,
             "kind": "H",
             "price": 287.45
           },
           {
             "date": "2026-08-06",
-            "index": 487,
+            "index": 486,
             "kind": "L",
             "price": 273.1
           },
           {
             "date": "2026-08-13",
-            "index": 492,
+            "index": 491,
             "kind": "H",
             "price": 284.1
           },
           {
             "date": "2026-08-18",
-            "index": 495,
+            "index": 494,
             "kind": "L",
             "price": 275.8
           }
         ],
-        "close": 277.85,
+        "close": 273.8,
         "company_name": "Siemens AG",
         "confluence": {
           "invalidation": [],
@@ -6009,7 +5925,7 @@
         "name": "SIE.DE",
         "note": "",
         "reason": "",
-        "score_heuristic": 49.36,
+        "score_heuristic": 47.18,
         "sector": "Industrials",
         "status": "heuristisch · unvalidiert",
         "structure": {
@@ -6054,49 +5970,49 @@
             "chart_points": [
               {
                 "date": "2026-06-22",
-                "index": 454,
+                "index": 453,
                 "kind": "H",
                 "price": 279.0
               },
               {
                 "date": "2026-06-26",
-                "index": 458,
+                "index": 457,
                 "kind": "L",
                 "price": 267.5
               },
               {
                 "date": "2026-07-03",
-                "index": 463,
+                "index": 462,
                 "kind": "H",
                 "price": 284.1
               },
               {
                 "date": "2026-07-17",
-                "index": 473,
+                "index": 472,
                 "kind": "L",
                 "price": 264.55
               },
               {
                 "date": "2026-08-04",
-                "index": 485,
+                "index": 484,
                 "kind": "H",
                 "price": 287.45
               },
               {
                 "date": "2026-08-06",
-                "index": 487,
+                "index": 486,
                 "kind": "L",
                 "price": 273.1
               },
               {
                 "date": "2026-08-13",
-                "index": 492,
+                "index": 491,
                 "kind": "H",
                 "price": 284.1
               },
               {
                 "date": "2026-08-18",
-                "index": 495,
+                "index": 494,
                 "kind": "L",
                 "price": 275.8
               }
@@ -6165,7 +6081,7 @@
                 "date": "2019-11-01",
                 "index": 276,
                 "kind": "H",
-                "price": 86.962
+                "price": 86.9619
               },
               {
                 "date": "2020-03-01",
