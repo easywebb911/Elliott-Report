@@ -90,10 +90,13 @@
       border:1px solid var(--brd); border-radius:var(--radius);
       /* 3D „Variante 1B" nach Squeeze (app.html:558): Drop-Schatten + Inset-
          Kanten-Highlight (der eigentliche 3D-Reiz) + oberer 1px-Licht-Grat für
-         etwas mehr Tiefe. Drop-Alpha an Elliotts dunkleren Canvas angepasst. */
-      box-shadow:0 4px 14px rgba(0,0,0,.45),
-                 inset 0 1px 0 rgba(255,255,255,.07),
-                 inset 0 0 0 .5px rgba(255,255,255,.06);
+         etwas mehr Tiefe. Drop-Alpha an Elliotts dunkleren Canvas angepasst.
+         Als Custom Property (05.09.2026), damit .card-outdated-* unten den
+         3D-Schatten ERGÄNZEN statt zu ersetzen (Guardian-Nit). */
+      --card-shadow:0 4px 14px rgba(0,0,0,.45),
+                    inset 0 1px 0 rgba(255,255,255,.07),
+                    inset 0 0 0 .5px rgba(255,255,255,.06);
+      box-shadow:var(--card-shadow);
       overflow:hidden;
     }
     /* Header nach Squeeze-Vorbild (app.html): Rang-Kreis, Mono-Ticker,
@@ -252,8 +255,10 @@
        nur bei "over"). Deshalb HIER, direkt unter dem Live-Kurs, zusätzlich:
        Kartenrahmen + ausformulierter Satz. Score/Ranking/Filter unberührt —
        reine Anzeige des bereits vom Batch-Lauf berechneten Zustands. */
-    .card-outdated-zone { border-color:var(--ora); box-shadow:0 0 0 1px rgba(245,158,11,.3) inset; }
-    .card-outdated-inval { border-color:var(--red); box-shadow:0 0 0 1px rgba(239,68,68,.32) inset; }
+    /* Guardian-Nit (05.09.2026): box-shadow ERGÄNZT var(--card-shadow) statt
+       den bestehenden 3D-Schatten der Karte zu ersetzen. */
+    .card-outdated-zone { border-color:var(--ora); box-shadow:var(--card-shadow), 0 0 0 1px rgba(245,158,11,.3) inset; }
+    .card-outdated-inval { border-color:var(--red); box-shadow:var(--card-shadow), 0 0 0 1px rgba(239,68,68,.32) inset; }
     .live-outdated {
       margin:2px 12px 10px; padding:6px 9px; border-radius:8px;
       font-size:.7rem; font-weight:700; line-height:1.35; text-align:left;
@@ -4790,9 +4795,9 @@
     function _setLiveOutdated(card, price) {
       const el = card.querySelector('[data-live-outdated]');
       if (!el) return;
-      const zl = el.dataset.zl, zh = el.dataset.zh;
-      const inv = el.dataset.inv === '' ? null : el.dataset.inv;
-      const status = _liveOutdatedStatus(price, zl, zh, inv);
+      // _liveOutdatedStatus() faengt '' selbst ab (num()-Guard) — keine
+      // doppelte Pruefung noetig (Guardian-Nit 05.09.2026).
+      const status = _liveOutdatedStatus(price, el.dataset.zl, el.dataset.zh, el.dataset.inv);
       el.hidden = !status;
       el.className = 'live-outdated' + (status ? ` live-outdated-${status === 'inval' ? 'inval' : 'zone'}` : '');
       el.textContent = _liveOutdatedText(status, _wlZeitKurz(_lastReportTs));
