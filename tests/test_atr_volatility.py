@@ -316,21 +316,44 @@ def test_new_record_ohne_atr_im_kandidaten_ist_none_kein_absturz():
 # plausibel — sie wurde für eine Kursklasse um ~580 $ konstruiert (~1,46 %
 # des Schlusskurses). Ein zufällig gewählter Kandidat mit z. B. 20 $ oder
 # 3000 $ Kurs würde den Plausibilitäts-Bereich unten verfehlen, OHNE dass
-# das etwas mit einem echten Bug zu tun hätte. Deshalb: dynamische Auswahl
-# NICHT "irgendein Kandidat", sondern gefiltert auf eine plausible
-# Large-Cap-Preisspanne (100–2.000 $) — bleibt datengetrieben, verwässert
-# aber nicht die Aussagekraft der Prüfung.
+# das etwas mit einem echten Bug zu tun hätte.
+#
+# NACHTRAG (05.09.2026, Folge-Fehler nach #115): eine feste Dollar-
+# Preisspanne (100–2.000 $, so ursprünglich hier) garantiert NICHT, dass die
+# Prozent-Bereiche unten eingehalten werden — sie ist nur ein indirekter
+# Proxy dafür. Belegter Fall: SCHW bei 110,38 $ liegt innerhalb 100–2.000,
+# aber 8,5 $ ATR sind 7,70 % von 110,38 $ — außerhalb von 0,5-5 %. Deshalb
+# jetzt DIREKTE Kopplung statt Preisspanne: ein Kandidat wird nur gewählt,
+# wenn die hand-konstruierte ATR-Illustration für IHN dieselben
+# Plausibilitäts-Bereiche erfüllt, die die beiden Tests unten ohnehin
+# prüfen (dieselben Konstanten, an beiden Stellen verwendet — Auswahl und
+# Prüfung können dadurch nicht mehr auseinanderlaufen). Das ist strukturell
+# robuster als jede nachträglich breiter/enger gezogene Preisspanne, weil es
+# nicht mehr geraten werden muss, WELCHE Preisspanne gerade noch passt.
 REPORT = json.loads((ROOT / "docs/data/report.json").read_text(encoding="utf-8"))
-_REF_PREIS_MIN, _REF_PREIS_MAX = 100.0, 2000.0
+_ATR_ILLUSTRATIV = 8.5      # == sum(_MA_TR) / ATR_PERIOD, s. Assertion unten
+_PCT_MIN, _PCT_MAX = 0.5, 5.0            # ATR-Anteil am Schlusskurs
+_ATR_PCT_MIN, _ATR_PCT_MAX = 1.0, 90.0   # ATR-Anteil am Invalidierungs-Abstand
+_PAD_PCT_MIN, _PAD_PCT_MAX = 1.0, 60.0   # halbes ATR-Anteil am Invalidierungs-Abstand
 
 
 def _waehle_referenz_kandidat():
     for c in REPORT["markets"]["US"]["candidates"]:
         close = c.get("close")
-        if (c.get("atr_14") is not None and c.get("target_zone")
-                and c.get("invalidation_price") is not None
-                and isinstance(close, (int, float))
-                and _REF_PREIS_MIN <= close <= _REF_PREIS_MAX):
+        tz = c.get("target_zone")
+        inval = c.get("invalidation_price")
+        if not (c.get("atr_14") is not None and tz and inval is not None
+                and isinstance(close, (int, float)) and close > 0):
+            continue
+        inval_dist = close - inval
+        if inval_dist <= 0:
+            continue
+        pct = _ATR_ILLUSTRATIV / close * 100
+        atr_pct = _ATR_ILLUSTRATIV / inval_dist * 100
+        pad_pct = (_ATR_ILLUSTRATIV / 2) / inval_dist * 100
+        if (_PCT_MIN < pct < _PCT_MAX
+                and _ATR_PCT_MIN < atr_pct < _ATR_PCT_MAX
+                and _PAD_PCT_MIN < pad_pct < _PAD_PCT_MAX):
             return c
     return None
 
@@ -338,10 +361,10 @@ def _waehle_referenz_kandidat():
 MA = _waehle_referenz_kandidat()
 if MA is None:
     pytest.skip(
-        f"kein US-Kandidat mit vollständigen ATR-/Zonen-/Invalidierungs-"
-        f"Feldern und Kurs zwischen {_REF_PREIS_MIN:.0f} und "
-        f"{_REF_PREIS_MAX:.0f} $ gefunden — Tests (5) übersprungen statt "
-        f"StopIteration",
+        f"kein US-Kandidat gefunden, für den die hand-konstruierte "
+        f"ATR-Illustration ({_ATR_ILLUSTRATIV} $) in den geprüften "
+        f"Plausibilitäts-Bereichen liegt — Tests (5) übersprungen statt "
+        f"StopIteration oder falschem Rot",
         allow_module_level=True,
     )
 
@@ -366,11 +389,11 @@ def test_ma_illustratives_atr_ergibt_die_erwartete_groessenordnung():
     (0,5–5 % — liquider Large-Cap) statt eines eingefrorenen exakten Werts;
     `atr==8.5` (die illustrative, hand-konstruierte Serie) bleibt exakt
     geprüft, das ist datenunabhängig."""
-    assert sum(_MA_TR) / ATR_PERIOD == 8.5
+    assert sum(_MA_TR) / ATR_PERIOD == _ATR_ILLUSTRATIV
     val = atr14(_MA_HIGHS, _MA_LOWS, _MA_CLOSES)
-    assert val == 8.5
+    assert val == _ATR_ILLUSTRATIV
     pct = val / MA["close"] * 100
-    assert 0.5 < pct < 5.0, f"ATR-Anteil am Schlusskurs wirkt unplausibel: {pct:.2f} %"
+    assert _PCT_MIN < pct < _PCT_MAX, f"ATR-Anteil am Schlusskurs wirkt unplausibel: {pct:.2f} %"
 
 
 def test_ma_band_breite_gegen_echte_zonen_und_invalidierungs_zahlen():
@@ -386,7 +409,7 @@ def test_ma_band_breite_gegen_echte_zonen_und_invalidierungs_zahlen():
     IMMER exakt um `atr` breiter als die Original-Zone; (2) ein
     Plausibilitäts-Bereich für "sichtbar, aber untergeordnet gegenüber dem
     Invalidierungs-Abstand" statt einer eingefrorenen exakten Prozentzahl."""
-    atr = 8.5
+    atr = _ATR_ILLUSTRATIV
     pad = atr / 2
     tz = MA["target_zone"]
     band = {"low": round(tz["low"] - pad, 4), "high": round(tz["high"] + pad, 4)}
@@ -400,5 +423,63 @@ def test_ma_band_breite_gegen_echte_zonen_und_invalidierungs_zahlen():
     assert inval_dist > 0, "Kurs liegt nicht mehr über der Invalidierung — Datensatz prüfen"
     pad_pct = pad / inval_dist * 100
     atr_pct = atr / inval_dist * 100
-    assert 1 < pad_pct < 60, f"Polster wirkt unplausibel klein/groß: {pad_pct:.1f} %"
-    assert 1 < atr_pct < 90, f"Gesamtband wirkt unplausibel klein/groß: {atr_pct:.1f} %"
+    assert _PAD_PCT_MIN < pad_pct < _PAD_PCT_MAX, f"Polster wirkt unplausibel klein/groß: {pad_pct:.1f} %"
+    assert _ATR_PCT_MIN < atr_pct < _ATR_PCT_MAX, f"Gesamtband wirkt unplausibel klein/groß: {atr_pct:.1f} %"
+
+
+# ---------------------------------------------------------------------------
+# Wert-Test (05.09.2026, Folge-Fehler nach #115): die Auswahl darf nicht nur
+# für den HEUTIGEN Datenstand grün sein — sie muss unabhängig davon
+# funktionieren, WELCHE Kandidaten der tägliche Cron gerade an die Spitze
+# spült. Belegt mit synthetischen Kandidaten statt dem echten, täglich
+# wandernden Report.
+# ---------------------------------------------------------------------------
+def test_auswahl_lehnt_einen_zu_niedrigpreisigen_kandidaten_ab(monkeypatch):
+    """Der belegte Auslöser dieses Fehlers: ein SCHW-artiger Kandidat
+    (110,38 $) lag innerhalb der ALTEN festen Preisspanne (100-2.000 $),
+    verfehlte aber die (unveränderten) Prozent-Prüfungen der Tests oben
+    (7,70 % statt 0,5-5 %). Die neue, direkt gekoppelte Auswahl muss ihn
+    ablehnen, statt ihn wie zuvor durchzulassen."""
+    schw_artig = {"ticker": "SCHW_TEST", "close": 110.38, "atr_14": 2.2529,
+                  "target_zone": {"low": 116.4797, "high": 121.6902},
+                  "invalidation_price": 102.8202}
+    import test_atr_volatility as this_module
+    monkeypatch.setattr(
+        this_module, "REPORT",
+        {"markets": {"US": {"candidates": [schw_artig]}}})
+    assert this_module._waehle_referenz_kandidat() is None, (
+        "SCHW-artiger Kandidat haette die alte 100-2.000-$-Preisspanne "
+        "bestanden, obwohl er die Prozent-Pruefungen verfehlt")
+
+
+def test_auswahl_findet_einen_passenden_kandidaten_unter_mehreren(monkeypatch):
+    """Ein ungeeigneter (SCHW-artiger) und ein geeigneter (JPM-artiger)
+    Kandidat zusammen in der Liste: die Auswahl muss den geeigneten finden,
+    unabhängig von seiner Position."""
+    schw_artig = {"ticker": "SCHW_TEST", "close": 110.38, "atr_14": 2.2529,
+                  "target_zone": {"low": 116.4797, "high": 121.6902},
+                  "invalidation_price": 102.8202}
+    jpm_artig = {"ticker": "JPM_TEST", "close": 362.06, "atr_14": 5.5214,
+                 "target_zone": {"low": 375.2609, "high": 389.9171},
+                 "invalidation_price": 333.6171}
+    import test_atr_volatility as this_module
+    monkeypatch.setattr(
+        this_module, "REPORT",
+        {"markets": {"US": {"candidates": [schw_artig, jpm_artig]}}})
+    gewaehlt = this_module._waehle_referenz_kandidat()
+    assert gewaehlt is not None and gewaehlt["ticker"] == "JPM_TEST"
+
+
+def test_auswahl_gibt_none_statt_zu_crashen_ohne_passenden_kandidaten(monkeypatch):
+    """Kein Kandidat mit vollständigen Feldern ODER keiner davon in den
+    geprüften Prozent-Bereichen -> None, damit der bestehende
+    `pytest.skip`-Pfad (statt StopIteration, s. #115) greift."""
+    import test_atr_volatility as this_module
+    unvollstaendig = {"ticker": "X", "close": 500.0}   # fehlende Felder
+    zu_teuer = {"ticker": "Y", "close": 50000.0, "atr_14": 1.0,
+                "target_zone": {"low": 50100.0, "high": 50200.0},
+                "invalidation_price": 49000.0}          # ATR verschwindend klein
+    monkeypatch.setattr(
+        this_module, "REPORT",
+        {"markets": {"US": {"candidates": [unvollstaendig, zu_teuer]}}})
+    assert this_module._waehle_referenz_kandidat() is None
