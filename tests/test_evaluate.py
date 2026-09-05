@@ -510,9 +510,20 @@ def test_sammlung_und_report_bleiben_unangetastet(tmp_path, capsys):
     assert (_hash(coll_p), _hash(rep_p)) == vorher
 
 
-def test_ohne_vorschau_verweigert_das_programm_am_echten_stand(tmp_path, capsys):
+def test_ohne_vorschau_verweigert_bei_zu_wenig_auswertbaren_faellen(tmp_path, capsys):
+    """Test-Robustheit (05.09.2026, dieselbe Fehlerklasse wie #115/#117):
+    NIE gegen den echten, täglich wachsenden `data/forward_collection.json`
+    prüfen (Standard-`--sammlung`, ohne Argument) — der Test wurde grundlos
+    rot, sobald die reale Sammlung n>=EVAL_MIN_N erreichte (04./05.09.2026:
+    101 auswertbar), weil `main()` dann kein `RuntimeError` mehr wirft.
+    Eine synthetische Sammlung mit garantiert < EVAL_MIN_N auswertbaren
+    Fällen bleibt für immer unter der Schwelle, unabhängig vom realen
+    Sammlungsstand."""
+    sammlung = tmp_path / "sammlung.json"
+    sammlung.write_text(json.dumps(
+        {"records": [{"matured": True} for _ in range(3)]}), encoding="utf-8")
     out = tmp_path / "ergebnis.json"
-    rc = ev.main(["--out", str(out),
+    rc = ev.main(["--sammlung", str(sammlung), "--out", str(out),
                   "--kurse", str(tmp_path / "gibt-es-nicht.json")])
     text = capsys.readouterr().out
     assert rc == 2 and not out.exists()
