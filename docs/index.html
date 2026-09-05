@@ -90,10 +90,13 @@
       border:1px solid var(--brd); border-radius:var(--radius);
       /* 3D „Variante 1B" nach Squeeze (app.html:558): Drop-Schatten + Inset-
          Kanten-Highlight (der eigentliche 3D-Reiz) + oberer 1px-Licht-Grat für
-         etwas mehr Tiefe. Drop-Alpha an Elliotts dunkleren Canvas angepasst. */
-      box-shadow:0 4px 14px rgba(0,0,0,.45),
-                 inset 0 1px 0 rgba(255,255,255,.07),
-                 inset 0 0 0 .5px rgba(255,255,255,.06);
+         etwas mehr Tiefe. Drop-Alpha an Elliotts dunkleren Canvas angepasst.
+         Als Custom Property (05.09.2026), damit .card-outdated-* unten den
+         3D-Schatten ERGÄNZEN statt zu ersetzen (Guardian-Nit). */
+      --card-shadow:0 4px 14px rgba(0,0,0,.45),
+                    inset 0 1px 0 rgba(255,255,255,.07),
+                    inset 0 0 0 .5px rgba(255,255,255,.06);
+      box-shadow:var(--card-shadow);
       overflow:hidden;
     }
     /* Header nach Squeeze-Vorbild (app.html): Rang-Kreis, Mono-Ticker,
@@ -239,6 +242,30 @@
        hidden-Attribut (Author- vor UA-Style) -> leeres ◎-Kästchen auf Karten
        UNTER der Zone. Seit dem #29-Filter sind das ALLE Markt-Top-5. */
     .zone-badge[hidden] { display:none; }
+    /* Live-Überholt-Kennzeichnung (05.09.2026, ADBE-Diagnose vom 04.09.2026):
+       das .zone-badge oben ist bewusst dezent (s. Kommentar) — dafür gedacht,
+       einen bereits verbrauchten Fibonacci-Level ehrlich, aber ohne Alarm zu
+       vermerken. Für den SPEZIFISCHEN Fall, dass eine Karte, die GERADE ALS
+       TOP-5-KANDIDAT angezeigt wird, laut Live-Kurs die eigene Zone/
+       Invalidierung bereits erreicht hat — Score/Ranking/#112-Filter sind
+       Tagesschnappschüsse vom Batch-Lauf und werden das erst beim NÄCHSTEN
+       Lauf nachziehen — reicht das nicht: das Badge sitzt klein und weit
+       unten (nach Metriken/Extension), und der "reached"-Zustand (genau der
+       ADBE-Fall) trägt gar keine Signalfarbe (Grundstil neutral/grau, Orange
+       nur bei "over"). Deshalb HIER, direkt unter dem Live-Kurs, zusätzlich:
+       Kartenrahmen + ausformulierter Satz. Score/Ranking/Filter unberührt —
+       reine Anzeige des bereits vom Batch-Lauf berechneten Zustands. */
+    /* Guardian-Nit (05.09.2026): box-shadow ERGÄNZT var(--card-shadow) statt
+       den bestehenden 3D-Schatten der Karte zu ersetzen. */
+    .card-outdated-zone { border-color:var(--ora); box-shadow:var(--card-shadow), 0 0 0 1px rgba(245,158,11,.3) inset; }
+    .card-outdated-inval { border-color:var(--red); box-shadow:var(--card-shadow), 0 0 0 1px rgba(239,68,68,.32) inset; }
+    .live-outdated {
+      margin:2px 12px 10px; padding:6px 9px; border-radius:8px;
+      font-size:.7rem; font-weight:700; line-height:1.35; text-align:left;
+    }
+    .live-outdated[hidden] { display:none; }
+    .live-outdated-zone { color:var(--ora); background:rgba(245,158,11,.14); border:1px solid rgba(245,158,11,.4); }
+    .live-outdated-inval { color:var(--red); background:rgba(239,68,68,.14); border:1px solid rgba(239,68,68,.4); }
     /* Konfluenz-Chips: dezent, KEIN Alarm-Stil. Nur Anzeige/Messung, kein Score. */
     .conf-block { margin:-4px 12px 12px; display:flex; flex-direction:column; gap:4px; }
     .conf-row { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
@@ -2447,6 +2474,23 @@
           + ` data-zl="${c.target_zone.low}" data-zh="${c.target_zone.high}"${_zs ? '' : ' hidden'}>`
           + `${_zs === 'over' ? 'Beobachtungszone überschritten' : (_zs === 'reached' ? 'Beobachtungszone erreicht' : '')}</div>`
         : '';
+      // Live-Überholt-Hinweis (05.09.2026, ADBE-Diagnose 04.09.2026): SEPARAT
+      // vom dezenten zoneBadge oben — direkt unter dem Live-Kurs, deutlich
+      // eingefärbt, plus Kartenrahmen (s. CSS .card-outdated-*). Anfangs-
+      // Zustand aus dem Lauf-Schlusskurs; Live-Quote aktualisiert ihn danach
+      // über dieselbe _liveOutdatedStatus()-Funktion (quotePatch ->
+      // _setLiveOutdated), damit Erstrender und Live-Update nie auseinander-
+      // laufen können.
+      const _lo = _liveOutdatedStatus(c.close, c.target_zone && c.target_zone.low,
+                                       c.target_zone && c.target_zone.high, c.invalidation_price);
+      const liveOutdatedHint = (c.target_zone || c.invalidation_price != null)
+        ? `<div class="live-outdated live-outdated-${_lo === 'inval' ? 'inval' : 'zone'}" data-live-outdated`
+          + ` data-zl="${c.target_zone ? c.target_zone.low : ''}" data-zh="${c.target_zone ? c.target_zone.high : ''}"`
+          + ` data-inv="${c.invalidation_price ?? ''}"${_lo ? '' : ' hidden'}>`
+          + `${esc(_liveOutdatedText(_lo, _wlZeitKurz(_lastReportTs)))}</div>`
+        : '';
+      const cardOutdatedCls = _lo === 'inval' ? ' card-outdated-inval'
+        : (_lo ? ' card-outdated-zone' : '');
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
@@ -2472,7 +2516,7 @@
       const ac = c.appearance_count;
       const appBadge = (typeof ac === 'number' && ac >= 2)
         ? `<span class="appear-badge" title="${ac}-mal in den Top 5 seit ${COLLECTION_START}">${ac}×</span>` : '';
-      return `<article class="card" data-ticker="${esc(c.ticker)}">
+      return `<article class="card${cardOutdatedCls}" data-ticker="${esc(c.ticker)}">
         <div class="card-top">
           <div class="card-left">
             <div class="rank-col"><span class="rank">${rank}</span>${appBadge}</div>
@@ -2495,6 +2539,7 @@
             ${standHinweis(stand)}
           </div>
         </div>
+        ${liveOutdatedHint}
         <div class="setup">${esc(c.count_label || '')}</div>
         ${ambiguityBlock(c, market)}
         ${donutBlock(c.score_heuristic, c.status)}
@@ -4696,6 +4741,70 @@
       }
     }
 
+    // Live-Überholt-Status (05.09.2026, ADBE-Diagnose 04.09.2026): EINE reine
+    // Entscheidungsfunktion, kein DOM-Zugriff — direkt mit echten Werten
+    // testbar (ADBE@04.09.2026: price=285.75, zl=281.1331, zh=297.88,
+    // inv=237.25 -> 'reached'). Von BEIDEN Pfaden genutzt (card()-Erstrender
+    // UND der Live-Update-Funktion unten), damit sie nie auseinanderlaufen.
+    // Rangfolge (schwerster Fall gewinnt): Invalidierung erreicht/
+    // unterschritten (die ganze Zählung wäre ungültig) > Zone überschritten
+    // > Zone erreicht > normal. Score/Ranking/der #112-Filter selbst werden
+    // NICHT angefasst — das hier zeigt nur an, was der Batch-Lauf bereits
+    // berechnet hat (target_zone/invalidation_price), gegen den Live-Kurs.
+    function _liveOutdatedStatus(price, zl, zh, inv) {
+      // null/undefined/'' ZUERST abfangen: Number(null) ist 0 und damit
+      // endlich — ohne diese Prüfung würde eine FEHLENDE Zone/Invalidierung
+      // als „Kurs >= 0" durchgehen (Muster wie zoneDistPct oben).
+      const num = (v) => (v === null || v === undefined || v === '')
+        ? NaN : Number(v);
+      const p = num(price);
+      if (!Number.isFinite(p)) return null;
+      const i = num(inv);
+      if (Number.isFinite(i) && p <= i) return 'inval';
+      const l = num(zl);
+      if (!Number.isFinite(l)) return null;
+      const h = num(zh);
+      if (Number.isFinite(h) && p >= h) return 'over';
+      if (p >= l) return 'reached';
+      return null;
+    }
+
+    // Ausformulierter Satz je Status — EINE Stelle für den Wortlaut, von
+    // card() (Erstrender) UND _setLiveOutdated() (Live-Update) genutzt.
+    // `standTxt` = _wlZeitKurz(_lastReportTs), also derselbe Lauf-Zeitstempel-
+    // Formatierer wie in der Watchlist (kein zweiter Formatierer für dieselbe
+    // Zahl).
+    function _liveOutdatedText(status, standTxt) {
+      const stand = standTxt ? ` Einstufung basiert auf dem letzten Lauf (Stand ${standTxt}).` : '';
+      if (status === 'inval') {
+        return `Invalidierung laut Live-Kurs bereits erreicht — die Zählung wäre nach aktuellem Kurs nicht mehr gültig.${stand}`;
+      }
+      if (status === 'over') {
+        return `Beobachtungszone laut Live-Kurs bereits überschritten.${stand}`;
+      }
+      if (status === 'reached') {
+        return `Beobachtungszone laut Live-Kurs bereits erreicht.${stand}`;
+      }
+      return '';
+    }
+
+    // Kartenrahmen + Hinweistext aus einem Preis neu setzen (Erstrender ODER
+    // live via quotePatch). Anker-Element trägt data-zl/data-zh/data-inv aus
+    // demselben Report-Kandidaten, den card() schon einmal gerendert hat —
+    // hier wird NUR neu bewertet, nie ein neuer Wert erfunden.
+    function _setLiveOutdated(card, price) {
+      const el = card.querySelector('[data-live-outdated]');
+      if (!el) return;
+      // _liveOutdatedStatus() faengt '' selbst ab (num()-Guard) — keine
+      // doppelte Pruefung noetig (Guardian-Nit 05.09.2026).
+      const status = _liveOutdatedStatus(price, el.dataset.zl, el.dataset.zh, el.dataset.inv);
+      el.hidden = !status;
+      el.className = 'live-outdated' + (status ? ` live-outdated-${status === 'inval' ? 'inval' : 'zone'}` : '');
+      el.textContent = _liveOutdatedText(status, _wlZeitKurz(_lastReportTs));
+      card.classList.toggle('card-outdated-zone', status === 'reached' || status === 'over');
+      card.classList.toggle('card-outdated-inval', status === 'inval');
+    }
+
     // „Beobachtungszone erreicht/überschritten"-Badge aus einem Preis neu setzen
     // (aus dem Lauf-Schlusskurs beim Rendern ODER live via quotePatch). Rein Anzeige.
     function _setZoneBadge(badge, price) {
@@ -4736,6 +4845,7 @@
         _setZoneBadge(card.querySelector('[data-zone-badge]'), q.price);
         card.querySelectorAll('[data-tf-hint]').forEach(el => _setTfHint(el, q.price));
         card.querySelectorAll('[data-zone-dist]').forEach(el => _setZoneDist(el, q.price));
+        _setLiveOutdated(card, q.price);
       }
       const p = q.change, a = q.change_abs;  // change == Tages-% (Worker-Vertrag)
       if (typeof p === 'number' && isFinite(p)) {
