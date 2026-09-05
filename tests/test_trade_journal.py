@@ -93,7 +93,9 @@ def test_pipeline_lauf_mit_journal_datei_aendert_nichts(tmp_path, monkeypatch):
         # eine MITTERNACHTS-Grenze auseinanderlaufen. Sie haben eigene Tests
         # (tests/test_kursstand_waechter.py) und sagen nichts über das Journal.
         for m in (rep.get("markets") or {}).values():
-            for k in ("expected_bar_date", "bar_lag_trading_days"):
+            for k in ("expected_bar_date", "bar_lag_trading_days",
+                      # additiv seit 05.09.2026, ebenso lauf-zeitabhaengig
+                      "bar_lag_session_days"):
                 (m.get("diag") or {}).pop(k, None)
         coll.pop("updated_utc", None)
         for r in coll.get("records", []):

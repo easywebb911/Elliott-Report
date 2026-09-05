@@ -1895,7 +1895,9 @@ def build_watchlist(
     return {"entries": entries, "diag": counts}
 
 
-def _annotiere_bar_rueckstand(market: Dict, run_timestamp_utc: str) -> None:
+def _annotiere_bar_rueckstand(
+    market: Dict, run_timestamp_utc: str, markt: Optional[str] = None,
+) -> None:
     """Additiv: von welchem Tag SOLLTEN die Kurse stammen, und wie viele
     Handelstage liegt der Stand zurück? (04.08.2026, in-place)
 
@@ -1918,6 +1920,23 @@ def _annotiere_bar_rueckstand(market: Dict, run_timestamp_utc: str) -> None:
     diag["expected_bar_date"] = erwartet.isoformat() if erwartet else None
     diag["bar_lag_trading_days"] = cal.handelstage_rueckstand(
         diag.get("last_bar_date"), lauf)
+
+    # Sitzungsbewusster Rückstand (additiv, 05.09.2026 — ADBE-Diagnose vom
+    # 04.09.2026): der Kalendertag-Anker oben zählt in Läufen kurz nach
+    # Mitternacht UTC, bevor die Sitzung des neuen Tages überhaupt eröffnet
+    # hat, einen Handelstag zu viel (belegter Fall: Report d4c20c3, US zeigte
+    # kalendertag-basiert 2, sitzungsbewusst korrekt nur 1). Exakt dieselbe
+    # Fail-soft-Kette wie health_check.check_bar_freshness (dort Zeile
+    # 284-289): ist das Sitzungs-Ende nicht bestimmbar (unbekannter/fehlender
+    # Markt, kaputter Zeitstempel), bleibt der Kalendertag-Wert die einzige
+    # verfügbare Zahl — KEINE zweite Kalenderlogik, KEIN Rätselraten.
+    lauf_zeit = cal.parse_ts(run_timestamp_utc)
+    sitzungs_erwartet = cal.letzter_beendeter_handelstag(markt, lauf_zeit)
+    if sitzungs_erwartet is None:
+        diag["bar_lag_session_days"] = diag["bar_lag_trading_days"]
+    else:
+        diag["bar_lag_session_days"] = cal.handelstage_rueckstand_sitzung(
+            diag.get("last_bar_date"), markt, lauf_zeit)
 
 
 def build_report(
@@ -1946,7 +1965,7 @@ def build_report(
     for key in config.MARKETS:
         markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink,
                                     volume_sink, atr_sink)
-        _annotiere_bar_rueckstand(markets[key], run_timestamp_utc)
+        _annotiere_bar_rueckstand(markets[key], run_timestamp_utc, key)
     # Sammlungs-Schutz (05.08.2026): welche Märkte legen heute KEINE neuen
     # Episoden an? Die Entscheidung fällt hier, damit sie im Report steht und
     # der Lauf-Status sie zeigt — gerechnet mit DERSELBEN Funktion, die die

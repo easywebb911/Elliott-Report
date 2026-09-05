@@ -281,12 +281,18 @@ def test_das_gate_kennt_die_sitzungs_funktionen_nicht():
 
 
 def test_das_gate_liest_weiter_das_unveraenderte_diag_feld():
+    """Seit 05.09.2026 nutzt die Pipeline `handelstage_rueckstand_sitzung`
+    additiv für `diag.bar_lag_session_days` (Karten-Hinweis, ADBE-Diagnose
+    vom 04.09.2026) — die harte Zusage bleibt trotzdem bestehen: das
+    Gate-Feld `bar_lag_trading_days` selbst wird NIE aus dem Sitzungs-Anker
+    berechnet, nur aus dem unveränderten Kalendertag-Anker."""
     quelle = (ROOT / "scripts/forward_collection.py").read_text(encoding="utf-8")
     assert 'lag = (market.get("diag") or {}).get("bar_lag_trading_days")' in quelle
     pipeline = (ROOT / "scripts/elliott_pipeline.py").read_text(encoding="utf-8")
     assert 'diag["bar_lag_trading_days"] = cal.handelstage_rueckstand(' in pipeline
-    assert "handelstage_rueckstand_sitzung" not in pipeline, \
-        "die Pipeline darf den Wächter-Anker NICHT in diag schreiben"
+    assert 'diag["bar_lag_trading_days"] = cal.handelstage_rueckstand_sitzung' \
+        not in pipeline, \
+        "die Pipeline darf den Wächter-Anker NICHT in das Gate-Feld schreiben"
 
 
 @pytest.mark.parametrize("ts, bar, soll", [

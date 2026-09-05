@@ -251,9 +251,12 @@ def test_kein_zweiter_handelskalender_in_javascript():
 
 
 def test_der_hinweis_liest_die_fertige_zahl_aus_dem_report():
+    """Seit 05.09.2026 (ADBE-Diagnose vom 04.09.2026) liest der Karten-Hinweis
+    das sitzungsbewusste Feld statt des kalendertag-verankerten — derselbe
+    Grundsatz gilt weiter: NUR formatieren, nie selbst rechnen."""
     start = HTML.index("    function marktStand(market) {")
     koerper = HTML[start:HTML.index("\n    }", start)]
-    assert "d.bar_lag_trading_days" in koerper and "d.last_bar_date" in koerper
+    assert "d.bar_lag_session_days" in koerper and "d.last_bar_date" in koerper
 
 
 def test_der_hinweis_haengt_an_allen_drei_kartenarten():
@@ -341,7 +344,7 @@ def test_ein_unerwartetes_datumsformat_wird_unveraendert_gezeigt():
 def test_marktStand_liest_nur_was_da_ist():
     erg = _js("""console.log(JSON.stringify([
       marktStand(null), marktStand({}), marktStand({diag:{}}),
-      marktStand({diag:{last_bar_date:'2026-08-03', bar_lag_trading_days:1}})]))""")
+      marktStand({diag:{last_bar_date:'2026-08-03', bar_lag_session_days:1}})]))""")
     assert erg[0] is None and erg[1] is None
     assert erg[2] == {"date": None}          # kein lag -> Feld fehlt/undefined
     assert erg[3] == {"date": "2026-08-03", "lag": 1}

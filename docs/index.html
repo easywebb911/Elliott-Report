@@ -2387,9 +2387,10 @@
       return `<div class="tf-block"><div class="tf-title">Analyse · Zeitebenen</div>${rows}</div>`;
     }
 
-    // Veraltungs-Hinweis auf der Karte (05.08.2026). Die Zahl kommt FERTIG aus
-    // dem Report (`diag.bar_lag_trading_days`, gerechnet in market_calendar) —
-    // ein zweiter Handelskalender in JavaScript würde beim nächsten Feiertag
+    // Veraltungs-Hinweis auf der Karte (05.08.2026, seit 05.09.2026
+    // sitzungsbewusst). Die Zahl kommt FERTIG aus dem Report
+    // (`diag.bar_lag_session_days`, gerechnet in market_calendar) — ein
+    // zweiter Handelskalender in JavaScript würde beim nächsten Feiertag
     // auseinanderlaufen. Hier wird deshalb NUR formatiert, nie gerechnet.
     // Rückstand 0, fehlendes Feld oder älterer Report -> kein Hinweis.
     function standHinweis(stand) {
@@ -2408,11 +2409,17 @@
     }
 
     // Den Kurs-Stand eines Marktes als fertiges Päckchen — EINE Stelle, die
-    // weiß, wo die Zahlen im Report liegen.
+    // weiß, wo die Zahlen im Report liegen. Sitzungsbewusstes Feld
+    // (05.09.2026, ADBE-Diagnose vom 04.09.2026): `bar_lag_trading_days`
+    // (kalendertag-verankert) zählte in Läufen kurz nach Mitternacht UTC
+    // vor Sitzungseröffnung einen Handelstag zu viel — `bar_lag_session_days`
+    // ist dieselbe Berechnung, die auch die Push-Warnung in health_check.py
+    // nutzt. NUR dieser Kartenhinweis wechselt; andere Konsumenten von
+    // `bar_lag_trading_days` (Sammlungs-Gate, ältere Tests) bleiben unberührt.
     function marktStand(market) {
       const d = market && market.diag;
       if (!d || typeof d !== 'object') return null;
-      return { date: d.last_bar_date || null, lag: d.bar_lag_trading_days };
+      return { date: d.last_bar_date || null, lag: d.bar_lag_session_days };
     }
 
     function card(c, rank, stand, market) {
