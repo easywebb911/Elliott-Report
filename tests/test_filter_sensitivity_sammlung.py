@@ -145,12 +145,34 @@ def test_main_schreibt_neue_datei_original_bleibt_byte_identisch(tmp_path):
     assert meta["nennungen_je_marker"]["stale_market_suspect"] == 0
 
 
-def test_main_ueberschreibt_niemals_die_eingabedatei_selbst():
-    """Sicherheitsnetz gegen ein Versehen: --out darf niemals zufaellig
-    gleich --sammlung sein und dadurch die Originaldatei kaputt schreiben."""
-    quelle_arg = "data/forward_collection.json"
-    ziel_arg = "data/forward_collection_sensitivity.json"
-    assert quelle_arg != ziel_arg
+def test_main_verweigert_identische_sammlung_und_ziel_datei(tmp_path):
+    """Echter Verhaltenstest (Guardian-Nit 05.09.2026): vorher schuetzten nur
+    unterschiedliche CLI-Defaults gegen ein Ueberschreiben — bei versehentlich
+    identischen Pfaden haette main() die Originaldatei kaputt geschrieben.
+    Jetzt bricht main() explizit ab, BEVOR irgendetwas geschrieben wird."""
+    quelle = tmp_path / "sammlung.json"
+    original = json.dumps({"records": [_rec("a", in_session_creation=True)]})
+    quelle.write_text(original, encoding="utf-8")
+
+    with pytest.raises(SystemExit):
+        fs.main(["--sammlung", str(quelle), "--out", str(quelle)])
+
+    assert quelle.read_text(encoding="utf-8") == original, \
+        "Originaldatei wurde trotz identischem --out/--sammlung veraendert"
+
+
+def test_main_verweigert_auch_ueber_verschieden_geschriebene_aber_gleiche_pfade(tmp_path):
+    """Derselbe Schutz muss auch greifen, wenn --sammlung/--out denselben
+    Pfad nur UNTERSCHIEDLICH GESCHRIEBEN referenzieren (z. B. mit einem
+    ueberfluessigen './' oder '..'-Segment) — deshalb .resolve(), nicht nur
+    ein String-Vergleich."""
+    (tmp_path / "sub").mkdir()
+    quelle = tmp_path / "sub" / "sammlung.json"
+    quelle.write_text(json.dumps({"records": []}), encoding="utf-8")
+    umweg = tmp_path / "sub" / ".." / "sub" / "sammlung.json"
+
+    with pytest.raises(SystemExit):
+        fs.main(["--sammlung", str(quelle), "--out", str(umweg)])
 
 
 # ---------------------------------------------------------------------------

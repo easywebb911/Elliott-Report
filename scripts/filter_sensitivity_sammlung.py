@@ -95,6 +95,16 @@ def main(argv: Sequence[str] = None) -> int:
     args = ap.parse_args(argv)
 
     in_path = REPO_ROOT / args.sammlung
+    out_path = REPO_ROOT / args.out
+    # Guardian-Nit (05.09.2026): Vorher gab es nur unterschiedliche Defaults
+    # als Schutz — bei versehentlich identischen Pfaden hätte main() die
+    # Originaldatei überschrieben, statt "nicht einmal mit Schreibrecht
+    # geöffnet" zu bleiben. Expliziter Schutz statt implizitem Zufall.
+    if in_path.resolve() == out_path.resolve():
+        raise SystemExit(
+            f"--sammlung und --out zeigen auf dieselbe Datei ({in_path}) — "
+            "das würde die Originalsammlung überschreiben. Abgebrochen.")
+
     coll = json.loads(in_path.read_text(encoding="utf-8"))
 
     gefiltert, entfernt = filtere(coll)
@@ -119,7 +129,6 @@ def main(argv: Sequence[str] = None) -> int:
                    "kein Record wurde in der Originaldatei verändert.",
     }
 
-    out_path = REPO_ROOT / args.out
     out_path.write_text(
         json.dumps(gefiltert, ensure_ascii=False, indent=1), encoding="utf-8")
 
