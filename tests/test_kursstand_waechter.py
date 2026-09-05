@@ -464,6 +464,30 @@ def test_die_pipeline_annotiert_beide_felder():
     assert markt["diag"]["bar_lag_trading_days"] == 2
 
 
+def test_sitzungsbewusstes_feld_korrigiert_den_belegten_ADBE_fall():
+    """Realer, belegter Fall (Diagnose 04.09.2026, Report-Commit d4c20c3):
+    US zeigte kalendertag-basiert 2 Handelstage Rückstand, obwohl die
+    NYSE-Sitzung des 03.09. zum Lauf-Zeitpunkt (00:24 UTC am 04.09., rund
+    3,5h nach US-Schluss 16:00 ET / 20:00 UTC) bereits beendet war —
+    sitzungsbewusst korrekt nur 1. `bar_lag_trading_days` (das Gate-Feld)
+    bleibt dabei unverändert bei 2."""
+    import elliott_pipeline as pipe
+    markt = {"diag": {"last_bar_date": "2026-09-02"}}
+    pipe._annotiere_bar_rueckstand(markt, "2026-09-04T00:24:13Z", "US")
+    assert markt["diag"]["bar_lag_trading_days"] == 2
+    assert markt["diag"]["bar_lag_session_days"] == 1
+
+
+def test_sitzungsfeld_ist_fail_soft_ohne_markt_argument():
+    """Ältere Aufrufer (z. B. bestehende Tests), die `markt` nicht mitgeben,
+    dürfen nicht brechen — ohne bestimmbares Sitzungs-Ende fällt das neue
+    Feld auf denselben Kalendertag-Wert zurück wie `bar_lag_trading_days`."""
+    import elliott_pipeline as pipe
+    markt = {"diag": {"last_bar_date": "2026-07-31"}}
+    pipe._annotiere_bar_rueckstand(markt, "2026-08-04T04:46:23Z")
+    assert markt["diag"]["bar_lag_session_days"] == markt["diag"]["bar_lag_trading_days"]
+
+
 def test_die_annotation_ist_fail_soft():
     import elliott_pipeline as pipe
     for markt in ({"diag": "kaputt"}, {}, {"diag": {}}):

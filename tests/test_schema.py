@@ -341,6 +341,11 @@ def test_market_diag_present_and_shaped():
                           # SOLLTEN sie stammen, und wie viele Handelstage
                           # liegt der Stand zurueck? Additiv, rein informativ.
                           "expected_bar_date", "bar_lag_trading_days",
+                          # Sitzungsbewusster Rueckstand (05.09.2026,
+                          # ADBE-Diagnose vom 04.09.2026): additiv, NUR fuer
+                          # den Karten-Hinweis — bar_lag_trading_days bleibt
+                          # unveraendert das Gate-Feld.
+                          "bar_lag_session_days",
                           # Sammlungs-Schutz (05.08.2026): hat dieser Lauf fuer
                           # diesen Markt neue Episoden unterdrueckt? Additiv.
                           "new_episodes_gated",
