@@ -285,12 +285,20 @@ def test_die_fehlzeile_bleibt_lesbar_wenn_kein_grund_festgehalten_ist():
 # 3) SICHERHEITS-PRÜFUNG: der Fix löst den Meilenstein-Push NICHT aus
 # ---------------------------------------------------------------------------
 def test_der_meilenstein_push_geht_durch_den_fix_NICHT_los():
-    """Nach dem Fix zählt notify echte Werte statt fehlergetriebener 0.
+    """Nach dem Fix (01.08.2026) zählt notify echte Werte statt
+    fehlergetriebener 0 — die Zählung muss weiterhin exakt mit
+    `forward_collection` übereinstimmen, und `milestone_reached()` muss
+    exakt der Definition folgen.
 
-    Genau deshalb muss belegt sein, dass die echte Zahl die Schwelle NICHT
-    erreicht — sonst hätte der Fix beim nächsten Lauf einen einmaligen,
-    unumkehrbaren Push ausgelöst. Am Stand vom 01.08.2026: 50 gesammelt,
-    0 gereift, 0 auswertbar; Schwelle 100.
+    Test-Robustheit (05.09.2026, dieselbe Fehlerklasse wie #115/#117): die
+    ursprüngliche Fassung verlangte hartkodiert, dass die reale Sammlung
+    NOCH UNTER der Schwelle liegt (Stand 01.08.2026: 50 gesammelt, 0 gereift,
+    0 auswertbar) — das musste altern, sobald die Sammlung wuchs (04./
+    05.09.2026: 101 auswertbar, Schwelle real erreicht). Jetzt dynamisch:
+    `milestone_reached()` wird gegen die DEFINITION geprüft, nicht gegen eine
+    Momentaufnahme, ob wir gerade darüber oder darunter stehen — der
+    eigentliche Zweck (notify feuert nicht UNGEWOLLT als Nebenwirkung eines
+    Zähl-Fixes) bleibt für beide Fälle abgedeckt.
     """
     coll = json.loads(
         (ROOT / "data/forward_collection.json").read_text(encoding="utf-8"))
@@ -298,21 +306,31 @@ def test_der_meilenstein_push_geht_durch_den_fix_NICHT_los():
     assert gesammelt > 0, "Testvoraussetzung: die Sammlung ist nicht leer"
     assert auswertbar == notify._evaluable_count(coll), \
         "notify zählt anders als forward_collection — genau das soll nicht sein"
-    assert auswertbar < fc.EVAL_MIN_N, (
-        f"auswertbar={auswertbar} >= {fc.EVAL_MIN_N}: der Meilenstein WÜRDE "
-        f"feuern — das ist eine Entscheidung, keine Nebenwirkung eines Fixes")
-    assert notify.milestone_reached(auswertbar, marker_exists=False) is False
+    assert notify.milestone_reached(auswertbar, marker_exists=False) == (
+        auswertbar >= fc.EVAL_MIN_N), (
+        "milestone_reached() weicht von der eigenen Definition ab "
+        f"(auswertbar={auswertbar}, EVAL_MIN_N={fc.EVAL_MIN_N})")
 
 
 def test_der_einmal_marker_bleibt_unberuehrt():
-    """Weder Fix noch Testlauf legen die Marker-Datei an. Sie ist einmalig und
-    damit endgültig — ein versehentliches Anlegen wäre nicht rückholbar."""
-    assert not (ROOT / notify.MILESTONE_MARKER).exists(), \
-        "der Meilenstein-Marker existiert plötzlich — Meilenstein verbucht?"
+    """Ein Skript-Lauf darf den Einmal-Marker-Zustand nicht selbst verändern
+    (weder neu anlegen noch entfernen) — er ist einmalig und damit endgültig.
+
+    Test-Robustheit (05.09.2026, dieselbe Fehlerklasse wie #115/#117): die
+    ursprüngliche Fassung verlangte hartkodiert, dass der Marker VOR dem Lauf
+    noch nicht existiert — das musste altern, sobald die reale Sammlung
+    n>=EVAL_MIN_N erreichte und der Meilenstein-Marker dadurch legitim
+    committet wurde (05.09.2026, Commit 8db857c). Jetzt dynamisch: der
+    Zustand VOR und NACH dem Lauf muss identisch sein, unabhängig davon, ob
+    der Marker gerade existiert oder nicht — genau das ist die eigentliche
+    Garantie, die dieser Test geben soll."""
+    marker = ROOT / notify.MILESTONE_MARKER
+    existierte_vorher = marker.exists()
     p = _starte("--mode", "daily")
     assert p.returncode == 0
-    assert not (ROOT / notify.MILESTONE_MARKER).exists(), \
-        "ein Skript-Lauf hat den Einmal-Marker angelegt"
+    assert marker.exists() == existierte_vorher, (
+        "ein Skript-Lauf hat den Einmal-Marker-Zustand verändert "
+        f"(vorher: {existierte_vorher}, nachher: {marker.exists()})")
 
 
 def test_die_schwelle_kommt_aus_forward_collection_nicht_aus_dem_rueckfall():
