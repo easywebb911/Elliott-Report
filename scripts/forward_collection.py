@@ -282,7 +282,13 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
             rec["r_erreicht_basis"] = None
             rec["r_erreicht_extension"] = None
         else:
-            neutral_r = round((fwd[-1] - entry) / risk, 4)
+            # price_path[-1]["close"] statt des rohen fwd[-1] (Guardian-Nit,
+            # 07.09.2026): beide sind fuer heutige Kurse zahlengleich, aber
+            # so liest scripts/backfill_r_multiple.py (das nur price_path
+            # kennt, nicht fwd) NACHWEISLICH denselben Wert, den dieser Lauf
+            # hier verwendet hat — keine bloss "praktisch nie" divergierende
+            # Zweitrechnung derselben Groesse.
+            neutral_r = round((rec["price_path"][-1]["close"] - entry) / risk, 4)
             rec["r_erreicht_basis"], rec["r_erreicht_extension"] = _r_erreicht_paar(
                 rec["target_hit"], rec["ext_hit"], rec["invalidated"],
                 rec["crv_basis"], rec["crv_extension"], neutral_r)
