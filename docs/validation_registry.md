@@ -1392,3 +1392,79 @@ vor n ≥ 100) gilt unverändert.
   Revert = PR #112 zurücknehmen (`TARGET_EXT_EXCEEDED`-Zweig, neue Funktion,
   Diag-Zähler, Frontend-Label entfernen); bereits gesammelte Episoden sind von
   dieser Änderung nicht betroffen, kein Datenstand wird ungültig.
+- **06.09.2026 — R-Multiple-Erfassung (additiv):
+  `risiko_abstand`/`chance_abstand_basis`/`chance_abstand_extension`/
+  `crv_basis`/`crv_extension`/`r_erreicht_basis`/`r_erreicht_extension`.
+  EIGENSTÄNDIGE, NEUE Datenerhebung für eine SPÄTERE, SEPARATE
+  Präregistrierung — verändert NICHTS an der bereits abgeschlossenen
+  n≥100-Primärauswertung (PR #121, 06.09.2026): `scripts/evaluate.py`
+  (SHA-256 `bc697df9…3fc`, unverändert), Score v0, Ranking, die
+  n≥100-Sperre und beide Ergebnisdateien aus #121 bleiben exakt wie sie
+  sind gültig.
+  **ANLASS.** PR #121 zeigte: die reine Trefferquote liegt nicht signifikant
+  über dem Zufalls-Benchmark. Easy argumentierte zurecht — bei realistischem
+  Risikomanagement (Positionsgröße invers zum Invalidierungs-Abstand
+  skaliert) zählt das Chance-Risiko-Verhältnis je Setup ("R-Multiple",
+  Van-Tharp-Praxis), nicht die reine Trefferquote.
+  **DEFINITIONEN.** `risiko_abstand` = `entry_close − invalidation_price`
+  ("1R"). `chance_abstand_basis`/`_extension` = `target_zone(_extended).low −
+  entry_close`. `crv_basis`/`crv_extension` = `chance_abstand_* /
+  risiko_abstand` — bei Anlage eingefroren (`_r_kennzahlen()`,
+  `forward_collection.py`), reine Funktion bereits vorhandener,
+  point-in-time gesetzter Geometrie, keine neue Datenquelle.
+  `r_erreicht_basis`/`r_erreicht_extension` — bei der jeweiligen Reifung
+  gesetzt (`mature_record()`/`_r_erreicht_paar()`): `−1,0` bei Invalidierung,
+  `+crv_*` beim jeweiligen Zonentreffer, sonst der tatsächliche Kursstand
+  nach 10 Handelstagen relativ zum Risiko-Abstand (aus `price_path`, das seit
+  Commit `7f67a6f` — vor der ältesten Episode dieser Sammlung — bei jeder
+  Reifung eingefroren wird; **keine reale Datenlücke** bei „gereift ·
+  neutral", entgegen der Vermutung, mit der dieser Auftrag begann).
+  **ZWEI ENTSCHEIDUNGEN (Easy, 06.09.2026, nach Rückfrage — Diagnose fand
+  beide Fälle konkret in der Sammlung, keine Annahme):**
+  (1) *Extension-Zone getrennt geführt.* `target_zone_extended.low` kann je
+  nach Setup-Geometrie UNTER ODER ÜBER `target_zone.low` liegen (13 von 133
+  Fällen: darunter; s. `TARGET_EXT_EXCEEDED`-Eintrag oben). Beleg:
+  `MA@2026-08-19` — `ext_hit=1`, `target_hit=0`, `crv_basis` 1,2712 vs.
+  `crv_extension` 0,9894. Ein Extension-Treffer ist also kein einfaches
+  "mehr" eines Basiszonen-Treffers — deshalb BEIDE CRV/r_erreicht-Paare
+  getrennt geführt, statt eine Seite zu bevorzugen oder zu vermischen.
+  (2) *Invertiertes Risiko → `r_nicht_ermittelbar_grund`, keine Schätzung.*
+  5 Records haben `entry_close < invalidation_price` (`risiko_abstand`
+  negativ — "1R" nicht definiert): `ADS.DE@2026-07-24` (beide Duplikate),
+  `HUM@2026-07-29`, `KCO.DE@2026-08-12`, `LEG.DE@2026-08-21`. `crv_basis`/
+  `crv_extension`/`r_erreicht_basis`/`r_erreicht_extension` bleiben dort
+  `None`, additiv markiert mit `"r_nicht_ermittelbar_grund":
+  "invertiertes_risiko"` — analog zum bestehenden `r_multiple`-Guard
+  (`if finite(risk) and risk > 0`). `risiko_abstand`/`chance_abstand_*`
+  werden trotzdem als reine (dann negative) Differenzen gespeichert —
+  immer definierbar, keine Interpretation.
+  **RÜCKWIRKENDE ANWENDUNG (`scripts/backfill_r_multiple.py`, additiv, kein
+  bestehendes Feld verändert — MD5-Regressionstest bestätigt).** Alle 133
+  Records tragen die Geometrie-Felder. Von den 107 zum Zeitpunkt dieses
+  Commits bereits gereiften Episoden haben 103 ein `r_erreicht_basis`/
+  `_extension` ungleich `None`; die restlichen 4 sind exakt die vier bereits
+  gereiften invertiertes-Risiko-Fälle aus Entscheidung (2) — kein
+  unerklärter Rest. Der fünfte invertierte Fall (`KCO.DE@2026-08-12`) ist
+  noch nicht gereift (Ticker seit Mitte August ohne neue Kurse) und bekommt
+  seine (dann ohnehin `None`-)Werte regulär bei künftiger Reifung.
+  **AB WANN LÜCKENLOS FÜR NEUE EPISODEN.** Ab diesem Commit erhält JEDE neu
+  angelegte Episode die Geometrie-Felder sofort bei Anlage
+  (`_new_record()`/`_r_kennzahlen()`) und `r_erreicht_basis`/`_extension`
+  automatisch bei ihrer jeweiligen Reifung (`mature_record()`) — ohne
+  weiteren Handgriff, ohne Sonderfall.
+  **BEWUSST NICHT GEÄNDERT:** `scripts/evaluate.py` (Hash identisch),
+  `data/evaluation/ergebnis.json`/`ergebnis_sensitivitaet.json` aus #121,
+  Score v0, Ranking, `filter_sensitivity_sammlung.py`, die drei
+  Qualitäts-Marker-Skripte (`mark_in_session_creation.py`,
+  `mark_episode_splits.py`, `mark_stale_market_records.py` — lesen/schreiben
+  ausschließlich ihre eigenen Marker-Felder, unberührt von den neuen
+  additiven Feldern). Das Frontend (`docs/index.html`) liest keines der
+  neuen Felder — keine Sichtbarkeits-Änderung.
+  **WOFÜR DAS HIER STEHT UND WOFÜR NICHT:** dies ist eine reine
+  Datenerhebung. Ob und wann auf Basis dieser R-Werte eine neue,
+  eigenständige Präregistrierung sinnvoll ist, ist eine spätere, separate
+  Entscheidung — dieser Eintrag trifft sie nicht.
+  Revert = diesen PR zurücknehmen (`_r_kennzahlen`/`_r_erreicht_paar` aus
+  `forward_collection.py`, `scripts/backfill_r_multiple.py`, die additiven
+  Felder in `data/forward_collection.json`/`docs/data/forward_collection.json`
+  entfernen); PR #121 und alles davor bleiben davon unberührt.

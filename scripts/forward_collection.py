@@ -263,6 +263,29 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     risk = entry - inval
     rec["r_multiple"] = (round((maxc - entry) / risk, 4)
                          if finite(risk) and risk > 0 else None)
+    # R-Multiple-Erfassung (additiv, ab 06.09.2026, siehe validation_registry.md):
+    # r_erreicht_* erst beim FINALEN Reifungslauf (matured wird True) setzen —
+    # nicht schon bei einer frühen Invalidierung/einem frühen Zonentreffer,
+    # solange bars_elapsed < HORIZON_DAYS. Grund: der "neutral"-Fallback-Zweig
+    # (tatsächlicher Kursstand relativ zum Risiko-Abstand) ist nur am ECHTEN
+    # Horizont-Ende gültig — ein Zwischenstand vor Tag 10 wäre kein "gereift ·
+    # neutral"-Ausgang, sondern nur "noch nicht getroffen". target_hit/ext_hit/
+    # invalidated sind in diesem Lauf bereits final (derselbe `if resolved`-Block
+    # oben lief mit der vollen, jetzt vorhandenen Kursreihe).
+    # .get() statt [] (nicht rec["crv_basis"]): ein Alt-/Test-Record ohne die
+    # R-Multiple-Geometrie (vor 06.09.2026 angelegt, noch nicht rückwirkend
+    # befüllt — siehe scripts/backfill_r_multiple.py) soll r_erreicht_* fehlend
+    # lassen (None), NICHT abstürzen. Für alle ab jetzt NEU angelegten Records
+    # liefert _new_record()/_r_kennzahlen() das Feld immer mit.
+    if matured:
+        if rec.get("r_nicht_ermittelbar_grund") or "crv_basis" not in rec:
+            rec["r_erreicht_basis"] = None
+            rec["r_erreicht_extension"] = None
+        else:
+            neutral_r = round((fwd[-1] - entry) / risk, 4)
+            rec["r_erreicht_basis"], rec["r_erreicht_extension"] = _r_erreicht_paar(
+                rec["target_hit"], rec["ext_hit"], rec["invalidated"],
+                rec["crv_basis"], rec["crv_extension"], neutral_r)
     rec["matured"] = matured
 
 
@@ -663,6 +686,59 @@ def _unique_episode_id(records: Sequence[Dict], ticker: str, first_seen: str) ->
     return f"{basis}#{n}"
 
 
+def _r_kennzahlen(entry_close: float, invalidation_price: float,
+                  target_zone: Dict[str, float],
+                  target_zone_extended: Dict[str, float]) -> Dict:
+    """R-Multiple-Geometrie bei Anlage (additiv, ab 06.09.2026 — siehe
+    docs/validation_registry.md, Eintrag zur R-Multiple-Erfassung). Reine
+    Funktion bereits vorhandener, point-in-time eingefrorener Werte — KEINE
+    neue Datenquelle. Getrennt für Basis- UND Extension-Zone (crv_basis /
+    crv_extension), weil ``target_zone_extended.low`` je nach Setup-Geometrie
+    UNTER ODER ÜBER ``target_zone.low`` liegen kann (s. TARGET_EXT_EXCEEDED in
+    elliott_pipeline.py, Anlassfall JUN3.DE@2026-08-06) — ein Extension-Treffer
+    ist dann kein einfaches "mehr" des Basiszonen-Treffers, sondern ein
+    EIGENES Chance-Risiko-Verhältnis (Easy-Entscheidung 06.09.2026: beide
+    Werte getrennt führen statt eine Seite zu bevorzugen).
+
+    ``risiko_abstand`` kann NEGATIV sein (invalidation_price > entry_close —
+    real z. B. ADS.DE@2026-07-24, HUM@2026-07-29, LEG.DE@2026-08-21): dann ist
+    "1R" nicht definiert. crv_basis/crv_extension bleiben dann None mit
+    ``r_nicht_ermittelbar_grund`` gesetzt — KEINE geschätzte Notlösung
+    (dieselbe Easy-Entscheidung, analog zum bestehenden r_multiple-Guard
+    ``if finite(risk) and risk > 0`` weiter unten in ``mature_record``)."""
+    risiko_raw = entry_close - invalidation_price
+    chance_basis_raw = target_zone["low"] - entry_close
+    chance_ext_raw = target_zone_extended["low"] - entry_close
+    out = {
+        "risiko_abstand": round(risiko_raw, 4),
+        "chance_abstand_basis": round(chance_basis_raw, 4),
+        "chance_abstand_extension": round(chance_ext_raw, 4),
+    }
+    if finite(risiko_raw) and risiko_raw > 0:
+        out["crv_basis"] = round(chance_basis_raw / risiko_raw, 4)
+        out["crv_extension"] = round(chance_ext_raw / risiko_raw, 4)
+    else:
+        out["crv_basis"] = None
+        out["crv_extension"] = None
+        out["r_nicht_ermittelbar_grund"] = "invertiertes_risiko"
+    return out
+
+
+def _r_erreicht_paar(target_hit: Optional[int], ext_hit: Optional[int],
+                     invalidated: Optional[int], crv_basis: Optional[float],
+                     crv_extension: Optional[float],
+                     neutral_r: Optional[float]) -> Tuple[Optional[float], Optional[float]]:
+    """(r_erreicht_basis, r_erreicht_extension) — reine Funktion, EINE Stelle
+    für die Regel aus dem Auftrag (06.09.2026), damit ``mature_record`` und der
+    rückwirkende Backfill (``scripts/backfill_r_multiple.py``) nie auseinander-
+    laufen können: −1,0 bei Invalidierung, +crv beim jeweiligen Zonentreffer,
+    sonst ``neutral_r`` (tatsächlicher Kursstand nach 10 Handelstagen relativ
+    zum Risiko-Abstand — vom Aufrufer übergeben, hier nicht berechnet)."""
+    basis = -1.0 if invalidated else (crv_basis if target_hit else neutral_r)
+    ext = -1.0 if invalidated else (crv_extension if ext_hit else neutral_r)
+    return basis, ext
+
+
 def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
                 run_date: str, now_iso: str,
                 episode_id: Optional[str] = None) -> Dict:
@@ -719,6 +795,15 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "max_gain_10d": None,
         "max_drawdown_10d": None,
         "r_multiple": None,
+        # R-Multiple-Erfassung (additiv, ab 06.09.2026): Geometrie bei Anlage
+        # sofort berechenbar (reine Funktion von entry_close/invalidation_price/
+        # target_zone(_extended), alle bereits oben eingefroren) — deshalb HIER,
+        # nicht erst bei der Reifung wie r_erreicht_*. Siehe _r_kennzahlen()
+        # und docs/validation_registry.md.
+        **_r_kennzahlen(entry["close"], entry["invalidation_price"],
+                       entry["target_zone"], entry["target_zone_extended"]),
+        "r_erreicht_basis": None,
+        "r_erreicht_extension": None,
         # W5->A-Nachprüfung (nur end_of_w4 + target_hit, s. observe_a_correction).
         # None = keine Messung / Fenster offen; True/False = Korrektur (nicht)
         # beobachtet. Rein additiv, kein Score/Ranking/Reifung.
