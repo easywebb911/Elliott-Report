@@ -787,6 +787,18 @@
     .vsdist-rows b { color:var(--txt); font-weight:700; font-variant-numeric:tabular-nums; }
     .vsdist-rows em { color:var(--txt-dim); font-style:normal; font-variant-numeric:tabular-nums; }
     .vsdist-note { font-size:0.6875rem; color:var(--txt-dim); line-height:1.4; margin:0 0 14px; }
+    /* ── R-Werte (Zwischenstand, 07.09.2026, Easy-Wunsch) ──────────────────
+       Additive Anzeige der R-Multiple-Felder aus PR #122 — REIN deskriptiv,
+       keine neue Berechnung. Eigener Rahmen + eigener "heuristisch ·
+       unvalidiert"-Stempel (dieselbe Klasse wie .vsum-stamp), damit der
+       Block direkt neben der Status-Verteilung nicht mit der bereits
+       abgeschlossenen #121-Auswertung verwechselt werden kann. */
+    .rwerte { margin:0 0 14px; padding:10px 12px; border:1px solid var(--brd);
+      border-radius:10px; background:rgba(148,163,184,.05); }
+    .rwerte-title { display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+      font-size:0.8125rem; font-weight:600; color:var(--txt); margin:0 0 10px; }
+    .rwerte-title .vsum-stamp { margin:0; }
+    .rwerte-say { font-size:0.71875rem; color:var(--txt-dim); line-height:1.4; margin:8px 0 0; }
     /* „Details für Nerds" — dasselbe Muster wie der KI-Kommentar. */
     .nerd-block { border:1px solid var(--brd); border-radius:10px;
       background:rgba(148,163,184,.05); padding:2px 10px; }
@@ -1558,6 +1570,70 @@
             Bewertung — heuristisch · unvalidiert. 1 Fall ist zugleich ausgeschlossen und
             invalidiert und zählt hier als „invalidiert" (wie bei den einzelnen Fällen) — bei
             der n-Schwelle (6 ausgeschlossene Fälle) zählt er weiterhin als ausgeschlossen.</p>
+        </div>`;
+    }
+
+    // R-Werte (Zwischenstand, 07.09.2026, Easy-Wunsch): additive Anzeige der
+    // R-Multiple-Felder aus PR #122 (risiko_abstand/chance_abstand_*/crv_*/
+    // r_erreicht_*, siehe docs/validation_registry.md, Eintrag 06.09.2026).
+    // KEINE neue Berechnung — reine Durchschnittsbildung über bereits
+    // eingefrorene Felder. KEIN Zufalls-Benchmark, KEINE Signifikanz, KEIN
+    // Bezug zur bereits abgeschlossenen #121-Auswertung (Trefferquote).
+    //
+    // POPULATION (Easy-Entscheidung 07.09.2026, nach Rückfrage): dieselbe
+    // PRU-Guard-Ausschlusslogik wie bei #121 (_recExcluded()) — ohne sie
+    // könnten die 6 Fälle, bei denen „Treffer" strukturell gesperrt ist
+    // (Kurs schon bei Anlage über der Zone, target_hit bleibt immer 0), den
+    // Durchschnitt unsichtbar nach unten ziehen. r_erreicht_basis != null
+    // schließt unmatured (noch offene) UND invertiertes-Risiko-Fälle bereits
+    // aus (beide liefern None, s. forward_collection._r_kennzahlen).
+    function rWertePopulation(records) {
+      return records.filter(r => r && r.r_erreicht_basis != null && !_recExcluded(r));
+    }
+    // Dieselben vier Kategorien wie episodeStatus()/statusDistribution() —
+    // EINE Klassifikations-Quelle. „offen"/„ausgeschlossen" fehlen hier
+    // bewusst: die Population oben schließt beide bereits aus, sie kämen nie
+    // mit n>0 vor.
+    const RWERTE_CATS = [
+      ['st-ext', 'Extension'], ['st-target', 'Zone'],
+      ['st-inval', 'invalidiert'], ['st-neutral', 'gereift · neutral'],
+    ];
+    function fmtR(n) {
+      const v = Number(n).toLocaleString('de-DE',
+        { minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: 'exceptZero' });
+      return v + ' R';
+    }
+    // Reine Zwischenstands-Zählung, KEINE Bewertung — s. GRENZEN. Fail-soft:
+    // ohne Population kein Block (kein "0,00 R"-Rauschen).
+    function rWerteHtml(records) {
+      if (!Array.isArray(records) || !records.length) return '';
+      const pop = rWertePopulation(records);
+      if (!pop.length) return '';
+      const avgBasis = pop.reduce((s, r) => s + r.r_erreicht_basis, 0) / pop.length;
+      const avgExt = pop.reduce((s, r) => s + r.r_erreicht_extension, 0) / pop.length;
+      const counts = {};
+      RWERTE_CATS.forEach(([cls]) => { counts[cls] = 0; });
+      pop.forEach(r => { const cls = episodeStatus(r).cls; if (cls in counts) counts[cls]++; });
+      const rows = RWERTE_CATS.map(([cls, label]) =>
+        `<span><i style="background:${VSDIST_COLOR[cls]}"></i>${esc(label)} <b>${counts[cls]}</b></span>`
+      ).join('');
+      const excl = records.length - pop.length;
+      const exclNote = excl > 0
+        ? ` ${excl} Fälle ohne ermittelbares R (noch offen, per PRU-Guard `
+          + `ausgeschlossen, oder invertiertes Risiko) zählen hier nicht mit.`
+        : '';
+      return `<div class="rwerte">
+          <p class="rwerte-title">R-Werte (Zwischenstand)
+            <span class="vsum-stamp">heuristisch · unvalidiert</span></p>
+          <div class="vsum-hero" style="grid-template-columns:repeat(2,1fr)">
+            <div class="vsum-num"><b>${fmtR(avgBasis)}</b><span>Ø je Fall (Basiszone)</span></div>
+            <div class="vsum-num"><b>${fmtR(avgExt)}</b><span>Ø je Fall (Extension-Zone)</span></div>
+          </div>
+          <div class="vsdist-rows">${rows}</div>
+          <p class="rwerte-say">Chance-Risiko-Verhältnis je Fall (R-Multiple) statt reiner
+            Trefferquote, über ${pop.length} Fälle mit ermittelbarem R.${exclNote} Noch keine
+            offizielle Auswertung — Datenbasis wächst laufend. Getrennt von der bereits
+            abgeschlossenen Trefferquoten-Auswertung (siehe oben).</p>
         </div>`;
     }
 
@@ -4373,8 +4449,10 @@
             } catch (_) { records = null; }
           }
           const dist = records ? statusDistributionHtml(records) : '';
+          const rwerte = records ? rWerteHtml(records) : '';
           head =
             `${dist}
+             ${rwerte}
              <div class="vsum-hero">
                <div class="vsum-num"><b>${collected}</b><span>gesammelt</span></div>
                <div class="vsum-num"><b>${matured}</b><span>fertig beobachtet</span></div>
