@@ -134,6 +134,48 @@ def test_report_only_ruft_agent_kommentar_nicht_auf(tmp_path, monkeypatch):
     assert aufgerufen == [], "agent_comment.annotate_agent_comments() wurde aufgerufen!"
 
 
+def test_report_only_ruft_load_collection_nicht_auf(tmp_path, monkeypatch):
+    """Laufzeit-Beweis fuer den Guardian-Fund vom 09.09.2026: fc.load_collection()
+    lief unconditional VOR dem Report-Only-Ruecksprung (N×-Zaehler-Block) und
+    widersprach damit der zugesicherten Garantie, die Sammlung werde in diesem
+    Modus 'nicht einmal geladen'. Ein reiner Byte-Identitaets-Test (s. oben)
+    kann einen reinen Lesezugriff nicht fangen — deshalb hier ein eigener Spion,
+    genau wie bei hc.run()/agent_comment."""
+    _sandbox(tmp_path, monkeypatch)
+    monkeypatch.setenv("REPORT_ONLY", "1")
+
+    aufgerufen = []
+    echt_laden = fc.load_collection
+
+    def spion(*a, **kw):
+        aufgerufen.append(1)
+        return echt_laden(*a, **kw)
+    monkeypatch.setattr(fc, "load_collection", spion)
+
+    assert pipe.main() == 0
+    assert aufgerufen == [], (
+        "fc.load_collection() wurde im Report-Only-Modus aufgerufen — "
+        "die Sammlung wurde entgegen der Zusicherung gelesen!")
+
+
+def test_standardmodus_ruft_load_collection_weiterhin_auf(tmp_path, monkeypatch):
+    """Regression: OHNE REPORT_ONLY bleibt der N×-Zaehler (und damit
+    fc.load_collection()) Teil des Ablaufs."""
+    _sandbox(tmp_path, monkeypatch)
+    monkeypatch.delenv("REPORT_ONLY", raising=False)
+
+    aufgerufen = []
+    echt_laden = fc.load_collection
+
+    def spion(*a, **kw):
+        aufgerufen.append(1)
+        return echt_laden(*a, **kw)
+    monkeypatch.setattr(fc, "load_collection", spion)
+
+    assert pipe.main() == 0
+    assert aufgerufen, "fc.load_collection() lief im Standard-Modus nicht (mehr)"
+
+
 def test_standardmodus_ruft_hc_run_weiterhin_auf(tmp_path, monkeypatch):
     """Regression: OHNE REPORT_ONLY bleibt hc.run() Teil des Ablaufs — der
     neue Modus darf das bestehende Verhalten nicht mitentfernen."""
@@ -162,7 +204,17 @@ def test_report_only_rueckkehr_steht_textuell_vor_jedem_sammlungs_aufruf():
     fn_ende = SRC.index("\nif __name__ == \"__main__\":", fn_start)
     koerper = SRC[fn_start:fn_ende]
 
-    gate_pos = koerper.index("if REPORT_ONLY:")
+    # Verankert auf den EIGENTLICHEN Ausstiegs-Block, nicht auf die erste
+    # beliebige `if REPORT_ONLY:`-Stelle — seit dem Guardian-Fund vom
+    # 09.09.2026 (fc.load_collection() lief vor dem Rücksprung) gibt es eine
+    # ZWEITE, frühere `if REPORT_ONLY:`-Weiche (N×-Zähler-Guard, s. eigener
+    # Laufzeit-Test unten). Diese Positions-Prüfung gilt bewusst nur für die
+    # Marken, die UNBEDINGT (ohne eigene Guard-Klausel) hinter dem
+    # Rücksprung liegen müssen — fc.load_collection/fc.annotate_appearance_counts
+    # haben eine eigene, separat getestete if/else-Weiche und gehören
+    # deshalb NICHT in diese rein positionsbasierte Liste.
+    ausstieg_marker = koerper.index("REPORT-ONLY-AUSSTIEG")
+    gate_pos = koerper.index("if REPORT_ONLY:", ausstieg_marker)
     ruecksprung_pos = koerper.index("return 0", gate_pos)
 
     for marke in ("fc.update_forward_collection(", "fc.write_collection(",

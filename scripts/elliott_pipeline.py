@@ -2093,15 +2093,29 @@ def main() -> int:
     # N×-Zähler additiv annotieren — mit dem Sammlungs-Stand VOR dem Update
     # (die aktuelle Erscheinung wird erst danach eingetragen). Fail-soft: fehlt/
     # kaputt -> kein Zähler, Report bleibt heil. Rein Anzeige, kein Ranking.
-    try:
-        # run_date mitgeben: sonst zählt ein ZWEITER Lauf desselben Kalendertags
-        # eine fortgesetzte Erscheinung als neue Episode (01.08.2026, dieselbe
-        # Tages-Semantik wie in update_forward_collection).
-        fc.annotate_appearance_counts(fc.load_collection(), report,
-                                      report["run_timestamp_utc"][:10])
-    except Exception as exc:  # noqa: BLE001
-        _log(f"[elliott] N×-Zähler übersprungen (fail-soft): "
-             f"{type(exc).__name__}: {exc}")
+    #
+    # Im Report-Only-Modus BEWUSST übersprungen (Guardian-Fund, 09.09.2026):
+    # die Ladefunktion aus forward_collection liest data/forward_collection.json
+    # von der Platte — das widerspräche der an anderer Stelle in diesem Modus
+    # zugesicherten Garantie, die Sammlung werde „nicht einmal geladen". Die absolute Grenze
+    # dieses Auftrags gilt im Zweifel für JEDEN Zugriff, nicht nur Schreiben/
+    # Committen — deshalb hier lieber der Zähler weggelassen (rein informativ,
+    # kein Ranking-Einfluss) als die Zusicherung aufzuweichen.
+    if REPORT_ONLY:
+        _log("[elliott] N×-Zähler übersprungen (Report-Only-Modus — würde "
+             "die Forward-Sammlung lesen, das ist in diesem Modus nicht "
+             "erlaubt).")
+    else:
+        try:
+            # run_date mitgeben: sonst zählt ein ZWEITER Lauf desselben
+            # Kalendertags eine fortgesetzte Erscheinung als neue Episode
+            # (01.08.2026, dieselbe Tages-Semantik wie in
+            # update_forward_collection).
+            fc.annotate_appearance_counts(fc.load_collection(), report,
+                                          report["run_timestamp_utc"][:10])
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[elliott] N×-Zähler übersprungen (fail-soft): "
+                 f"{type(exc).__name__}: {exc}")
     # Agent-Kommentar v1 (additiv, REINE Kommentar-Ebene): läuft NACH build_report
     # — also nach Sortierung, Top-N-Schnitt und allen Filtern — und schreibt nur
     # `agent_comment` auf die finalen Markt-Top-5 (Watchlist ausgenommen). Ohne
