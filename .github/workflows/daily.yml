@@ -76,6 +76,77 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      # SITZUNGS-GATE (09.09.2026) — technische Absicherung der Betriebsregel
+      # „keine Hand-Dispatches während der Sitzungen" (docs/validation_
+      # registry.md, seit 07.08.2026). Diagnose vom selben Tag belegte: die
+      # Regel existierte bis hierhin NUR als Dokumentation und wurde trotzdem
+      # 24 von 55 Mal verletzt — zuletzt OXY/MRK am 08.09. (18:54:35Z) und
+      # FCX am 09.09. (17:08:50Z), alle drei per Hand-Dispatch, alle drei
+      # innerhalb der US-Sitzung. Ein Hand-Dispatch WÄHREND der Sitzung friert
+      # eine noch nicht fertige Bar ein (Kurs/Score/Auswahl vorläufig, s.
+      # scripts/in_session.py-Kopfkommentar) — der Marker heilt das nicht,
+      # er dokumentiert es nur nachträglich.
+      #
+      # OPTION (a) HARTES GATE statt nur einer Warnung (Auftrag nannte beide
+      # als sicher, Wahl ohne Rückfrage erlaubt): eine reine Dokumentations-
+      # Regel IST bereits eine dauerhafte "Warnung" — und wurde trotzdem 24
+      # Mal übergangen. Eine zusätzliche Push-Meldung hätte an genau diesem
+      # Muster nichts geändert; nur ein Abbruch verhindert das Problem
+      # tatsächlich. Trade-off (bewusst in Kauf genommen, s. PR-Text): ein
+      # ECHTER Diagnose-Dispatch während der Sitzung ist damit nicht mehr
+      # möglich, ohne diesen Schritt vorübergehend zu deaktivieren.
+      #
+      # NUR die bestehende, unveränderte Zeitfenster-Funktion
+      # `in_session.im_sitzungsfenster()` — KEINE neue Zeitfenster-Berechnung.
+      # Läuft bewusst VOR "Install dependencies": in_session.py/market_
+      # calendar.py sind reine Stdlib (datetime/zoneinfo, kein pip nötig) —
+      # der schnellstmögliche Abbruch, bevor auch nur ein Kandidat oder eine
+      # Episode entstehen kann (kein Report, keine Sammlung).
+      #
+      # STRUKTURELL nur bei `workflow_dispatch`: `if:` prüft den Auslöser
+      # selbst, nicht die Uhrzeit — ein `schedule`-Lauf (22:45 UTC, nie
+      # während einer Sitzung) überspringt diesen Schritt immer, nicht nur
+      # zufällig. Der neue Mittagslauf (#124, midday_report_refresh.yml) ist
+      # eine komplett separate Workflow-Datei und von diesem Schritt gar
+      # nicht berührt — er legt ohnehin nie Episoden an (REPORT_ONLY=1).
+      - name: Sitzungs-Gate (nur bei manuellem Dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          python3 - <<'PY'
+          import datetime as _dt
+          import sys
+
+          sys.path.insert(0, "scripts")
+          import in_session as ins
+
+          jetzt = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          blockiert = []
+          for markt in ("US", "DE"):
+              ergebnis = ins.im_sitzungsfenster(markt, jetzt)
+              # None = nicht berechenbar -> LAUT behandeln (Vertrag von
+              # im_sitzungsfenster selbst, s. Docstring in_session.py) — NIE
+              # still als "nicht in Sitzung" werten, sonst wäre das Gate
+              # ausgerechnet dann wirkungslos, wenn es am wenigsten
+              # vertrauenswürdig ist.
+              if ergebnis is None:
+                  blockiert.append(
+                      f"{markt}: Sitzungsfenster nicht berechenbar "
+                      "(unbekannter Markt, unlesbarer Stempel oder fehlende tzdata)")
+              elif ergebnis:
+                  blockiert.append(f"{markt}: Sitzung läuft ({jetzt})")
+          if blockiert:
+              print("::error::Manueller Dispatch waehrend einer laufenden Boersensitzung blockiert:")
+              for zeile in blockiert:
+                  print(f"::error::  {zeile}")
+              print("::error::Betriebsregel seit 07.08.2026 (docs/validation_registry.md): "
+                    "Hand-Dispatches waehrend der Sitzung erzeugen in_session_creation-markierte "
+                    "Episoden mit vorlaeufigen Kursen. Bitte ausserhalb der Sitzung erneut "
+                    "starten, oder fuer einen reinen Report-Refresh den Mittagslauf "
+                    "(midday_report_refresh.yml) nutzen - der legt nie Episoden an.")
+              sys.exit(1)
+          print(f"Sitzungs-Gate: kein Markt in Sitzung ({jetzt}) - Dispatch erlaubt.")
+          PY
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
