@@ -31,6 +31,9 @@ NEUTRALE_UMGEBUNG = (
     "SOURCE_RUN_ID",
     "SOURCE_RUN_URL",
     "SOURCE_CONCLUSION",
+    # Report-Only-Modus (Mittagslauf, 09.09.2026): elliott_pipeline.main()
+    # liest REPORT_ONLY == "1", um die Forward-Sammlung ungeladen zu lassen.
+    "REPORT_ONLY",
 )
 
 
