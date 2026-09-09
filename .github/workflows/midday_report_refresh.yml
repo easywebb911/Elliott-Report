@@ -1,0 +1,209 @@
+name: Midday Report Refresh
+
+# Zweiter, komplett SEPARATER täglicher Lauf (additiv, 09.09.2026 — Bau-Auftrag
+# nach der Diagnose vom selben Tag zum bestehenden Cron 22:45 UTC). Berechnet
+# Score/Ranking/Wellenzählung mit frischeren Intraday-Kursen NEU und
+# aktualisiert NUR data/report.json (+ docs/-Spiegel).
+#
+# ABSOLUTE, NICHT VERHANDELBARE GRENZE dieses Workflows: er darf
+# data/forward_collection.json / docs/data/forward_collection.json unter
+# KEINEN Umständen committen — weder direkt noch indirekt. Erreicht über
+# `scripts/elliott_pipeline.py`s `REPORT_ONLY=1`-Modus (bricht VOR jedem
+# Sammlungs-Code ab — die Datei wird nicht einmal gelesen) UND zusätzlich
+# über eine explizite Verifikation VOR dem Commit-Schritt selbst (git diff
+# auf genau diese vier Pfade; jede Abweichung -> STOPP, kein Commit, lauter
+# Fehlschlag statt eines stillen Committs). Zwei unabhängige Netze, kein
+# Vertrauen auf eines allein.
+#
+# ZEITPUNKT: 17:00 UTC (Begründung im PR-Text) — mitten in der NYSE-Sitzung
+# (13:00 ET/EDT Sommer, 12:00 ET/EST Winter, beides sicher innerhalb
+# 09:30–16:00 Lokalzeit) UND nach Xetra-Schluss in BEIDEN Jahreszeiten
+# (17:30 Ortszeit = 15:30 UTC Sommer / 16:30 UTC Winter — 17:00 UTC liegt in
+# beiden Fällen danach). DE-Sitzungs-Timing ist für DIESEN Workflow zwar
+# strukturell irrelevant (er legt nie Episoden an, der in_session_creation-
+# Marker kann hier nie greifen), aber der Zeitpunkt bringt dadurch trotzdem
+# für DE einen fertigen statt eines Zwischenstands-Kurses — ein Nebengewinn,
+# keine Voraussetzung.
+#
+# BEWUSST NICHT ENTHALTEN (Scope-Disziplin, Auftrag Punkt 4): kein zu #111
+# analoger Auto-Retry-Watcher. Ein hängender/fehlschlagender Mittagslauf wird
+# NICHT automatisch erneut ausgelöst — das bleibt ein offener, separater
+# Folgepunkt. Ebenso nicht enthalten: der Meilenstein-/Review-Wecker-Schritt
+# aus daily.yml (`notify.py --mode daily`) — der gehört inhaltlich zur
+# Sammlung, nicht zur Report-Aktualisierung, und liefe hier ins Leere.
+#
+# KEINE ÄNDERUNG AN daily.yml (22:45 UTC) ODER SEINEM VERHALTEN — komplett
+# separate Datei, eigener Cron, eigene concurrency-Gruppe, eigener Name
+# (der Auto-Retry-Watcher #111 ist per `workflows: ["Daily Elliott Report"]`
+# an daily.ymls NAMEN gebunden, nicht an eine Datei — dieser Workflow heißt
+# anders und wird von #111 nicht beobachtet, s. Test
+# tests/test_midday_report_refresh_workflow.py).
+
+on:
+  schedule:
+    # Nur Werktage (Mo–Fr) — an Sa/So gibt es keine neuen Tageskerzen, exakt
+    # dieselbe Begründung wie bei daily.yml. Das Feiertags-Gate in
+    # elliott_pipeline.main() (gemeinsame NYSE-∩-Xetra-Schließtage) greift
+    # unverändert auch hier — kein zweites Gate nötig.
+    - cron: "0 17 * * 1-5"
+  workflow_dispatch:          # Manueller Tap, auch am Wochenende möglich.
+
+# Eigene Gruppe, unabhängig von daily.yml (`daily-elliott`) — verhindert nur
+# doppelte GLEICHZEITIGE Mittagsläufe (z. B. zwei manuelle Dispatches kurz
+# hintereinander). Ein seltenes zeitliches Überlappen mit daily.yml selbst
+# fängt derselbe Rebase-Retry im Commit-Schritt ab, den daily.yml auch
+# gegen andere main-Bewegungen nutzt (s. u.).
+concurrency:
+  group: midday-report-refresh
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        # Wie in daily.yml (Registry-Notiz 31.07.2026): den ZWEIG auschecken,
+        # nicht den beim Auslösen eingefrorenen SHA — sonst kollidiert ein in
+        # der concurrency-Warteschlange wartender Lauf mit einem Daten-Commit,
+        # der inzwischen auf main gelandet ist.
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: MD5 der Forward-Sammlung VOR dem Lauf
+        id: md5_vorher
+        run: |
+          echo "vor=$(md5sum data/forward_collection.json docs/data/forward_collection.json | md5sum)" >> "$GITHUB_OUTPUT"
+
+      - name: Run pipeline (Report-Only)
+        id: pipeline
+        env:
+          # REPORT_ONLY=1: elliott_pipeline.main() bricht nach dem Schreiben
+          # von report.json ab, VOR jedem Sammlungs-Code (s. Kommentar in
+          # scripts/elliott_pipeline.py). Kein ANTHROPIC_API_KEY hier — der
+          # Agent-Kommentar-Aufruf wird in diesem Modus ohnehin übersprungen
+          # (bewusste Kosten-Entscheidung), das Secret wird also gar nicht
+          # gebraucht.
+          REPORT_ONLY: "1"
+          # NTFY_TOPIC wird in diesem Modus nicht mehr erreicht (beide
+          # Push-Zweige — Score-Alert, Health-Check Stufe 2/3 — liegen HINTER
+          # dem Report-Only-Rücksprung). Trotzdem durchgereicht: dieselbe
+          # Verdrahtungs-Regel wie in daily.yml (Fund 27.07.2026, s.
+          # tests/test_workflow_push_wiring.py) — jeder Step, der die Pipeline
+          # startet, setzt das Topic, unabhängig vom Modus. Kostet nichts,
+          # verhindert einen stillen Defekt, falls sich der Code-Pfad je
+          # ändert.
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python scripts/elliott_pipeline.py
+
+      - name: Verifiziere — Forward-Sammlung UNVERÄNDERT (hartes Gate)
+        id: verify_untouched
+        # ZWEITES, UNABHÄNGIGES Netz zum REPORT_ONLY-Modus selbst (der Modus
+        # könnte theoretisch einen Fehler haben, den kein Unit-Test fängt —
+        # dieser Schritt prüft das tatsächliche Dateisystem-Ergebnis dieses
+        # konkreten Laufs, nicht nur den Code-Pfad). Jede Abweichung, und sei
+        # sie noch so klein: STOPP, laut, kein Commit.
+        run: |
+          nachher="$(md5sum data/forward_collection.json docs/data/forward_collection.json | md5sum)"
+          if [ "$nachher" != "${{ steps.md5_vorher.outputs.vor }}" ]; then
+            echo "::error::data/forward_collection.json bzw. docs/data/forward_collection.json wurde im Report-Only-Lauf verändert — das darf NIE passieren. Abbruch, kein Commit."
+            git status --porcelain -- data/forward_collection.json docs/data/forward_collection.json
+            git diff -- data/forward_collection.json docs/data/forward_collection.json
+            exit 1
+          fi
+          if ! git diff --quiet -- data/forward_collection.json docs/data/forward_collection.json; then
+            echo "::error::git diff zeigt eine Änderung an der Forward-Sammlung, obwohl die MD5-Prüfung das nicht anzeigte — widersprüchlicher Zustand, Abbruch."
+            exit 1
+          fi
+          echo "Forward-Sammlung bestätigt unverändert (MD5 + git diff)."
+
+      - name: Validate report JSON
+        id: validate
+        run: |
+          python - <<'PY'
+          import json
+
+          # Dieselbe strikte NaN/Infinity-Prüfung wie in daily.yml — gilt
+          # unveraendert auch für einen frisch berechneten Report.
+          def _reject(const):
+              raise ValueError(f"nicht-endliche Zahl im Report: {const}")
+
+          for path in ("data/report.json", "docs/data/report.json"):
+              with open(path, encoding="utf-8") as fh:
+                  data = json.load(fh, parse_constant=_reject)
+              assert "markets" in data and "US" in data["markets"] and "DE" in data["markets"], path
+              assert "run_timestamp_utc" in data, path
+          print("report JSON valide (inkl. Finit-Prüfung)")
+          PY
+
+      # NUR auf main committen (dieselbe Begründung wie daily.yml: ein
+      # Dispatch von einem Feature-Branch soll den Lauf nicht rot färben).
+      - name: Commit report (NIEMALS die Sammlung)
+        id: commit
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # NUR die beiden Report-Dateien — bewusst KEIN
+          # data/forward_collection.json, KEIN docs/data/forward_collection.json.
+          # Der vorige Schritt hat bereits verifiziert, dass sich daran nichts
+          # geändert hat; hier wird zusätzlich sichergestellt, dass sie erst
+          # gar nicht ins Staging kommen, selbst wenn doch.
+          git add data/report.json docs/data/report.json
+          if git diff --cached --name-only | grep -q "forward_collection.json"; then
+            echo "::error::forward_collection.json ist im Staging-Bereich gelandet — Commit abgebrochen."
+            git reset
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "Keine Änderungen — nichts zu committen."
+          else
+            git commit -m "chore(data): Mittags-Report-Aktualisierung (Report-Only) [skip ci]"
+            pushed=""
+            for i in 1 2 3; do
+              git rebase --abort >/dev/null 2>&1 || true
+              if git pull --rebase origin main && git push; then
+                pushed="yes"; break
+              fi
+              echo "Push-Versuch $i fehlgeschlagen — neuer Versuch."
+              sleep $((i * 3))
+            done
+            git rebase --abort >/dev/null 2>&1 || true
+            if [ -z "$pushed" ]; then
+              echo "::error::Report-Push nach 3 Versuchen fehlgeschlagen."
+              exit 1
+            fi
+          fi
+
+      # Schlanke Fehlschlag-Meldung — reine Sichtbarkeit, KEIN Auto-Retry
+      # (das ist bewusst der offene Folgepunkt aus Auftrag Punkt 4).
+      - name: Push bei Lauf-Fehlschlag
+        if: failure()
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          if [ -z "$NTFY_TOPIC" ]; then
+            echo "kein NTFY_TOPIC → kein Push (graceful)."; exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -m 10 \
+            -H "Title: Elliott: Mittagslauf fehlgeschlagen" \
+            -H "Priority: default" -H "Tags: information_source" \
+            -d "Mittags-Report-Aktualisierung fehlgeschlagen · $(date -u +%Y-%m-%d) · ${RUN_URL}" \
+            "https://ntfy.sh/${NTFY_TOPIC}" || echo "ntfy-Push fehlgeschlagen (fail-soft)"
+          exit 0

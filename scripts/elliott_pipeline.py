@@ -2046,9 +2046,21 @@ def probe_ticker(ticker: str = "AAPL") -> None:
 
 
 def main() -> int:
+    # Report-Only-Modus (additiv, 09.09.2026 — Diagnose vom selben Tag, siehe
+    # docs/validation_registry.md-Historie zu #118/Mittagslauf). NUR für den
+    # zusätzlichen Mittags-Lauf (midday_report_refresh.yml) gedacht: berechnet
+    # Score/Ranking/Wellenzählung mit frischeren Intraday-Kursen neu und
+    # schreibt AUSSCHLIESSLICH report.json — die Forward-Sammlung
+    # (data/forward_collection.json) wird dabei nicht einmal GELADEN, s.
+    # den frühen `return 0` weiter unten. Per Env-Var statt CLI-Flag, damit
+    # main() ohne Argparse-Umbau auskommt — dieselbe Konvention wie
+    # ELLIOTT_OFFLINE (Zeile ~587 unten): exakter String-Vergleich `== "1"`,
+    # kein zweiter Wahrheitswert-Stil in diesem Skript. Im Standard-Modus
+    # (Variable fehlt/leer) ändert sich am bisherigen Verhalten NICHTS.
+    REPORT_ONLY = os.environ.get("REPORT_ONLY") == "1"
     fetcher = get_fetcher()
     mode = "OFFLINE/synthetisch" if fetcher is fetch_synthetic else "yfinance"
-    _log(f"[elliott] Modus: {mode}")
+    _log(f"[elliott] Modus: {mode}" + (" · REPORT_ONLY (Mittagslauf, keine Sammlung)" if REPORT_ONLY else ""))
 
     # NUR im echten Modus (offline/Dev läuft immer): Feiertags-Gate + Probe.
     if fetcher is not fetch_synthetic:
@@ -2081,26 +2093,48 @@ def main() -> int:
     # N×-Zähler additiv annotieren — mit dem Sammlungs-Stand VOR dem Update
     # (die aktuelle Erscheinung wird erst danach eingetragen). Fail-soft: fehlt/
     # kaputt -> kein Zähler, Report bleibt heil. Rein Anzeige, kein Ranking.
-    try:
-        # run_date mitgeben: sonst zählt ein ZWEITER Lauf desselben Kalendertags
-        # eine fortgesetzte Erscheinung als neue Episode (01.08.2026, dieselbe
-        # Tages-Semantik wie in update_forward_collection).
-        fc.annotate_appearance_counts(fc.load_collection(), report,
-                                      report["run_timestamp_utc"][:10])
-    except Exception as exc:  # noqa: BLE001
-        _log(f"[elliott] N×-Zähler übersprungen (fail-soft): "
-             f"{type(exc).__name__}: {exc}")
+    #
+    # Im Report-Only-Modus BEWUSST übersprungen (Guardian-Fund, 09.09.2026):
+    # die Ladefunktion aus forward_collection liest data/forward_collection.json
+    # von der Platte — das widerspräche der an anderer Stelle in diesem Modus
+    # zugesicherten Garantie, die Sammlung werde „nicht einmal geladen". Die absolute Grenze
+    # dieses Auftrags gilt im Zweifel für JEDEN Zugriff, nicht nur Schreiben/
+    # Committen — deshalb hier lieber der Zähler weggelassen (rein informativ,
+    # kein Ranking-Einfluss) als die Zusicherung aufzuweichen.
+    if REPORT_ONLY:
+        _log("[elliott] N×-Zähler übersprungen (Report-Only-Modus — würde "
+             "die Forward-Sammlung lesen, das ist in diesem Modus nicht "
+             "erlaubt).")
+    else:
+        try:
+            # run_date mitgeben: sonst zählt ein ZWEITER Lauf desselben
+            # Kalendertags eine fortgesetzte Erscheinung als neue Episode
+            # (01.08.2026, dieselbe Tages-Semantik wie in
+            # update_forward_collection).
+            fc.annotate_appearance_counts(fc.load_collection(), report,
+                                          report["run_timestamp_utc"][:10])
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[elliott] N×-Zähler übersprungen (fail-soft): "
+                 f"{type(exc).__name__}: {exc}")
     # Agent-Kommentar v1 (additiv, REINE Kommentar-Ebene): läuft NACH build_report
     # — also nach Sortierung, Top-N-Schnitt und allen Filtern — und schreibt nur
     # `agent_comment` auf die finalen Markt-Top-5 (Watchlist ausgenommen). Ohne
     # ANTHROPIC_API_KEY ein no-op; jeder Fehler ist gekapselt (Report geht raus).
-    try:
-        import agent_comment as ac  # noqa: WPS433 — lazy, hält Tests/Offline leicht
+    # Im Report-Only-Modus BEWUSST übersprungen (09.09.2026) — eine
+    # Kosten-Entscheidung (ein zusätzlicher LLM-Aufruf pro Tag), KEINE
+    # versehentliche Funktionslücke: der Mittagslauf braucht nur frischere
+    # Score-/Ranking-/Wellenzählungs-Zahlen, keinen zweiten KI-Kommentar.
+    if REPORT_ONLY:
+        _log("[elliott] Agent-Kommentar übersprungen (Report-Only-Modus, "
+             "bewusste Kosten-Entscheidung, kein Fehler).")
+    else:
+        try:
+            import agent_comment as ac  # noqa: WPS433 — lazy, hält Tests/Offline leicht
 
-        ac.annotate_agent_comments(report, os.environ.get("ANTHROPIC_API_KEY", ""), ts)
-    except Exception as exc:  # noqa: BLE001
-        _log(f"[elliott] Agent-Kommentar übersprungen (fail-soft): "
-             f"{type(exc).__name__}: {exc}")
+            ac.annotate_agent_comments(report, os.environ.get("ANTHROPIC_API_KEY", ""), ts)
+        except Exception as exc:  # noqa: BLE001
+            _log(f"[elliott] Agent-Kommentar übersprungen (fail-soft): "
+                 f"{type(exc).__name__}: {exc}")
 
     # Health-Check Stufe 2, Teil 1 von 3 — NICHT-FINIT-PRÜFUNG des Reports.
     # MUSS hier stehen: nach dem Report-Bau, aber VOR der Serialisierung. Sonst
@@ -2133,6 +2167,45 @@ def main() -> int:
     )
     for p in written:
         _log(f"[elliott] geschrieben: {p.relative_to(REPO_ROOT)}")
+
+    # ═══════════════════════════════════════════════════════════════════
+    # REPORT-ONLY-AUSSTIEG (additiv, 09.09.2026) — ABSOLUTE GRENZE dieses
+    # Modus: alles unterhalb dieser Zeile bis zum Ende von main() ist
+    # Sammlungs-Code (fc.market_regimes/fc.load_collection/
+    # fc.update_forward_collection/fc.write_collection) oder hängt an dessen
+    # Zwischenergebnissen. Im Report-Only-Modus wird KEINE dieser Zeilen
+    # erreicht — data/forward_collection.json (und die docs/-Kopie) werden
+    # dadurch nicht einmal GELADEN, geschweige denn verändert oder
+    # geschrieben. report.json steht zu diesem Zeitpunkt bereits vollständig
+    # auf Platte (s. `written` oben).
+    #
+    # Health-Check Stufe 3 (`hc.run()`, weiter unten) wird hier ebenfalls
+    # NICHT erreicht — bewusst, und nicht nur wegen der Sammlung selbst
+    # (deren sig_before/sig_after wären ohnehin None, was Regel 4 in
+    # `health_check.check_collection_progress()` schon von sich aus stumm
+    # schaltet). Grund ist ein beim Bauen dieses Modus GEFUNDENER, in der
+    # Diagnose vom 09.09.2026 nicht vorhergesehener Seiteneffekt:
+    # `heartbeat_due()` ist tagesfrequenz-basiert und damit an JEDEM Lauf
+    # `True`, unabhängig von Uhrzeit oder Sammlungs-Erfolg — ein Report-Only-
+    # Lauf VOR dem Abend-Lauf würde sonst `hc.run()`s Herzschlag mit
+    # `counts=None` auslösen: den Tages-Puls-Slot verbrauchen (der echte
+    # Abend-Herzschlag mit den richtigen Sammlungs-Zahlen bliebe dann aus)
+    # UND `data/health_state.json` mit `counts: None` überschreiben — das
+    # vergiftet die Meilenstein-Erkennung (`milestone_note`) auch noch für
+    # den FOLGETag. `report["health"]` bleibt dadurch schlicht ABWESEND;
+    # das Frontend behandelt das bereits als „älterer Lauf ohne
+    # health-Block" (docs/index.html: „if (H && typeof H === 'object')")
+    # und blendet den Abschnitt lautlos aus — kein neuer Fail-soft-Pfad
+    # nötig, nur der bereits bestehende.
+    if REPORT_ONLY:
+        if _hc_finite:
+            _log(f"[elliott] WARNUNG (Report-Only): {len(_hc_finite)} "
+                 "Nicht-finit-Befund(e) im frisch berechneten Report — "
+                 "kein Push, kein health-Block in diesem Modus.")
+        _log("[elliott] Report-Only-Modus: Forward-Sammlung NICHT "
+             "angefasst (weder gelesen noch geschrieben) — Lauf beendet.")
+        return 0
+    # ═══════════════════════════════════════════════════════════════════
 
     # Forward-Sammlung — NACH write_report (report.json ist schon geschrieben)
     # und komplett gekapselt: ein Sammel-Fehler darf den Report NIE brechen.
