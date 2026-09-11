@@ -2153,6 +2153,17 @@ def main() -> int:
         _log(f"[elliott] Health-Check (Report-Finit) übersprungen (fail-soft): "
              f"{type(exc).__name__}: {exc}")
 
+    # Additiver Modus-Marker (11.09.2026, Diagnose-Folgeauftrag): NUR im
+    # Report-Only-Modus gesetzt, damit das Frontend einen fehlenden
+    # `validation`/`health`-Block zuverlässig als "bewusst so" statt als
+    # Fehler erkennen kann — vorher gab es dafür kein Feld, nur die
+    # (nicht 100 % eindeutige) Ko-Abwesenheit beider Blöcke. Abwesenheit im
+    # Standard-Modus bleibt bewusst die Norm (dieselbe Konvention wie
+    # `in_session_creation`: „Abwesenheit = sauber", s. scripts/in_session.py)
+    # — kein `report["mode"] = "full"` im Normalfall.
+    if REPORT_ONLY:
+        report["mode"] = "report_only"
+
     written = write_report(report)
 
     us = report["markets"]["US"]

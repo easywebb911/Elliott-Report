@@ -1450,6 +1450,14 @@
     // leer statt zu raten.
     let _val = null;   // { collected, matured, evaluable, eval_min_n }
 
+    // Additiver Modus-Marker (11.09.2026): true, wenn der aktuell geladene
+    // Report vom Mittagslauf (`REPORT_ONLY=1`, #124) stammt — dort fehlen
+    // `validation`/`health` ABSICHTLICH (scripts/elliott_pipeline.py setzt
+    // `report.mode = "report_only"` nur in diesem Fall). Unterscheidet den
+    // harmlosen Zwischenstand von einem echten Fehler (fehlendes `validation`
+    // OHNE diesen Marker) — s. openValidierung().
+    let _reportOnly = false;
+
     // PRU-Guard (23.07.2026): aus der Auswertungs-Population ausgeschlossen —
     // Kurs war schon bei Anlage über der Zone (`pre_reached_*`) oder vor dem
     // Guard kontaminiert. Bleibt im Frontend, weil der Zustand JE FALL gebraucht
@@ -4427,6 +4435,24 @@
       // ist nur zugeklappt.
       let head = '';
       try {
+        // Status-Verteilung (#107) und R-Werte (#123) hängen NUR an der
+        // Sammlung (`loadCollection()`), NICHT an `report.validation` — sie
+        // bleiben also auch dann korrekt und aktuell, wenn der geladene
+        // Report (Mittagslauf) keinen `validation`-Block hat, denn
+        // `REPORT_ONLY` lässt die Sammlung unangetastet (s. Diagnose
+        // 11.09.2026). Deshalb UNABHÄNGIG von `_val` geladen — vorher
+        // standen sie innerhalb von `if (_val)` und verschwanden dadurch
+        // fälschlich mit, obwohl die zugrunde liegenden Daten intakt waren.
+        let records = _wlColl;
+        if (!Array.isArray(records)) {
+          try {
+            const coll = await loadCollection();
+            records = (coll && Array.isArray(coll.records)) ? coll.records : null;
+          } catch (_) { records = null; }
+        }
+        const dist = records ? statusDistributionHtml(records) : '';
+        const rwerte = records ? rWerteHtml(records) : '';
+
         if (_val) {
           const { collected, matured, evaluable, eval_min_n } = _val;
           const excluded = matured - evaluable;
@@ -4438,18 +4464,6 @@
             ? `<p class="vsum-note">${excluded} Fälle zählen nicht mit: Der Kurs
                  war schon in der Beobachtungszone, als sie auf die Liste kamen.</p>`
             : '';
-          // Status-Verteilung: dieselbe Sammlung wie die Watchlist-Historie
-          // (_wlColl, aus loadCollection() gefüllt) — kein neuer Datenabruf,
-          // nur ein Fallback, falls sie beim Öffnen noch nicht geladen war.
-          let records = _wlColl;
-          if (!Array.isArray(records)) {
-            try {
-              const coll = await loadCollection();
-              records = (coll && Array.isArray(coll.records)) ? coll.records : null;
-            } catch (_) { records = null; }
-          }
-          const dist = records ? statusDistributionHtml(records) : '';
-          const rwerte = records ? rWerteHtml(records) : '';
           head =
             `${dist}
              ${rwerte}
@@ -4465,11 +4479,33 @@
                vorher wären die Zahlen Zufall. Aktuell: ${evaluable} von ${eval_min_n}.</p>
              ${excl}
              <span class="vsum-stamp">heuristisch · unvalidiert</span>`;
+        } else if (_reportOnly) {
+          // Fall (a) — Diagnose 11.09.2026: `validation` fehlt, WEIL dieser
+          // Report vom Mittagslauf (REPORT_ONLY) stammt, erkennbar am
+          // additiven Marker `report.mode === 'report_only'`
+          // (scripts/elliott_pipeline.py). Kein Fehler — reiner
+          // Zwischenstand, deshalb ohne Warnsymbol/Fehler-Framing und ohne
+          // Suggestion, es läge bereits eine Auswertung vor.
+          head =
+            `${dist}
+             ${rwerte}
+             <p class="info-lead">Zwischenstand: Dieser Lauf ist ein
+               Mittags-Kurzupdate (nur Score/Ranking neu berechnet) — die
+               Sammlungszahlen werden nicht bei jedem Lauf neu ermittelt und
+               bleiben bis zum nächsten Abendlauf beim letzten bekannten
+               Stand.</p>`;
         }
+        // Sonst (kein _val, kein _reportOnly): Fall (b), echter/unerwarteter
+        // Grund — head bleibt '' und fällt unten in den Fehlertext, DAMIT
+        // dieser Fall weiterhin sichtbar bleibt statt lautlos zu verschwinden.
       } catch (_) { /* fail-soft */ }
       if (!head) {
-        head = '<p class="info-lead">Die gesammelten Fälle konnten nicht geladen '
-             + 'werden. Der Stand steht auch im ☰ → Lauf-Status.</p>';
+        // Verweis „Der Stand steht auch im ☰ → Lauf-Status" entfernt
+        // (Diagnose 11.09.2026): Lauf-Status zeigt diese Zahlen NICHT,
+        // sondern nur verwandte, andere Informationen — der Verweis war
+        // ungenau.
+        head = '<p class="info-lead">Die gesammelten Fälle konnten nicht '
+             + 'geladen werden.</p>';
       }
 
       // Alles Fachliche zugeklappt — Default zu, wie beim KI-Kommentar.
@@ -4778,6 +4814,7 @@
       // aus der Sammlung — für alles, was JE FALL gebraucht wird.
       _val = (r && r.validation && typeof r.validation.evaluable === 'number')
              ? r.validation : null;
+      _reportOnly = !!(r && r.mode === 'report_only');
       renderValidation();
       // Sammlung unabhängig laden — darf den Report NIE brechen.
       loadCollection().then(coll => {
