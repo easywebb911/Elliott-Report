@@ -99,6 +99,39 @@ def test_kontrollgruppe_ohne_report_only_aendert_die_sammlung_wirklich(tmp_path,
 
 
 # ---------------------------------------------------------------------------
+# (a2) Modus-Marker (11.09.2026, Diagnose-Folgeauftrag): additiv, NUR im
+# Report-Only-Modus gesetzt — LAUFZEIT-Beweis, dass er wirklich im
+# persistierten report.json landet (nicht nur im Speicher gesetzt und dann
+# vom NACHTRAG-Schreibvorgang wieder verloren).
+# ---------------------------------------------------------------------------
+def test_report_only_setzt_mode_marker_im_persistierten_report(tmp_path, monkeypatch):
+    _sandbox(tmp_path, monkeypatch)
+    monkeypatch.setenv("REPORT_ONLY", "1")
+
+    assert pipe.main() == 0
+
+    for rel in ("data/report.json", "docs/data/report.json"):
+        rep = json.loads(_lies(tmp_path / rel))
+        assert rep.get("mode") == "report_only", (
+            f"{rel}: 'mode: report_only' fehlt im Report-Only-Modus — "
+            "das Frontend kann Fall (a) sonst nicht erkennen")
+
+
+def test_standardmodus_setzt_keinen_mode_marker(tmp_path, monkeypatch):
+    """Regression: dieselbe 'Abwesenheit = sauber'-Konvention wie bei
+    in_session_creation — der Normalfall bekommt KEIN 'mode: full' o. Ä."""
+    _sandbox(tmp_path, monkeypatch)
+    monkeypatch.delenv("REPORT_ONLY", raising=False)
+
+    assert pipe.main() == 0
+
+    rep = json.loads(_lies(tmp_path / "data/report.json"))
+    assert "mode" not in rep, (
+        "Standard-Modus schreibt ein 'mode'-Feld — das war nicht vorgesehen "
+        "(Abwesenheit = Normalfall, wie bei in_session_creation)")
+
+
+# ---------------------------------------------------------------------------
 # (b) Health-Check Stufe 3 / Agent-Kommentar werden NICHT aufgerufen
 # ---------------------------------------------------------------------------
 def test_report_only_ruft_hc_run_nicht_auf(tmp_path, monkeypatch):
