@@ -1407,6 +1407,70 @@
       if (wd === 0 || wd === 6) return false;
       return !MARKET_FULL_CLOSURE.has(d.toISOString().slice(0, 10));
     }
+
+    // Sitzungsfenster — Spiegel von scripts/in_session.py::im_sitzungsfenster()
+    // (Öffnungszeiten dort MARKET_OPEN, Schlusszeiten aus market_calendar.py
+    // MARKET_SESSIONS). BEI ÄNDERUNG BEIDE STELLEN PFLEGEN. Zweck (Diagnose
+    // 14./15.09.2026): der Recalculate-Button soll VORHER wissen, ob das
+    // Backend-Gate (#125, daily.yml) einen Dispatch ohnehin ablehnen würde,
+    // statt einen zum Scheitern verurteilten Lauf zu starten.
+    //
+    // NUR die Uhrzeit, absichtlich KEIN Handelstag-Check — exakt wie das
+    // Backend-Gate selbst (in_session.py-Docstring: „sagt NICHTS darüber, ob
+    // an dem Tag überhaupt gehandelt wurde"). Ein Wochenend-Dispatch während
+    // desselben Uhrzeit-Fensters wird vom Backend ebenfalls blockiert — eine
+    // zusätzliche Handelstag-Milderung hier würde das Frontend GROSSZÜGIGER
+    // als das Backend machen und genau die Inkonsistenz wieder einführen, die
+    // dieser Auftrag beheben soll (GRENZEN: keine mildere Variante).
+    //
+    // Exklusive Grenzen (Öffnung < Ortszeit < Schluss), volle Ortszeit inkl.
+    // Sekunden — 1:1 wie im_sitzungsfenster(). `Intl.DateTimeFormat` mit
+    // explizitem IANA-Zeitzonennamen statt eines festen UTC-Offsets: echte,
+    // DST-bewusste Zeitzonen-Umrechnung aus derselben tzdata-Quelle wie
+    // Pythons zoneinfo, keine angenäherte Offset-Tabelle, die im Frühjahr/
+    // Herbst auseinanderlaufen könnte.
+    const SITZUNG_OEFFNUNG_LOKAL = { US: [9, 30], DE: [9, 0] };
+    const SITZUNG_SCHLUSS_LOKAL = { US: [16, 0], DE: [17, 30] };
+    const SITZUNG_TZ = { US: 'America/New_York', DE: 'Europe/Berlin' };
+
+    function _lokaleSekundenSeitMitternacht(markt, datum) {
+      const tz = SITZUNG_TZ[markt];
+      if (!tz) return null;
+      try {
+        const teile = new Intl.DateTimeFormat('en-US', {
+          timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit',
+        }).formatToParts(datum);
+        const get = (typ) => Number((teile.find(p => p.type === typ) || {}).value);
+        let h = get('hour');
+        if (h === 24) h = 0;  // manche Engines liefern „24" statt „00" um Mitternacht
+        const m = get('minute'), s = get('second');
+        if (!Number.isFinite(h) || !Number.isFinite(m) || !Number.isFinite(s)) return null;
+        return h * 3600 + m * 60 + s;
+      } catch (_) { return null; }  // fehlende Intl-Zeitzonendaten -> nicht berechenbar
+    }
+    function imSitzungsfenster(markt, datum) {
+      const oeffnung = SITZUNG_OEFFNUNG_LOKAL[markt];
+      const schluss = SITZUNG_SCHLUSS_LOKAL[markt];
+      if (!oeffnung || !schluss) return null;
+      const sekJetzt = _lokaleSekundenSeitMitternacht(markt, datum);
+      if (sekJetzt === null) return null;
+      const sekOeffnung = oeffnung[0] * 3600 + oeffnung[1] * 60;
+      const sekSchluss = schluss[0] * 3600 + schluss[1] * 60;
+      return sekOeffnung < sekJetzt && sekJetzt < sekSchluss;
+    }
+    // Welche Märkte sind JETZT in Sitzung (oder nicht berechenbar)? Ein
+    // nicht berechenbares Ergebnis wird — wie im Backend — LAUT als
+    // „blockiert" gewertet, nie still als „keine Sitzung" durchgelassen
+    // (derselbe Vertrag wie im_sitzungsfenster() in in_session.py: „NIE
+    // still als 'nicht in Sitzung' werten").
+    function _sitzungBlockierteMaerkte(datum) {
+      const blockiert = [];
+      for (const markt of ['US', 'DE']) {
+        const ergebnis = imSitzungsfenster(markt, datum);
+        if (ergebnis === null || ergebnis === true) blockiert.push(markt);
+      }
+      return blockiert;
+    }
     function _lastExpectedRun(now) {       // jüngster vergangener Werktags-Lauf 22:45 UTC
       const GRACE_MS = 6 * 3.6e6;
       const cand = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(),
@@ -4167,6 +4231,20 @@
 
     function triggerRecalc() {
       closeMenu();
+      // Sitzungs-Vorab-Prüfung (Diagnose 14./15.09.2026): erst gar keinen
+      // Dispatch versuchen, der das Backend-Gate (#125) ohnehin ablehnen
+      // würde — kein Token-Prompt, kein API-Aufruf, ruhiger Hinweis statt
+      // eines nachträglichen Fehlschlag-Pushes. Das Backend-Gate bleibt die
+      // verbindliche letzte Absicherung (Verteidigung in der Tiefe); diese
+      // Prüfung ist rein informativ und ändert nichts an dessen Verhalten.
+      const blockiert = _sitzungBlockierteMaerkte(new Date());
+      if (blockiert.length) {
+        _rcBanner('rc-timeout',
+          'Aktualisierung während der laufenden Handelssitzung nicht '
+          + 'möglich — der nächste automatische Mittagslauf (~17:00 UTC) '
+          + 'oder Abendlauf (~22:45 UTC) übernimmt das automatisch.');
+        return;
+      }
       _ensureToken(dispatchRecalc);
     }
 
