@@ -123,6 +123,48 @@ def test_de_sitzung_wird_ebenfalls_erkannt():
 
 
 # ---------------------------------------------------------------------------
+# Exakte Grenze — exklusiv, wie im_sitzungsfenster() selbst (Guardian-Fund,
+# 15.09.2026: eine Mutationsprobe `<`/`<=` überlebte alle bisherigen Tests
+# unbemerkt, weil keiner exakt auf der Sekundengrenze prüfte)
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("iso_utc,markt,bezeichnung", [
+    ("2026-07-15T13:30:00Z", "US", "US Eröffnung 09:30:00.000 EDT, exakt"),
+    ("2026-07-15T20:00:00Z", "US", "US Schluss 16:00:00.000 EDT, exakt"),
+    ("2026-07-15T07:00:00Z", "DE", "DE Eröffnung 09:00:00.000 CEST, exakt"),
+    ("2026-07-15T15:30:00Z", "DE", "DE Schluss 17:30:00.000 CEST, exakt"),
+])
+def test_exakte_grenze_ist_exklusiv_nicht_blockiert(iso_utc, markt, bezeichnung):
+    """Genau AUF der Öffnungs-/Schlussgrenze gilt die Sitzung als NICHT
+    laufend (exklusive Grenzen, s. Docstring in_session.py:
+    „GRENZEN laut Auftrag: exklusiv Eröffnung, exklusiv Schluss"). Gegen
+    das echte Backend abgeglichen, nicht nur behauptet."""
+    backend = ins.im_sitzungsfenster(markt, iso_utc)
+    assert backend is False, f"{bezeichnung}: Backend selbst liefert {backend}, erwartet False"
+    js_ergebnis = _js(
+        f"console.log(JSON.stringify(_sitzungBlockierteMaerkte(new Date('{iso_utc}'))));"
+    )
+    assert markt not in js_ergebnis, f"{bezeichnung}: Frontend blockiert {markt}, Backend nicht — Inkonsistenz!"
+
+
+@pytest.mark.parametrize("iso_utc,markt,bezeichnung", [
+    ("2026-07-15T13:30:01Z", "US", "US eine Sekunde nach Eröffnung"),
+    ("2026-07-15T19:59:59Z", "US", "US eine Sekunde vor Schluss"),
+    ("2026-07-15T07:00:01Z", "DE", "DE eine Sekunde nach Eröffnung"),
+    ("2026-07-15T15:29:59Z", "DE", "DE eine Sekunde vor Schluss"),
+])
+def test_eine_sekunde_innerhalb_der_grenze_ist_blockiert(iso_utc, markt, bezeichnung):
+    """Gegenprobe zur exakten Grenze: eine Sekunde INNERHALB des Fensters
+    muss blockieren — bestätigt, dass die Grenzen wirklich eng (exklusiv,
+    nicht zufällig viel großzügiger) gezogen sind."""
+    backend = ins.im_sitzungsfenster(markt, iso_utc)
+    assert backend is True, f"{bezeichnung}: Backend selbst liefert {backend}, erwartet True"
+    js_ergebnis = _js(
+        f"console.log(JSON.stringify(_sitzungBlockierteMaerkte(new Date('{iso_utc}'))));"
+    )
+    assert markt in js_ergebnis, f"{bezeichnung}: Frontend blockiert NICHT, Backend schon — Inkonsistenz!"
+
+
+# ---------------------------------------------------------------------------
 # Regression: außerhalb jeder Sitzung bleibt das Verhalten unverändert
 # ---------------------------------------------------------------------------
 def test_ausserhalb_der_sitzung_keine_blockade():
