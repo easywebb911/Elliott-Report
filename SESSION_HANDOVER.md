@@ -10,20 +10,27 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 15.08.2026**, nach PR **#93** (Preisfeld-Symbole, gemerged `0830f96`,
-Merge-Commit `9a637fe`) und **#94** (gepinnte 34er-Konstante, gemerged
-`db5834b`, Merge-Commit `d6f7789`) — beide auf `main`. Zahlen gegen `main`
-geprüft, nicht aus dem
-Gedächtnis: **1143 Tests** grün auf `main` (1112 nach #94 + 31 aus #93s
-`test_waehrungssymbole.py`) · Sammlung **90 Records** (51 gereift, **46
-auswertbar** von 100) · Marker **46 von 90** tragen mindestens einen
-(`in_session_creation` 36 · `episode_split_suspect` 10 · `stale_market_suspect`
-4) · Beweis-Datei `data/in_session_evidence.json` **17 Einträge** · Universum
-**353** Ticker.
+**Stand: 16.09.2026**, nach PR **#127** (Recalculate-Button prüft
+Sitzungs-Fenster vor Dispatch, gemerged `4ddb162`, Merge-Commit `b80b52c`) —
+auf `main`. Zahlen gegen `main` (`6366c2c`) geprüft, nicht aus dem
+Gedächtnis: **1461 Tests** grün auf `main` · Sammlung **140 Records** (120
+gereift, **114 auswertbar**, `scripts/forward_collection.py::eval_counts`) ·
+Marker **65 von 140** tragen mindestens einen (`in_session_creation` 55 ·
+`episode_split_suspect` 10 · `stale_market_suspect` 4) · Beweis-Datei
+`data/in_session_evidence.json` **17 Einträge** · Universum **353** Ticker
+(US 236 · DE 117, unverändert seit #93/#94).
 
-> **BRANCH-BASIS:** `claude/episode-id-kollision`, auf `origin/main` (enthält
-> #93 und #94) aufgesetzt. Nach jedem Merge neu von `origin/main` aufsetzen —
-> **nie** auf gemergter Historie stapeln.
+> **Offizielle n≥100-Auswertung (#121, n=101, 06.09.2026): NICHT BESTANDEN.**
+> `data/evaluation/ergebnis.json`: `urteil.belegt = false` — Trefferquote
+> 44,55 % gegen Zufalls-Mittel 42,98 % (p=0,38, **nicht signifikant**); die
+> Score-Trennschärfe (AUC 0,647, p=0,0059, signifikant) reicht laut Registry-
+> Regel allein nicht, beide Primär-Kriterien sind nötig. Die rote Linie aus
+> Abschnitt 1 („heuristisch · unvalidiert" bis Registry-Beweis vorliegt)
+> bleibt damit unverändert in Kraft. Details: Abschnitt 2b.
+
+> **BRANCH-BASIS:** `claude/fibonacci-labels-update-1abdof`, auf
+> `origin/main` (enthält #127) aufgesetzt. Nach jedem Merge neu von
+> `origin/main` aufsetzen — **nie** auf gemergter Historie stapeln.
 
 
 > **PFLEGE-REGEL (nicht verhandelbar):** Dieses Dokument wird bei **JEDEM Merge im
@@ -67,7 +74,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#95
+## 2. PR-INDEX #1–#127
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -172,6 +179,45 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #93 | `0830f96` | Preisfelder auf der Karte bekommen ihr Währungssymbol (€/$) |
 | #94 | `db5834b` | Gepinnte 34er-Konstante in `test_in_session_creation.py` gegen den Backfill-Anker hergeleitet |
 | #95 | `(offen, dieser)` | episode_id-Kollisionsschutz für neue Episoden (Backlog-Punkt, Belegkette #68) |
+| #96 | `d544338` | Fibonacci-Zonen: „Zielzone"/„Kursziel" → „Beobachtungszone" + Beleg-Hinweis |
+| #97 | `3851db6` | source_timing_probe: OFFLINE-Test kalenderunabhängig gemacht (Fenster planmäßig abgelaufen) |
+| #98 | `fce0942` | daily.yml: Cron 21:45 → 22:45 UTC (DE-Rückzugsfenster) |
+| #99 | `75c8698` | validation_registry.md: Cron-Verschiebung 21:45→22:45 UTC dokumentiert (PR #98) |
+| #100 | `3688487` | Extension-Zone visuell abgeschwächt (dünnere Beleglage als Beobachtungszone) |
+| #101 | `95eeb9a` | Fibonacci-Zonen: ATR(14)-Band statt scharfer Linie |
+| #102 | `81d7ad5` | ATR-Band auch für No-Setup-Watchlist-Titel (Guardian-Nit aus #101) |
+| #103 | `6d87106` | Löschweg der abgelaufenen Quellen-Zeitmessung (source_timing_probe) |
+| #104 | `095c129` | Chart-Vorschau: Kursverlauf + Zonen auf Haupt-Card und Großer-Grad-Block |
+| #105 | `56be3f9` | Chart-Vorschau: Legenden-Symbol „Beobachtungszone" an echte Fläche angeglichen |
+| #106 | `eeced10` | Episode-Detail-Chart: Beobachtungszone-Legende an echte Fläche angeglichen (wie #105) |
+| #107 | `0ccfc05` | Validierung: Status-Verteilung sichtbar + „Details für Nerds" stark gekürzt |
+| #108 | `f7fbf4c` | Validierung: rohen Registry-Volltext aus „Details für Nerds" entfernt |
+| #109 | `0421010` | Episode-Detail-Chart: fehlenden „Extension (spekulativ)"-Legenden-Eintrag ergänzt |
+| #110 | `f195f21` | Kursverlauf+Zonen-Chart: Pivot-Nummerierung wie im Pivot-Verlauf-Chart ergänzt |
+| #111 | `94522a6` | Selbstwartung Stufe 3 — automatischer Retry bei Tageslauf-Fehlschlag (s. 2b) |
+| #112 | `dc0ed9d` | Vor-Aufnahme-Filter prüft jetzt auch die Extension-Zone |
+| #113 | `8f42f9d` | Zeichenreihenfolge in Kursverlauf+Zonen-Chart — Beobachtungszone zuerst |
+| #114 | `af60706` | Extension-Rand verstärkt — echter Pixel-Beweis statt Screenshot-Vermutung |
+| #115 | `8d4aa2a` | hartkodierten Ticker „MA"-Lookup durch dynamische Auswahl ersetzt |
+| #116 | `b493aef` | sitzungsbewusster Rückstand für den Karten-Hinweis (additiv) |
+| #117 | `b55efb5` | Referenz-Kandidaten-Auswahl direkt an Plausibilitäts-Prüfung gekoppelt |
+| #118 | `8332bee` | unübersehbare Live-Überholt-Kennzeichnung für Top-5-Karten (s. 2b) |
+| #119 | `dd79b31` | Vorbereitung Sensitivitäts-Sammlung + frische Kursbasis |
+| #120 | `6ab9408` | drei vom erreichten n≥100-Meilenstein überholte Testannahmen |
+| #121 | `8e65a10` | offizielles Ergebnis der präregistrierten Auswertung (n=101) — **NICHT BESTANDEN** (s. 2b) |
+| #122 | `3577313` | R-Multiple-Erfassung additiv: risiko_abstand, chance_abstand, crv, r_erreicht (s. 2b) |
+| #123 | `1f5f110` | R-Werte-Anzeige im Validierung-Bereich (additiv, aus #122) (s. 2b) |
+| #124 | `4e491d7` | Report-Only-Modus + separater Mittags-Workflow (s. 2b) |
+| #125 | `9a43436` | Sitzungs-Gate für manuelle Dispatches während der Sitzung (s. 2b) |
+| #126 | `250d0e1` | Validierung-Panel unterscheidet Zwischenstand von echtem Fehler (s. 2b) |
+| #127 | `b80b52c` | Recalculate-Button prüft Sitzungs-Fenster vor Dispatch (s. 2b) |
+
+<sub>**Hash-Spalte #96–#127:** Merge-Commit-Hash auf `main` (`git log --merges`,
+„Merge pull request #N …") — im Unterschied zu #1–#95, wo der
+Feature-Commit-Hash steht; mehrere dieser PRs teilten sich denselben,
+wiederholt aufgesetzten Arbeitszweig (`claude/fibonacci-labels-update-1abdof`),
+ein einzelner Feature-Commit wäre dort nicht eindeutig einem PR zuzuordnen
+gewesen.</sub>
 
 <sub>**#85–#87 sind hier nachgetragen** (08.08., in #88): die drei Doku-PRs
 aktualisierten das Handover, trugen sich aber nicht selbst in diesen Index ein —
@@ -180,6 +226,53 @@ ihre Commit-Nachrichten sind die Quelle.</sub>
 
 <sub>**#76** fehlt bewusst: geschlossen, **nicht gemergt** (Wiederhol-Abruf; im Archiv begründet, der Zweig `claude/wiederhol-abruf` liegt noch auf dem Remote). **#80** war ein reiner Daten-/Doku-PR ohne eigene Historien-Zeile. Bei **#79** und **#81** nennt die Archiv-Zeile noch `(offen, dieser)` — hier steht der erste Feature-Commit (`9a2206a` bzw. `97060d8`), gemergt als `1acfe96` bzw. `eb0cd43`.</sub>
 
+---
+
+## 2b. WICHTIGSTE STRUKTURELLE EREIGNISSE SEIT #94 (grober Überblick, kein Vollprotokoll)
+
+Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
+`SESSION_ARCHIVE.md`, sofern der Strang dort bereits nachgetragen ist.
+
+- **#111 (Selbstwartung Stufe 3 — automatischer Retry):** erste produktive
+  Selbst-Handlung des Repos. `.github/workflows/daily_retry_watcher.yml`
+  reagiert auf `workflow_run`-Fehlschläge von „Daily Elliott Report" und
+  dispatcht automatisch neu — hart auf **max. 3 Retries/Kalendertag**
+  begrenzt (`scripts/auto_retry_watcher.py`, `MAX_RETRIES_PRO_TAG`, nicht
+  konfigurierbar). Reagiert ausschließlich auf den Gesamtlauf-Fehlschlag,
+  nicht auf `health_check`-Warnungen. Stufe 1/2 (nur melden, nie handeln)
+  bleiben durch einen eigenen statischen Test unangetastet getrennt.
+- **#118 (Live-Überholt-Kennzeichnung):** unübersehbarer Hinweis auf der
+  Karte, wenn der angezeigte Live-Kurs den letzten Lauf-Stand überholt hat
+  — rein client-seitig, nie persistiert (ephemerer Zustand, nachträglich
+  nicht rekonstruierbar).
+- **#121 (offizielle n≥100-Auswertung, 06.09.2026) — NICHT BESTANDEN.**
+  Präregistrierte Hauptauswertung bei n=101: Trefferquote 44,55 % gegen
+  Zufalls-Mittel 42,98 % (p=0,38, **nicht signifikant**); Score-Trennschärfe
+  AUC 0,647 (p=0,0059, signifikant) — reicht laut Registry-Regel („beide
+  Primär-Kriterien nötig") allein nicht. `data/evaluation/ergebnis.json`:
+  `urteil.belegt = false`. Die rote Linie (Abschnitt 1: „heuristisch ·
+  unvalidiert" bis Registry-Beweis vorliegt) bleibt damit unverändert gültig.
+- **#122/#123 (R-Multiple-Erfassung):** additive Forward-Sammlung-Felder
+  `risiko_abstand`, `chance_abstand`, `crv`, `r_erreicht` (#122) + eigene
+  R-Werte-Anzeige im Validierung-Bereich des Frontends (#123). Rein additiv,
+  kein Einfluss auf Score/Ranking/bestehende Felder.
+- **#124/#125 (Mittagslauf + Sitzungs-Gate):** #124 führt einen separaten
+  Mittags-Workflow (`midday_report_refresh.yml`, Report-Only-Modus — kein
+  neuer Forward-Sammlung-Eintrag) ein. #125 blockiert `workflow_dispatch`
+  von `daily.yml` serverseitig, wenn **irgendein** Markt (US ODER DE) gerade
+  in Sitzung ist (`scripts/in_session.py::im_sitzungsfenster`, exklusive
+  Grenzen, bewusst ohne Handelstag-Check) — Schutz gegen
+  Populations-Verwässerung durch In-Session-Dispatches (vgl. den
+  #94-Widerspruchsbefund zur Betriebsregel oben in Abschnitt 3).
+- **#126/#127 (Anzeige-/UX-Fixes rund um das Sitzungs-Gate):** #126
+  unterscheidet im Validierung-Panel einen echten Fehler von einem bloßen
+  Zwischenstand. #127 spiegelt die Sitzungsfenster-Logik von #125 1:1 im
+  Frontend (`imSitzungsfenster()`/`_sitzungBlockierteMaerkte()` in
+  `docs/index.html`) — der Recalculate-Button löst bei laufender Sitzung
+  keinen `workflow_dispatch` mehr aus, sondern zeigt einen ruhigen Hinweis
+  auf den nächsten automatischen Lauf. Verteidigung in der Tiefe: das
+  Backend-Gate (#125) bleibt die bindende Absicherung, das Frontend ist eine
+  zusätzliche, rein informative Vorab-Prüfung.
 
 ---
 
