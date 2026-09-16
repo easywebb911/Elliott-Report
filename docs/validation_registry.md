@@ -1468,3 +1468,51 @@ vor n ≥ 100) gilt unverändert.
   `forward_collection.py`, `scripts/backfill_r_multiple.py`, die additiven
   Felder in `data/forward_collection.json`/`docs/data/forward_collection.json`
   entfernen); PR #121 und alles davor bleiben davon unberührt.
+
+- **2026-09-16 — Sammlungs-Schutz-Schwelle angehoben: `warn` (≥ 1) → `crit`
+  (≥ 2 Handelstage, `config.HEALTH_BAR_LAG_CRIT`).** Diagnose vom selben Tag:
+  der Gate aus der Notiz vom 05.08.2026 sperrte vom 10. bis 16.09. (7
+  aufeinanderfolgende Nacht-Cron-Läufe) **ununterbrochen beide Märkte** —
+  keine einzige neue Episode, keine einzige Verlängerung, obwohl echte neue
+  Kandidaten auftraten (NEM, BAC, CVX, MDT, SFQ.DE, FRE.DE — belegt gegen
+  `data/forward_collection.json`, keiner davon trug eine offene Episode).
+  - **Warum das keine Verschlechterung der Quelle war.** Der Ein-Tag-Versatz
+    (`warn`) ist seit Wochen der **chronische Normalzustand**: die laufende
+    Tageszeile ist zum Cron-Zeitpunkt (22:45 UTC) routinemäßig noch nicht
+    fertig und wird nachgereicht — der zugrundeliegende Kurs-Stand (gestern)
+    ist dabei selbst **korrekt**, nur nicht taufrisch. Neu war nur, dass seit
+    #124 (09.09., Mittagslauf übernimmt den Zweck manueller Tages-Dispatches,
+    rührt `data/health_state.json` aber nie an) der bisherige „Reset" dieses
+    Zustands entfiel — eine **Nebenwirkung** von #124, keine Absicht und
+    keine eigene Entscheidung dort.
+  - **Die ursprüngliche ≥1-Schwelle war rein frequenzbasiert begründet**
+    (Notiz 05.08.: „kein Aushungern", 7,5 % der damaligen Markt-Läufe) —
+    keine inhaltliche Aussage, dass ein `warn`-Rückstand für sich genommen
+    einen fehlerhaften Record erzeugt. Der Anlass-Fall selbst (KKR, Lauf
+    04.08. 04:46 UTC) war bereits damals ein **`crit`-Fall** (Lag 2, in der
+    eigenen historischen Rückblick-Tabelle so geführt) — kein dokumentierter
+    Fall zeigt einen fehlerhaften Record aus einem reinen `warn`-Lauf.
+  - **Keine zweite Definition:** die neue Schwelle ist `config.
+    HEALTH_BAR_LAG_CRIT` — dieselbe Zahl, ab der `health_check.
+    check_bar_freshness` selbst von `warn` auf `crit` hochstuft (2). Wandert
+    die Health-Check-Schwelle, wandert das Sammlungs-Gate jetzt automatisch
+    mit.
+  - **Die health_check-Warnung selbst bleibt unverändert.** `warn` bei Lag 1
+    wird weiterhin gemeldet, im Lauf-Status gezeigt und (gedrosselt, alle
+    `WARN_REPEAT_RUNS` Läufe) gepusht — geändert ist ausschließlich, ob die
+    Sammlung bei diesem Zustand pausiert.
+  - **Alt-Records unverändert.** Drei der vier historisch markierten
+    `stale_market_suspect`-Records (ADS.DE, MTX.DE, G1A.DE) hingen bei
+    `warn` (Lag 1) — sie bleiben MARKIERT (MET/D/PRU-Prinzip: markiert,
+    niemals geheilt), auch wenn der heutige Gate-Code sie nicht mehr
+    verhindern würde. Nur KKR (Lag 2) bleibt auch vom heutigen Code gesperrt.
+  - **Offen benannt, nicht verschwiegen:** ob `crit` (≥2) die endgültig
+    richtige neue Schwelle ist oder ob dazwischen (z. B. „an mind. 2 von 3
+    Läufen hintereinander warn") noch treffsicherer wäre, ist in der
+    Diagnose/im PR-Text ausdrücklich offengelassen — `crit` wurde bisher
+    laut Historie extrem selten erreicht, ein belastbarer Praxis-Beleg für
+    diese konkrete neue Schwelle fehlt noch.
+  Revert = diesen PR zurücknehmen (`stale_markets()` fällt auf die Schwelle
+  ≥1 zurück, `tests/test_sammlungs_schutz.py`/`test_sitzungs_ende.py` auf
+  ihren vorigen Stand); kein Datenstand wird ungültig, keine gemessene Zahl
+  ändert sich, diese Notiz bleibt gültig.
