@@ -13,6 +13,15 @@ Workflow-Kommentar (`.github/workflows/daily.yml`) und im PR-Text: eine
 reine Dokumentations-Regel IST bereits eine dauerhafte Warnung und wurde
 trotzdem 24 Mal übergangen.
 
+ERWEITERT (17.09.2026) — die Vormittags-Lücke. Eine Folge-Diagnose belegte:
+das Gate oben deckte nur WÄHREND der Sitzung ab. Ein Dispatch VOR
+Sitzungsbeginn (z. B. vor Xetra-Öffnung) wurde nicht erfasst und hätte per
+#68-Regel dem Abend-Cron zuvorkommen können — real bereits am 31.07.2026
+vorgekommen (US-Dispatches 11:16/11:22 UTC, vor NYSE-Öffnung). Neue,
+SEPARATE Bedingung (`cal.sitzung_beendet`) schließt das Fenster von
+Mitternacht UTC bis Sitzungsende je Markt zusätzlich — `im_sitzungsfenster()`
+SELBST bleibt unangetastet (GRENZEN dieses Auftrags).
+
 DIESE TESTS FÜHREN DAS ECHTE, EINGEBETTETE PYTHON-SKRIPT AUS dem neuen
 Workflow-Schritt aus (per Extraktion + `exec`), nicht eine Nachbildung
 davon — dieselbe Lehre wie an anderer Stelle in diesem Repo: Quelltext-
@@ -35,6 +44,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import in_session as ins  # noqa: E402
+import market_calendar as cal  # noqa: E402
 
 DAILY = (ROOT / ".github/workflows/daily.yml").read_text(encoding="utf-8")
 MIDDAY = (ROOT / ".github/workflows/midday_report_refresh.yml").read_text(encoding="utf-8")
@@ -122,7 +132,12 @@ def test_gate_blockiert_den_echten_oxy_mrk_dispatch(monkeypatch, capsys):
 
 
 def test_gate_blockiert_den_echten_fcx_dispatch(monkeypatch, capsys):
-    """FCX @ 2026-09-09T17:08:50Z — derselbe Beleg für den dritten Fall."""
+    """FCX @ 2026-09-09T17:08:50Z — derselbe Beleg für den dritten Fall.
+
+    Regressionstest fuer die Vormittags-Erweiterung (17.09.2026): DIESER
+    Fall lief schon immer ueber die unveraenderte `im_sitzungsfenster()`-
+    Bedingung (waehrend der Sitzung) — die neue, separate Bedingung
+    (`cal.sitzung_beendet`) darf daran nichts aendern."""
     assert ins.im_sitzungsfenster("US", "2026-09-09T17:08:50Z") is True
 
     exit_code, ausgabe = _gate_ausfuehren(monkeypatch, "2026-09-09T17:08:50Z", capsys)
@@ -131,19 +146,61 @@ def test_gate_blockiert_den_echten_fcx_dispatch(monkeypatch, capsys):
 
 
 # ---------------------------------------------------------------------------
-# (b) Regressionstest — Dispatch AUSSERHALB der Sitzung bleibt erlaubt
+# (b) Wert-Test — die reale Vormittags-Luecke vom 31.07.2026 (NEU, 17.09.2026)
 # ---------------------------------------------------------------------------
-def test_gate_erlaubt_dispatch_ausserhalb_der_sitzung(monkeypatch, capsys):
-    """03:00 UTC liegt vor NYSE-Oeffnung (09:30 ET = fruehestens 13:30 UTC im
-    Sommer) UND vor Xetra-Oeffnung (09:00 CEST = 07:00 UTC) — die meisten
-    bisherigen ERFOLGREICHEN Hand-Dispatches liefen ausserhalb der Sitzung;
-    dieses Verhalten darf sich nicht aendern."""
+def test_gate_blockiert_den_echten_vormittags_dispatch_vom_31_07(monkeypatch, capsys):
+    """US @ 2026-07-31T11:16:07Z — vor NYSE-Oeffnung (13:30 UTC im Sommer),
+    einer von zwei real dokumentierten Vormittags-Dispatches (11:16/11:22 UTC),
+    die die urspruengliche (09.09.) Fassung des Gates NICHT erfasst haette
+    (`im_sitzungsfenster` dort False). Genau die Luecke, die diese Erweiterung
+    schliesst — ueber die NEUE, separate `cal.sitzung_beendet`-Bedingung."""
+    assert ins.im_sitzungsfenster("US", "2026-07-31T11:16:07Z") is False, (
+        "Testkonstruktion: dieser Zeitpunkt darf NICHT schon von der "
+        "unveraenderten im_sitzungsfenster()-Bedingung erfasst werden")
+    assert cal.sitzung_beendet(
+        "US", _echt_dt.datetime.fromisoformat("2026-07-31T11:16:07+00:00")) is False
+
+    exit_code, ausgabe = _gate_ausfuehren(monkeypatch, "2026-07-31T11:16:07Z", capsys)
+    assert exit_code == 1, "Gate haette den realen Vormittags-Dispatch vom 31.07. blockieren muessen"
+    assert "US: Sitzung heute noch nicht beendet" in ausgabe
+    assert "US: Sitzung läuft" not in ausgabe, (
+        "dieser Fall gehoert zur NEUEN Bedingung, nicht zur alten "
+        "im_sitzungsfenster()-Meldung")
+
+
+# ---------------------------------------------------------------------------
+# (c) Regressionstest — Dispatch NACH Sitzungsende, vor Mitternacht bleibt erlaubt
+# ---------------------------------------------------------------------------
+def test_gate_erlaubt_dispatch_nach_sitzungsende_vor_mitternacht(monkeypatch, capsys):
+    """21:00 UTC liegt nach Xetra-Schluss (17:30 CEST = 15:30 UTC im Sommer)
+    UND nach NYSE-Schluss (16:00 EDT = 20:00 UTC im Sommer), aber vor
+    Mitternacht — GRENZEN dieses Auftrags: dieses Fenster bleibt unveraendert
+    erlaubt, nur die Vormittags-Luecke wird neu geschlossen."""
+    jetzt_dt = _echt_dt.datetime.fromisoformat("2026-09-08T21:00:00+00:00")
+    assert ins.im_sitzungsfenster("US", "2026-09-08T21:00:00Z") is False
+    assert ins.im_sitzungsfenster("DE", "2026-09-08T21:00:00Z") is False
+    assert cal.sitzung_beendet("US", jetzt_dt) is True
+    assert cal.sitzung_beendet("DE", jetzt_dt) is True
+
+    exit_code, ausgabe = _gate_ausfuehren(monkeypatch, "2026-09-08T21:00:00Z", capsys)
+    assert exit_code is None, "ein Dispatch nach Sitzungsende, vor Mitternacht darf NICHT blockiert werden"
+    assert "Dispatch erlaubt" in ausgabe
+
+
+def test_gate_blockiert_jetzt_den_vormittag_der_frueher_erlaubt_war(monkeypatch, capsys):
+    """Gegenprobe/Dokumentation der Verhaltensaenderung: 03:00 UTC (vor der
+    09.09.-Fassung des Gates noch ausdruecklich erlaubt, s. Git-Historie
+    dieser Datei) ist jetzt blockiert — DE steht um 03:00 UTC (05:00 CEST)
+    vor der eigenen Sitzung, `im_sitzungsfenster` allein haette das nicht
+    erkannt."""
     assert ins.im_sitzungsfenster("US", "2026-09-08T03:00:00Z") is False
     assert ins.im_sitzungsfenster("DE", "2026-09-08T03:00:00Z") is False
 
     exit_code, ausgabe = _gate_ausfuehren(monkeypatch, "2026-09-08T03:00:00Z", capsys)
-    assert exit_code is None, "ein Dispatch ausserhalb der Sitzung darf NICHT blockiert werden"
-    assert "Dispatch erlaubt" in ausgabe
+    assert exit_code == 1, (
+        "03:00 UTC liegt vor Xetra-Oeffnung — das ist genau die Luecke, "
+        "die dieser Bau-Auftrag schliesst")
+    assert "DE: Sitzung heute noch nicht beendet" in ausgabe
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +216,20 @@ def test_gate_blockiert_bei_nicht_berechenbarem_sitzungsfenster(monkeypatch, cap
         "'nicht in Sitzung' durchgehen — sonst waere das Gate ausgerechnet "
         "dann wirkungslos, wenn es am wenigsten vertrauenswuerdig ist")
     assert "nicht berechenbar" in ausgabe
+
+
+def test_gate_blockiert_bei_nicht_berechenbarem_sitzungsende(monkeypatch, capsys):
+    """Dieselbe Fail-laut-Regel fuer die NEUE (17.09.2026) Bedingung: liefert
+    `cal.sitzung_beendet` None, muss das Gate blockieren, nicht still
+    durchlassen. `im_sitzungsfenster` bleibt dabei die echte Funktion (liefert
+    False fuer 03:00 UTC) — nur `sitzung_beendet` wird auf None gepatcht, um
+    ausschliesslich den neuen Zweig zu treffen."""
+    monkeypatch.setattr(cal, "sitzung_beendet", lambda markt, jetzt: None)
+    exit_code, ausgabe = _gate_ausfuehren(monkeypatch, "2026-09-08T03:00:00Z", capsys)
+    assert exit_code == 1, (
+        "None (nicht berechenbar) muss auch bei der neuen Bedingung "
+        "blockieren, nicht still als 'Sitzung beendet' durchgehen")
+    assert "Sitzungsende nicht berechenbar" in ausgabe
 
 
 # ---------------------------------------------------------------------------
