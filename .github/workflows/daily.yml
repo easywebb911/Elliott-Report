@@ -109,6 +109,20 @@ jobs:
       # zufällig. Der neue Mittagslauf (#124, midday_report_refresh.yml) ist
       # eine komplett separate Workflow-Datei und von diesem Schritt gar
       # nicht berührt — er legt ohnehin nie Episoden an (REPORT_ONLY=1).
+      #
+      # ERWEITERT (17.09.2026) — die Vormittags-Lücke. Diagnose vom selben
+      # Tag: das Gate oben deckt nur WÄHREND der Sitzung ab
+      # (`im_sitzungsfenster`, unverändert). Ein Dispatch VOR Sitzungsbeginn
+      # (z. B. 06:00 UTC, vor Xetra-Öffnung) wurde davon nicht erfasst und
+      # hätte per #68-Regel (erster Lauf eines Kalendertags friert
+      # `entry_close` ein) dem Abend-Cron zuvorkommen können — real bereits
+      # am 31.07.2026 vorgekommen (US-Dispatches 11:16/11:22 UTC, vor NYSE-
+      # Öffnung 13:30 UTC). NEUE, SEPARATE Bedingung unten (`cal.
+      # sitzung_beendet`) schließt dieses Fenster zusätzlich, von Mitternacht
+      # UTC bis Sitzungsende je Markt — `im_sitzungsfenster()` SELBST bleibt
+      # unangetastet (wird auch vom In-Session-Marker genutzt, GRENZEN dieses
+      # Auftrags). Zeitpunkte NACH Sitzungsende bis Mitternacht bleiben
+      # unverändert erlaubt (unverändertes Durchfallen unten, kein `append`).
       - name: Sitzungs-Gate (nur bei manuellem Dispatch)
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -118,8 +132,10 @@ jobs:
 
           sys.path.insert(0, "scripts")
           import in_session as ins
+          import market_calendar as cal
 
-          jetzt = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          jetzt_dt = _dt.datetime.now(_dt.timezone.utc)
+          jetzt = jetzt_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
           blockiert = []
           for markt in ("US", "DE"):
               ergebnis = ins.im_sitzungsfenster(markt, jetzt)
@@ -134,17 +150,31 @@ jobs:
                       "(unbekannter Markt, unlesbarer Stempel oder fehlende tzdata)")
               elif ergebnis:
                   blockiert.append(f"{markt}: Sitzung läuft ({jetzt})")
+              else:
+                  # NEU (17.09.2026) — zusätzliche, separate Bedingung: von
+                  # Mitternacht UTC bis Sitzungsende, nicht nur während der
+                  # Sitzung selbst. Dieselbe Fail-laut-Regel wie oben.
+                  beendet = cal.sitzung_beendet(markt, jetzt_dt)
+                  if beendet is None:
+                      blockiert.append(
+                          f"{markt}: Sitzungsende nicht berechenbar "
+                          "(unbekannter Markt oder fehlende tzdata)")
+                  elif not beendet:
+                      blockiert.append(
+                          f"{markt}: Sitzung heute noch nicht beendet, "
+                          f"vermutlich vor Eröffnung ({jetzt})")
           if blockiert:
-              print("::error::Manueller Dispatch waehrend einer laufenden Boersensitzung blockiert:")
+              print("::error::Manueller Dispatch vor Sitzungsende blockiert:")
               for zeile in blockiert:
                   print(f"::error::  {zeile}")
-              print("::error::Betriebsregel seit 07.08.2026 (docs/validation_registry.md): "
-                    "Hand-Dispatches waehrend der Sitzung erzeugen in_session_creation-markierte "
-                    "Episoden mit vorlaeufigen Kursen. Bitte ausserhalb der Sitzung erneut "
-                    "starten, oder fuer einen reinen Report-Refresh den Mittagslauf "
-                    "(midday_report_refresh.yml) nutzen - der legt nie Episoden an.")
+              print("::error::Betriebsregel seit 07.08.2026 (docs/validation_registry.md), "
+                    "erweitert 17.09.2026: Hand-Dispatches waehrend ODER VOR der Sitzung "
+                    "erzeugen in_session_creation-markierte Episoden mit vorlaeufigen Kursen. "
+                    "Bitte nach Sitzungsende erneut starten, oder fuer einen reinen "
+                    "Report-Refresh den Mittagslauf (midday_report_refresh.yml) nutzen - "
+                    "der legt nie Episoden an.")
               sys.exit(1)
-          print(f"Sitzungs-Gate: kein Markt in Sitzung ({jetzt}) - Dispatch erlaubt.")
+          print(f"Sitzungs-Gate: alle Maerkte nach Sitzungsende ({jetzt}) - Dispatch erlaubt.")
           PY
 
       - name: Install dependencies
