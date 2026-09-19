@@ -280,56 +280,68 @@ def test_das_gate_kennt_die_sitzungs_funktionen_nicht():
         assert name not in quelle, f"die Sammlung greift auf {name} zu"
 
 
-def test_das_gate_liest_weiter_das_unveraenderte_diag_feld():
-    """Seit 05.09.2026 nutzt die Pipeline `handelstage_rueckstand_sitzung`
-    additiv für `diag.bar_lag_session_days` (Karten-Hinweis, ADBE-Diagnose
-    vom 04.09.2026) — die harte Zusage bleibt trotzdem bestehen: das
-    Gate-Feld `bar_lag_trading_days` selbst wird NIE aus dem Sitzungs-Anker
-    berechnet, nur aus dem unveränderten Kalendertag-Anker."""
+def test_das_gate_liest_jetzt_das_sitzungsbewusste_diag_feld():
+    """UMGESTELLT 17.09.2026 (Nachfolge-PR): bis dahin galt hier die „harte
+    Zusage", dass das Gate-Feld `bar_lag_trading_days` NIE aus dem
+    Sitzungs-Anker berechnet wird. Das war absichtlich, solange die
+    Vormittags-Lücke im Sitzungs-Gate offen war (s. Kopf dieser Datei) —
+    ohne sie hätte ein gelockertes Gate Tages-Läufe wieder sammelfähig
+    gemacht. #130 (ebenfalls 17.09.2026) schließt diese Lücke; DANACH ist die
+    Umstellung sicher. Das Gate liest jetzt `bar_lag_session_days` — dieselbe
+    additive Zahl, die seit 05.09.2026 für den Karten-Hinweis existiert
+    (ADBE-Diagnose vom 04.09.2026), keine zweite Berechnung."""
     quelle = (ROOT / "scripts/forward_collection.py").read_text(encoding="utf-8")
-    assert 'lag = (market.get("diag") or {}).get("bar_lag_trading_days")' in quelle
+    assert 'lag = (market.get("diag") or {}).get("bar_lag_session_days")' in quelle
+    assert 'lag = (market.get("diag") or {}).get("bar_lag_trading_days")' not in quelle
     pipeline = (ROOT / "scripts/elliott_pipeline.py").read_text(encoding="utf-8")
-    assert 'diag["bar_lag_trading_days"] = cal.handelstage_rueckstand(' in pipeline
-    assert 'diag["bar_lag_trading_days"] = cal.handelstage_rueckstand_sitzung' \
-        not in pipeline, \
-        "die Pipeline darf den Wächter-Anker NICHT in das Gate-Feld schreiben"
+    assert 'diag["bar_lag_trading_days"] = cal.handelstage_rueckstand(' in pipeline, (
+        "das Kalendertag-Feld selbst existiert weiter (Karten-Anzeige/Lauf-Status) "
+        "— nur das GATE liest es nicht mehr")
 
 
 @pytest.mark.parametrize("ts, bar, soll", [
-    # Genau die Läufe, deren WÄCHTER-Bewertung dieser PR ändert — das Gate
-    # entscheidet dort unverändert. Von Hand: Kalendertag-Anker.
-    # Schwelle seit 16.09.2026 >= hc.BAR_LAG_CRIT (= 2): die beiden Lag-1-
-    # Fälle (Vormittag UND Abend) sperren seither NICHT mehr, nur der
-    # echte Lag-2-Fall (04.08., Quellen-Aussetzer) bleibt gesperrt.
-    ("2026-07-31T11:16:07Z", "2026-07-30", []),       # Vormittag: Lag 1, sperrt nicht mehr
-    ("2026-08-04T04:46:23Z", "2026-07-31", ["US"]),   # Lag 2: bleibt gesperrt
-    ("2026-07-31T22:40:44Z", "2026-07-30", []),       # Abend: Lag 1, sperrt nicht mehr
+    # UMGESTELLT 17.09.2026: jetzt sitzungsbewusst (cal.handelstage_rueck
+    # stand_sitzung), nicht mehr Kalendertag — Schwelle unveraendert >= 2.
+    # Die ersten drei sind reale historische Vormittags-/Abend-Laeufe: alle
+    # sitzungsbewusst nur Rueckstand 1 (auch der 04.08.-Fall — WICHTIGE
+    # NUANCE, siehe test_sammlungs_schutz.py), sperren also NICHT. Der
+    # vierte ist der reale 09.09.-Ausfall (US, Commit 8436bb0) — dort ist
+    # der sitzungsbewusste Rueckstand tatsaechlich 2 und sperrt weiterhin,
+    # als Gegenprobe, dass das Gate nicht einfach nie mehr sperrt.
+    ("2026-07-31T11:16:07Z", "2026-07-30", []),       # Vormittag: Rueckstand 0
+    ("2026-08-04T04:46:23Z", "2026-07-31", []),       # KKR-Lauf: Rueckstand 1, sperrt NICHT mehr
+    ("2026-07-31T22:40:44Z", "2026-07-30", []),       # Abend: Rueckstand 1
+    ("2026-09-09T00:37:25Z", "2026-09-04", ["US"]),   # echter Ausfall: Rueckstand 2, sperrt weiterhin
 ])
-def test_das_gate_entscheidet_bei_den_geaenderten_laeufen_gleich(ts, bar, soll):
+def test_das_gate_entscheidet_sitzungsbewusst(ts, bar, soll):
+    jetzt = cal.parse_ts(ts)
     r = {"run_timestamp_utc": ts,
          "markets": {"US": {"diag": {"last_bar_date": bar,
-                                     "bar_lag_trading_days":
-                                         cal.handelstage_rueckstand(bar, ts[:10])}}}}
+                                     "bar_lag_session_days":
+                                         cal.handelstage_rueckstand_sitzung(bar, "US", jetzt)}}}}
     assert sorted(fc.stale_markets(r)) == soll
 
 
 def test_gate_identitaet_ueber_die_REALE_historie():
     """Das Gate entscheidet über die REALE Historie konsistent mit seiner
-    eigenen (seit 16.09.2026 angehobenen) Schwelle.
+    eigenen Schwelle UND seinem eigenen (seit 17.09.2026 sitzungsbewussten)
+    Feld.
 
     Jeder committete Report läuft durch ``fc.stale_markets``; das Ergebnis muss
-    exakt dem entsprechen, was ``diag.bar_lag_trading_days >= hc.BAR_LAG_CRIT``
+    exakt dem entsprechen, was ``diag.bar_lag_session_days >= hc.BAR_LAG_CRIT``
     liefert — **keine zweite Definition** von „veraltet genug, um zu sperren"
     (dieselbe Zahl wie in ``scripts/forward_collection.py::stale_markets``
-    selbst und in ``health_check.check_bar_freshness``).
+    selbst und in ``health_check.check_bar_freshness``). Für Report-Stände
+    vor dem 05.09.2026 fehlt das Feld — dort liefern beide Seiten
+    übereinstimmend „nicht gesperrt" (fail-soft), kein Widerspruch.
 
     GENAU GENOMMEN (Guardian-Nit 05.08.2026): dieser Test belegt, dass
     ``stale_markets`` sein VERHALTEN in sich konsistent zu seiner eigenen
-    Schwelle anwendet — nicht, dass ``bar_lag_trading_days`` richtig gerechnet
-    wird. Das Zweite deckt ``test_das_gate_liest_weiter_das_unveraenderte_diag_
-    feld`` ab (die Pipeline schreibt das Feld weiter aus
-    ``handelstage_rueckstand``). Erst beide zusammen sind die
-    Populations-Garantie; ein Test allein verspräche zu viel.
+    Schwelle anwendet — nicht, dass ``bar_lag_session_days`` richtig gerechnet
+    wird. Das Zweite deckt ``test_das_gate_liest_jetzt_das_sitzungsbewusste_
+    diag_feld`` ab (die Pipeline schreibt das Feld additiv seit 05.09.2026).
+    Erst beide zusammen sind die Populations-Garantie; ein Test allein
+    verspräche zu viel.
     """
     shas = subprocess.run(["git", "log", "--format=%H", "--", "docs/data/report.json"],
                           capture_output=True, text=True, cwd=ROOT).stdout.split()
@@ -351,8 +363,8 @@ def test_gate_identitaet_ueber_die_REALE_historie():
         erwartet = sorted(
             k for k, m in (r.get("markets") or {}).items()
             if isinstance(m, dict)
-            and isinstance((m.get("diag") or {}).get("bar_lag_trading_days"), int)
-            and (m["diag"]["bar_lag_trading_days"] or 0) >= hc.BAR_LAG_CRIT)
+            and isinstance((m.get("diag") or {}).get("bar_lag_session_days"), int)
+            and (m["diag"]["bar_lag_session_days"] or 0) >= hc.BAR_LAG_CRIT)
         assert sorted(fc.stale_markets(r)) == erwartet, \
-            f"{ts}: Gate weicht vom Kalendertag-Anker ab"
+            f"{ts}: Gate weicht vom sitzungsbewussten Anker ab"
     assert geprueft >= 60, f"nur {geprueft} Läufe geprüft — Historie unerwartet kurz"

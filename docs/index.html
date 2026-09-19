@@ -2589,8 +2589,11 @@
     // (kalendertag-verankert) zählte in Läufen kurz nach Mitternacht UTC
     // vor Sitzungseröffnung einen Handelstag zu viel — `bar_lag_session_days`
     // ist dieselbe Berechnung, die auch die Push-Warnung in health_check.py
-    // nutzt. NUR dieser Kartenhinweis wechselt; andere Konsumenten von
-    // `bar_lag_trading_days` (Sammlungs-Gate, ältere Tests) bleiben unberührt.
+    // nutzt. NUR dieser Kartenhinweis wechselt hier; `barDateRow()` unten
+    // zeigt weiterhin `bar_lag_trading_days` (Lauf-Status-Legende, bewusst
+    // unverändert). Das Sammlungs-Gate (`stale_markets()`) liest seit
+    // 17.09.2026 ebenfalls `bar_lag_session_days` — keine zweite Definition
+    // mehr zwischen Gate und Kartenhinweis, siehe scripts/forward_collection.py.
     function marktStand(market) {
       const d = market && market.diag;
       if (!d || typeof d !== 'object') return null;
