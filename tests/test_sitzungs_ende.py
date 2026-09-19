@@ -298,9 +298,12 @@ def test_das_gate_liest_weiter_das_unveraenderte_diag_feld():
 @pytest.mark.parametrize("ts, bar, soll", [
     # Genau die Läufe, deren WÄCHTER-Bewertung dieser PR ändert — das Gate
     # entscheidet dort unverändert. Von Hand: Kalendertag-Anker.
-    ("2026-07-31T11:16:07Z", "2026-07-30", ["US"]),   # Vormittag: Gate sperrt weiter
-    ("2026-08-04T04:46:23Z", "2026-07-31", ["US"]),
-    ("2026-07-31T22:40:44Z", "2026-07-30", ["US"]),   # Abend: unverändert
+    # Schwelle seit 16.09.2026 >= hc.BAR_LAG_CRIT (= 2): die beiden Lag-1-
+    # Fälle (Vormittag UND Abend) sperren seither NICHT mehr, nur der
+    # echte Lag-2-Fall (04.08., Quellen-Aussetzer) bleibt gesperrt.
+    ("2026-07-31T11:16:07Z", "2026-07-30", []),       # Vormittag: Lag 1, sperrt nicht mehr
+    ("2026-08-04T04:46:23Z", "2026-07-31", ["US"]),   # Lag 2: bleibt gesperrt
+    ("2026-07-31T22:40:44Z", "2026-07-30", []),       # Abend: Lag 1, sperrt nicht mehr
 ])
 def test_das_gate_entscheidet_bei_den_geaenderten_laeufen_gleich(ts, bar, soll):
     r = {"run_timestamp_utc": ts,
@@ -311,17 +314,22 @@ def test_das_gate_entscheidet_bei_den_geaenderten_laeufen_gleich(ts, bar, soll):
 
 
 def test_gate_identitaet_ueber_die_REALE_historie():
-    """Das Gate entscheidet über die REALE Historie unverändert.
+    """Das Gate entscheidet über die REALE Historie konsistent mit seiner
+    eigenen (seit 16.09.2026 angehobenen) Schwelle.
 
     Jeder committete Report läuft durch ``fc.stale_markets``; das Ergebnis muss
-    exakt dem entsprechen, was ``diag.bar_lag_trading_days >= 1`` liefert.
+    exakt dem entsprechen, was ``diag.bar_lag_trading_days >= hc.BAR_LAG_CRIT``
+    liefert — **keine zweite Definition** von „veraltet genug, um zu sperren"
+    (dieselbe Zahl wie in ``scripts/forward_collection.py::stale_markets``
+    selbst und in ``health_check.check_bar_freshness``).
 
     GENAU GENOMMEN (Guardian-Nit 05.08.2026): dieser Test belegt, dass
-    ``stale_markets`` sein VERHALTEN nicht geändert hat — nicht, dass
-    ``bar_lag_trading_days`` richtig gerechnet wird. Das Zweite deckt
-    ``test_das_gate_liest_weiter_das_unveraenderte_diag_feld`` ab (die Pipeline
-    schreibt das Feld weiter aus ``handelstage_rueckstand``). Erst beide
-    zusammen sind die Populations-Garantie; ein Test allein verspräche zu viel.
+    ``stale_markets`` sein VERHALTEN in sich konsistent zu seiner eigenen
+    Schwelle anwendet — nicht, dass ``bar_lag_trading_days`` richtig gerechnet
+    wird. Das Zweite deckt ``test_das_gate_liest_weiter_das_unveraenderte_diag_
+    feld`` ab (die Pipeline schreibt das Feld weiter aus
+    ``handelstage_rueckstand``). Erst beide zusammen sind die
+    Populations-Garantie; ein Test allein verspräche zu viel.
     """
     shas = subprocess.run(["git", "log", "--format=%H", "--", "docs/data/report.json"],
                           capture_output=True, text=True, cwd=ROOT).stdout.split()
@@ -344,7 +352,7 @@ def test_gate_identitaet_ueber_die_REALE_historie():
             k for k, m in (r.get("markets") or {}).items()
             if isinstance(m, dict)
             and isinstance((m.get("diag") or {}).get("bar_lag_trading_days"), int)
-            and (m["diag"]["bar_lag_trading_days"] or 0) >= 1)
+            and (m["diag"]["bar_lag_trading_days"] or 0) >= hc.BAR_LAG_CRIT)
         assert sorted(fc.stale_markets(r)) == erwartet, \
             f"{ts}: Gate weicht vom Kalendertag-Anker ab"
     assert geprueft >= 60, f"nur {geprueft} Läufe geprüft — Historie unerwartet kurz"

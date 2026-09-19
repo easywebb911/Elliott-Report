@@ -874,26 +874,51 @@ def stale_markets(report: Dict) -> Dict[str, int]:
     Definition von „letzter Handelstag"**; wandert die Kalender-Regel, wandert
     dieses Gate mit.
 
-    Schwelle ist **≥ 1 Handelstag** — so steht es in der Registry-Notiz vom
-    05.08.2026 („hinter dem letzten erwarteten Handelstag zurück"). Über die
-    committete Historie (Stand 04.08.2026 22:42: 53 Sammlungs-Stände,
-    106 Markt-Läufe) hätte das Gate **8×** gegriffen (7,5 %), bei Schwelle
-    ≥ 2 nur 3× (2,8 %) — der bekannte Ein-Tag-Versatz hungert die Sammlung
-    also nicht aus, und gerade aus ihm stammen drei der vier markierten
-    Alt-Records. Die Zahlen wandern mit jedem Lauf; die Tests pinnen
-    deshalb die ZUGEHÖRIGKEIT der bekannten Fälle, keinen Zählerstand.
+    Schwelle ist **``config.HEALTH_BAR_LAG_CRIT`` (Stand: ≥ 2 Handelstage,
+    „crit")** — dieselbe Zahl, ab der ``health_check.check_bar_freshness``
+    von ``warn`` auf ``crit`` hochstuft. **Keine zweite Definition von
+    „veraltet genug, um zu sperren"**, aus demselben Grund wie beim
+    Rückstand selbst.
+
+    **ANGEHOBEN am 16.09.2026** (vorher ≥ 1, seit der Registry-Notiz vom
+    05.08.2026). Diagnose vom selben Tag: der bekannte **Ein-Tag-Versatz**
+    (`warn`) ist kein Ausfall, sondern der **chronische Normalzustand** der
+    Quelle — die laufende Tageszeile ist zum Cron-Zeitpunkt (22:45 UTC)
+    routinemäßig noch nicht fertig und wird nachgereicht; der zugrundeliegende
+    Kurs-Stand (gestern) ist dabei selbst **korrekt**, nur nicht taufrisch.
+    Bei ≥ 1 sperrte das Gate deshalb **jede einzelne Nacht** (10.–16.09.: US
+    UND DE an 6 von 6 geprüften Nächten), weil der frühere „Reset" durch
+    tagsüber ausgelöste manuelle Dispatches seit #124 (09.09., Mittagslauf
+    übernimmt deren Zweck, rührt `health_state.json` aber nie an) entfällt —
+    eine Nebenwirkung, keine Verschlechterung der Quelle selbst. Sieben Tage
+    lang entstand dadurch **keine einzige** neue Episode und **keine einzige**
+    Verlängerung, in beiden Märkten, nachweislich auch für echte neue
+    Kandidaten (NEM/BAC/CVX/MDT/SFQ.DE/FRE.DE traten auf, wurden aber nie
+    angelegt).
+    ``crit`` (≥ 2) markiert dagegen einen **echten fehlenden Handelstag** —
+    genau der Fall, der das Gate am 04.08.2026 überhaupt auslöste (KKR,
+    Lauf 04.08. 04:46 UTC, in der Registry selbst als `crit`-Fall geführt,
+    nicht als `warn`). Die ursprüngliche ≥1-Schwelle stützte sich allein auf
+    eine Häufigkeits-Schätzung („kein Aushungern", 7,5 % der damaligen
+    Markt-Läufe) — keine inhaltliche Aussage, dass ein `warn`-Rückstand für
+    sich genommen einen fehlerhaften Record erzeugt hätte; kein dokumentierter
+    Fall zeigt das. Drei der vier historisch markierten Alt-Records
+    (ADS.DE/MTX.DE/G1A.DE) hingen bei `warn` (Lag 1); sie bleiben MARKIERT,
+    werden aber vom heutigen Code nicht mehr gesperrt — nur KKR (Lag 2) tut
+    das weiterhin (siehe `tests/test_sammlungs_schutz.py`).
 
     Fail-soft: fehlt das Feld (Report-Stände von vor dem 04.08.2026) oder ist
     es unbrauchbar, gilt der Markt als **frisch**. Ein Gate, das aus Unwissen
     sperrt, würde die Sammlung stillschweigend anhalten — das wäre schlimmer
     als der Schaden, den es verhindern soll.
     """
+    schwelle = config.HEALTH_BAR_LAG_CRIT
     out: Dict[str, int] = {}
     for key, market in (report.get("markets") or {}).items():
         if not isinstance(market, dict):
             continue
         lag = (market.get("diag") or {}).get("bar_lag_trading_days")
-        if isinstance(lag, int) and not isinstance(lag, bool) and lag >= 1:
+        if isinstance(lag, int) and not isinstance(lag, bool) and lag >= schwelle:
             out[key] = lag
     return out
 
