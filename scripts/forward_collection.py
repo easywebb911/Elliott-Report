@@ -868,56 +868,66 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
 def stale_markets(report: Dict) -> Dict[str, int]:
     """``{markt: rueckstand}`` für Märkte mit veraltetem Kurs-Stand.
 
-    Quelle ist ``diag.bar_lag_trading_days`` — dieselbe Zahl, die der
-    Kurs-Stand-Wächter meldet und die ``build_report`` aus
-    ``market_calendar.handelstage_rueckstand`` schreibt. **Keine zweite
-    Definition von „letzter Handelstag"**; wandert die Kalender-Regel, wandert
-    dieses Gate mit.
+    Quelle ist **``diag.bar_lag_session_days``** — der sitzungsbewusste
+    Rückstand, den `_annotiere_bar_rueckstand()` in `elliott_pipeline.py`
+    seit 05.09.2026 additiv schreibt (dieselbe Zahl wie beim Karten-Hinweis;
+    berechnet über die Sitzungs-Ende-Kalenderfunktion aus `market_calendar.
+    py`, die dieses Modul selbst bewusst nicht importiert — siehe
+    `tests/test_sitzungs_ende.py::test_das_gate_kennt_die_sitzungs_
+    funktionen_nicht`). **Keine zweite Definition von „letzter
+    Handelstag"**; wandert diese Kalender-Regel, wandert dieses Gate mit.
 
-    Schwelle ist **``config.HEALTH_BAR_LAG_CRIT`` (Stand: ≥ 2 Handelstage,
-    „crit")** — dieselbe Zahl, ab der ``health_check.check_bar_freshness``
-    von ``warn`` auf ``crit`` hochstuft. **Keine zweite Definition von
-    „veraltet genug, um zu sperren"**, aus demselben Grund wie beim
-    Rückstand selbst.
+    Schwelle ist unverändert **``config.HEALTH_BAR_LAG_CRIT`` (≥ 2
+    Handelstage, „crit")** — dieselbe Zahl, ab der
+    ``health_check.check_bar_freshness`` von ``warn`` auf ``crit`` hochstuft.
 
-    **ANGEHOBEN am 16.09.2026** (vorher ≥ 1, seit der Registry-Notiz vom
-    05.08.2026). Diagnose vom selben Tag: der bekannte **Ein-Tag-Versatz**
-    (`warn`) ist kein Ausfall, sondern der **chronische Normalzustand** der
-    Quelle — die laufende Tageszeile ist zum Cron-Zeitpunkt (22:45 UTC)
-    routinemäßig noch nicht fertig und wird nachgereicht; der zugrundeliegende
-    Kurs-Stand (gestern) ist dabei selbst **korrekt**, nur nicht taufrisch.
-    Bei ≥ 1 sperrte das Gate deshalb **jede einzelne Nacht** (10.–16.09.: US
-    UND DE an 6 von 6 geprüften Nächten), weil der frühere „Reset" durch
-    tagsüber ausgelöste manuelle Dispatches seit #124 (09.09., Mittagslauf
-    übernimmt deren Zweck, rührt `health_state.json` aber nie an) entfällt —
-    eine Nebenwirkung, keine Verschlechterung der Quelle selbst. Sieben Tage
-    lang entstand dadurch **keine einzige** neue Episode und **keine einzige**
-    Verlängerung, in beiden Märkten, nachweislich auch für echte neue
-    Kandidaten (NEM/BAC/CVX/MDT/SFQ.DE/FRE.DE traten auf, wurden aber nie
-    angelegt).
-    ``crit`` (≥ 2) markiert dagegen einen **echten fehlenden Handelstag** —
-    genau der Fall, der das Gate am 04.08.2026 überhaupt auslöste (KKR,
-    Lauf 04.08. 04:46 UTC, in der Registry selbst als `crit`-Fall geführt,
-    nicht als `warn`). Die ursprüngliche ≥1-Schwelle stützte sich allein auf
-    eine Häufigkeits-Schätzung („kein Aushungern", 7,5 % der damaligen
-    Markt-Läufe) — keine inhaltliche Aussage, dass ein `warn`-Rückstand für
-    sich genommen einen fehlerhaften Record erzeugt hätte; kein dokumentierter
-    Fall zeigt das. Drei der vier historisch markierten Alt-Records
-    (ADS.DE/MTX.DE/G1A.DE) hingen bei `warn` (Lag 1); sie bleiben MARKIERT,
-    werden aber vom heutigen Code nicht mehr gesperrt — nur KKR (Lag 2) tut
-    das weiterhin (siehe `tests/test_sammlungs_schutz.py`).
+    **UMGESTELLT am 17.09.2026** (vorher `diag.bar_lag_trading_days`, der
+    reine Kalendertag-Anker, seit der Anhebung vom 16.09.2026). Diagnose vom
+    selben Tag: der Kalendertag-Anker zählt in Läufen, deren Fertigstellung
+    (durch die reguläre Laufzeit von ~1h45–2h05 nach dem 22:45-UTC-Cron)
+    nach Mitternacht UTC auf einen Werktag fällt — praktisch **4 von 5
+    Wochentags-Nächten** (jede außer der freitäglichen, deren Lauf auf einen
+    Samstag fällt) — einen Handelstag zu viel. Der ECHTE, sitzungsbewusste
+    Rückstand blieb über den gesamten geprüften 7-Tage-Stillstand (10.–16.09.)
+    **konstant bei genau 1** (einzige Ausnahme: US am 09.09., echter Rückstand
+    2) — der Kalendertag-Anker zeigte an denselben Nächten fälschlich
+    überwiegend 2 und hielt die am 16.09. angehobene Schwelle (≥ 2) damit an
+    5 von 6 Nächten weiter geschlossen, obwohl der zugrunde liegende
+    Datenstand an 5 dieser 6 Nächte lediglich den chronischen, harmlosen
+    Ein-Tag-Versatz zeigte. Mit dem sitzungsbewussten Feld bleiben bei
+    unveränderter Schwelle ≥ 2 nur echte mehrtägige Ausfälle gesperrt; der
+    chronische Ein-Tag-Versatz (Wert 1, an praktisch jeder Nacht) sperrt
+    NICHT mehr.
 
-    Fail-soft: fehlt das Feld (Report-Stände von vor dem 04.08.2026) oder ist
-    es unbrauchbar, gilt der Markt als **frisch**. Ein Gate, das aus Unwissen
-    sperrt, würde die Sammlung stillschweigend anhalten — das wäre schlimmer
-    als der Schaden, den es verhindern soll.
+    **Warum die Schwelle bei ≥ 2 bleibt, nicht auf ≥ 1 zurückgesetzt wird:**
+    der sitzungsbewusste Rückstand lag an ALLEN sechs geprüften Nächten bei
+    mindestens 1 — bei Schwelle ≥ 1 bliebe die Sammlung also weiterhin JEDE
+    Nacht gesperrt, der 7-Tage-Stillstand käme unverändert zurück, diesmal
+    nur mit dem korrekten statt dem fehlerhaften Feld. ≥ 2 markiert weiterhin
+    einen **echten fehlenden Handelstag**, nicht den routinemäßigen
+    Nachreiche-Verzug.
+
+    **Nuance zum Gründungsfall (KKR, Lauf 04.08.2026 04:46 UTC):**
+    sitzungsbewusst nachgerechnet zeigt dieser Lauf für BEIDE Märkte nur
+    Rückstand 1, nicht 2 — das Sammlungs-Gate allein hätte ihn mit dem neuen
+    Feld nicht mehr gesperrt. Kein Widerspruch: dieser Lauf war selbst ein
+    Vormittags-Dispatch (04:46 UTC, vor beiden Börsenöffnungen) — genau die
+    Klasse, die das Sitzungs-Gate aus #130 (17.09.2026, Erweiterung von #125)
+    seit diesem Datum bereits VOR Erreichen der Pipeline vollständig
+    blockiert. Verteidigung in der Tiefe: zwei unabhängige Ebenen statt
+    einer (siehe `tests/test_sitzungs_ende.py`).
+
+    Fail-soft: fehlt das Feld oder ist es unbrauchbar, gilt der Markt als
+    **frisch**. Ein Gate, das aus Unwissen sperrt, würde die Sammlung
+    stillschweigend anhalten — das wäre schlimmer als der Schaden, den es
+    verhindern soll.
     """
     schwelle = config.HEALTH_BAR_LAG_CRIT
     out: Dict[str, int] = {}
     for key, market in (report.get("markets") or {}).items():
         if not isinstance(market, dict):
             continue
-        lag = (market.get("diag") or {}).get("bar_lag_trading_days")
+        lag = (market.get("diag") or {}).get("bar_lag_session_days")
         if isinstance(lag, int) and not isinstance(lag, bool) and lag >= schwelle:
             out[key] = lag
     return out
