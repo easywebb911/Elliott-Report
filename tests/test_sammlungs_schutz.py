@@ -44,11 +44,13 @@ def kand(ticker):
 
 
 def rep(de=(), us=(), lag_de=0, lag_us=0):
+    # Feld seit 17.09.2026: bar_lag_session_days (sitzungsbewusst) — das ist,
+    # was fc.stale_markets() jetzt liest, nicht mehr bar_lag_trading_days.
     return {"markets": {
         "DE": {"candidates": [kand(t) for t in de],
-               "diag": {"bar_lag_trading_days": lag_de}},
+               "diag": {"bar_lag_session_days": lag_de}},
         "US": {"candidates": [kand(t) for t in us],
-               "diag": {"bar_lag_trading_days": lag_us}}}}
+               "diag": {"bar_lag_session_days": lag_us}}}}
 
 
 def leer():
@@ -75,14 +77,13 @@ def recs(coll, ticker):
     (None, False), ("2", False), (True, False),   # unbrauchbar -> frisch
 ])
 def test_stale_markets_schwelle_und_fail_soft(lag, gegated):
-    """Schwelle ist >= config.HEALTH_BAR_LAG_CRIT (= 2, „crit") — angehoben am
-    16.09.2026 von vorher >= 1 (siehe Docstring von `stale_markets`). Der
-    chronische Ein-Tag-Versatz (`warn`) sperrt seither NICHT mehr; erst ein
-    echter fehlender Handelstag (`crit`) tut es. Fehlt oder taugt das Feld
-    nicht, gilt der Markt als FRISCH — ein Gate, das aus Unwissen sperrt,
-    hielte die Sammlung stillschweigend an, und das wäre schlimmer als der
-    Schaden."""
-    r = {"markets": {"DE": {"diag": {"bar_lag_trading_days": lag}}}}
+    """Schwelle ist unverändert >= config.HEALTH_BAR_LAG_CRIT (= 2, „crit").
+    Feld seit 17.09.2026: `bar_lag_session_days` (sitzungsbewusst) statt
+    `bar_lag_trading_days` (Kalendertag) — siehe Docstring von
+    `stale_markets`. Fehlt oder taugt das Feld nicht, gilt der Markt als
+    FRISCH — ein Gate, das aus Unwissen sperrt, hielte die Sammlung
+    stillschweigend an, und das wäre schlimmer als der Schaden."""
+    r = {"markets": {"DE": {"diag": {"bar_lag_session_days": lag}}}}
     assert ("DE" in fc.stale_markets(r)) is gegated
 
 
@@ -94,10 +95,10 @@ def test_stale_markets_schwelle_ist_dieselbe_zahl_wie_crit():
 
     assert hc.BAR_LAG_CRIT == cfg.HEALTH_BAR_LAG_CRIT
     r = {"markets": {"DE": {"diag": {
-        "bar_lag_trading_days": cfg.HEALTH_BAR_LAG_CRIT - 1}}}}
+        "bar_lag_session_days": cfg.HEALTH_BAR_LAG_CRIT - 1}}}}
     assert fc.stale_markets(r) == {}
     r2 = {"markets": {"DE": {"diag": {
-        "bar_lag_trading_days": cfg.HEALTH_BAR_LAG_CRIT}}}}
+        "bar_lag_session_days": cfg.HEALTH_BAR_LAG_CRIT}}}}
     assert "DE" in fc.stale_markets(r2)
 
 
@@ -107,13 +108,22 @@ def test_stale_markets_ohne_diag_und_ohne_feld():
     assert fc.stale_markets({}) == {}
 
 
-def test_stale_markets_liest_dieselbe_zahl_wie_der_waechter():
-    """Keine zweite Definition: die Quelle ist `diag.bar_lag_trading_days`,
-    das aus `market_calendar.handelstage_rueckstand` stammt."""
+def test_stale_markets_liest_jetzt_das_sitzungsbewusste_feld():
+    """UMGESTELLT 17.09.2026 (vorher `bar_lag_trading_days`, der reine
+    Kalendertag-Anker — diese Umstellung IST der Auftrag dieses PRs, keine
+    Regression). Quelle ist jetzt `diag.bar_lag_session_days`, additiv seit
+    05.09.2026 aus derselben Kalenderfunktion wie der Karten-Hinweis
+    berechnet — keine zweite Definition."""
     quelle = (ROOT / "scripts/forward_collection.py").read_text(encoding="utf-8")
-    assert 'lag = (market.get("diag") or {}).get("bar_lag_trading_days")' in quelle
-    # und die Zahl selbst kommt wirklich aus dem Kalender:
+    assert 'lag = (market.get("diag") or {}).get("bar_lag_session_days")' in quelle
+    assert 'lag = (market.get("diag") or {}).get("bar_lag_trading_days")' not in quelle
+    # und die Zahl selbst kommt wirklich aus der sitzungsbewussten Funktion,
+    # nicht mehr aus dem reinen Kalendertag-Rückstand — Gegenprobe an einem
+    # Fall, an dem beide Werte nachweislich auseinanderlaufen (echter
+    # KKR-Lauf, 04.08.2026 04:46 UTC, vor Börsenöffnung):
+    ts = cal.parse_ts("2026-08-04T04:46:23Z")
     assert cal.handelstage_rueckstand("2026-07-31", "2026-08-04") == 2
+    assert cal.handelstage_rueckstand_sitzung("2026-07-31", "US", ts) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -225,13 +235,52 @@ def test_ein_unbrauchbares_last_fresh_run_date_bricht_den_LAUF_nicht(kaputt):
 # ---------------------------------------------------------------------------
 # 5) Der echte 04.08.-Fall: KKR wäre nicht entstanden
 # ---------------------------------------------------------------------------
-def test_der_echte_KKR_fall_waere_mit_gate_NICHT_entstanden():
+def test_der_echte_KKR_lauf_sitzungsbewusst_nachgerechnet_zeigt_nur_lag_1():
+    """WICHTIGE NUANCE (17.09.2026, Umstellungs-Diagnose): der reale
+    KKR-auslösende Lauf (04.08.2026 04:46 UTC) zeigt sitzungsbewusst
+    nachgerechnet für US nur Rückstand 1, nicht 2 — unter der Schwelle
+    (>= 2). Das Sammlungs-Gate ALLEIN hätte diesen Lauf mit dem neuen Feld
+    also NICHT mehr gesperrt. Das ist ehrlich benannt, nicht verschwiegen —
+    siehe `test_das_sammlungs_gate_allein_haette_KKR_nicht_mehr_gestoppt`
+    und die Gegenprobe direkt danach (#130 blockiert den Dispatch selbst)."""
+    ts = cal.parse_ts("2026-08-04T04:46:23Z")
+    assert cal.handelstage_rueckstand("2026-07-31", "2026-08-04") == 2, (
+        "Kalendertag-Anker (alt, bis #129/#130): 2 — daher wurde KKR historisch "
+        "verhindert, das ist unverändert wahr für den DAMALIGEN Code-Stand")
+    assert cal.handelstage_rueckstand_sitzung("2026-07-31", "US", ts) == 1, (
+        "sitzungsbewusst (neu, dieser PR): nur 1 — unter der Schwelle 2")
+
+
+def test_das_sammlungs_gate_allein_haette_KKR_nicht_mehr_gestoppt():
+    """Direkte Konsequenz der Nuance oben, am echten `stale_markets()`
+    nachgewiesen: mit dem sitzungsbewussten Rückstand (1) legt der Lauf KKR
+    an — das Sammlungs-Gate für sich genommen reicht hier nicht mehr."""
     c = leer()
     lauf(c, rep(us=["AJG"]), "2026-08-03")
-    lauf(c, rep(us=["AJG", "KKR"], lag_us=2), "2026-08-04",
+    lauf(c, rep(us=["AJG", "KKR"], lag_us=1), "2026-08-04",
          "2026-08-04T04:46:23Z")
-    assert [r["ticker"] for r in c["records"]] == ["AJG"]
-    assert recs(c, "KKR") == []
+    assert sorted(r["ticker"] for r in c["records"]) == ["AJG", "KKR"], (
+        "mit dem echten sitzungsbewussten Rückstand (1) sperrt das "
+        "Sammlungs-Gate diesen Lauf nicht mehr — erwartetes, dokumentiertes "
+        "Verhalten dieses PRs, keine übersehene Regression")
+
+
+def test_aber_130_haette_den_vormittags_dispatch_gar_nicht_erst_durchgelassen():
+    """Kein Widerspruch zu den beiden Tests oben: KKRs Lauf war selbst ein
+    Vormittags-Dispatch (04:46 UTC, vor beiden Börsenöffnungen) — GENAU die
+    Klasse, die das Sitzungs-Gate aus #130 (17.09.2026) seit seiner
+    Einführung bereits vor Erreichen der Pipeline vollständig blockiert.
+    Verteidigung in der Tiefe: zwei unabhängige Ebenen statt einer."""
+    import in_session as ins
+
+    ts_iso, ts = "2026-08-04T04:46:23Z", cal.parse_ts("2026-08-04T04:46:23Z")
+    for markt in ("US", "DE"):
+        assert ins.im_sitzungsfenster(markt, ts_iso) is False, (
+            f"{markt}: waere von der urspruenglichen (#125) Fassung des "
+            "Sitzungs-Gates NICHT erfasst worden")
+        assert cal.sitzung_beendet(markt, ts) is False, (
+            f"{markt}: die ERWEITERTE Fassung (#130) haette diesen "
+            "Vormittags-Dispatch trotzdem blockiert")
 
 
 def test_ohne_gate_waere_KKR_entstanden():
@@ -575,98 +624,107 @@ def test_an_frischen_tagen_ankert_der_markt_wie_bisher(markt_laeufe):
     assert abweichungen == []
 
 
-# Diese Markt-Läufe standen hinter dem letzten erwarteten Handelstag zurück.
-# Die Liste ist KEIN Zählerstand — die committete Historie wächst mit jedem Lauf,
-# und ein Zähl-Pin wäre am nächsten Tag rot (genau das ist hier einmal passiert).
-# Was dauerhaft gilt, ist die ZUGEHÖRIGKEIT: was einmal zurückhing, hängt in der
-# committeten Historie für immer zurück.
-#
-# SEIT 16.09.2026 zwei Gruppen, weil die Schwelle auf >= 2 (crit) angehoben
-# wurde: die vier `crit`-Läufe (Lag 2) bleiben durch den ECHTEN Gate-Code
-# gesperrt; die vier `warn`-Läufe (Lag 1) sind es NICHT mehr — das ist die
-# beabsichtigte Wirkung dieser Änderung, nicht ein liegengebliebener Rest.
-BEKANNT_GEGATET_CRIT = {
-    ("2026-08-03T22:38:17Z", "DE", 2),   # Abend, echter Rückstand
-    ("2026-08-04T04:46:23Z", "DE", 2),   # vor Börsenöffnung, Quellen-Aussetzer
-    ("2026-08-04T04:46:23Z", "US", 2),   # vor Börsenöffnung, Quellen-Aussetzer
-}
-BEKANNT_NUR_NOCH_WARN = {
-    ("2026-07-30T22:45:00Z", "DE", 1),   # Abend, echter Rückstand
-    ("2026-07-31T11:16:07Z", "US", 1),   # vor NYSE-Öffnung
-    ("2026-07-31T11:22:49Z", "US", 1),   # vor NYSE-Öffnung
-    ("2026-07-31T22:40:44Z", "DE", 1),   # Abend, echter Rückstand
-    ("2026-08-04T22:42:32Z", "DE", 1),   # Abend, echter Rückstand
-}
+# ---------------------------------------------------------------------------
+# 12b) Historischer Abgleich UMGESTELLT auf das sitzungsbewusste Feld
+# (17.09.2026). Die bis #129 hier stehenden `BEKANNT_GEGATET`-Mengen und die
+# vier Tests darauf prüften „sperrt der ECHTE Gate-Code dieselben Läufe wie
+# der reine Kalendertag-Rückstand" — eine Frage, die sich nach der Umstellung
+# nicht mehr sinnvoll stellt, weil das Gate diesen Rückstand gar nicht mehr
+# liest. `mark_stale_market_records.py`/`rueckstaende_je_lauf` bleiben
+# BEWUSST beim Kalendertag-Anker (GRENZEN: das ist die historische
+# Markierung, sie beschreibt, was der DAMALIGE Gate-Code wirklich tat — das
+# darf sich nicht rückwirkend ändern). Ersetzt durch einen eigenen,
+# sitzungsbewussten Nachbau unten, der `cal.handelstage_rueckstand_sitzung`
+# direkt auf dieselbe committete Historie anwendet — keine neue Berechnung,
+# nur derselbe (unveränderte) Aufruf, den `_annotiere_bar_rueckstand` auch
+# in der Pipeline macht.
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope="module")
+def markt_laeufe_sitzung():
+    """(coll, ts, markt, sitzungsbewusster_rueckstand) — Gegenstück zu
+    `markt_laeufe`, aber mit `cal.handelstage_rueckstand_sitzung` statt
+    `cal.handelstage_rueckstand`."""
+    reports = msr.committete_reports(ROOT)
+    by_ts = {r.get("run_timestamp_utc"): r for r in reports}
+    maerkte = {ts: sorted(r.get("markets") or {}) for ts, r in by_ts.items()}
+    out = []
+    for coll in msr.committete_sammlungen(ROOT):
+        ts = str(coll.get("updated_utc"))
+        r = by_ts.get(ts)
+        if r is None:
+            continue
+        jetzt = cal.parse_ts(ts)
+        for mk in maerkte.get(ts, []):
+            bar = ((r.get("markets") or {}).get(mk) or {}).get("diag", {}).get("last_bar_date")
+            lag = cal.handelstage_rueckstand_sitzung(bar, mk, jetzt) if jetzt else None
+            out.append((coll, ts, mk, lag))
+    return out
 
 
-def _gesperrt(markt_laeufe):
-    """Die gegateten Markt-Läufe — durch den ECHTEN Gate-Code, nicht am
-    Kalender vorbei."""
+def _gesperrt_sitzung(markt_laeufe_sitzung):
+    """Die gegateten Markt-Läufe — durch den ECHTEN Gate-Code, mit dem
+    sitzungsbewussten Rückstand."""
     out = set()
-    for _c, ts, mk, lag in markt_laeufe:
-        report = {"markets": {mk: {"diag": {"bar_lag_trading_days": lag}}}}
+    for _c, ts, mk, lag in markt_laeufe_sitzung:
+        report = {"markets": {mk: {"diag": {"bar_lag_session_days": lag}}}}
         if mk in fc.stale_markets(report):
             out.add((ts, mk, lag))
     return out
 
 
 @braucht_historie
-def test_die_bekannten_crit_faelle_bleiben_gegatet(markt_laeufe):
-    """Die zwei echten fehlenden-Handelstag-Fälle (04.08., der Anlass für das
-    Gate überhaupt) bleiben unverändert gesperrt."""
-    assert BEKANNT_GEGATET_CRIT <= _gesperrt(markt_laeufe)
+def test_der_einzige_echte_crit_fall_bleibt_gegatet(markt_laeufe_sitzung):
+    """Über die gesamte committete Historie: welche Markt-Läufe sperrt das
+    UMGESTELLTE Gate wirklich? Sitzungsbewusst ist das erheblich seltener als
+    der alte Kalendertag-Anker — genau der Punkt dieses PRs. Kein Zähler-Pin
+    (die Historie wächst), sondern eine Mindestanforderung: der bekannte
+    09.09.-Vorfall (US, `last_bar_date` vier Handelstage alt) MUSS darunter
+    sein."""
+    gesperrt = _gesperrt_sitzung(markt_laeufe_sitzung)
+    treffer = [(ts, mk, lag) for ts, mk, lag in gesperrt if ts.startswith("2026-09-09")]
+    assert any(mk == "US" for _ts, mk, _lag in treffer), (
+        "der echte mehrtaegige US-Ausfall vom 09.09. muss weiterhin gesperrt sein")
 
 
 @braucht_historie
-def test_die_bekannten_warn_faelle_sind_seit_16_09_nicht_mehr_gegatet(markt_laeufe):
-    """Gegenprobe zur Schwellen-Anhebung: vier historisch bei Lag 1 gesperrte
-    Läufe (drei davon Vormittags-Dispatches vor Börsenöffnung, eine Klasse, die
-    der Sitzungs-Ende-PR ohnehin beseitigt) werden vom HEUTIGEN Gate-Code
-    NICHT mehr gesperrt — das ist die beabsichtigte Wirkung dieses Bau-
-    Auftrags (Diagnose 16.09.: chronischer Ein-Tag-Versatz sperrte 7 Tage
-    lang beide Märkte ununterbrochen)."""
-    gesperrt = _gesperrt(markt_laeufe)
-    for eintrag in BEKANNT_NUR_NOCH_WARN:
-        assert eintrag not in gesperrt, f"{eintrag} sollte bei Lag 1 nicht mehr sperren"
+def test_die_KKR_ausloesenden_laeufe_sind_sitzungsbewusst_nicht_mehr_gegatet(markt_laeufe_sitzung):
+    """Direkte Fortsetzung von `test_der_echte_KKR_lauf_sitzungsbewusst_
+    nachgerechnet_zeigt_nur_lag_1` — hier über den ECHTEN historischen
+    Nachbau statt einer Handrechnung bestätigt: der 04.08.-Lauf (04:46 UTC)
+    ist mit dem neuen Feld NICHT mehr in der gesperrten Menge."""
+    gesperrt = {(ts, mk) for ts, mk, _lag in _gesperrt_sitzung(markt_laeufe_sitzung)}
+    assert ("2026-08-04T04:46:23Z", "US") not in gesperrt
+    assert ("2026-08-04T04:46:23Z", "DE") not in gesperrt
 
 
 @braucht_historie
-def test_jeder_markierte_alt_record_mit_lag_2_stammt_aus_einem_gegateten_lauf(markt_laeufe):
-    """Die Verbindung, die #72 ursprünglich behauptete, gilt weiterhin für den
-    einzigen `crit`-Fall unter den vier markierten Alt-Records: KKR hängt an
-    genau dem Lauf, den das (heutige wie damalige) Gate gesperrt hätte."""
-    gesperrt = {(ts, mk) for ts, mk, _lag in _gesperrt(markt_laeufe)}
-    crit_marker = [m for m in ERWARTETE_MARKIERUNGEN if m[3] >= 2]
-    assert crit_marker == [("KKR", "US", "2026-08-04T04:46:23Z", 2)]
-    for _ticker, markt, run_utc, _lag in crit_marker:
-        assert (run_utc, markt) in gesperrt
-
-
-@braucht_historie
-def test_drei_der_vier_alt_records_waeren_beim_heutigen_gate_nicht_mehr_gesperrt(markt_laeufe):
-    """Kehrseite des vorigen Tests: ADS.DE, MTX.DE, G1A.DE hingen alle bei
-    Lag 1 (`warn`) — der heutige Gate-Code (Schwelle >= 2) würde sie NICHT
-    mehr verhindern. Die drei Records bleiben trotzdem MARKIERT (MET/D/PRU-
-    Prinzip: markiert, niemals geheilt, siehe Modul-Docstring von
-    mark_stale_market_records.py) — dieser Test dokumentiert nur, dass sie
-    unter der neuen Schwelle entstehen dürften, nicht dass ihr Marker entfernt
-    wird."""
-    gesperrt = {(ts, mk) for ts, mk, _lag in _gesperrt(markt_laeufe)}
-    warn_marker = [m for m in ERWARTETE_MARKIERUNGEN if m[3] < 2]
-    assert sorted(t for t, _m, _r, _l in warn_marker) == ["ADS.DE", "G1A.DE", "MTX.DE"]
-    for _ticker, markt, run_utc, _lag in warn_marker:
-        assert (run_utc, markt) not in gesperrt
+def test_alle_vier_alt_records_waeren_beim_heutigen_gate_allein_nicht_mehr_gesperrt(markt_laeufe_sitzung):
+    """Kehrseite: ALLE VIER markierten Alt-Records (nicht mehr nur drei von
+    vier wie unter dem Kalendertag-Anker bei Schwelle >= 2) hängen an Läufen,
+    die das heutige, sitzungsbewusste Gate allein nicht mehr sperren würde.
+    Sie bleiben trotzdem MARKIERT (MET/D/PRU-Prinzip: markiert, niemals
+    geheilt) — dieser Test dokumentiert nur den heutigen Gate-Befund, ändert
+    keinen Marker. Für KKR greift zusätzlich #130 (siehe oben) — für die
+    anderen drei war das ohnehin schon seit #129 so."""
+    gesperrt = {(ts, mk) for ts, mk, _lag in _gesperrt_sitzung(markt_laeufe_sitzung)}
+    for _ticker, markt, run_utc, _lag in ERWARTETE_MARKIERUNGEN:
+        assert (run_utc, markt) not in gesperrt, (
+            f"{run_utc}/{markt} sollte mit dem sitzungsbewussten Feld nicht mehr sperren")
 
 
 # ---------------------------------------------------------------------------
 # 13) Wert-Test mit den echten Diagnose-Fällen (10.–16.09.2026) + Regression
 # ---------------------------------------------------------------------------
 # Reale Top-5-Ausschnitte aus den committeten Nacht-Cron-Reports (per
-# `git show <Commit>:data/report.json`, s. Diagnose 16.09.) — US/DE lagen an
-# allen sechs Nächten bei Lag 1 (`warn`). NEM/BAC/CVX/MDT/SFQ.DE/FRE.DE trugen
-# an ihrem jeweiligen Tag KEINE offene Episode (per Abgleich gegen
-# data/forward_collection.json), wären bei alter Schwelle (>= 1) also nie
-# angelegt worden.
+# `git show <Commit>:data/report.json`, s. Diagnose 16./17.09.) —
+# SITZUNGSBEWUSST lagen US/DE an allen sechs Nächten tatsächlich bei genau
+# Rückstand 1 (bestätigt gegen `diag.bar_lag_session_days` in den echten
+# Reports, nicht nur behauptet) — anders als der fehlerhafte Kalendertag-
+# Anker, der an 5 dieser 6 Nächte 2 zeigte. NEM/BAC/CVX/MDT/SFQ.DE/FRE.DE
+# trugen an ihrem jeweiligen Tag KEINE offene Episode (per Abgleich gegen
+# data/forward_collection.json), wären bei Schwelle >= 1 also weiterhin nie
+# angelegt worden — nur die Kombination aus KORREKTEM Feld UND Schwelle >= 2
+# (dieser PR) löst den 7-Tage-Stillstand tatsächlich auf.
 DIAGNOSE_FAELLE_LAG1 = [
     ("2026-09-12", "US", "NEM"),
     ("2026-09-15", "US", "BAC"),
@@ -682,48 +740,50 @@ DIAGNOSE_FAELLE_LAG1 = [
 
 @pytest.mark.parametrize("run_date, markt, ticker", DIAGNOSE_FAELLE_LAG1)
 def test_echte_lag1_faelle_aus_der_diagnose_wuerden_jetzt_angelegt(run_date, markt, ticker):
-    """Wert-Test: dieselbe Konstellation wie in der Diagnose vom 16.09.2026
-    (Lag 1 in beiden Märkten, echter neuer Kandidat ohne offene Episode) —
-    mit der neuen Schwelle entsteht der Record, mit der alten (Lag >= 1)
-    wäre er wie in der Realität ausgeblieben."""
+    """Wert-Test: dieselbe Konstellation wie in der Diagnose (sitzungsbewusst
+    Rückstand 1 in beiden Märkten, echter neuer Kandidat ohne offene
+    Episode) — mit dem korrekten Feld (Schwelle unverändert >= 2) entsteht
+    der Record; mit der Schwelle allein auf dem alten Kalendertag-Feld wäre
+    er wie in der Realität ausgeblieben (siehe nächster Test)."""
     c = leer()
     kw = {"de": [ticker], "lag_de": 1} if markt == "DE" else {"us": [ticker], "lag_us": 1}
     lauf(c, rep(**kw), run_date)
     assert recs(c, ticker) != [], (
-        f"{ticker} ({markt}, Lag 1) hätte bei der neuen Schwelle angelegt werden müssen")
+        f"{ticker} ({markt}, sitzungsbewusster Rückstand 1) hätte jetzt angelegt werden müssen")
 
 
 @pytest.mark.parametrize("run_date, markt, ticker", DIAGNOSE_FAELLE_LAG1)
-def test_alte_schwelle_haette_dieselben_faelle_weiterhin_blockiert(run_date, markt, ticker):
-    """Gegenprobe zur vorigen Parametrisierung — belegt, dass der Unterschied
-    wirklich von der Schwellen-Anhebung kommt: bei der ALTEN Schwelle
-    (>= 1, hier direkt am Kalender-Rückstand nachgebildet, nicht über den
-    inzwischen geänderten `stale_markets`) bliebe NEM & Co. weiterhin
-    ungesammelt — exakt der 7-Tage-Stillstand aus der Diagnose."""
-    c = leer()
+def test_altes_feld_und_schwelle_1_haetten_dieselben_faelle_weiterhin_blockiert(
+        run_date, markt, ticker):
+    """Gegenprobe — belegt, dass der Unterschied wirklich vom Feld+Schwelle
+    kommt: mit der Schwelle 1 (egal welches Feld) bliebe NEM & Co. weiterhin
+    ungesammelt — exakt der 7-Tage-Stillstand aus der Diagnose. Direkt am
+    Fixture-Wert nachgebildet, nicht über das inzwischen geänderte
+    `stale_markets`."""
     kw = {"de": [ticker], "lag_de": 1} if markt == "DE" else {"us": [ticker], "lag_us": 1}
     report = rep(**kw)
     ALTE_SCHWELLE = 1
     stale_alt = {mk for mk, m in report["markets"].items()
-                 if (m.get("diag") or {}).get("bar_lag_trading_days", 0) >= ALTE_SCHWELLE}
-    assert markt in stale_alt, "Testkonstruktion: der Fall muss bei alter Schwelle gegatet sein"
+                 if (m.get("diag") or {}).get("bar_lag_session_days", 0) >= ALTE_SCHWELLE}
+    assert markt in stale_alt, "Testkonstruktion: der Fall muss bei Schwelle 1 gegatet sein"
 
 
 def test_echter_lag2_fall_aus_der_diagnose_blockiert_weiterhin():
     """Regressionstest mit echten Diagnose-Daten: der Nacht-Cron-Lauf vom
-    09.09.2026 (Commit 8436bb0) meldete für US tatsächlich Lag 2 (`crit`,
-    `last_bar_date 2026-09-04` bei erwartetem `2026-09-08`) — dieser Fall MUSS
-    auch nach der Anhebung weiterhin sperren; nur der chronische Lag-1-Zustand
-    sollte gelockert werden."""
+    09.09.2026 (Commit 8436bb0) meldete für US tatsächlich sitzungsbewusst
+    Rückstand 2 (`bar_lag_session_days`, direkt aus dem committeten Report
+    bestätigt — nicht der noch höhere, fehlerhafte Kalendertag-Wert) — dieser
+    Fall MUSS auch mit dem umgestellten Feld weiterhin sperren; nur der
+    chronische Rückstand-1-Zustand sollte durchgelassen werden."""
     c = leer()
     lauf(c, rep(us=["OXY"], lag_us=2), "2026-09-09")
-    assert recs(c, "OXY") == [], "ein echter Lag-2-Fall muss weiterhin sperren"
+    assert recs(c, "OXY") == [], "ein echter Rückstand-2-Fall muss weiterhin sperren"
 
 
 def test_gemischter_tag_lag1_de_lag2_us_nur_us_bleibt_gesperrt():
-    """Je Markt, nicht global — bleibt auch nach der Anhebung gültig (Punkt 3
+    """Je Markt, nicht global — bleibt auch nach der Umstellung gültig (Punkt 3
     der ursprünglichen #72-Registry-Notiz, unverändert)."""
     c = leer()
     lauf(c, rep(de=["FRE.DE"], us=["OXY"], lag_de=1, lag_us=2), "2026-09-16")
-    assert recs(c, "FRE.DE") != [], "DE bei Lag 1 darf jetzt sammeln"
-    assert recs(c, "OXY") == [], "US bei Lag 2 muss weiterhin sperren"
+    assert recs(c, "FRE.DE") != [], "DE bei Rückstand 1 darf jetzt sammeln"
+    assert recs(c, "OXY") == [], "US bei Rückstand 2 muss weiterhin sperren"

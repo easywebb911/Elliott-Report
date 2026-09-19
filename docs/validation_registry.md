@@ -1516,3 +1516,50 @@ vor n ≥ 100) gilt unverändert.
   ≥1 zurück, `tests/test_sammlungs_schutz.py`/`test_sitzungs_ende.py` auf
   ihren vorigen Stand); kein Datenstand wird ungültig, keine gemessene Zahl
   ändert sich, diese Notiz bleibt gültig.
+
+- **2026-09-17 — Sammlungs-Gate von `bar_lag_trading_days` auf
+  `bar_lag_session_days` umgestellt (Feld, nicht Schwelle).** Diagnose vom
+  selben Tag: der Kalendertag-Anker zählt in Läufen, deren Fertigstellung
+  nach Mitternacht UTC auf einen Werktag fällt (4 von 5 Wochentags-Nächten —
+  jede außer der freitäglichen, deren Lauf auf einen Samstag fällt), einen
+  Handelstag zu viel. Über die sechs Nächte des 7-Tage-Stillstands
+  (10.–16.09.) zeigte er dadurch an 5 von 6 fälschlich 2 statt tatsächlich 1
+  — die am 16.09. angehobene Schwelle (≥2) blieb dadurch trotzdem
+  geschlossen. Das korrekte, additive Feld `bar_lag_session_days` existiert
+  bereits seit PR #116 (05.09.2026, ADBE-Diagnose vom 04.09.2026) für den
+  Karten-Hinweis; das Gate liest jetzt dieselbe Zahl — keine zweite
+  Definition mehr zwischen Gate und Anzeige.
+  - **Vorbedingung war #130 (ebenfalls 17.09.2026).** Bis dahin galt die
+    „harte Zusage" aus der Sitzungs-Ende-Notiz vom 05.08.2026: das Gate
+    bleibt bewusst am Kalendertag-Anker, weil ein gelockertes Gate
+    Vormittags-Läufe wieder sammelfähig gemacht hätte — und da #68 den
+    ERSTEN Lauf eines Kalendertags einfrieren lässt, hätte ein solcher Lauf
+    dem Abend-Cron den `entry_close` streitig machen können. #130 schließt
+    dieses Zeitfenster im Sitzungs-Gate (von Mitternacht UTC bis
+    Sitzungsende, nicht nur während der Sitzung) — erst danach ist die
+    Umstellung hier sicher.
+  - **Schwelle bleibt ≥2, mit Beleg.** Der sitzungsbewusste Rückstand lag an
+    allen sechs geprüften Nächten bei mindestens 1 (einzige Ausnahme: US am
+    09.09., echter Rückstand 2, Commit `8436bb0`). Bei Schwelle ≥1 käme der
+    7-Tage-Stillstand mit dem korrekten Feld unverändert zurück — nur die
+    Kombination aus korrektem Feld UND Schwelle ≥2 löst ihn tatsächlich.
+  - **Nuance zum Gründungsfall, nicht verschwiegen.** Der KKR-auslösende
+    Lauf (04.08.2026 04:46 UTC) zeigt sitzungsbewusst nachgerechnet nur
+    Rückstand 1 für beide Märkte — das Sammlungs-Gate allein hätte ihn mit
+    dem neuen Feld nicht mehr gesperrt. Kein Widerspruch: dieser Lauf war
+    selbst ein Vormittags-Dispatch, den #130 seit seiner Einführung bereits
+    vor Erreichen der Pipeline blockiert (Verteidigung in der Tiefe, zwei
+    unabhängige Ebenen statt einer).
+  - **`mark_stale_market_records.py` bewusst unverändert.** Das Marker-Skript
+    bildet nach, was der DAMALIGE Gate-Code historisch tatsächlich tat
+    (Kalendertag-Anker) — das darf sich rückwirkend nicht ändern. Der
+    historische Testabgleich in `tests/test_sammlungs_schutz.py`
+    (`markt_laeufe_sitzung`) baut den sitzungsbewussten Wert eigenständig
+    aus den committeten `last_bar_date`-Werten nach, statt das Marker-Skript
+    umzustellen.
+  - **Health-Check-Warnung unverändert.** `warn` bei Rückstand 1 wird
+    weiterhin gemeldet, im Lauf-Status gezeigt und gepusht — geändert ist
+    ausschließlich, welches Feld die Sammlungs-Sperre auslöst.
+  Revert = diesen PR zurücknehmen (`stale_markets()` fällt auf
+  `bar_lag_trading_days` zurück); kein Datenstand wird ungültig, keine
+  gemessene Zahl ändert sich, diese Notiz bleibt gültig.
