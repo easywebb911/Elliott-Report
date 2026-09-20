@@ -1,0 +1,92 @@
+# Proaktiver Fehler-Wächter — Selbstwartung Stufe 4 (Entwurf, 20.09.2026).
+#
+# NÄCHSTE STUFE NACH #111 (Struktur-Wächter, nur MELDEN) UND
+# `daily_retry_watcher.yml` (Stufe 3, aber nur EIN Aktionstyp: Retry-Dispatch
+# NACH einem Fehlschlag). Dieser Wächter sucht AKTIV, ohne Anlass, nach fünf
+# bekannten Fehlerklassen (Testdaten-Drift, veraltete Kommentare, fehlende
+# Registry-Einträge, Key-Exposure-Muster, Struktur-Inkonsistenz zwischen
+# parallelem Code) — siehe scripts/proactive_watcher.py für die Detektoren.
+#
+# PHASE 1 (DIESER WORKFLOW, so gebaut): rein lesend. Scannt, klassifiziert
+# jeden Fund gegen dieselbe rote Linie, die Guardian für Manual-Merge-Fälle
+# nutzt (Score/Sammlungs-Gate/evaluate.py/Marker/Auswertungsregel), und
+# schickt GENAU EINEN zusammenfassenden Push pro Lauf (keine Einzelmeldung
+# je Fund). Verändert KEINE Datei — MD5-Prüfung vor/nach dem Scan wie in
+# midday_report_refresh.yml, aus demselben Grund: ein Wächter, der ver-
+# sehentlich Daten anfasst, ist schlimmer als einer, der schweigt.
+#
+# PHASE 2 (BEWUSST NICHT TEIL DIESES WORKFLOWS): automatisches Fixen +
+# Testen + Guardian-Zweitblick + Self-Merge für Funde ohne rote Linie, sowie
+# automatisch erstellte Draft-PRs MIT Lösungsvorschlag für Funde MIT roter
+# Linie (Auftrag 20.09.2026, Punkte 3+4). Das braucht ein Modell im Loop
+# (kein deterministisches Skript kann einen stale Kommentar sinnvoll neu
+# formulieren oder einen Registry-Eintrag inhaltlich verfassen) und damit
+# eine eigene Sicherheits-Architektur (Sandbox, Budget, Abbruch-Kriterien)
+# — bewusst als SEPARATER, eigener Auftrag zurückgestellt statt hier
+# mitgebaut. Dieser Workflow legt nur die Basis (Erkennung + Klassifikation
+# + Bericht), auf der Phase 2 aufsetzen könnte.
+name: "Proaktiver Fehler-Wächter"
+
+on:
+  workflow_run:
+    workflows: ["Daily Elliott Report"]
+    types: [completed]
+  workflow_dispatch: {}   # manueller Testlauf, unabhängig vom Tageslauf
+
+permissions:
+  contents: read   # rein lesend (Phase 1) — kein `contents: write` nötig
+
+concurrency:
+  group: proactive-watcher
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    # Nur nach einem ERFOLGREICHEN Tageslauf (ein gescheiterter Lauf wird
+    # bereits vom Auto-Retry-Watcher behandelt — zwei Wächter auf demselben
+    # Fehlschlag wären ein Doppel-Alarm). Bei manuellem Dispatch immer.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: MD5 des Repo-Zustands VOR dem Scan
+        id: md5_vorher
+        run: |
+          echo "vor=$(git status --porcelain | md5sum)" >> "$GITHUB_OUTPUT"
+
+      - name: Proaktiven Scan laufen lassen
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python scripts/proactive_watcher.py
+
+      - name: MD5-Integrität NACH dem Scan (kein stiller Fehlschlag)
+        run: |
+          nachher="$(git status --porcelain | md5sum)"
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Der proaktive Wächter (Phase 1, rein lesend) hat den Arbeitsbaum verändert — das darf NIE passieren. Abbruch."
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+          echo "Repo-Zustand bestätigt unverändert nach dem Scan."
+
+      - name: Wächter-eigene Tests (Detektoren + Rote-Linie-Klassifikation)
+        run: python -m pytest tests/test_proactive_watcher.py -q
