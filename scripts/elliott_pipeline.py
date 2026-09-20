@@ -146,6 +146,12 @@ class FetchOutcome:
     # Reihe zu kurz für 14 True-Range-Werte, bleibt das Messfeld ehrlich leer
     # statt eines aus Lücken gemittelten Werts. Siehe scripts/volatility.py.
     atr_14: Optional[float] = None
+    # Quelle der Daten (Transparenz-Auftrag, Twelve-Data-Fallback, s.
+    # Diagnose #132/#133). Default "yfinance" — die weit überwiegende
+    # Mehrheit der Aufrufe ändert sich NICHT. Wird NUR vom Twelve-Data-
+    # Notfall-Fallback (fetch_twelvedata) auf "twelvedata_fallback" gesetzt,
+    # rein additiv, kein Einfluss auf Zählung/Score/Ranking.
+    source: str = "yfinance"
 
 
 # Ein Fetcher liefert ein FetchOutcome (Daten ODER Skip-Grund + Detail).
@@ -305,6 +311,166 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
                         dropped_last_row=dropped_last,
                         dropped_mid_row=dropped_mid,
                         atr_14=atr14(highs, lows, closes))
+
+
+# ---------------------------------------------------------------------------
+# TWELVE-DATA-FALLBACK (Notfall, NUR US-Ticker — s. Diagnose #132/#133)
+# ---------------------------------------------------------------------------
+# Diagnose bestätigt: Twelve Data taugt als Notfall-Fallback für US-Ticker
+# (Kurse praktisch identisch zu yfinance, kein Verzug). DE bleibt
+# ausgeschlossen (Bezahlschranke bei Twelve Data). Springt NUR ein, wenn
+# yfinance für EINEN EINZELNEN Ticker fehlschlägt/leer bleibt — nie für das
+# ganze Universum (s. _make_yfinance_with_td_fallback unten). Braucht das
+# Secret TWELVE_DATA_API_KEY (von Easy manuell in den Repo-Settings
+# eingetragen, NICHT im Code).
+TWELVE_DATA_URL = "https://api.twelvedata.com/time_series"
+
+
+def _twelvedata_get(params: Dict[str, object], timeout: int):  # pragma: no cover
+    """Dünner HTTP-Wrapper — NUR damit Tests ihn ersetzen können (kein Netz
+    nötig), analog zu notify._post."""
+    import requests  # noqa: WPS433 — lazy, wie yfinance
+
+    return requests.get(TWELVE_DATA_URL, params=params, timeout=timeout)
+
+
+def _twelvedata_values_to_df(values: List[Dict[str, str]]):
+    """Adapter: Twelve-Data-`values` -> DataFrame im selben Schema wie ein
+    normalisierter yfinance-Download (DatetimeIndex aufsteigend, Spalten
+    Open/High/Low/Close/Volume) — direkt kompatibel zu `parse_download_df`.
+
+    Twelve Data liefert ABSTEIGEND sortiert und alle Werte als STRINGS
+    (Diagnose #133) — beides wird hier korrigiert, sonst nichts.
+    """
+    import pandas as pd  # noqa: WPS433 — lazy, wie yfinance
+
+    df = pd.DataFrame(values)
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    df = df.set_index("datetime").sort_index()
+    df.index.name = None
+    df = df.rename(columns={
+        "open": "Open", "high": "High", "low": "Low",
+        "close": "Close", "volume": "Volume",
+    })
+    for col in ("Open", "High", "Low", "Close", "Volume"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def _redact(text: str, secret: Optional[str]) -> str:
+    """Ersetzt `secret` in `text` durch `***` — falls gesetzt und nicht leer.
+    Schützt Log-/Detail-Ausgaben davor, den Twelve-Data-API-Key über eine
+    Exception-Message (die die volle Request-URL enthalten kann) preiszugeben."""
+    if not secret:
+        return text
+    return text.replace(secret, "***")
+
+
+def fetch_twelvedata(ticker: str) -> FetchOutcome:
+    """Holt Tageskerzen von Twelve Data (Notfall-Fallback).
+
+    Wird NUR aus `_make_yfinance_with_td_fallback` aufgerufen, die bereits
+    geprüft hat, dass der Ticker kein `.DE`-Suffix trägt und ein API-Key
+    vorliegt — diese Funktion bleibt trotzdem eigenständig fail-soft, falls
+    sie je anders aufgerufen wird. Setzt `source="twelvedata_fallback"` NUR
+    bei Erfolg (Transparenz-Auftrag) — Skip-Gründe bleiben FETCH_ERROR/
+    EMPTY_DATA wie beim yfinance-Pfad, damit bestehende Auswertungen sie
+    gleich behandeln.
+    """
+    api_key = os.environ.get("TWELVE_DATA_API_KEY")
+    if not api_key:
+        return FetchOutcome(
+            reason=FETCH_ERROR, detail="TWELVE_DATA_API_KEY nicht gesetzt",
+        )
+    try:
+        resp = _twelvedata_get(
+            {
+                "symbol": ticker,
+                "interval": "1day",
+                "outputsize": config.TWELVE_DATA_OUTPUTSIZE,
+                "apikey": api_key,
+            },
+            timeout=20,
+        )
+        data = resp.json()
+        if isinstance(data, dict) and data.get("status") == "error":
+            return FetchOutcome(
+                reason=FETCH_ERROR,
+                detail=f"Twelve-Data-API-Fehler: {data.get('code')} {data.get('message')}",
+            )
+        values = data.get("values") if isinstance(data, dict) else None
+        if not values:
+            return FetchOutcome(
+                reason=EMPTY_DATA,
+                detail=f"Twelve Data: keine 'values' im Response (keys={list(data) if isinstance(data, dict) else type(data)})",
+            )
+        df = _twelvedata_values_to_df(values)
+        outcome = parse_download_df(df)
+        if outcome.data is not None:
+            outcome.source = "twelvedata_fallback"
+        return outcome
+    except Exception as exc:  # noqa: BLE001 — fail-soft, wie fetch_yfinance
+        # Guardian-Nit: eine requests/urllib3-Exception kann die VOLLE
+        # Request-URL inkl. `apikey=...` in ihrer Message tragen — die landet
+        # sonst unredigiert im Actions-Log (detail geht NUR ins Log/first_
+        # samples, NIE in report.json, aber "nie geloggt" war der Auftrag).
+        return FetchOutcome(
+            reason=FETCH_ERROR,
+            detail=_redact(
+                f"Twelve-Data-Fallback: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+                api_key,
+            ),
+        )
+
+
+def _make_yfinance_with_td_fallback() -> Fetcher:
+    """Baut den täglichen Fetcher: yfinance zuerst, Twelve Data NUR als
+    Notfall für EINZELNE fehlgeschlagene US-Ticker (kein `.DE`-Suffix).
+
+    Eigene Zähl-Klausur JE AUFRUF (Closure, kein Modul-Global) — ein
+    yfinance-Totalausfall darf nicht das GANZE Universum gegen Twelve Data
+    werfen (Free-Tier: 800 Requests/Tag, 8/Minute). Über
+    `config.TWELVE_DATA_MAX_FALLBACK_CALLS` hinaus wird der Fallback für den
+    Rest DIESES Laufs übersprungen (fail-soft, wie vorher: Ticker bleibt
+    einfach übersprungen). Jeder Fallback-Versuch (Erfolg wie Fehlschlag)
+    landet klar gekennzeichnet im Log — kein stilles Vermischen der Quellen.
+    """
+    calls = {"n": 0}
+
+    def _fetch(ticker: str) -> FetchOutcome:
+        outcome = fetch_yfinance(ticker)
+        if outcome.data is not None:
+            return outcome
+        if ticker.endswith(".DE"):
+            return outcome  # Auftrag: Fallback NUR für US-Ticker
+        if not os.environ.get("TWELVE_DATA_API_KEY"):
+            return outcome  # kein Secret gesetzt -> kein Fallback, fail-soft
+        if calls["n"] >= config.TWELVE_DATA_MAX_FALLBACK_CALLS:
+            _log(
+                f"[elliott][diag] {ticker}: yfinance fehlgeschlagen "
+                f"({outcome.reason}) — Twelve-Data-Fallback-Limit "
+                f"({config.TWELVE_DATA_MAX_FALLBACK_CALLS}/Lauf) bereits "
+                f"erreicht, KEIN Fallback-Versuch."
+            )
+            return outcome
+        calls["n"] += 1
+        fallback = fetch_twelvedata(ticker)
+        if fallback.data is None:
+            _log(
+                f"[elliott][diag] {ticker}: yfinance fehlgeschlagen "
+                f"({outcome.reason}) — Twelve-Data-Fallback EBENFALLS "
+                f"fehlgeschlagen ({fallback.reason}: {fallback.detail})"
+            )
+            return outcome
+        _log(
+            f"[elliott][diag] {ticker}: yfinance fehlgeschlagen "
+            f"({outcome.reason}) — ÜBER TWELVE-DATA-FALLBACK geladen "
+            f"({len(fallback.data[0])} Bars)."
+        )
+        return fallback
+
+    return _fetch
 
 
 def _extract_bars(df):
@@ -583,10 +749,14 @@ def fetch_synthetic_monthly(ticker: str) -> FetchOutcome:
 
 
 def get_fetcher() -> Fetcher:
-    """Wählt Fetcher nach Umgebungsvariable (Default: yfinance)."""
+    """Wählt Fetcher nach Umgebungsvariable (Default: yfinance + Twelve-Data-
+    Notfall-Fallback für einzelne fehlgeschlagene US-Ticker, s. Diagnose
+    #132/#133). NUR der tägliche Fetcher bekommt den Fallback — Wochen-/
+    Monatsgrad (get_weekly_fetcher/get_monthly_fetcher) bleiben unverändert
+    reines yfinance (kleinerer Auftrag, kein Fallback-Bedarf belegt)."""
     if os.environ.get("ELLIOTT_OFFLINE") == "1":
         return fetch_synthetic
-    return fetch_yfinance
+    return _make_yfinance_with_td_fallback()
 
 
 def get_weekly_fetcher() -> Fetcher:
@@ -1526,6 +1696,9 @@ def _scan_market(
         if entry is None:
             _record_skip(ticker, reason or NO_VALID_COUNT, detail)
             continue
+        # Transparenz-Auftrag (Twelve-Data-Fallback, s. Diagnose #132/#133):
+        # additiv, NACH build_candidate — kein Einfluss auf Score/Ranking.
+        entry["data_source"] = outcome.source
         candidates.append(entry)
 
     return (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
@@ -1795,6 +1968,11 @@ def build_watchlist_entry(
     # ATR (Messfeld v2) analog aus dem Sink wiederverwenden — sonst None (dann
     # bleibt die Band-Breite auf der Karte fail-soft leer).
     atr_14 = atr_sink.get(ticker) if atr_sink else None
+    # Quelle (Transparenz-Auftrag, Twelve-Data-Fallback): NUR bei frischem
+    # Abruf bekannt (unten aus outcome.source). Bei Wiederverwendung aus dem
+    # Sink (price_sink trägt die Quelle nicht mit) bleibt das Feld unbesetzt —
+    # ehrlich leer statt einer geratenen Angabe.
+    data_source = None
     if data is None:
         outcome = fetcher(ticker)
         if outcome.reason is not None or outcome.data is None:
@@ -1805,6 +1983,7 @@ def build_watchlist_entry(
         dates, closes = outcome.data
         volumes = outcome.volumes
         atr_14 = outcome.atr_14
+        data_source = outcome.source
         if price_sink is not None:
             price_sink[ticker] = (dates, closes)
         if volume_sink is not None and outcome.volumes is not None:
@@ -1843,10 +2022,14 @@ def build_watchlist_entry(
         entry["wl_status"] = "setup"
         entry["note"] = ""
         entry["reason"] = ""
+        if data_source is not None:
+            entry["data_source"] = data_source
         return entry
     e = _wl_no_setup_entry(ticker, dates, closes, reason, detail, atr_14=atr_14)
     e["timeframes"] = timeframes
     e["structure"] = structure
+    if data_source is not None:
+        e["data_source"] = data_source
     return e
 
 

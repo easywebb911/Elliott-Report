@@ -117,6 +117,22 @@ DATA_INTERVAL_MONTHLY = "1mo"
 MIN_BARS_MONTHLY = 60
 
 # ---------------------------------------------------------------------------
+# TWELVE-DATA-FALLBACK (Notfall, NUR US-Ticker — s. Diagnose #132/#133)
+# ---------------------------------------------------------------------------
+# Springt NUR ein, wenn yfinance für EINEN EINZELNEN US-Ticker (kein
+# .DE-Suffix) fehlschlägt/leer bleibt UND das Secret TWELVE_DATA_API_KEY
+# gesetzt ist — sonst bleibt das Verhalten exakt wie vorher (fail-soft,
+# Ticker wird übersprungen). DE bleibt ausgeschlossen (Bezahlschranke bei
+# Twelve Data, Diagnose #132). Details: scripts/elliott_pipeline.py,
+# fetch_twelvedata / _make_yfinance_with_td_fallback.
+TWELVE_DATA_OUTPUTSIZE = 500        # ~2 Jahre Handelstage, spiegelt DATA_PERIOD
+# Obergrenze an Fallback-CALLS pro Pipeline-Lauf (Tag; Wochen-/Monatsgrad
+# nutzen den Fallback nicht mit). Schützt gegen einen yfinance-Totalausfall,
+# der sonst das GANZE Universum gegen Twelve Data würfe (Free-Tier: 800
+# Requests/Tag, 8/Minute) statt nur einzelne fehlgeschlagene Ticker.
+TWELVE_DATA_MAX_FALLBACK_CALLS = 20
+
+# ---------------------------------------------------------------------------
 # ZIGZAG / PIVOT-ENGINE
 # ---------------------------------------------------------------------------
 # Symmetrisches Bestätigungs-Fenster: ein Bar i ist erst dann ein bestätigter
