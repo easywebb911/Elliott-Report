@@ -1,0 +1,271 @@
+name: Diagnose - Alpha Vantage vs. yfinance (DE, Wegwerf)
+
+# TEMPORÄR. Reine Diagnose, KEIN Bestandteil der Pipeline.
+# Zweck: Twelve Data scheitert bei DE (Bezahlschranke, siehe #132/#134).
+# Alpha Vantage ist der naechste Kandidat - deckt laut externer Quelle
+# DAX-Werte ab, 500 Calls/Tag kostenlos. Sandbox hat keinen Netzzugriff -
+# dieser Workflow laeuft NUR hier, weil GitHub Actions echten
+# Internetzugriff hat.
+#
+# Macht: 5 echte DE-Ticker (SAP.DE, SIE.DE, ALV.DE, DTE.DE, AIR.DE) via
+# yfinance UND Alpha Vantage (TIME_SERIES_DAILY) abrufen,
+# Abdeckung/Antwortzeit/letzten Bar/Close-Abweichungen (letzte 10
+# Handelstage) vergleichen, DE-Symbolformat ausprobieren ("SAP.DE" direkt,
+# dann "SAP.DEX"/"XETRA:SAP" als Alternativen), und die Antwortstruktur
+# gegen das bestehende Fetch-Schema (scripts/elliott_pipeline.py,
+# FetchOutcome/parse_download_df) einordnen. Gleiche Struktur, gleiches
+# Log-Format wie die Twelve-Data-Diagnose (diag_twelvedata_vs_yfinance.yml).
+#
+# API-Key: NUR als einmaliges Eingabefeld beim manuellen Start (workflow_
+# dispatch input, TYPE STRING, KEIN Secret, KEIN Default). Wird NICHT
+# committet, NICHT als Secret angelegt, NIRGENDS geloggt - per
+# `::add-mask::` maskiert und in jeder Fehlerausgabe redigiert (Requests-
+# Exceptions koennen die volle URL inkl. Key enthalten).
+#
+# Macht NICHT: keine Aenderung an Produktionscode, kein Commit, keine
+# Datei-Ausgabe (nur Klartext-Log im Actions-Lauf).
+#
+# Nach der Diagnose: diese Datei wieder loeschen (eigener Folge-Schritt).
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_key:
+        description: "Alpha Vantage API-Key (nur fuer diesen einen Lauf, wird nicht gespeichert)"
+        required: true
+        type: string
+
+concurrency:
+  group: diag-alphavantage-vs-yfinance
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "yfinance>=0.2.40,<0.3" "pandas>=2.0,<3.0" "requests>=2.31,<3"
+
+      # Key NUR ueber env: in eine Variable heben (kein `${{ inputs.api_key }}`
+      # innerhalb eines `run:`-Skriptkoerpers - das wuerde den Klartext-Wert
+      # in den geloggten Skripttext einbetten). `::add-mask::` registriert den
+      # Wert zusaetzlich, damit jede spaetere zufaellige Ausgabe redigiert wird.
+      - name: API-Key maskieren
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ inputs.api_key }}
+        run: echo "::add-mask::$ALPHAVANTAGE_API_KEY"
+
+      - name: Alpha Vantage vs. yfinance Vergleich (DE)
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ inputs.api_key }}
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          import os
+          import sys
+          import time
+          from datetime import datetime
+
+          import pandas as pd
+          import requests
+          import yfinance as yf
+
+          sys.path.insert(0, ".")
+          import config
+
+          API_KEY = os.environ["ALPHAVANTAGE_API_KEY"]
+          AV_URL = "https://www.alphavantage.co/query"
+          # Free-Tier: 5 Requests/Minute (Auftrag nennt 500/Tag) -- konservativ
+          # ueber dem strikten Minimum (12s), damit ein knapper Server-Takt
+          # nicht doch in "rate limit exceeded" laeuft.
+          MIN_CALL_INTERVAL = 13.0
+          _last_av_call = [0.0]
+
+          def redact(text: str) -> str:
+              return text.replace(API_KEY, "***") if API_KEY else text
+
+          def rate_limit():
+              wait = MIN_CALL_INTERVAL - (time.monotonic() - _last_av_call[0])
+              if wait > 0:
+                  time.sleep(wait)
+              _last_av_call[0] = time.monotonic()
+
+          DE_TICKERS = config.DE_UNIVERSE[:5]
+          N_DAYS = 10
+
+          def av_candidates(ticker: str) -> list[str]:
+              if ticker.endswith(".DE"):
+                  base = ticker[: -len(".DE")]
+                  return [ticker, f"{base}.DEX", f"XETRA:{base}"]
+              return [ticker]
+
+          def fetch_alphavantage(symbol: str):
+              rate_limit()
+              params = {
+                  "function": "TIME_SERIES_DAILY",
+                  "symbol": symbol,
+                  "outputsize": "compact",  # letzte ~100 Handelstage, reicht fuer N_DAYS
+                  "apikey": API_KEY,
+              }
+              t0 = time.monotonic()
+              try:
+                  resp = requests.get(AV_URL, params=params, timeout=15)
+              except Exception as exc:
+                  return None, None, None, redact(f"{type(exc).__name__}: {exc}")
+              elapsed = time.monotonic() - t0
+              try:
+                  data = resp.json()
+              except Exception as exc:
+                  return None, resp.status_code, elapsed, redact(
+                      f"JSON-Parse-Fehler: {exc}"
+                  )
+              if isinstance(data, dict) and "Error Message" in data:
+                  return None, resp.status_code, elapsed, redact(
+                      f"API-Fehler: {data['Error Message']}"
+                  )
+              if isinstance(data, dict) and "Note" in data:
+                  return None, resp.status_code, elapsed, redact(
+                      f"Rate-Limit-Hinweis: {data['Note']}"
+                  )
+              if isinstance(data, dict) and "Information" in data:
+                  return None, resp.status_code, elapsed, redact(
+                      f"API-Hinweis (oft Rate-Limit/Plan): {data['Information']}"
+                  )
+              ts = data.get("Time Series (Daily)") if isinstance(data, dict) else None
+              if not ts:
+                  return None, resp.status_code, elapsed, redact(
+                      f"keine 'Time Series (Daily)' im Response: {json.dumps(data)[:200]}"
+                  )
+              rows = [{"datetime": d, **v} for d, v in ts.items()]
+              df = pd.DataFrame(rows)
+              df["datetime"] = pd.to_datetime(df["datetime"])
+              df = df.set_index("datetime").sort_index()
+              df = df.rename(columns={
+                  "1. open": "open", "2. high": "high", "3. low": "low",
+                  "4. close": "close", "5. volume": "volume",
+              })
+              for col in ("open", "high", "low", "close", "volume"):
+                  if col in df.columns:
+                      df[col] = pd.to_numeric(df[col], errors="coerce")
+              return df, resp.status_code, elapsed, None
+
+          def fetch_av_best(ticker: str):
+              errors = []
+              for cand in av_candidates(ticker):
+                  df, status, elapsed, err = fetch_alphavantage(cand)
+                  if df is not None:
+                      return cand, df, status, elapsed, None
+                  errors.append(f"{cand}: {err}")
+              return None, None, None, None, "; ".join(errors)
+
+          print("=" * 78)
+          print("ALPHA VANTAGE vs. YFINANCE (DE) -- Wegwerf-Diagnose")
+          print(f"UTC-Zeitpunkt: {datetime.utcnow().isoformat()}")
+          print(f"Ticker: {DE_TICKERS}")
+          print("=" * 78)
+
+          schema_notes = []
+
+          for ticker in DE_TICKERS:
+              print(f"\n--- {ticker} ---")
+
+              t0 = time.monotonic()
+              try:
+                  yf_df = yf.download(
+                      ticker,
+                      period="1mo",
+                      interval="1d",
+                      auto_adjust=True,
+                      progress=False,
+                      threads=False,
+                  )
+                  yf_elapsed = time.monotonic() - t0
+                  if isinstance(yf_df.columns, pd.MultiIndex):
+                      yf_df.columns = yf_df.columns.get_level_values(0)
+              except Exception as exc:
+                  print(f"  yfinance FEHLER: {type(exc).__name__}: {exc}")
+                  continue
+
+              if yf_df is None or yf_df.empty:
+                  print("  yfinance: KEINE DATEN")
+                  continue
+
+              print(f"  yfinance: {len(yf_df)} Bars, Antwortzeit {yf_elapsed:.2f}s, "
+                    f"letzter Bar {yf_df.index.max().date()}, "
+                    f"Spalten={list(yf_df.columns)}")
+
+              symbol, av_df, status, elapsed, err = fetch_av_best(ticker)
+              if av_df is None:
+                  print(f"  Alpha Vantage FEHLSCHLAG: {err}")
+                  continue
+
+              print(f"  Alpha-Vantage-Symbol gefunden: '{symbol}' (HTTP {status}, "
+                    f"Antwortzeit {elapsed:.2f}s)")
+              print(f"  Alpha Vantage: {len(av_df)} Bars, letzter Bar {av_df.index.max().date()}, "
+                    f"Spalten={list(av_df.columns)}")
+              if not schema_notes:
+                  schema_notes.append(
+                      f"Alpha-Vantage-Rohspalten (Beispiel {ticker}): {list(av_df.columns)}, "
+                      f"Index-Name '{av_df.index.name}' (datetime, absteigend geliefert, "
+                      "hier aufsteigend sortiert)"
+                  )
+
+              yf_last = yf_df.tail(N_DAYS)
+              common_dates = sorted(set(yf_last.index.date) & set(av_df.index.date))
+              missing_in_av = sorted(set(yf_last.index.date) - set(av_df.index.date))
+              print(f"  Letzte {N_DAYS} yfinance-Handelstage, davon in Alpha Vantage vorhanden: "
+                    f"{len(common_dates)}/{len(yf_last)}")
+              if missing_in_av:
+                  print(f"  In Alpha Vantage FEHLENDE Tage: {missing_in_av}")
+
+              print(f"  {'Datum':<12}{'Close yf':>12}{'Close av':>14}{'Diff':>10}{'Diff %':>10}")
+              for d in common_dates:
+                  yf_close = float(yf_df.loc[yf_df.index.date == d, "Close"].iloc[0])
+                  av_close = float(av_df.loc[av_df.index.date == d, "close"].iloc[0])
+                  diff = av_close - yf_close
+                  diff_pct = (diff / yf_close * 100) if yf_close else float("nan")
+                  print(f"  {str(d):<12}{yf_close:>12.4f}{av_close:>14.4f}{diff:>10.4f}{diff_pct:>9.2f}%")
+
+              yf_max = yf_df.index.max().date()
+              av_max = av_df.index.max().date()
+              lag_days = (yf_max - av_max).days
+              print(f"  Datenverzug (yfinance-neuester minus Alpha-Vantage-neuester): "
+                    f"{lag_days} Tag(e) (yf: {yf_max}, av: {av_max})")
+
+          print("\n" + "=" * 78)
+          print("SCHEMA-VERGLEICH (elliott_pipeline.py in scripts/: FetchOutcome/parse_download_df)")
+          print("=" * 78)
+          print("Bestehendes Schema erwartet je Ticker: dates: List[str], closes: List[float]")
+          print("  (+ optional volumes, High/Low fuer ATR(14) -- siehe FetchOutcome).")
+          print("yfinance liefert das bereits normalisiert (DatetimeIndex, Spalten")
+          print("  Open/High/Low/Close/Volume, aufsteigend sortiert).")
+          for note in schema_notes:
+              print(f"Alpha Vantage: {note}")
+          print("Alpha Vantage liefert JSON {'Time Series (Daily)': {'YYYY-MM-DD': {'1. open',")
+          print("  '2. high', '3. low', '4. close', '5. volume'}, ...}}, ABSTEIGEND sortiert (jued")
+          print("  ngster Tag zuerst als Dict-Key, keine garantierte Reihenfolge -> nach dem")
+          print("  Datum sortiert), alle Werte als Strings, NUMERISCH PRAEFIGIERTE Spaltennamen --")
+          print("  ein Adapter waere noetig: (1) Dict -> DataFrame (Datum als Spalte, nicht Zeile),")
+          print("  (2) Strings -> float, (3) nach Datum sortieren, (4) Spalten umbenennen ('1. open'")
+          print("  -> Open, ...), (5) FetchOutcome.data als (dates, closes)-Tupel bauen. Kein")
+          print("  direkter Drop-in fuer parse_download_df (das ist yfinance-spezifisch).")
+
+          print("\n" + "=" * 78)
+          print("ENDE DER DIAGNOSE")
+          print("=" * 78)
+          PYEOF
