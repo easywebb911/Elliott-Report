@@ -34,6 +34,11 @@ NEUTRALE_UMGEBUNG = (
     # Report-Only-Modus (Mittagslauf, 09.09.2026): elliott_pipeline.main()
     # liest REPORT_ONLY == "1", um die Forward-Sammlung ungeladen zu lassen.
     "REPORT_ONLY",
+    # Twelve-Data-Notfall-Fallback (Diagnose #132/#133, 20.09.2026):
+    # elliott_pipeline.fetch_twelvedata / _make_yfinance_with_td_fallback
+    # lesen das Secret. Ohne Wegräumen könnte ein Läufer mit zufällig
+    # gesetztem Key den Fallback-Zweig ungewollt anspringen lassen.
+    "TWELVE_DATA_API_KEY",
 )
 
 

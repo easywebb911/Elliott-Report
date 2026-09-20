@@ -102,7 +102,8 @@ VORLAUF_FEIERTAGSLISTE_TAGE = 90
 #: der bereits vorhandene, automatische Standard-Token, kein neues Secret in
 #: den Repo-Einstellungen; hier trotzdem gelistet, weil die Prüfung jede
 #: `secrets.X`-Referenz gleich behandelt.
-ERWARTETE_SECRETS = {"NTFY_TOPIC", "ANTHROPIC_API_KEY", "GITHUB_TOKEN"}
+ERWARTETE_SECRETS = {"NTFY_TOPIC", "ANTHROPIC_API_KEY", "GITHUB_TOKEN",
+                     "TWELVE_DATA_API_KEY"}
 
 #: Konstanten, die in `config.py` UND als Literal im Frontend stehen.
 #: Verankert über den benannten `const`-Namen, NIE über die nackte Zahl — sonst

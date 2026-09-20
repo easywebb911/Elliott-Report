@@ -198,6 +198,10 @@ jobs:
           # staleness_check.yml) hatten das Mapping von Anfang an.
           # Regressionsnetz: tests/test_workflow_push_wiring.py.
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          # Twelve-Data-Notfall-Fallback (Diagnose #132/#133, NUR einzelne
+          # fehlgeschlagene US-Ticker): fehlt das Secret, ist der Fallback
+          # ein no-op (fail-soft) — der Lauf verhält sich exakt wie vorher.
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
         run: python scripts/elliott_pipeline.py
 
       - name: Validate report JSON
