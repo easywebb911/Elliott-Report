@@ -1,0 +1,232 @@
+name: Diagnose - Stooq vs. yfinance (Wegwerf)
+
+# TEMPORÄR. Reine Diagnose, KEIN Bestandteil der Pipeline.
+# Zweck: klären, ob Stooq als Notfall-Fallback fuer echte yfinance-
+# Totalausfaelle taugt (nicht als Hauptquelle, nicht gegen das bereits
+# geloeste 1-Tages-Lag-Problem). Sandbox hat keinen Netzzugriff (weder
+# Yahoo noch Stooq erreichbar) - dieser Workflow laeuft NUR hier, weil
+# GitHub Actions echten Internetzugriff hat.
+#
+# Macht: 10 echte Ticker (5 US, 5 DE aus config.py) via yfinance UND Stooq
+# abrufen, letzte 10 Handelstage vergleichen (Abdeckung, Datenverzug,
+# Close-Abweichungen), Stooq-Symbolformat fuer DE-Werte ausprobieren,
+# und pruefen ob Stooqs Close split-/dividenden-bereinigt ist wie
+# yfinances auto_adjust=True.
+#
+# Macht NICHT: keine Aenderung an Produktionscode, kein Commit, keine
+# Datei-Ausgabe (nur Klartext-Log im Actions-Lauf), kein Secret (beide
+# Quellen ohne Auth erreichbar).
+#
+# Nach der Diagnose: diese Datei wieder loeschen (eigener Folge-Schritt).
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: diag-stooq-vs-yfinance
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "yfinance>=0.2.40,<0.3" "pandas>=2.0,<3.0" "requests>=2.31,<3"
+
+      - name: Stooq vs. yfinance Vergleich
+        run: |
+          python3 - <<'PYEOF'
+          import sys
+          import time
+          from datetime import datetime, timedelta
+
+          import pandas as pd
+          import requests
+          import yfinance as yf
+
+          sys.path.insert(0, ".")
+          import config
+
+          US_TICKERS = config.US_UNIVERSE[:5]
+          DE_TICKERS = config.DE_UNIVERSE[:5]
+          TICKERS = US_TICKERS + DE_TICKERS
+
+          N_DAYS = 10
+          LOOKBACK_DAYS = 180  # genug Puffer fuer Ex-Dividende-Suche
+
+          def stooq_candidates(ticker: str) -> list[str]:
+              if ticker.endswith(".DE"):
+                  base = ticker[: -len(".DE")].lower()
+                  return [f"{base}.de", base]
+              base = ticker.lower()
+              return [f"{base}.us", base]
+
+          def fetch_stooq(symbol: str, d1: str, d2: str):
+              url = "https://stooq.com/q/d/l/"
+              params = {"s": symbol, "d1": d1, "d2": d2, "i": "d"}
+              t0 = time.monotonic()
+              try:
+                  resp = requests.get(url, params=params, timeout=15)
+              except Exception as exc:
+                  return None, None, None, f"{type(exc).__name__}: {exc}"
+              elapsed = time.monotonic() - t0
+              text = resp.text.strip()
+              if resp.status_code != 200:
+                  return None, resp.status_code, elapsed, f"HTTP {resp.status_code}"
+              if not text or text.startswith("Exceeded") or text == "N/D":
+                  return None, resp.status_code, elapsed, f"leer/kein Symbol: {text[:80]!r}"
+              try:
+                  from io import StringIO
+
+                  df = pd.read_csv(StringIO(text))
+              except Exception as exc:
+                  return None, resp.status_code, elapsed, f"CSV-Parse-Fehler: {exc}"
+              if "Date" not in df.columns or "Close" not in df.columns or df.empty:
+                  return None, resp.status_code, elapsed, f"unerwartete Spalten: {list(df.columns)}"
+              df["Date"] = pd.to_datetime(df["Date"])
+              df = df.set_index("Date").sort_index()
+              return df, resp.status_code, elapsed, None
+
+          def fetch_stooq_best(ticker: str, d1: str, d2: str):
+              errors = []
+              for cand in stooq_candidates(ticker):
+                  df, status, elapsed, err = fetch_stooq(cand, d1, d2)
+                  if df is not None:
+                      return cand, df, status, elapsed, None
+                  errors.append(f"{cand}: {err}")
+              return None, None, None, None, "; ".join(errors)
+
+          today = datetime.utcnow().date()
+          d1 = (today - timedelta(days=LOOKBACK_DAYS)).strftime("%Y%m%d")
+          d2 = today.strftime("%Y%m%d")
+
+          print("=" * 78)
+          print("STOOQ vs. YFINANCE -- Wegwerf-Diagnose")
+          print(f"UTC-Zeitpunkt: {datetime.utcnow().isoformat()}")
+          print(f"Ticker: {TICKERS}")
+          print("=" * 78)
+
+          results = {}
+
+          for ticker in TICKERS:
+              print(f"\n--- {ticker} ---")
+
+              t0 = time.monotonic()
+              try:
+                  yf_df = yf.download(
+                      ticker,
+                      period="6mo",
+                      interval="1d",
+                      auto_adjust=True,
+                      progress=False,
+                      threads=False,
+                  )
+                  yf_elapsed = time.monotonic() - t0
+                  if isinstance(yf_df.columns, pd.MultiIndex):
+                      yf_df.columns = yf_df.columns.get_level_values(0)
+              except Exception as exc:
+                  print(f"  yfinance FEHLER: {type(exc).__name__}: {exc}")
+                  continue
+
+              if yf_df is None or yf_df.empty:
+                  print("  yfinance: KEINE DATEN")
+                  continue
+
+              print(f"  yfinance: {len(yf_df)} Bars, Antwortzeit {yf_elapsed:.2f}s, "
+                    f"letzter Bar {yf_df.index.max().date()}")
+
+              symbol, stooq_df, status, elapsed, err = fetch_stooq_best(ticker, d1, d2)
+              if stooq_df is None:
+                  print(f"  Stooq FEHLSCHLAG: {err}")
+                  continue
+
+              print(f"  Stooq-Symbol gefunden: '{symbol}' (HTTP {status}, "
+                    f"Antwortzeit {elapsed:.2f}s)")
+              print(f"  Stooq: {len(stooq_df)} Bars, letzter Bar {stooq_df.index.max().date()}")
+
+              results[ticker] = (yf_df, stooq_df, symbol)
+
+              yf_last = yf_df.tail(N_DAYS)
+              common_dates = sorted(set(yf_last.index.date) & set(stooq_df.index.date))
+              missing_in_stooq = sorted(set(yf_last.index.date) - set(stooq_df.index.date))
+              print(f"  Letzte {N_DAYS} yfinance-Handelstage, davon in Stooq vorhanden: "
+                    f"{len(common_dates)}/{len(yf_last)}")
+              if missing_in_stooq:
+                  print(f"  In Stooq FEHLENDE Tage: {missing_in_stooq}")
+
+              print(f"  {'Datum':<12}{'Close yf':>12}{'Close stooq':>14}{'Diff':>10}{'Diff %':>10}")
+              for d in common_dates:
+                  yf_close = float(yf_df.loc[yf_df.index.date == d, "Close"].iloc[0])
+                  st_close = float(stooq_df.loc[stooq_df.index.date == d, "Close"].iloc[0])
+                  diff = st_close - yf_close
+                  diff_pct = (diff / yf_close * 100) if yf_close else float("nan")
+                  print(f"  {str(d):<12}{yf_close:>12.4f}{st_close:>14.4f}{diff:>10.4f}{diff_pct:>9.2f}%")
+
+              yf_max = yf_df.index.max().date()
+              st_max = stooq_df.index.max().date()
+              lag_days = (yf_max - st_max).days
+              print(f"  Datenverzug (yfinance-neuester minus Stooq-neuester): {lag_days} Tag(e) "
+                    f"(yf: {yf_max}, stooq: {st_max})")
+
+          print("\n" + "=" * 78)
+          print("DIVIDENDEN-/SPLIT-BEREINIGUNG (auto_adjust-Vergleich)")
+          print("=" * 78)
+
+          found_case = False
+          for ticker, (yf_df, stooq_df, symbol) in results.items():
+              try:
+                  divs = yf.Ticker(ticker).dividends
+              except Exception as exc:
+                  print(f"{ticker}: Dividenden-Abfrage fehlgeschlagen ({exc})")
+                  continue
+              if divs is None or divs.empty:
+                  continue
+              divs = divs[divs.index.date >= (today - timedelta(days=LOOKBACK_DAYS))]
+              if divs.empty:
+                  continue
+              ex_date = divs.index.max().date()
+              amount = float(divs.loc[divs.index.date == ex_date].iloc[0])
+              print(f"\n{ticker}: Ex-Dividende am {ex_date}, Betrag {amount:.4f}")
+              found_case = True
+
+              window = pd.date_range(ex_date - timedelta(days=3), ex_date + timedelta(days=3))
+              for d in window:
+                  d = d.date()
+                  yf_row = yf_df.loc[yf_df.index.date == d, "Close"]
+                  st_row = stooq_df.loc[stooq_df.index.date == d, "Close"]
+                  if yf_row.empty and st_row.empty:
+                      continue
+                  yf_val = f"{float(yf_row.iloc[0]):.4f}" if not yf_row.empty else "-"
+                  st_val = f"{float(st_row.iloc[0]):.4f}" if not st_row.empty else "-"
+                  marker = " <-- Ex-Datum" if d == ex_date else ""
+                  print(f"  {d}  yf={yf_val:>10}  stooq={st_val:>10}{marker}")
+              print("  Interpretation: springt Stooqs Close am Ex-Datum um ~den "
+                    "Dividendenbetrag nach unten, waehrend yfinance glatt "
+                    "durchlaeuft -> Stooq ist NICHT dividenden-bereinigt "
+                    "(yfinance mit auto_adjust=True schon).")
+
+          if not found_case:
+              print("\nKein Ex-Dividende-Termin im Beobachtungsfenster "
+                    f"({LOOKBACK_DAYS} Tage) bei den 10 Test-Tickern gefunden -- "
+                    "Bereinigungsfrage anhand dieser Stichprobe NICHT beantwortbar, "
+                    "siehe Log oben fuer rohe Closes zur manuellen Pruefung.")
+
+          print("\n" + "=" * 78)
+          print("ENDE DER DIAGNOSE")
+          print("=" * 78)
+          PYEOF
