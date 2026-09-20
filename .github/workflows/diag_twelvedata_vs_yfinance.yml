@@ -1,0 +1,254 @@
+name: Diagnose - Twelve Data vs. yfinance (Wegwerf)
+
+# TEMPORÄR. Reine Diagnose, KEIN Bestandteil der Pipeline.
+# Zweck: Stooq ist als Notfall-Fallback bereits gescheitert (alle 10
+# Test-Ticker HTTP 404, siehe vorige Diagnose). Twelve Data ist der
+# naechste Kandidat - DE-Abdeckung laut Symbol-Referenz vorhanden, jetzt
+# live zu pruefen. Sandbox hat keinen Netzzugriff - dieser Workflow
+# laeuft NUR hier, weil GitHub Actions echten Internetzugriff hat.
+#
+# Macht: 10 echte Ticker (5 US, 5 DE aus config.py) via yfinance UND
+# Twelve Data (time_series) abrufen, Abdeckung/Antwortzeit/letzten Bar/
+# Close-Abweichungen vergleichen, DE-Symbolformat ausprobieren
+# ("SAP.DE" vs. "SAP:XETR"), und die Antwortstruktur gegen das
+# bestehende Fetch-Schema (scripts/elliott_pipeline.py, FetchOutcome/
+# parse_download_df) einordnen.
+#
+# API-Key: NUR als einmaliges Eingabefeld beim manuellen Start (workflow_
+# dispatch input, TYPE STRING, KEIN Secret, KEIN Default). Wird NICHT
+# committet, NICHT als Secret angelegt, NIRGENDS geloggt - per
+# `::add-mask::` maskiert und in jeder Fehlerausgabe redigiert (Requests-
+# Exceptions koennen die volle URL inkl. Key enthalten).
+#
+# Macht NICHT: keine Aenderung an Produktionscode, kein Commit, keine
+# Datei-Ausgabe (nur Klartext-Log im Actions-Lauf).
+#
+# Nach der Diagnose: diese Datei wieder loeschen (eigener Folge-Schritt).
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_key:
+        description: "Twelve Data API-Key (nur fuer diesen einen Lauf, wird nicht gespeichert)"
+        required: true
+        type: string
+
+concurrency:
+  group: diag-twelvedata-vs-yfinance
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "yfinance>=0.2.40,<0.3" "pandas>=2.0,<3.0" "requests>=2.31,<3"
+
+      # Key NUR ueber env: in eine Variable heben (kein `${{ inputs.api_key }}`
+      # innerhalb eines `run:`-Skriptkoerpers - das wuerde den Klartext-Wert
+      # in den geloggten Skripttext einbetten). `::add-mask::` registriert den
+      # Wert zusaetzlich, damit jede spaetere zufaellige Ausgabe redigiert wird.
+      - name: API-Key maskieren
+        env:
+          TWELVEDATA_API_KEY: ${{ inputs.api_key }}
+        run: echo "::add-mask::$TWELVEDATA_API_KEY"
+
+      - name: Twelve Data vs. yfinance Vergleich
+        env:
+          TWELVEDATA_API_KEY: ${{ inputs.api_key }}
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          import os
+          import sys
+          import time
+          from datetime import datetime, timedelta
+          from io import StringIO
+
+          import pandas as pd
+          import requests
+          import yfinance as yf
+
+          sys.path.insert(0, ".")
+          import config
+
+          API_KEY = os.environ["TWELVEDATA_API_KEY"]
+          TD_URL = "https://api.twelvedata.com/time_series"
+          MIN_CALL_INTERVAL = 8.0  # Free-Tier: 8 Requests/Minute
+          _last_td_call = [0.0]
+
+          def redact(text: str) -> str:
+              return text.replace(API_KEY, "***") if API_KEY else text
+
+          def rate_limit():
+              wait = MIN_CALL_INTERVAL - (time.monotonic() - _last_td_call[0])
+              if wait > 0:
+                  time.sleep(wait)
+              _last_td_call[0] = time.monotonic()
+
+          US_TICKERS = config.US_UNIVERSE[:5]
+          DE_TICKERS = config.DE_UNIVERSE[:5]
+          TICKERS = US_TICKERS + DE_TICKERS
+          N_DAYS = 10
+
+          def td_candidates(ticker: str) -> list[str]:
+              if ticker.endswith(".DE"):
+                  base = ticker[: -len(".DE")]
+                  return [ticker, f"{base}:XETR"]
+              return [ticker]
+
+          def fetch_twelvedata(symbol: str):
+              rate_limit()
+              params = {
+                  "symbol": symbol,
+                  "interval": "1day",
+                  "outputsize": N_DAYS + 5,
+                  "apikey": API_KEY,
+              }
+              t0 = time.monotonic()
+              try:
+                  resp = requests.get(TD_URL, params=params, timeout=15)
+              except Exception as exc:
+                  return None, None, None, redact(f"{type(exc).__name__}: {exc}")
+              elapsed = time.monotonic() - t0
+              try:
+                  data = resp.json()
+              except Exception as exc:
+                  return None, resp.status_code, elapsed, redact(
+                      f"JSON-Parse-Fehler: {exc}"
+                  )
+              if isinstance(data, dict) and data.get("status") == "error":
+                  return None, resp.status_code, elapsed, redact(
+                      f"API-Fehler: {data.get('code')} {data.get('message')}"
+                  )
+              values = data.get("values") if isinstance(data, dict) else None
+              if not values:
+                  return None, resp.status_code, elapsed, redact(
+                      f"keine 'values' im Response: {json.dumps(data)[:200]}"
+                  )
+              df = pd.DataFrame(values)
+              df["datetime"] = pd.to_datetime(df["datetime"])
+              df = df.set_index("datetime").sort_index()
+              for col in ("open", "high", "low", "close", "volume"):
+                  if col in df.columns:
+                      df[col] = pd.to_numeric(df[col], errors="coerce")
+              return df, resp.status_code, elapsed, None
+
+          def fetch_td_best(ticker: str):
+              errors = []
+              for cand in td_candidates(ticker):
+                  df, status, elapsed, err = fetch_twelvedata(cand)
+                  if df is not None:
+                      return cand, df, status, elapsed, None
+                  errors.append(f"{cand}: {err}")
+              return None, None, None, None, "; ".join(errors)
+
+          print("=" * 78)
+          print("TWELVE DATA vs. YFINANCE -- Wegwerf-Diagnose")
+          print(f"UTC-Zeitpunkt: {datetime.utcnow().isoformat()}")
+          print(f"Ticker: {TICKERS}")
+          print("=" * 78)
+
+          schema_notes = []
+
+          for ticker in TICKERS:
+              print(f"\n--- {ticker} ---")
+
+              t0 = time.monotonic()
+              try:
+                  yf_df = yf.download(
+                      ticker,
+                      period="1mo",
+                      interval="1d",
+                      auto_adjust=True,
+                      progress=False,
+                      threads=False,
+                  )
+                  yf_elapsed = time.monotonic() - t0
+                  if isinstance(yf_df.columns, pd.MultiIndex):
+                      yf_df.columns = yf_df.columns.get_level_values(0)
+              except Exception as exc:
+                  print(f"  yfinance FEHLER: {type(exc).__name__}: {exc}")
+                  continue
+
+              if yf_df is None or yf_df.empty:
+                  print("  yfinance: KEINE DATEN")
+                  continue
+
+              print(f"  yfinance: {len(yf_df)} Bars, Antwortzeit {yf_elapsed:.2f}s, "
+                    f"letzter Bar {yf_df.index.max().date()}, "
+                    f"Spalten={list(yf_df.columns)}")
+
+              symbol, td_df, status, elapsed, err = fetch_td_best(ticker)
+              if td_df is None:
+                  print(f"  Twelve Data FEHLSCHLAG: {err}")
+                  continue
+
+              print(f"  Twelve-Data-Symbol gefunden: '{symbol}' (HTTP {status}, "
+                    f"Antwortzeit {elapsed:.2f}s)")
+              print(f"  Twelve Data: {len(td_df)} Bars, letzter Bar {td_df.index.max().date()}, "
+                    f"Spalten={list(td_df.columns)}")
+              if not schema_notes:
+                  schema_notes.append(
+                      f"Twelve-Data-Rohspalten (Beispiel {ticker}): {list(td_df.columns)}, "
+                      f"Index-Name '{td_df.index.name}' (datetime, absteigend geliefert, "
+                      "hier aufsteigend sortiert)"
+                  )
+
+              yf_last = yf_df.tail(N_DAYS)
+              common_dates = sorted(set(yf_last.index.date) & set(td_df.index.date))
+              missing_in_td = sorted(set(yf_last.index.date) - set(td_df.index.date))
+              print(f"  Letzte {N_DAYS} yfinance-Handelstage, davon in Twelve Data vorhanden: "
+                    f"{len(common_dates)}/{len(yf_last)}")
+              if missing_in_td:
+                  print(f"  In Twelve Data FEHLENDE Tage: {missing_in_td}")
+
+              print(f"  {'Datum':<12}{'Close yf':>12}{'Close td':>14}{'Diff':>10}{'Diff %':>10}")
+              for d in common_dates:
+                  yf_close = float(yf_df.loc[yf_df.index.date == d, "Close"].iloc[0])
+                  td_close = float(td_df.loc[td_df.index.date == d, "close"].iloc[0])
+                  diff = td_close - yf_close
+                  diff_pct = (diff / yf_close * 100) if yf_close else float("nan")
+                  print(f"  {str(d):<12}{yf_close:>12.4f}{td_close:>14.4f}{diff:>10.4f}{diff_pct:>9.2f}%")
+
+              yf_max = yf_df.index.max().date()
+              td_max = td_df.index.max().date()
+              lag_days = (yf_max - td_max).days
+              print(f"  Datenverzug (yfinance-neuester minus Twelve-Data-neuester): "
+                    f"{lag_days} Tag(e) (yf: {yf_max}, td: {td_max})")
+
+          print("\n" + "=" * 78)
+          print("SCHEMA-VERGLEICH (elliott_pipeline.py in scripts/: FetchOutcome/parse_download_df)")
+          print("=" * 78)
+          print("Bestehendes Schema erwartet je Ticker: dates: List[str], closes: List[float]")
+          print("  (+ optional volumes, High/Low fuer ATR(14) -- siehe FetchOutcome).")
+          print("yfinance liefert das bereits normalisiert (DatetimeIndex, Spalten")
+          print("  Open/High/Low/Close/Volume, aufsteigend sortiert).")
+          for note in schema_notes:
+              print(f"Twelve Data: {note}")
+          print("Twelve Data liefert JSON {'values': [{'datetime','open','high','low',")
+          print("  'close','volume'}, ...]} , ABSTEIGEND sortiert, alle Werte als Strings --")
+          print("  ein Adapter waere noetig: (1) 'values' -> DataFrame, (2) Strings -> float,")
+          print("  (3) Sortierung umkehren, (4) Spalten umbenennen (datetime->Date, close->Close,")
+          print("  ...), (5) FetchOutcome.data als (dates, closes)-Tupel bauen. Kein direkter")
+          print("  Drop-in fuer parse_download_df (das ist yfinance-spezifisch/MultiIndex-Handling).")
+
+          print("\n" + "=" * 78)
+          print("ENDE DER DIAGNOSE")
+          print("=" * 78)
+          PYEOF
