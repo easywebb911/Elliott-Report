@@ -105,6 +105,28 @@ def test_fetch_twelvedata_api_fehlermeldung(monkeypatch):
     assert "unbekanntes Symbol" in outcome.detail
 
 
+def test_fetch_twelvedata_api_fehlermeldung_redigiert_key_falls_enthalten(monkeypatch):
+    """Konsistenz-Fix (Guardian-Nit aus #136): dieselbe Redaction-Probe wie
+    bei Alpha Vantages 'Error Message'-Zweig, hier für Twelve Datas
+    status=='error'-Zweig — die API-Fehlerantwort selbst enthaelt den Key
+    normalerweise nicht, aber falls Twelve Data ihn je in 'message'
+    spiegelt (z. B. eine ungueltige Anfrage zitiert zurueck), darf er nicht
+    durchrutschen."""
+    geheim = "sk-super-geheimer-td-key"
+    _set_key(monkeypatch, value=geheim)
+    monkeypatch.setattr(
+        pipe, "_twelvedata_get",
+        lambda params, timeout: _FakeResponse(
+            {"code": 400, "message": f"ungueltige Anfrage mit apikey={geheim}",
+             "status": "error"}
+        ),
+    )
+    outcome = pipe.fetch_twelvedata("XXXNOPE")
+    assert outcome.data is None
+    assert geheim not in outcome.detail
+    assert "***" in outcome.detail
+
+
 def test_fetch_twelvedata_leere_values(monkeypatch):
     _set_key(monkeypatch)
     monkeypatch.setattr(

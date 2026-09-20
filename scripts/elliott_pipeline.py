@@ -395,9 +395,16 @@ def fetch_twelvedata(ticker: str) -> FetchOutcome:
         )
         data = resp.json()
         if isinstance(data, dict) and data.get("status") == "error":
+            # Konsistenz-Fix (Guardian-Nit aus #136): derselbe Redaction-
+            # Schutz wie bei Alpha Vantages "Error Message"-Zweig — Twelve
+            # Data könnte den Key theoretisch in einer Fehlermeldung
+            # spiegeln (z. B. eine ungültige Anfrage zitiert zurück).
             return FetchOutcome(
                 reason=FETCH_ERROR,
-                detail=f"Twelve-Data-API-Fehler: {data.get('code')} {data.get('message')}",
+                detail=_redact(
+                    f"Twelve-Data-API-Fehler: {data.get('code')} {data.get('message')}",
+                    api_key,
+                ),
             )
         values = data.get("values") if isinstance(data, dict) else None
         if not values:
