@@ -39,6 +39,10 @@ NEUTRALE_UMGEBUNG = (
     # lesen das Secret. Ohne Wegräumen könnte ein Läufer mit zufällig
     # gesetztem Key den Fallback-Zweig ungewollt anspringen lassen.
     "TWELVE_DATA_API_KEY",
+    # Alpha-Vantage-Notfall-Fallback (Diagnose #132/#134/#135, 20.09.2026):
+    # elliott_pipeline.fetch_alphavantage / _make_yfinance_with_av_fallback
+    # lesen das Secret. Gleicher Grund wie bei TWELVE_DATA_API_KEY oben.
+    "ALPHA_VANTAGE_API_KEY",
 )
 
 

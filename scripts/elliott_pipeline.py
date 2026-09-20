@@ -473,6 +473,205 @@ def _make_yfinance_with_td_fallback() -> Fetcher:
     return _fetch
 
 
+# ---------------------------------------------------------------------------
+# ALPHA-VANTAGE-FALLBACK (Notfall, NUR DE-Ticker — s. Diagnose #132/#134/#135)
+# ---------------------------------------------------------------------------
+# Diagnose bestätigt: Alpha Vantage taugt als Notfall-Fallback für DE-Ticker
+# (alle 5 Test-Ticker, Kurse identisch zu yfinance, kein Verzug) — Twelve
+# Data scheitert bei DE an einer Bezahlschranke (#132/#134). Springt NUR
+# ein, wenn yfinance für EINEN EINZELNEN Ticker fehlschlägt/leer bleibt —
+# nie für das ganze Universum (s. _make_yfinance_with_av_fallback unten).
+# Braucht das Secret ALPHA_VANTAGE_API_KEY (von Easy manuell in den Repo-
+# Settings eingetragen, NICHT im Code).
+#
+# Gleiche Struktur/Namenskonvention wie der Twelve-Data-Fallback oben —
+# bewusst NICHT zur selben Funktion zusammengelegt: unterschiedliche
+# Antwortformate (Alpha Vantage liefert ein verschachteltes Dict mit
+# "1. open"-Präfixen statt einer Liste, UND probiert mehrere Symbol-
+# Kandidaten je Ticker) hätten eine gemeinsame Funktion nur künstlich
+# verkompliziert, ohne echten Code zu sparen.
+ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
+
+
+def _alphavantage_get(params: Dict[str, object], timeout: int):  # pragma: no cover
+    """Dünner HTTP-Wrapper — NUR damit Tests ihn ersetzen können (kein Netz
+    nötig), analog zu _twelvedata_get/notify._post."""
+    import requests  # noqa: WPS433 — lazy, wie yfinance
+
+    return requests.get(ALPHA_VANTAGE_URL, params=params, timeout=timeout)
+
+
+def _alphavantage_candidates(ticker: str) -> List[str]:
+    """Symbol-Kandidaten für Alpha Vantage (Diagnose #135): `.DE`-Ticker
+    probieren erst das Original, dann `.DEX`, dann die `XETRA:`-Notation."""
+    if ticker.endswith(".DE"):
+        base = ticker[: -len(".DE")]
+        return [ticker, f"{base}.DEX", f"XETRA:{base}"]
+    return [ticker]
+
+
+def _alphavantage_values_to_df(time_series: Dict[str, Dict[str, str]]):
+    """Adapter: Alpha-Vantage-`Time Series (Daily)` -> DataFrame im selben
+    Schema wie ein normalisierter yfinance-Download (DatetimeIndex
+    aufsteigend, Spalten Open/High/Low/Close/Volume) — direkt kompatibel zu
+    `parse_download_df`. KEIN Nachbau von `_twelvedata_values_to_df` (dort
+    Liste von Dicts, hier ein verschachteltes Dict je Datum) — eigener
+    Adapter, wie im Auftrag verlangt.
+
+    Alpha Vantage liefert {datum: {"1. open": ..., "2. high": ..., ...}}
+    (numerisch präfigierte Spaltennamen, alle Werte als STRINGS,
+    ABSTEIGEND als Dict-Reihenfolge) — Dict -> DataFrame (Datum als
+    Spalte statt Zeile), Spalten umbenennen, Strings -> float, aufsteigend
+    sortieren.
+    """
+    import pandas as pd  # noqa: WPS433 — lazy, wie yfinance
+
+    rows = [{"datetime": d, **v} for d, v in time_series.items()]
+    df = pd.DataFrame(rows)
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    df = df.set_index("datetime").sort_index()
+    df.index.name = None
+    df = df.rename(columns={
+        "1. open": "Open", "2. high": "High", "3. low": "Low",
+        "4. close": "Close", "5. volume": "Volume",
+    })
+    for col in ("Open", "High", "Low", "Close", "Volume"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def _fetch_alphavantage_symbol(symbol: str, api_key: str) -> FetchOutcome:
+    """EIN Alpha-Vantage-Symbol abrufen (Kandidaten-Fallback macht die
+    aufrufende `fetch_alphavantage`). Redigiert den Key in JEDER
+    Fehlerausgabe von Anfang an — Lehre aus dem #134-Guardian-Nit direkt
+    hier eingebaut, statt wie dort erst nachträglich gefixt."""
+    try:
+        resp = _alphavantage_get(
+            {
+                "function": "TIME_SERIES_DAILY",
+                "symbol": symbol,
+                "outputsize": "compact",  # letzte ~100 Handelstage, reicht für MIN_BARS
+                "apikey": api_key,
+            },
+            timeout=20,
+        )
+        data = resp.json()
+        if isinstance(data, dict) and "Error Message" in data:
+            return FetchOutcome(
+                reason=FETCH_ERROR,
+                detail=_redact(f"Alpha-Vantage-Fehler: {data['Error Message']}", api_key),
+            )
+        if isinstance(data, dict) and "Note" in data:
+            return FetchOutcome(
+                reason=FETCH_ERROR,
+                detail=_redact(f"Alpha-Vantage-Rate-Limit: {data['Note']}", api_key),
+            )
+        if isinstance(data, dict) and "Information" in data:
+            return FetchOutcome(
+                reason=FETCH_ERROR,
+                detail=_redact(f"Alpha-Vantage-Hinweis: {data['Information']}", api_key),
+            )
+        time_series = data.get("Time Series (Daily)") if isinstance(data, dict) else None
+        if not time_series:
+            return FetchOutcome(
+                reason=EMPTY_DATA,
+                detail=_redact(
+                    "Alpha Vantage: keine 'Time Series (Daily)' im Response "
+                    f"(keys={list(data) if isinstance(data, dict) else type(data)})",
+                    api_key,
+                ),
+            )
+        df = _alphavantage_values_to_df(time_series)
+        outcome = parse_download_df(df)
+        if outcome.data is not None:
+            outcome.source = "alphavantage_fallback"
+        return outcome
+    except Exception as exc:  # noqa: BLE001 — fail-soft, wie fetch_yfinance
+        # Key-Exposure-Check von Anfang an (Lehre aus #134): eine requests/
+        # urllib3-Exception kann die volle Request-URL inkl. apikey=...
+        # tragen.
+        return FetchOutcome(
+            reason=FETCH_ERROR,
+            detail=_redact(
+                f"Alpha-Vantage-Fallback: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+                api_key,
+            ),
+        )
+
+
+def fetch_alphavantage(ticker: str) -> FetchOutcome:
+    """Holt Tageskerzen von Alpha Vantage (Notfall-Fallback, NUR DE).
+
+    Wird NUR aus `_make_yfinance_with_av_fallback` aufgerufen, die bereits
+    geprüft hat, dass der Ticker ein `.DE`-Suffix trägt und ein API-Key
+    vorliegt — diese Funktion bleibt trotzdem eigenständig fail-soft, falls
+    sie je anders aufgerufen wird. Probiert die Symbol-Kandidaten aus
+    `_alphavantage_candidates` der Reihe nach (Diagnose #135: welches
+    Format greift, war vorab nicht für jeden Ticker sicher) und nimmt den
+    ERSTEN Treffer; der letzte Fehlschlag wird gemeldet, falls KEINER greift.
+    """
+    api_key = os.environ.get("ALPHA_VANTAGE_API_KEY")
+    if not api_key:
+        return FetchOutcome(
+            reason=FETCH_ERROR, detail="ALPHA_VANTAGE_API_KEY nicht gesetzt",
+        )
+    last = FetchOutcome(reason=FETCH_ERROR, detail="keine Symbol-Kandidaten")
+    for symbol in _alphavantage_candidates(ticker):
+        last = _fetch_alphavantage_symbol(symbol, api_key)
+        if last.data is not None:
+            return last
+    return last
+
+
+def _make_yfinance_with_av_fallback() -> Fetcher:
+    """Baut den täglichen Fetcher: yfinance zuerst, Alpha Vantage NUR als
+    Notfall für EINZELNE fehlgeschlagene DE-Ticker (`.DE`-Suffix).
+
+    Gleiche Struktur wie `_make_yfinance_with_td_fallback` (eigene Zähl-
+    Klausur je Aufruf/Closure, gleiche Guard-Reihenfolge, gleicher Log-
+    Wortlaut) — bewusst NICHT zusammengelegt, s. Kommentar oben bei
+    ALPHA_VANTAGE_URL. Über `config.ALPHA_VANTAGE_MAX_FALLBACK_CALLS`
+    hinaus wird der Fallback für den Rest DIESES Laufs übersprungen (fail-
+    soft, wie vorher: Ticker bleibt einfach übersprungen).
+    """
+    calls = {"n": 0}
+
+    def _fetch(ticker: str) -> FetchOutcome:
+        outcome = fetch_yfinance(ticker)
+        if outcome.data is not None:
+            return outcome
+        if not ticker.endswith(".DE"):
+            return outcome  # Auftrag: Fallback NUR für DE-Ticker
+        if not os.environ.get("ALPHA_VANTAGE_API_KEY"):
+            return outcome  # kein Secret gesetzt -> kein Fallback, fail-soft
+        if calls["n"] >= config.ALPHA_VANTAGE_MAX_FALLBACK_CALLS:
+            _log(
+                f"[elliott][diag] {ticker}: yfinance fehlgeschlagen "
+                f"({outcome.reason}) — Alpha-Vantage-Fallback-Limit "
+                f"({config.ALPHA_VANTAGE_MAX_FALLBACK_CALLS}/Lauf) bereits "
+                f"erreicht, KEIN Fallback-Versuch."
+            )
+            return outcome
+        calls["n"] += 1
+        fallback = fetch_alphavantage(ticker)
+        if fallback.data is None:
+            _log(
+                f"[elliott][diag] {ticker}: yfinance fehlgeschlagen "
+                f"({outcome.reason}) — Alpha-Vantage-Fallback EBENFALLS "
+                f"fehlgeschlagen ({fallback.reason}: {fallback.detail})"
+            )
+            return outcome
+        _log(
+            f"[elliott][diag] {ticker}: yfinance fehlgeschlagen "
+            f"({outcome.reason}) — ÜBER ALPHA-VANTAGE-FALLBACK geladen "
+            f"({len(fallback.data[0])} Bars)."
+        )
+        return fallback
+
+    return _fetch
+
+
 def _extract_bars(df):
     """Datum/Close/Volumen in EINEM ausgerichteten Durchgang — die Quelle.
 
@@ -749,14 +948,29 @@ def fetch_synthetic_monthly(ticker: str) -> FetchOutcome:
 
 
 def get_fetcher() -> Fetcher:
-    """Wählt Fetcher nach Umgebungsvariable (Default: yfinance + Twelve-Data-
-    Notfall-Fallback für einzelne fehlgeschlagene US-Ticker, s. Diagnose
-    #132/#133). NUR der tägliche Fetcher bekommt den Fallback — Wochen-/
-    Monatsgrad (get_weekly_fetcher/get_monthly_fetcher) bleiben unverändert
-    reines yfinance (kleinerer Auftrag, kein Fallback-Bedarf belegt)."""
+    """Wählt Fetcher nach Umgebungsvariable (Default: yfinance + Notfall-
+    Fallback für einzelne fehlgeschlagene Ticker — Twelve Data für US, s.
+    Diagnose #132/#133, Alpha Vantage für DE, s. Diagnose #132/#134/#135).
+    NUR der tägliche Fetcher bekommt die Fallbacks — Wochen-/Monatsgrad
+    (get_weekly_fetcher/get_monthly_fetcher) bleiben unverändert reines
+    yfinance (kleinerer Auftrag, kein Fallback-Bedarf belegt).
+
+    EIN yfinance-Aufruf je Ticker: die beiden Fallback-Wrapper rufen intern
+    selbst `fetch_yfinance` zuerst auf, deshalb wird hier je Ticker NUR
+    GENAU EINER der beiden aufgerufen (Dispatch nach `.DE`-Suffix) — kein
+    doppelter yfinance-Call.
+    """
     if os.environ.get("ELLIOTT_OFFLINE") == "1":
         return fetch_synthetic
-    return _make_yfinance_with_td_fallback()
+    td_fallback = _make_yfinance_with_td_fallback()
+    av_fallback = _make_yfinance_with_av_fallback()
+
+    def _fetch(ticker: str) -> FetchOutcome:
+        if ticker.endswith(".DE"):
+            return av_fallback(ticker)
+        return td_fallback(ticker)
+
+    return _fetch
 
 
 def get_weekly_fetcher() -> Fetcher:

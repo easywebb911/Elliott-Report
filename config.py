@@ -133,6 +133,25 @@ TWELVE_DATA_OUTPUTSIZE = 500        # ~2 Jahre Handelstage, spiegelt DATA_PERIOD
 TWELVE_DATA_MAX_FALLBACK_CALLS = 20
 
 # ---------------------------------------------------------------------------
+# ALPHA-VANTAGE-FALLBACK (Notfall, NUR DE-Ticker — s. Diagnose #132/#134/#135)
+# ---------------------------------------------------------------------------
+# Springt NUR ein, wenn yfinance für EINEN EINZELNEN DE-Ticker (.DE-Suffix)
+# fehlschlägt/leer bleibt UND das Secret ALPHA_VANTAGE_API_KEY gesetzt ist
+# — sonst bleibt das Verhalten exakt wie vorher (fail-soft, Ticker wird
+# übersprungen). Ergänzt den Twelve-Data-Fallback (US, oben): Twelve Data
+# scheitert bei DE an einer Bezahlschranke (Diagnose #132), Alpha Vantage
+# deckt DE laut Diagnose #135 ab. Details: scripts/elliott_pipeline.py,
+# fetch_alphavantage / _make_yfinance_with_av_fallback.
+# Obergrenze an Fallback-CALLS pro Pipeline-Lauf (Tag; Wochen-/Monatsgrad
+# nutzen den Fallback nicht mit). Schützt gegen einen yfinance-Totalausfall,
+# der sonst das GANZE Universum gegen Alpha Vantage würfe (Free-Tier: 500
+# Requests/Tag) statt nur einzelne fehlgeschlagene Ticker. Niedriger als
+# TWELVE_DATA_MAX_FALLBACK_CALLS, weil jeder DE-Ticker bis zu 3 Symbol-
+# Kandidaten probieren kann (s. _alphavantage_candidates) — bei vollem
+# Ausschöpfen also bis zu 3x so viele Requests je Fallback-Ticker.
+ALPHA_VANTAGE_MAX_FALLBACK_CALLS = 15
+
+# ---------------------------------------------------------------------------
 # ZIGZAG / PIVOT-ENGINE
 # ---------------------------------------------------------------------------
 # Symmetrisches Bestätigungs-Fenster: ein Bar i ist erst dann ein bestätigter
