@@ -129,6 +129,26 @@ def test_fetch_twelvedata_netzfehler_ist_fail_soft(monkeypatch):
     assert "ConnectionError" in outcome.detail
 
 
+def test_fetch_twelvedata_netzfehler_redigiert_den_api_key(monkeypatch):
+    """Guardian-Nit: eine requests/urllib3-Exception kann die VOLLE Request-
+    URL inkl. `apikey=...` in ihrer Message tragen — die darf nicht
+    unredigiert im detail (-> Actions-Log) landen."""
+    geheim = "sk-super-geheimer-twelvedata-key"
+    _set_key(monkeypatch, value=geheim)
+
+    def _raise(params, timeout):
+        raise ConnectionError(
+            f"Connection refused: https://api.twelvedata.com/time_series"
+            f"?symbol=AAPL&apikey={geheim}"
+        )
+
+    monkeypatch.setattr(pipe, "_twelvedata_get", _raise)
+    outcome = pipe.fetch_twelvedata("AAPL")
+    assert outcome.data is None
+    assert geheim not in outcome.detail
+    assert "***" in outcome.detail
+
+
 # ---------------------------------------------------------------------------
 # _make_yfinance_with_td_fallback — WANN springt der Fallback ein?
 # ---------------------------------------------------------------------------

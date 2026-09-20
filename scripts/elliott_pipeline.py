@@ -358,6 +358,15 @@ def _twelvedata_values_to_df(values: List[Dict[str, str]]):
     return df
 
 
+def _redact(text: str, secret: Optional[str]) -> str:
+    """Ersetzt `secret` in `text` durch `***` — falls gesetzt und nicht leer.
+    Schützt Log-/Detail-Ausgaben davor, den Twelve-Data-API-Key über eine
+    Exception-Message (die die volle Request-URL enthalten kann) preiszugeben."""
+    if not secret:
+        return text
+    return text.replace(secret, "***")
+
+
 def fetch_twelvedata(ticker: str) -> FetchOutcome:
     """Holt Tageskerzen von Twelve Data (Notfall-Fallback).
 
@@ -402,9 +411,16 @@ def fetch_twelvedata(ticker: str) -> FetchOutcome:
             outcome.source = "twelvedata_fallback"
         return outcome
     except Exception as exc:  # noqa: BLE001 — fail-soft, wie fetch_yfinance
+        # Guardian-Nit: eine requests/urllib3-Exception kann die VOLLE
+        # Request-URL inkl. `apikey=...` in ihrer Message tragen — die landet
+        # sonst unredigiert im Actions-Log (detail geht NUR ins Log/first_
+        # samples, NIE in report.json, aber "nie geloggt" war der Auftrag).
         return FetchOutcome(
             reason=FETCH_ERROR,
-            detail=f"Twelve-Data-Fallback: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+            detail=_redact(
+                f"Twelve-Data-Fallback: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+                api_key,
+            ),
         )
 
 
