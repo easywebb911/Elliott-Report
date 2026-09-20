@@ -202,6 +202,10 @@ jobs:
           # fehlgeschlagene US-Ticker): fehlt das Secret, ist der Fallback
           # ein no-op (fail-soft) — der Lauf verhält sich exakt wie vorher.
           TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+          # Alpha-Vantage-Notfall-Fallback (Diagnose #132/#134/#135, NUR
+          # einzelne fehlgeschlagene DE-Ticker): dieselbe Verdrahtungsregel,
+          # fehlt es, no-op (fail-soft).
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
         run: python scripts/elliott_pipeline.py
 
       - name: Validate report JSON
