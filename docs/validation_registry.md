@@ -1563,3 +1563,57 @@ vor n ≥ 100) gilt unverändert.
   Revert = diesen PR zurücknehmen (`stale_markets()` fällt auf
   `bar_lag_trading_days` zurück); kein Datenstand wird ungültig, keine
   gemessene Zahl ändert sich, diese Notiz bleibt gültig.
+
+- **2026-09-20 — Proaktiver Fehler-Wächter (Selbstwartung Stufe 4, Entwurf,
+  Phase 1) + erweiterte Autonomie-Regel für künftige Selbst-Merges.**
+  Nächste Stufe nach #111 (Struktur-Wächter, nur MELDEN) und
+  `daily_retry_watcher.yml` (Stufe 3, ein einziger Aktionstyp: Retry nach
+  Fehlschlag). Neu: `scripts/proactive_watcher.py` +
+  `.github/workflows/proactive_watcher.yml` suchen nach jedem erfolgreichen
+  Tageslauf AKTIV, ohne Anlass, nach fünf bekannten Fehlerklassen
+  (Testdaten-Drift #115/#117/#120, veraltete Feld-Referenzen in
+  Kommentaren, fehlende Registry-Einträge, Key-Exposure-Muster #134/#136/
+  #137, Struktur-Inkonsistenz zwischen parallelem Code) und klassifizieren
+  jeden Fund gegen dieselbe rote Linie, die Guardian für Manual-Merge-Fälle
+  bereits prüft: Score-Logik, Sammlungs-Gate, `evaluate.py`, die drei
+  Qualitäts-Marker, die Auswertungsregel (`EVAL_MIN_N`/`eval_counts`).
+  - **Rote-Linie-Klassifikation ist dateibasiert, nicht zeilenbasiert, und
+    IMMER konservativ.** `beruehrt_rote_linie()` kennt eine feste Liste
+    roter Pfade (u. a. `scripts/elliott_pipeline.py`,
+    `scripts/forward_collection.py`, `scripts/evaluate.py`, die drei
+    Marker-Skripte, `config.py`) und eine eng gefasste Allowlist sicherer
+    Pfade (`tests/`, `.claude/agents/`, `*.md`). JEDER nicht gelistete Pfad
+    — auch `docs/index.html` (Frontend-Code, keine reine Doku) und
+    Workflow-YAML — fällt auf „rote Linie" zurück, ebenso eine leere Liste.
+    Mutationsgeprüft in `tests/test_proactive_watcher.py`.
+  - **PHASE 1 (gebaut, getestet, in diesem PR): rein lesend.** Scan +
+    Klassifikation + EIN zusammenfassender ntfy-Push pro Lauf (kein
+    Einzel-Alarm je Fund). MD5-Integritätsprüfung vor/nach dem Scan
+    (Muster aus `midday_report_refresh.yml`) beweist: der Wächter selbst
+    verändert nichts. 29+ Wert-Tests je Fehlerklasse, eigene
+    Mutationsprobe an der Klassifikation.
+  - **PHASE 2 (bewusst NICHT gebaut): automatisches Fixen + Testen +
+    Guardian + Self-Merge** für Funde ohne rote Linie, sowie automatisch
+    erstellte Draft-PRs MIT Lösungsvorschlag für Funde MIT roter Linie.
+    Begründung: ein deterministisches Skript kann einen veralteten
+    Kommentar nicht sinnvoll neu formulieren oder einen Registry-Eintrag
+    inhaltlich verfassen — das braucht ein Modell im Loop, nicht nur
+    Heuristik, und damit eine eigene Sicherheits-Architektur (Sandbox,
+    Budget, Abbruch-Kriterien), die ein eigener, späterer Auftrag sein
+    sollte statt hier mitgebaut zu werden.
+  - **Erweiterte Autonomie-Regel (Rahmen für Phase 2, noch nicht
+    umgesetzt):** Tests/Doku/Kosmetik/Guardian-bestätigte Konsistenz-Nits
+    (kein roter-Linie-Pfad betroffen) dürften künftig ohne Easys Anstoß
+    gefixt, getestet, von Guardian gegengelesen und selbst gemergt werden.
+    Alles mit roter-Linie-Berührung bleibt IMMER Diagnose + Draft-PR, NIE
+    Self-Merge — auch nicht bei vermeintlich kleinen Änderungen daran.
+    Kalibrierungslauf am 20.09.2026 gegen den echten Baum: von ursprünglich
+    97 Rohfunden (v1-Heuristik) blieben nach Präzisions-Nachbesserung 15
+    (3 ohne rote Linie, 12 mit) — als Beleg dafür, dass die Detektoren vor
+    Produktiv-Einsatz kalibriert werden müssen, nicht blind vertraut werden
+    dürfen (siehe PR-Text für den vollen Vorher/Nachher-Vergleich).
+  Revert = diesen PR zurücknehmen (`scripts/proactive_watcher.py` +
+  `.github/workflows/proactive_watcher.yml` löschen, dieser Eintrag bleibt
+  als Diagnose-Notiz stehen); kein Datenstand betroffen, kein Score/Gate/
+  Auswertungscode berührt (reiner Lese-Wächter, siehe Guardian-Urteil im
+  PR).
