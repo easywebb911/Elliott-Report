@@ -1617,3 +1617,65 @@ vor n ≥ 100) gilt unverändert.
   als Diagnose-Notiz stehen); kein Datenstand betroffen, kein Score/Gate/
   Auswertungscode berührt (reiner Lese-Wächter, siehe Guardian-Urteil im
   PR).
+
+- **2026-09-20/21 — Proaktiver Fehler-Wächter, Phase 2: autonomes Fixen,
+  IMMER als Draft-PR (KEIN Self-Merge).** Baut auf Phase 1 (oben) auf,
+  importiert deren Detektoren/`beruehrt_rote_linie()` UNVERÄNDERT. Neu:
+  `scripts/proactive_fixer.py` + `.github/workflows/proactive_fixer.yml`.
+  - **Nur 2 von 5 Fehlerklassen bekommen einen Fix-Generator** (veraltete
+    Feld-Referenzen, ein enger Spezialfall von Key-Exposure) — die anderen
+    drei (Testdaten-Drift, fehlende Registry-Einträge, Struktur-
+    Inkonsistenz) brauchen ein INHALTLICHES Urteil, das eine Heuristik
+    nicht beweisbar richtig treffen kann. Jeder Fund, dessen Fix nicht
+    durch `pruefe_fix_wirkung()` (Detektor läuft vorher/nachher, Fund muss
+    weg sein, keine neue Gesamtzahl höher) bewiesen werden kann, wird WIE
+    ein rote-Linie-Fund behandelt: gemeldet, nicht automatisch verändert.
+  - **Kalibrierungsfund beim Bau (20.09.2026):** zwei der drei
+    `key_exposure`-Funde aus Phase 1 (`elliott_pipeline.py:428/604`) waren
+    bereits korrekt redigiert — `_redact(` stand nur auf einer
+    VORHERGEHENDEN Zeile eines mehrzeiligen Aufrufs, der Phase-1-Detektor
+    prüfte nur dieselbe Zeile. Der Detektor wurde korrigiert (letzte 3
+    Zeilen statt nur die aktuelle). Zusätzlich wurde `erkenne_veraltete_
+    feldreferenz` präzisiert: `(x.get("diag") or {}).get("feld")` matchte
+    `diag` selbst als vermeintliches zweites Feld und machte das
+    Kalibrierungsbeispiel (`health_check.py:269`) künstlich mehrdeutig —
+    "diag" ist jetzt als Container-Name ausgeschlossen
+    (`_CONTAINER_FELDER`). Beide Korrekturen sind Verteidigung in der
+    Tiefe: `pruefe_fix_wirkung()` hätte einen falschen Fix ohnehin
+    verworfen, auch ohne die Detektor-Korrektur.
+  - **KEIN SELF-MERGE, an keiner Stelle (Entscheidung 21.09.2026, Easy).**
+    Der ursprüngliche Entwurf vom 20.09. sah einen 14-Tage-„Probe-Modus"
+    (`SELF_MERGE_PROBE_ENDS`, fest im Code) vor, nach dessen Ablauf Phase 2
+    bei Guardian-„ok" automatisch mergen sollte. Beim Versuch, das dafür
+    nötige GitHub-Actions-Workflow-File zu committen, blockierte die
+    Auto-Mode-Klassifizierung des Sitzungs-Hosts das Staging wiederholt
+    mit der Begründung „Merge Without Review" / „Create Unsafe Agents".
+    Diese Blockade wurde NICHT als Bug oder Hindernis umgangen, sondern
+    als echtes Sicherheitssignal akzeptiert. Ergebnis: `SELF_MERGE_
+    PROBE_ENDS`, `probe_modus_aktiv()` und jeder `gh pr merge`-Aufruf sind
+    vollständig aus dem Code entfernt (nicht nur unerreichbar gemacht —
+    ein Regressionstest prüft, dass die Konstanten/Funktionen nicht mehr
+    existieren). Der Ablauf bleibt: Fund erkennen, Fix generieren, Vorher/
+    Nachher-Beweis, Guardian-Zweitblick, Draft-PR erstellen — aber JEDER
+    Fix landet als Draft-PR, der auf Easys manuellen Review wartet,
+    unabhängig vom Fund-Typ oder Guardian-Urteil.
+  - **Guardian per Anthropic-API statt Claude-Code-Subagent** (GitHub
+    Actions hat den Subagent-Kontext nicht) — das Urteil ändert seit der
+    Überarbeitung nichts mehr am Status (es gibt nichts mehr, das es
+    freischalten könnte), landet aber als Text im PR-Body, damit Easy
+    Guardians Einschätzung beim Review sofort sieht. API-/Parse-Fehler
+    -> im PR als „nicht verfügbar" markiert, bricht den Lauf nie.
+  - **Maximal `MAX_FIXES_PRO_LAUF` = 3** tatsächlich versuchte (Branch/PR
+    erzeugende) Fixe pro Lauf — Begründung: auch ohne Self-Merge ist ein
+    Rückstau an offenen Fix-PRs ein Aufräum-Posten, den 3 pro Nacht
+    beobachtbar hält. Nicht verarbeitete Funde bleiben für den nächsten
+    Lauf liegen, gehen nicht verloren.
+  - **Rote-Linie-Funde bleiben Phase-1-Verhalten** (Meldung im
+    Tagesbericht) — Draft-PR MIT Lösungsvorschlag für rote-Linie-Funde ist
+    bewusst NICHT gebaut: ein Diff für score-/gate-nahen Code zu erzeugen
+    braucht mehr Kontext/Urteil, als dieses Modul autonom aufbringen soll.
+  Revert = `scripts/proactive_fixer.py` + `.github/workflows/
+  proactive_fixer.yml` löschen; Phase 1 (Melden) läuft unverändert weiter.
+  Kein Datenstand betroffen; jeder erzeugte Fix-PR ist einzeln über seinen
+  eigenen Branch nachvollziehbar und (da nie automatisch gemergt) folgenlos
+  schließbar (ein Fund = ein Commit = ein PR, nie gebündelt).

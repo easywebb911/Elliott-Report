@@ -1,0 +1,83 @@
+# Proaktiver Fehler-Wächter — Phase 2: autonomes Fixen, IMMER als Draft
+# (überarbeitet 21.09.2026 — siehe scripts/proactive_fixer.py Modul-
+# Docstring für den Hintergrund: KEIN Self-Merge mehr).
+#
+# Läuft NACH dem rein lesenden Phase-1-Wächter (`proactive_watcher.yml`).
+# Getrennter Workflow mit GETRENNTEN, WEITEREN Rechten (`contents: write`,
+# `pull-requests: write`) — Phase 1 bleibt bewusst read-only, diese Rechte
+# gehören ausschließlich zum Fix-Zyklus. `pull-requests: write` reicht hier
+# NUR zum ERSTELLEN eines Draft-PRs — dieser Workflow ruft an keiner Stelle
+# `gh pr merge` (oder eine Alternative dazu) auf.
+#
+# WAS PASSIERT: `scripts/proactive_fixer.py` scannt (importiert Phase 1s
+# Detektoren unverändert), versucht für jeden Fund OHNE rote Linie einen
+# mechanischen, beweisbaren Fix (siehe Modul-Docstring — nur 2 von 5
+# Fehlerklassen sind das überhaupt), lässt Guardian per Anthropic-API
+# gegenlesen, und erstellt EINEN DRAFT-PR JE FUND — IMMER als Draft,
+# unabhängig vom Guardian-Urteil. Rote-Linie-Funde werden NIE automatisch
+# verändert (wie Phase 1: Meldung im Tagesbericht).
+#
+# SICHERHEITSNETZ (Auftrags-Grenze, nicht optional):
+# - KEIN Self-Merge, an keiner Stelle — jeder erstellte PR wartet auf
+#   Easys manuellen Review, unabhängig vom Fund-Typ oder Guardian-Urteil.
+# - Maximal `MAX_FIXES_PRO_LAUF` (im Code, siehe dort) tatsächlich
+#   versuchte Fixe pro Lauf — der Rest bleibt für den nächsten Lauf liegen.
+# - Jeder Fix ist EIN Fund, EINE Datei, EIN Commit — nie gebündelt.
+# - Kein sauber beweisbarer Vorher/Nachher-Unterschied (`pruefe_fix_wirkung`)
+#   -> kein Fix, der Fund wird stattdessen wie rote Linie behandelt
+#   (gemeldet, nicht verändert).
+# - Guardian-API-Fehler/Parse-Fehler -> im PR-Text als "nicht verfügbar"
+#   markiert, bricht den Lauf nie (siehe `rufe_guardian_via_api`).
+name: "Proaktiver Fehler-Wächter — Phase 2 (Fixen, Draft-PR only)"
+
+on:
+  workflow_run:
+    workflows: ["Proaktiver Fehler-Wächter"]
+    types: [completed]
+  workflow_dispatch: {}   # manueller Testlauf, unabhängig von Phase 1
+
+permissions:
+  contents: write        # Branch/Commit/Push je Fix
+  pull-requests: write   # NUR PR-Erstellung als Draft — kein Merge-Aufruf im Code
+
+concurrency:
+  group: proactive-fixer
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0   # git checkout -B <branch> origin/main braucht die Historie
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Wächter-eigene Tests VOR jedem Fix-Versuch (kein blinder Lauf)
+        run: python -m pytest tests/test_proactive_watcher.py tests/test_proactive_fixer.py -q
+
+      - name: Fix-Zyklus laufen lassen (erstellt ausschließlich Draft-PRs)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python scripts/proactive_fixer.py
+
+      - name: Volle Testsuite NACH dem Lauf (Regressionsnetz)
+        run: python -m pytest tests/ -q

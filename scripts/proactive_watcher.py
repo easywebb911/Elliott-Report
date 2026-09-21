@@ -199,6 +199,14 @@ _FELD_LESUNG = re.compile(r"\.get\([\"']([a-z_]+)[\"']\)")
 # sich selbst als Referenz auf ein Feld namens "get").
 _KEINE_FELDNAMEN = frozenset({"get", "keys", "items", "values", "pop",
                                "setdefault", "update", "copy"})
+# "diag" selbst ist der CONTAINER, kein Feld darin — `(x.get("diag") or {})
+# .get("last_bar_date")` matcht `_FELD_LESUNG` sonst zweimal (Container +
+# echtes Feld) und macht jede Fensterprüfung künstlich mehrdeutig, obwohl
+# nur EIN echtes Feld gelesen wird. Ohne diesen Ausschluss hätte der
+# Kalibrierungsfund health_check.py:269 (der reale, in Phase 1 gefundene
+# Fall) als "mehrdeutig" gegolten und wäre in Phase 2 nie automatisch
+# fixbar gewesen.
+_CONTAINER_FELDER = frozenset({"diag"})
 
 
 def erkenne_veraltete_feldreferenz(dateiinhalt: str, dateiname: str) -> List[Fund]:
@@ -214,7 +222,7 @@ def erkenne_veraltete_feldreferenz(dateiinhalt: str, dateiname: str) -> List[Fun
         # Suchfenster: die nächsten 15 Zeilen nach dem Kommentar (die
         # Funktion/den Codeblock, den der Kommentar beschreibt).
         fenster = "\n".join(zeilen[i:i + 15])
-        gelesene_felder = set(_FELD_LESUNG.findall(fenster))
+        gelesene_felder = set(_FELD_LESUNG.findall(fenster)) - _CONTAINER_FELDER
         if not gelesene_felder:
             continue
         if referenziertes_feld not in gelesene_felder:
@@ -297,7 +305,13 @@ def erkenne_key_exposure(dateiinhalt: str, dateiname: str) -> List[Fund]:
             abs(i - k) <= _KEY_NAEHE_ZEILEN for k in key_zeilen)
         if not in_naehe_einer_key_lesung:
             continue
-        if _EXC_IN_STRING.search(zeile) and "_redact(" not in zeile:
+        # Mehrzeiliger Aufruf: `_redact(` kann auf einer VORHERGEHENDEN
+        # Zeile stehen (`detail=_redact(\n    f"...",\n    api_key,\n)`),
+        # nicht nur in derselben — sonst meldet der Detektor bereits
+        # redigierten Code fälschlich (Kalibrierungsfund 20.09.2026: genau
+        # die beiden echten #134/#137-Stellen sehen so aus).
+        vorherige_zeilen = "\n".join(zeilen[max(0, i - 3):i + 1])
+        if _EXC_IN_STRING.search(zeile) and "_redact(" not in vorherige_zeilen:
             funde.append(Fund(
                 klasse=KLASSE_KEY_EXPOSURE, datei=dateiname, zeile=i + 1,
                 beschreibung=(
