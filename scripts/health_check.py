@@ -265,8 +265,10 @@ def check_bar_freshness(report: Dict, crit_ab: int = BAR_LAG_CRIT) -> List[Dict]
     # dessen Börsensitzung zur LAUF-ZEIT beendet war — je Markt eigen. Damit
     # entfällt der Fehlalarm der Vormittags-Läufe (31.07. 11:16/11:22 US: warn
     # bei Rückstand 1, obwohl die NYSE noch nicht geöffnet hatte).
-    # NUR HIER. Das Sammlungs-Gate bleibt am Kalendertag-Anker
-    # (`diag.bar_lag_trading_days`) — siehe validation_registry.md 05.08.2026.
+    # NUR HIER galt das ursprünglich (05.08.2026) exklusiv. Seit PR #131
+    # (17.09.2026) liest auch das Sammlungs-Gate in `forward_collection.py`
+    # denselben sitzungsbewussten Anker statt des Kalendertag-Ankers —
+    # siehe validation_registry.md 17.09.2026.
     # Keine Karenzzeit: liefert die Quelle nach Sitzungsende noch keine fertige
     # Bar, ist das ein QUELLEN-Problem und bleibt ein gemeldeter Rückstand.
     lauf_zeit = cal.parse_ts(report.get("run_timestamp_utc"))

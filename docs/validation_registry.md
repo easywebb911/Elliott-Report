@@ -1679,3 +1679,63 @@ vor n ≥ 100) gilt unverändert.
   Kein Datenstand betroffen; jeder erzeugte Fix-PR ist einzeln über seinen
   eigenen Branch nachvollziehbar und (da nie automatisch gemergt) folgenlos
   schließbar (ein Fund = ein Commit = ein PR, nie gebündelt).
+
+- **2026-09-21 — Nachträge aus dem ersten scharfen Wächter-Lauf: Key-
+  Exposure-Kalibrierung, Klassifikations-Korrektur, zwei fehlende
+  Registry-Lücken geschlossen.**
+  - **`WATCHLIST_MAX` = 30** (`config.py`) — harte Obergrenze für die
+    persönliche Watchlist (Schutz gegen Fetch-Flut bei einer unbegrenzt
+    wachsenden, browserseitig gepflegten Liste). Gespiegelt im Frontend
+    als `WL_MAX`; `maintenance_check.KONSTANTEN_PAARE` prüft wöchentlich,
+    dass beide Werte übereinstimmen (Drift wäre sonst lautlos — das
+    Frontend würde mehr/weniger Ticker zulassen als die Pipeline
+    tatsächlich analysiert). Dieser Eintrag existierte bisher nicht;
+    gefunden vom proaktiven Wächter (`fehlende_registry`-Klasse).
+  - **Key-Exposure-Detektor auf tatsächlich BENANNTE Key-Variablen
+    verengt** (`scripts/proactive_watcher.py::erkenne_key_exposure`).
+    Der erste scharfe Lauf gegen `elliott_pipeline.py` meldete 9 Funde;
+    Prüfung ergab: 8 davon lagen in völlig unabhängigen `except`-Blöcken
+    (Health-Check, Forward-Sammlung, In-Session-Marker, …) im
+    60-Zeilen-Radius um zwei `os.environ.get("ANTHROPIC_API_KEY", "")`-
+    Aufrufe, die NIE einer Variable zugewiesen werden (inline als
+    Funktionsargument) — strukturell konnte an keiner dieser 8 Stellen
+    überhaupt ein Key im Exception-Text landen. Der 9. Fund (direkt beim
+    Agent-Kommentar-Aufruf) betrifft zwar echten Code, der den Anthropic-
+    Key nutzt, aber der Key geht dort als HTTP-Header (`x-api-key`), nicht
+    als URL-Parameter wie bei Twelve Data/Alpha Vantage — ein
+    strukturell anderes, sehr viel kleineres Risiko, für das es (bewusst)
+    kein etabliertes `_redact()`-Muster gibt, das der Fix-Generator
+    wiederverwenden könnte. **Ergebnis: alle 9 waren Fehl-Funde, KEINE
+    wurden mechanisch "gefixt"** — ein `_redact(text, key)`-Aufruf ohne
+    tatsächlich betroffenen Key wäre bedeutungslose Sicherheits-Kosmetik
+    gewesen, genau das Rate-Verbot aus Phase 2 verbietet das explizit.
+    Die Erkennung verlangt jetzt eine ZUGEWIESENE Key-Variable
+    (`<name> = os.environ...`) in Reichweite statt jeder `os.environ`-
+    Lesung — dieselbe Bedingung, die der Fix-Generator ohnehin schon
+    prüfte. Erkennung und Fixbarkeit laufen damit nicht mehr auseinander.
+  - **Key-Exposure-Fix-Generator generalisiert** (`scripts/
+    proactive_fixer.py::fixe_key_exposure`) — wrappt jetzt das f-String-
+    LITERAL als Token, unabhängig davon, ob es allein auf der Zeile steht
+    oder als Argument in einem Aufruf/einer Konkatenation eingebettet ist
+    (vorher: nur eine ganze, alleinstehende Zeile). Gilt strukturell für
+    die gesamte Klasse, nicht mehr nur den engen Einzelfall aus Phase 2.
+    Mehrdeutigkeit (mehr als ein `{exc}`-f-String auf der Zeile) bleibt
+    ein Ablehnungsgrund, kein Ratefall.
+  - **`key_exposure` ist NIE rote Linie, fest verdrahtet nach FUND-
+    KLASSE** (`proactive_watcher.Fund.__post_init__`, nicht in
+    `beruehrt_rote_linie()` selbst — die bleibt für alle anderen 4
+    Klassen unverändert dateibasiert). Begründung: ein gültiger Fix ist
+    per Konstruktion eine reine Sicherheits-/Kosmetik-Änderung, die
+    `pruefe_fix_wirkung()` ohnehin nur bei nachgewiesener, isolierter
+    Wirkung durchlässt — selbst wenn die Fund-Datei (z. B.
+    `elliott_pipeline.py`) sonst als rote Linie gilt, kann ein solcher
+    Fix keine Score-/Sammlungs-/Auswertungslogik berühren.
+  - **`health_check.py:269`** (der reale `veraltete_doku`-Fund aus der
+    Diagnose vom 19./20.09.2026) korrigiert: der Kommentar referenzierte
+    noch `diag.bar_lag_trading_days`, das Sammlungs-Gate liest seit #131
+    (17.09.2026) `diag.bar_lag_session_days`. Bleibt formal rote Linie
+    (Datei nicht auf der sicheren Allowlist) — von Hand gefixt statt vom
+    Fixer, mit Guardian-Zweitblick wie jeder andere rote-Linie-nahe Fund.
+  Revert = diese vier Nachträge einzeln zurücknehmen (unabhängig
+  voneinander, kein gemeinsamer Zustand); kein Datenstand betroffen, kein
+  Score/Gate/Auswertungscode berührt.
