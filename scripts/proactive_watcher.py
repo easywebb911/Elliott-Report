@@ -114,6 +114,24 @@ class Fund:
     def __post_init__(self) -> None:
         # Wird IMMER aus betroffene_dateien neu berechnet, nie roh übergeben
         # -> ein Detektor kann rote_linie nicht versehentlich falsch setzen.
+        #
+        # AUSNAHME, FEST VERDRAHTET (21.09.2026, Easy): Key-/Secret-Exposure
+        # ist NIE rote Linie — unabhängig davon, in welcher Datei der Fund
+        # liegt. Begründung: ein gültiger Fix dieser Klasse ist per
+        # Konstruktion eine reine Sicherheits-/Kosmetik-Änderung (ein
+        # f-String-Literal wird in `_redact(..., key_var)` gewrappt,
+        # `proactive_fixer.pruefe_fix_wirkung()` verlangt vorher/nachher
+        # denselben Detektor-Beweis) — es gibt KEINEN Pfad, über den ein
+        # solcher Fix Score-/Sammlungs-/Auswertungslogik verändern könnte,
+        # selbst wenn die Fund-Datei (z. B. elliott_pipeline.py) sonst als
+        # rote Linie gilt. Das ist eine Ausnahme nach FUND-KLASSE, nicht
+        # nach Datei — `beruehrt_rote_linie()` selbst bleibt unverändert
+        # dateibasiert und gilt für alle anderen 4 Klassen unverändert
+        # konservativ (Auftrags-Grenze: nur diese eine Klasse ausnehmen,
+        # nicht die Datei als Ganzes freigeben).
+        if self.klasse == KLASSE_KEY_EXPOSURE:
+            self.rote_linie = False
+            return
         dateien = self.betroffene_dateien or [self.datei]
         self.rote_linie = beruehrt_rote_linie(dateien)
 
@@ -280,24 +298,35 @@ def erkenne_fehlende_registry_eintraege(
 # 4) Key-/Secret-Exposure — unredigierte Exception-Details bei API-Calls
 #    (Muster #134/#136/#137: Twelve-Data-/Alpha-Vantage-API-Key landete
 #    unredigiert im Log/Detail-Feld). Heuristik: eine Zeile baut einen
-#    Log-/Detail-String aus einer Exception (`{exc}`) UND die Funktion
-#    verwendet nachweislich einen API-Key (liest `os.environ` mit `KEY`
-#    im Namen) — aber `_redact(` taucht NICHT in derselben Zeile auf.
+#    Log-/Detail-String aus einer Exception (`{exc}`) UND es existiert in
+#    Reichweite eine BENANNTE Key-Variable (`<name> = os.environ...`) —
+#    aber `_redact(` taucht NICHT in den letzten Zeilen davor auf.
+#
+# KALIBRIERUNGSFUND 21.09.2026: die vorige Fassung prüfte JEDE
+# `os.environ`-Lesung mit „KEY" im Namen, auch eine, die NIE einer Variable
+# zugewiesen wird (`os.environ.get("ANTHROPIC_API_KEY", "")` direkt als
+# Funktionsargument, wie in `elliott_pipeline.py` für den Agent-Kommentar).
+# Ergebnis: 8 Fehl-Funde in völlig unabhängigen `except`-Blöcken (Health-
+# Check, Forward-Sammlung, In-Session-Marker, …) im 60-Zeilen-Radius um
+# diese beiden Stellen — keiner davon transportiert überhaupt einen
+# API-Key im Exception-Text (der Anthropic-Key geht als HTTP-Header,
+# nicht als URL-Parameter wie bei Twelve Data/Alpha Vantage — strukturell
+# ein anderes, sehr viel kleineres Risiko). Jetzt: nur eine ZUGEWIESENE
+# Key-Variable zählt als Nähe-Anker — GENAU das, was ein Fix (`_redact(
+# ..., key_var)`) überhaupt referenzieren könnte. Erkennung und Fixbarkeit
+# sind damit strukturell dieselbe Bedingung, kein Auseinanderlaufen mehr.
 # ---------------------------------------------------------------------------
 _EXC_IN_STRING = re.compile(r"f[\"'].*\{(?:exc|e)\}")
-_API_KEY_ENV = re.compile(r"os\.environ(?:\.get)?\([\"'][A-Z_]*KEY[A-Z_]*[\"']")
-# Fenster um eine Key-Lesung, in dem eine unredigierte Exception als
-# tatsächlich riskant gilt (dieselbe Fetch-Funktion, nicht irgendeine
-# andere Stelle in einer 2000+-Zeilen-Datei, die zufällig auch MAL einen
-# API-Key liest — z. B. den Anthropic-Key für Agent-Kommentare, der mit
-# demselben Muster, aber ohne Bezug, sonst mitgetroffen würde).
+_API_KEY_ZUWEISUNG = re.compile(r"^\s*\w*[Kk]ey\w*\s*=\s*os\.environ")
+# Fenster um eine Key-VARIABLEN-Zuweisung, in dem eine unredigierte
+# Exception als tatsächlich riskant gilt (dieselbe Fetch-Funktion).
 _KEY_NAEHE_ZEILEN = 60
 
 
 def erkenne_key_exposure(dateiinhalt: str, dateiname: str) -> List[Fund]:
     funde: List[Fund] = []
     zeilen = dateiinhalt.splitlines()
-    key_zeilen = [i for i, z in enumerate(zeilen) if _API_KEY_ENV.search(z)]
+    key_zeilen = [i for i, z in enumerate(zeilen) if _API_KEY_ZUWEISUNG.search(z)]
     if not key_zeilen:
         return funde
     for i, zeile in enumerate(zeilen):

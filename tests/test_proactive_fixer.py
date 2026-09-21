@@ -99,6 +99,52 @@ def test_fixt_key_exposure_bei_einzeiligem_fstring_mit_bekanntem_key_var():
     assert pw.erkenne_key_exposure(neu, "tests/x.py") == []
 
 
+def test_fixt_key_exposure_wenn_fstring_in_funktionsaufruf_eingebettet():
+    """Generalisierung 21.09.2026 (Auftrag Punkt 2): nicht mehr nur die
+    enge 'ganze Zeile ist ein alleinstehender f-String'-Form — auch ein
+    f-String als Argument INNERHALB eines Aufrufs (`_log(f"...")`) muss
+    fixbar sein, das ist die GESAMTE Klasse, kein Einzelfall mehr."""
+    alt = (
+        "api_key = os.environ.get('TWELVE_DATA_API_KEY')\n"
+        "def fetch(ticker):\n"
+        "    try:\n"
+        "        pass\n"
+        "    except Exception as exc:\n"
+        "        return FetchOutcome(\n"
+        "            reason=FETCH_ERROR,\n"
+        "            detail=_redact(f\"woanders: {exc}\", api_key),\n"
+        "        )\n"
+        "\n"
+        "def andere_funktion(ticker):\n"
+        "    try:\n"
+        "        pass\n"
+        "    except Exception as exc:\n"
+        "        _log(f\"Fallback: {type(exc).__name__}: {exc}\")\n"
+    )
+    funde = pw.erkenne_key_exposure(alt, "tests/x.py")
+    assert len(funde) == 1
+    neu = fx.fixe_key_exposure(funde[0], alt)
+    assert neu is not None
+    assert ('_log(_redact(f"Fallback: {type(exc).__name__}: {exc}", '
+            'api_key))') in neu
+    assert pw.erkenne_key_exposure(neu, "tests/x.py") == []
+
+
+def test_lehnt_key_exposure_fix_ab_bei_mehreren_fstrings_in_einer_zeile():
+    """Zwei f-Strings mit {exc}/{e} auf derselben Zeile -> mehrdeutig,
+    welcher gemeint ist -> None (nicht raten)."""
+    alt = (
+        "api_key = os.environ.get('X_API_KEY')\n"
+        "def f():\n"
+        "    _redact(f'anderswo', api_key)\n"
+        "    except Exception as exc:\n"
+        "        _log(f\"a: {exc}\" + f\"b: {exc}\")\n"
+    )
+    fund = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei="tests/x.py", zeile=5,
+                    beschreibung="egal")
+    assert fx.fixe_key_exposure(fund, alt) is None
+
+
 def test_lehnt_key_exposure_fix_ab_wenn_schon_mehrzeilig_redigiert():
     """Der Kalibrierungsfund vom 20.09.2026: `_redact(` steht auf einer
     VORHERGEHENDEN Zeile eines mehrzeiligen Aufrufs — der Fix-Generator darf
@@ -136,17 +182,27 @@ def test_lehnt_key_exposure_fix_ohne_bekannte_key_variable_ab():
     assert fx.fixe_key_exposure(fund, alt) is None
 
 
-def test_lehnt_key_exposure_fix_bei_komplexer_zeile_ab():
+def test_fixt_key_exposure_auch_bei_verketteter_zeile():
+    """Seit der Generalisierung (Auftrag 21.09.2026) wird auch INNERHALB
+    einer komplexeren Zeile (Konkatenation) nur das f-String-Token selbst
+    gewrappt — der Rest der Zeile bleibt unangetastet, das ist korrekt,
+    nicht mehrdeutig (GENAU EIN f-String mit {exc} auf der Zeile)."""
     alt = (
         "api_key = os.environ.get('X_API_KEY')\n"
         "def f():\n"
         "    _redact(f'anderswo', api_key)\n"
+        "    return None\n"
+        "\n"
+        "\n"
+        "def g():\n"
         "    except Exception as exc:\n"
         "        _log(f\"Fehler: {exc}\" + zusatz)\n"
     )
-    fund = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei="tests/x.py", zeile=5,
+    fund = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei="tests/x.py", zeile=9,
                     beschreibung="egal")
-    assert fx.fixe_key_exposure(fund, alt) is None
+    neu = fx.fixe_key_exposure(fund, alt)
+    assert neu is not None
+    assert '_log(_redact(f"Fehler: {exc}", api_key) + zusatz)' in neu
 
 
 # ---------------------------------------------------------------------------

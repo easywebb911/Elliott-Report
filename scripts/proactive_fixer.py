@@ -108,20 +108,29 @@ def fixe_veraltete_feldreferenz(fund: pw.Fund, dateiinhalt: str) -> Optional[str
 
 
 _KEY_VAR_ZUWEISUNG = re.compile(r"^\s*(\w*[Kk]ey\w*)\s*=\s*os\.environ")
-_EINZEILIGER_FSTRING = re.compile(
-    r'^(?P<prefix>\s*(?:\w+\s*=\s*)?)(?P<fstring>f["\'].*["\'])(?P<suffix>,?\s*)$'
-)
+# Token-Match statt "die ganze Zeile ist nur ein f-String" (Generalisierung
+# 21.09.2026, Auftrag Punkt 2 — GESAMTE Klasse statt nur der Einzelfall):
+# findet das f-String-LITERAL selbst, unabhängig davon, ob es allein auf der
+# Zeile steht oder als Argument in einem Aufruf steckt (`_log(f"...")`,
+# `raise X(f"...")`, …). Einfache, nicht-verschachtelte Quotes (Python-
+# Konvention in diesem Repo) — kein vollständiger Python-Parser nötig, weil
+# `pruefe_fix_wirkung()` jeden Fix ohnehin verwirft, der nicht nachweislich
+# GENAU den gemeldeten Fund beseitigt.
+_FSTRING_TOKEN = re.compile(r"f([\"'])(?:(?!\1).)*\1")
 
 
 def fixe_key_exposure(fund: pw.Fund, dateiinhalt: str) -> Optional[str]:
-    """Wrappt eine unredigierte f-String-Zeile in `_redact(..., key_var)` —
-    NUR wenn (a) die Zeile eine EINZEILIGE, alleinstehende f-String-Zuweisung/
-    -Argument ist (kein mehrzeiliger Aufruf, keine sonstige Verschachtelung),
-    (b) `_redact(` nicht schon in den letzten 3 Zeilen steht (sonst bereits
-    sicher — mehrzeiliger Aufruf, siehe Modul-Docstring), UND (c) eine
-    Key-Variable in Reichweite existiert, die NACHWEISLICH schon woanders in
-    derselben Datei in einem `_redact(...)`-Aufruf verwendet wird (bewährtes
-    Muster wiederverwenden, nicht neu erfinden). Jede andere Form -> None."""
+    """Wrappt das unredigierte f-String-LITERAL (nicht mehr nur eine ganze
+    alleinstehende Zeile) in `_redact(..., key_var)` — NUR wenn (a) GENAU
+    EIN f-String mit `{exc}`/`{e}` auf der Fund-Zeile steht (Mehrdeutigkeit
+    -> None, nicht raten), (b) `_redact(` nicht schon in den letzten 3
+    Zeilen steht (sonst bereits sicher — mehrzeiliger Aufruf, siehe Modul-
+    Docstring), UND (c) eine Key-Variable in Reichweite existiert, die
+    NACHWEISLICH schon woanders in derselben Datei in einem
+    `_redact(...)`-Aufruf verwendet wird (bewährtes Muster wiederverwenden,
+    nicht neu erfinden — KEINE Variable erraten). Jede andere Form -> None,
+    das gilt strukturell für die GESAMTE Fehlerklasse, nicht nur einen
+    engen Einzelfall."""
     if fund.zeile is None:
         return None
     zeilen = dateiinhalt.splitlines()
@@ -131,9 +140,11 @@ def fixe_key_exposure(fund: pw.Fund, dateiinhalt: str) -> Optional[str]:
     vorherige = "\n".join(zeilen[max(0, i - 3):i + 1])
     if "_redact(" in vorherige:
         return None
-    m = _EINZEILIGER_FSTRING.match(zeilen[i])
-    if not m:
+    treffer = [m for m in _FSTRING_TOKEN.finditer(zeilen[i])
+               if re.search(r"\{(?:exc|e)\}", m.group(0))]
+    if len(treffer) != 1:
         return None
+    fstring_text = treffer[0].group(0)
     kandidaten = [mm.group(1) for mm in _KEY_VAR_ZUWEISUNG.finditer(
         "\n".join(zeilen[max(0, i - 60):i]))]
     key_var = None
@@ -144,9 +155,9 @@ def fixe_key_exposure(fund: pw.Fund, dateiinhalt: str) -> Optional[str]:
             break
     if key_var is None:
         return None
-    neue_zeile = (f"{m.group('prefix')}_redact({m.group('fstring')}, "
-                  f"{key_var}){m.group('suffix')}")
-    zeilen[i] = neue_zeile
+    start, end = treffer[0].span()
+    zeile = zeilen[i]
+    zeilen[i] = f"{zeile[:start]}_redact({fstring_text}, {key_var}){zeile[end:]}"
     ergebnis = "\n".join(zeilen)
     return ergebnis + "\n" if dateiinhalt.endswith("\n") else ergebnis
 

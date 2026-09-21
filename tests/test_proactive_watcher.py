@@ -268,6 +268,54 @@ def test_fund_setzt_rote_linie_selbst_konsistent_zur_klassifikation():
 
 
 # ---------------------------------------------------------------------------
+# Key-Exposure ist NIE rote Linie (fest verdrahtete Ausnahme, 21.09.2026) —
+# Mutationsprobe: JEDE rote-Linie-Datei muss trotzdem False liefern, wenn
+# die Fund-Klasse key_exposure ist; JEDE andere Klasse bleibt unverändert
+# dateibasiert (die Ausnahme gilt nach Klasse, nicht nach Datei).
+# ---------------------------------------------------------------------------
+def test_key_exposure_ist_nie_rote_linie_auch_in_rote_linie_dateien():
+    for datei in ("scripts/elliott_pipeline.py", "scripts/forward_collection.py",
+                  "scripts/evaluate.py", "config.py", "scripts/unbekannt.py"):
+        f = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei=datei, zeile=1,
+                    beschreibung="egal")
+        assert f.rote_linie is False, datei
+
+
+def test_key_exposure_ausnahme_gilt_nach_klasse_nicht_nach_datei():
+    """Dieselbe Datei, ANDERE Klasse -> die alte, konservative Datei-Prüfung
+    greift unverändert. Beweist: die Ausnahme ist an die Klasse gebunden,
+    nicht am Fund-Objekt vorbeigeschleust worden."""
+    f_key_exposure = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE,
+                              datei="scripts/elliott_pipeline.py", zeile=1,
+                              beschreibung="egal")
+    f_andere_klasse = pw.Fund(klasse=pw.KLASSE_VERALTETE_DOKU,
+                               datei="scripts/elliott_pipeline.py", zeile=1,
+                               beschreibung="egal")
+    assert f_key_exposure.rote_linie is False
+    assert f_andere_klasse.rote_linie is True
+
+
+def test_andere_vier_klassen_bleiben_dateibasiert_klassifiziert():
+    """Regressionsschutz: die Ausnahme darf NUR key_exposure betreffen —
+    keine der anderen vier Klassen darf durch diese Änderung plötzlich
+    ebenfalls nie rote Linie sein."""
+    for klasse in (pw.KLASSE_TESTDATEN_DRIFT, pw.KLASSE_VERALTETE_DOKU,
+                   pw.KLASSE_FEHLENDE_REGISTRY, pw.KLASSE_STRUKTUR_INKONSISTENZ):
+        f = pw.Fund(klasse=klasse, datei="config.py", zeile=1,
+                    beschreibung="egal")
+        assert f.rote_linie is True, klasse
+
+
+def test_beruehrt_rote_linie_funktion_selbst_bleibt_dateibasiert_unveraendert():
+    """Die zentrale, wiederverwendete Klassifikationsfunktion selbst kennt
+    gar keine Fund-Klassen (nimmt nur Pfade) — die Ausnahme lebt bewusst
+    ausschließlich in Fund.__post_init__, nicht hier (Auftrags-Grenze:
+    beruehrt_rote_linie() bleibt die eine, wiederverwendete Wahrheit für
+    alle anderen Aufrufer)."""
+    assert pw.beruehrt_rote_linie(["scripts/elliott_pipeline.py"]) is True
+
+
+# ---------------------------------------------------------------------------
 # Tagesbericht — EIN Text für alle Funde eines Laufs (Auftrag Punkt 5)
 # ---------------------------------------------------------------------------
 def test_tagesbericht_ohne_funde():
