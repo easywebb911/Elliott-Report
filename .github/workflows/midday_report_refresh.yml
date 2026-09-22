@@ -15,15 +15,20 @@ name: Midday Report Refresh
 # Fehlschlag statt eines stillen Committs). Zwei unabhängige Netze, kein
 # Vertrauen auf eines allein.
 #
-# ZEITPUNKT: 17:00 UTC (Begründung im PR-Text) — mitten in der NYSE-Sitzung
-# (13:00 ET/EDT Sommer, 12:00 ET/EST Winter, beides sicher innerhalb
-# 09:30–16:00 Lokalzeit) UND nach Xetra-Schluss in BEIDEN Jahreszeiten
-# (17:30 Ortszeit = 15:30 UTC Sommer / 16:30 UTC Winter — 17:00 UTC liegt in
-# beiden Fällen danach). DE-Sitzungs-Timing ist für DIESEN Workflow zwar
-# strukturell irrelevant (er legt nie Episoden an, der in_session_creation-
-# Marker kann hier nie greifen), aber der Zeitpunkt bringt dadurch trotzdem
-# für DE einen fertigen statt eines Zwischenstands-Kurses — ein Nebengewinn,
-# keine Voraussetzung.
+# ZEITPUNKT: Cron 12:00 UTC (angepasst 22.09.2026, s. Diagnose desselben
+# Tages) — NICHT die tatsächliche Landezeit. GitHub startet diesen
+# geplanten Lauf beobachtbar verspätet: alle 8 bisherigen Läufe (Cron war
+# vorher 17:00 UTC) starteten real 2h23min–3h44min NACH ihrem Cron-Ziel
+# (19:23–20:44 UTC statt 17:00 UTC), ausnahmslos. Mit demselben Verzögerungs-
+# muster landet ein 12:00-UTC-Cron real zwischen ~14:00 und ~16:00 UTC —
+# weiterhin mitten in der NYSE-Sitzung (13:00 ET/EDT Sommer, 12:00 ET/EST
+# Winter, beides sicher innerhalb 09:30–16:00 Lokalzeit; NYSE-Sitzung
+# 13:30–20:00 UTC) UND nach Xetra-Schluss in BEIDEN Jahreszeiten (17:30
+# Ortszeit = 15:30 UTC Sommer / 16:30 UTC Winter). DE-Sitzungs-Timing ist
+# für DIESEN Workflow zwar strukturell irrelevant (er legt nie Episoden an,
+# der in_session_creation-Marker kann hier nie greifen), aber der Zeitpunkt
+# bringt dadurch trotzdem für DE meist einen fertigen statt eines
+# Zwischenstands-Kurses — ein Nebengewinn, keine Voraussetzung.
 #
 # BEWUSST NICHT ENTHALTEN (Scope-Disziplin, Auftrag Punkt 4): kein zu #111
 # analoger Auto-Retry-Watcher. Ein hängender/fehlschlagender Mittagslauf wird
@@ -45,7 +50,7 @@ on:
     # dieselbe Begründung wie bei daily.yml. Das Feiertags-Gate in
     # elliott_pipeline.main() (gemeinsame NYSE-∩-Xetra-Schließtage) greift
     # unverändert auch hier — kein zweites Gate nötig.
-    - cron: "0 17 * * 1-5"
+    - cron: "0 12 * * 1-5"
   workflow_dispatch:          # Manueller Tap, auch am Wochenende möglich.
 
 # Eigene Gruppe, unabhängig von daily.yml (`daily-elliott`) — verhindert nur

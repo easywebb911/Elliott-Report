@@ -1783,3 +1783,26 @@ vor n ≥ 100) gilt unverändert.
   Revert = alle drei Änderungen einzeln zurücknehmen; kein Datenstand
   betroffen (reine Test-/Detektor-/Push-Logik), kein Score/Gate/
   Auswertungscode berührt.
+- **2026-09-22 — Mittagslauf-Cron verschoben 17:00 UTC → 12:00 UTC**
+  (`.github/workflows/midday_report_refresh.yml`). Diagnose desselben Tages
+  (rein lesend, s. o.): alle 8 bisherigen Läufe starteten real 2h23min–
+  3h44min NACH ihrem 17:00-UTC-Ziel (19:23–20:44 UTC), ausnahmslos — Karte
+  zeigte deshalb am Nachmittag noch den nächtlichen Stand. Mit demselben
+  Verzögerungsmuster landet 12:00 UTC real zwischen ~14:00 und ~16:00 UTC —
+  weiterhin innerhalb der NYSE-Sitzung (13:30–20:00 UTC) und nach
+  Xetra-Schluss. Workflow-Kommentar entsprechend aktualisiert (nennt jetzt
+  das beobachtete Verzögerungsmuster, nicht nur die Cron-Zeit). Zusätzlich
+  den bisher inkonsistenten Frontend-Hinweistext (`docs/index.html`,
+  Sitzungs-Blockiert-Banner: „nächste automatische Mittagslauf (~17:00
+  UTC)") auf 12:00 UTC nachgezogen, samt zugehörigem Test
+  (`tests/test_recalc_sitzungs_check.py::test_blockierter_zeitpunkt_
+  ruft_ensuretoken_nicht_auf`). **Bewusst NICHT geändert:** REPORT_ONLY-
+  Logik, daily.yml, Sitzungs-Gate, `_lastExpectedRun`-Logik in
+  `docs/index.html` (betrifft ausschließlich den 22:45-UTC-Abendlauf,
+  cron-unabhängig von diesem Workflow). Mutationsprobe: Cron-Wert manuell
+  auf den alten Stand zurückgesetzt — kein Struktur-Test schlägt an
+  (kein Test prüft den exakten Cron-Wert, nur Struktur/Differenz zu
+  daily.yml); die Banner-Text-Inkonsistenz wird dagegen vom angepassten
+  Test gefangen. Revert = Cron-Zeile, Workflow-Kommentar,
+  `docs/index.html`-Textzeile und Test-Assertion einzeln zurücknehmen;
+  kein Datenstand, kein Score/Gate/Auswertungscode berührt.
