@@ -70,6 +70,84 @@ def test_keine_drift_bei_einzelwert_ohne_len():
 
 
 # ---------------------------------------------------------------------------
+# 1b) Listen-/Mengen-Gleichheitsvergleich gegen eine hartkodierte Liste
+# (AOF.DE-Diagnose 22.09.2026) — zweites Testdaten-Drift-Muster, unabhängig
+# vom Längen-Vergleich oben.
+# ---------------------------------------------------------------------------
+def test_erkennt_listen_vergleich_gegen_erwartete_konstante():
+    inhalt = (
+        "ERWARTETE_FAELLE = [\n"
+        "    ('A', 'DE', '2026-01-01T00:00:00Z', 1),\n"
+        "]\n"
+        "\n"
+        "def test_x(replay):\n"
+        "    gefunden = [t for t in replay]\n"
+        "    assert gefunden == ERWARTETE_FAELLE\n"
+    )
+    funde = pw.erkenne_testdaten_drift(inhalt, "tests/test_beispiel.py")
+    assert len(funde) == 1
+    assert "ERWARTETE_FAELLE" in funde[0].beschreibung
+    assert funde[0].zeile == 7
+
+
+def test_erkennt_listen_vergleich_mit_sorted_wrapper():
+    inhalt = (
+        "ERWARTETE_MARKIERUNGEN = [('A', 'DE', 'x', 1)]\n"
+        "\n"
+        "def test_x():\n"
+        "    markiert = []\n"
+        "    assert sorted(markiert) == sorted(ERWARTETE_MARKIERUNGEN)\n"
+    )
+    funde = pw.erkenne_testdaten_drift(inhalt, "tests/test_beispiel.py")
+    assert len(funde) == 1
+    assert funde[0].zeile == 5
+
+
+def test_kein_listen_fund_ohne_konstanten_definition():
+    """Der Name `ERWARTETE_X` taucht in einem assert auf, ist aber NIRGENDS
+    im File als Liste/Tupel definiert (z. B. Import aus einem anderen
+    Modul) — kein Fund, das Muster kann nicht bestätigt werden."""
+    inhalt = "def test_x():\n    assert ergebnis == ERWARTETE_X\n"
+    assert pw.erkenne_testdaten_drift(inhalt, "tests/test_beispiel.py") == []
+
+
+def test_kein_listen_fund_bei_skalarer_erwartet_konstante():
+    """`ERWARTET_SCHWELLE = 5` ist ein einzelner Schwellwert, keine Liste —
+    `_ERWARTET_LISTE_DEF` verlangt `= [` oder `= (`, matcht hier nicht."""
+    inhalt = (
+        "ERWARTET_SCHWELLE = 5\n"
+        "def test_x():\n"
+        "    assert ergebnis == ERWARTET_SCHWELLE\n"
+    )
+    assert pw.erkenne_testdaten_drift(inhalt, "tests/test_beispiel.py") == []
+
+
+def test_kein_listen_fund_bei_nicht_erwartet_praefix():
+    """Namenskonvention ist das Signal — eine Konstante ohne `ERWARTET`-
+    Präfix wird bewusst nicht erfasst (sonst zu viel Rauschen, siehe
+    Kalibrierungslauf 20.09.2026)."""
+    inhalt = (
+        "SONSTIGE_LISTE = [1, 2, 3]\n"
+        "def test_x():\n"
+        "    assert ergebnis == SONSTIGE_LISTE\n"
+    )
+    assert pw.erkenne_testdaten_drift(inhalt, "tests/test_beispiel.py") == []
+
+
+def test_listen_vergleich_erkennung_aendert_bestehende_laengen_funde_nicht():
+    """Regression: die beiden Muster laufen unabhängig nebeneinander — ein
+    Fund vom Längen-Muster darf durch die Erweiterung nicht verschwinden
+    oder sich verdoppeln."""
+    inhalt = (
+        "coll = json.load(open('data/forward_collection.json'))\n"
+        "assert len(coll['records']) == 140\n"
+    )
+    funde = pw.erkenne_testdaten_drift(inhalt, "tests/test_beispiel.py")
+    assert len(funde) == 1
+    assert "Länge/Anzahl" in funde[0].beschreibung
+
+
+# ---------------------------------------------------------------------------
 # 2) Veraltete Feldreferenz (Kommentar/Code auseinandergelaufen)
 # ---------------------------------------------------------------------------
 def test_erkennt_veraltete_feldreferenz():
