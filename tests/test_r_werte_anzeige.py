@@ -203,10 +203,17 @@ def _soll_rwerte():
 
 
 def _fmt_r(n):
-    if n == 0:
+    """Muss `fmtR()`s `signDisplay: 'exceptZero'` (docs/index.html) exakt
+    nachbilden: das Vorzeichen richtet sich nach dem GERUNDETEN Anzeigewert,
+    nicht nach dem Rohwert — sonst zeigt ein knapp negativer Wert, der auf
+    zwei Nachkommastellen zu 0,00 rundet (z. B. -0,0035), fälschlich ein
+    Minus, das die echte JS-Ausgabe (Fund 22.09.2026, Live-Kalibrierung mit
+    n=125) so nie erzeugt."""
+    gerundet = round(n, 2)
+    if gerundet == 0:
         return "0,00 R"
-    zeichen = "+" if n > 0 else "-"
-    return f"{zeichen}{abs(n):.2f}".replace(".", ",") + " R"
+    zeichen = "+" if gerundet > 0 else "-"
+    return f"{zeichen}{abs(gerundet):.2f}".replace(".", ",") + " R"
 
 
 def test_population_schliesst_genau_die_pru_guard_faelle_aus():

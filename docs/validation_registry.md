@@ -1783,3 +1783,24 @@ vor n ≥ 100) gilt unverändert.
   Revert = alle drei Änderungen einzeln zurücknehmen; kein Datenstand
   betroffen (reine Test-/Detektor-/Push-Logik), kein Score/Gate/
   Auswertungscode berührt.
+- **2026-09-22 — Testfehler `_fmt_r()` in `tests/test_r_werte_anzeige.py`
+  behoben (Vorzeichen-Rundungsfehler, KEIN Produktionscode-Bug).** CI auf
+  PR #142 wurde rot, unabhängig von dessen eigentlichem Inhalt: die Testdaten
+  waren durch zwei nach PR #141 gemergte `[skip ci]`-Datencommits gewachsen
+  (n=97→125 auswertbare Fälle), wodurch `avg_basis` erstmals knapp negativ
+  wurde (`-0,00348`), aber auf zwei Nachkommastellen zu `0,00` rundet.
+  **Root Cause:** die produktive JS-Funktion `fmtR()` (`docs/index.html`)
+  nutzt bewusst `Intl.NumberFormat`s `signDisplay: 'exceptZero'` — zeigt KEIN
+  Vorzeichen, wenn der GERUNDETE Anzeigewert Null ist (bestätigt per Node:
+  `(-0.00348).toLocaleString(..., {signDisplay:'exceptZero'})` → `"0,00"`,
+  kein Minus). Der unabhängige Python-Nachrechner `_fmt_r()` im Test bildete
+  das nicht nach — er entschied das Vorzeichen anhand des ROHWERTS
+  (`n > 0`/`else "-"`), nicht des gerundeten Werts, und erwartete deshalb
+  fälschlich `"-0,00 R"`. **Fix:** `_fmt_r()` rundet jetzt zuerst
+  (`round(n, 2)`) und entscheidet das Vorzeichen anhand des gerundeten
+  Werts — bildet damit exakt nach, was die echte JS-Funktion tut. Mutations-
+  probe: alte `_fmt_r()`-Fassung wiederhergestellt → derselbe Fehlschlag wie
+  in CI reproduziert; neue Fassung → grün. Volle Suite: 1610 passed. **Bewusst
+  NICHT geändert:** `fmtR()`/`rWerteHtml()` selbst (produktiv korrekt, keine
+  Änderung nötig), keine Score-/Gate-/Sammlungslogik. Revert = nur die
+  `_fmt_r()`-Funktion im Test zurücknehmen.
