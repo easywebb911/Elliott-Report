@@ -236,7 +236,7 @@ def test_blockierter_zeitpunkt_ruft_ensuretoken_nicht_auf():
     assert r["banner"][0]["state"] == "rc-timeout"
     text = r["banner"][0]["html"]
     assert "Handelssitzung" in text
-    assert "Mittagslauf" in text and "17:00 UTC" in text
+    assert "Mittagslauf" in text and "12:00 UTC" in text
     assert "Abendlauf" in text and "22:45 UTC" in text
     # GRENZEN: kein Fehler-Framing, kein Warnsymbol.
     assert "⚠" not in text
