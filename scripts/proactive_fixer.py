@@ -466,6 +466,35 @@ def gesamtbericht(funde: Sequence[pw.Fund], ergebnisse: Sequence[FixEntscheidung
     return basis + ("\n" + anhang if anhang else "")
 
 
+def soll_push_unterdruecken(
+    funde: Sequence[pw.Fund], ergebnisse: Sequence[FixEntscheidung],
+) -> bool:
+    """True, wenn Phase 2 inhaltlich NICHTS beiträgt, was Phase 1s bereits
+    gesendete Meldung nicht schon abgedeckt hätte (Auftrag Punkt 3,
+    22.09.2026 — Diagnose: zwei fast wortgleiche Pushes derselben Kette
+    binnen Sekunden). Ein Push pro Kette reicht, wenn nichts Neues
+    dazukommt.
+
+    NEU ist AUSSCHLIESSLICH ein tatsächlich erstellter Draft-PR
+    (`STATUS_WARTET_AUF_EASY`) — eine PR-URL, die in Phase 1s Meldung noch
+    nicht existieren konnte. Jeder `STATUS_ROTE_LINIE`- und jeder
+    `STATUS_KEIN_FIX_MOEGLICH`-Fund war Phase 1 bereits bekannt (Phase 1
+    zählt genau dieselben Funde schon als 'mit'/'ohne rote Linie' —
+    Phase 2 bestätigt hier nur, dass keiner davon automatisch fixbar war,
+    ohne etwas Neues hinzuzufügen). Sobald auch nur EIN Draft-PR entstand,
+    NIE unterdrücken. Bei Unklarheit (z. B. `MAX_FIXES_PRO_LAUF` hat einen
+    Teil der Funde für den nächsten Lauf liegen lassen, die Zahlen passen
+    dadurch nicht zusammen) -> NICHT unterdrücken (sichere Richtung, wie
+    überall in diesem Modul: lieber einmal zu oft melden als einmal zu
+    still bleiben)."""
+    wartet = sum(1 for e in ergebnisse if e.status == STATUS_WARTET_AUF_EASY)
+    if wartet > 0:
+        return False
+    gruene_phase1 = sum(1 for f in funde if not f.rote_linie)
+    kein_fix_phase2 = sum(1 for e in ergebnisse if e.status == STATUS_KEIN_FIX_MOEGLICH)
+    return gruene_phase1 == kein_fix_phase2
+
+
 # ---------------------------------------------------------------------------
 # Git-/GitHub-Plumbing — NUR von main() genutzt, NIE von der getesteten
 # Entscheidungslogik oben. Ein Fund je Branch/Commit/PR (Auftrags-Grenze:
@@ -571,12 +600,16 @@ def main() -> int:  # pragma: no cover — Orchestrierung, siehe verarbeite_fund
 
     ntfy_topic = os.environ.get("NTFY_TOPIC", "")
     if ntfy_topic and (funde or ergebnisse):
-        import notify  # noqa: WPS433 — lazy, wie proactive_watcher.main()
+        if soll_push_unterdruecken(funde, ergebnisse):
+            _log("Push unterdrückt — inhaltlich identisch zu Phase 1s "
+                 "bereits gesendeter Meldung (kein neuer Draft-PR).")
+        else:
+            import notify  # noqa: WPS433 — lazy, wie proactive_watcher.main()
 
-        wartet = sum(1 for e in ergebnisse if e.status == STATUS_WARTET_AUF_EASY)
-        titel = f"Elliott: Wächter — {wartet} Fix-Draft-PR(s) warten auf Easy"
-        notify.send_ntfy(ntfy_topic, titel, bericht, priority="default",
-                          tags="mag_right")
+            wartet = sum(1 for e in ergebnisse if e.status == STATUS_WARTET_AUF_EASY)
+            titel = f"Elliott: Wächter — {wartet} Fix-Draft-PR(s) warten auf Easy"
+            notify.send_ntfy(ntfy_topic, titel, bericht, priority="default",
+                              tags="mag_right")
     return 0
 
 

@@ -496,6 +496,64 @@ def test_gesamtbericht_kombiniert_phase1_und_phase2():
 
 
 # ---------------------------------------------------------------------------
+# soll_push_unterdruecken() — Auftrag Punkt 3 (22.09.2026): ein Push pro
+# Kette reicht, wenn Phase 2 nichts Neues gegenüber Phase 1 beiträgt.
+# Mutationsprobe: jede der drei Bedingungen einzeln durchgetestet.
+# ---------------------------------------------------------------------------
+def _gruener_fund(datei="tests/x.py"):
+    return pw.Fund(klasse=pw.KLASSE_TESTDATEN_DRIFT, datei=datei, zeile=1,
+                    beschreibung="egal")
+
+
+def _roter_fund():
+    return pw.Fund(klasse=pw.KLASSE_VERALTETE_DOKU, datei="config.py",
+                    zeile=1, beschreibung="egal")
+
+
+def test_unterdrueckt_wenn_reiner_kein_fix_nachvollzug_ohne_rest():
+    """Der reale Fall vom 22.09.2026: 3 self-merge-Kandidaten in Phase 1,
+    Phase 2 bestätigt alle 3 nur als 'kein Fix' — nichts Neues."""
+    funde = [_gruener_fund(f"tests/x{i}.py") for i in range(3)]
+    ergebnisse = [fx.FixEntscheidung(f, fx.STATUS_KEIN_FIX_MOEGLICH, "x")
+                  for f in funde]
+    assert fx.soll_push_unterdruecken(funde, ergebnisse) is True
+
+
+def test_nicht_unterdrueckt_wenn_mindestens_ein_draft_pr_entstand():
+    """EIN neuer Draft-PR ist IMMER neue Information — nie unterdrücken,
+    selbst wenn daneben auch 'kein Fix'-Funde vorliegen."""
+    funde = [_gruener_fund("tests/x0.py"), _gruener_fund("tests/x1.py")]
+    ergebnisse = [
+        fx.FixEntscheidung(funde[0], fx.STATUS_WARTET_AUF_EASY, "x",
+                            neuer_inhalt="y"),
+        fx.FixEntscheidung(funde[1], fx.STATUS_KEIN_FIX_MOEGLICH, "x"),
+    ]
+    assert fx.soll_push_unterdruecken(funde, ergebnisse) is False
+
+
+def test_nicht_unterdrueckt_wenn_zahlen_nicht_zusammenpassen():
+    """max_fixes hat einen Teil der Funde für den nächsten Lauf liegen
+    lassen -> weniger kein-Fix-Ergebnisse als Phase-1-Kandidaten -> Zahlen
+    passen nicht zusammen -> im Zweifel NICHT unterdrücken."""
+    funde = [_gruener_fund("tests/x0.py"), _gruener_fund("tests/x1.py")]
+    ergebnisse = [fx.FixEntscheidung(funde[0], fx.STATUS_KEIN_FIX_MOEGLICH, "x")]
+    assert fx.soll_push_unterdruecken(funde, ergebnisse) is False
+
+
+def test_nicht_unterdrueckt_bei_reinen_rote_linie_funden_ohne_phase1_gruen():
+    """Nur rote-Linie-Funde, keine self-merge-Kandidaten in Phase 1 -> 0
+    gegen 0 -> laut Definition 'identisch' -> unterdrückt (Phase 2 trägt
+    hier tatsächlich nichts Neues bei, Phase 1 hat schon alles gemeldet)."""
+    funde = [_roter_fund()]
+    ergebnisse = [fx.FixEntscheidung(funde[0], fx.STATUS_ROTE_LINIE, "x")]
+    assert fx.soll_push_unterdruecken(funde, ergebnisse) is True
+
+
+def test_unterdrueckt_bei_komplett_leerem_lauf():
+    assert fx.soll_push_unterdruecken([], []) is True
+
+
+# ---------------------------------------------------------------------------
 # Integrations-Rauchtest gegen den echten Baum — informativ, keine Zahlen-
 # Assertion (dieselbe Ironie-Vermeidung wie in test_proactive_watcher.py).
 # ---------------------------------------------------------------------------

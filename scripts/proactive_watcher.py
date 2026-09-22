@@ -173,6 +173,27 @@ _KOPIERT = re.compile(r"copy\.deepcopy|\.copy\(\)")
 _HARTKODIERTE_ANZAHL = re.compile(r"\blen\([^)]*\)\s*==\s*(\d+)\b")
 _LOOKBACK_ZEILEN = 6
 
+# Zweites Muster (22.09.2026, AOF.DE-Diagnose): eine hartkodierte LISTE/
+# MENGE, die per Namenskonvention dieses Repos ("ERWARTETE_...", siehe
+# ERWARTETE_MARKIERUNGEN/ERWARTETE_SECRETS/ERWARTETE_FAELLE) einen
+# vollständigen historischen/produktionsnahen Sollzustand behauptet, UND
+# per `==`/`sorted(...) ==` direkt gegen sie geprüft wird. Bewusst NICHT an
+# eine Produktionsdaten-Ladezeile in der gleichen Funktion gekoppelt (anders
+# als die Längen-Prüfung oben): der reale Fall (`ERWARTETE_MARKIERUNGEN` in
+# tests/test_sammlungs_schutz.py) lädt die Historie über eine PYTEST-FIXTURE
+# (`replay`), nicht direkt im Testkörper — ein Zeilen-Fenster sähe diesen
+# Zusammenhang nie. Die `ERWARTET*`-Namenskonvention selbst ist deshalb das
+# Signal: eine Konstante, deren Name eine vollständige Erwartung behauptet
+# UND als Liste/Tupel-Literal definiert ist (nicht ein einzelner Schwellwert
+# wie `EVAL_MIN_N`), ist strukturell genau der Kandidat, der mit wachsender
+# echter Historie veraltet. Guardian/Easy filtern verbleibende Fehlalarme
+# (z. B. bewusst geschlossene Mengen wie ERWARTETE_SECRETS) beim Review —
+# dieselbe Abwägung wie beim Rest der Klasse: lieber melden als schweigen.
+_ERWARTET_LISTE_DEF = re.compile(r"^(ERWARTET\w*)\s*=\s*[\[\(]")
+_ERWARTET_VERGLEICH = re.compile(
+    r"assert\s+.+==\s*(?:sorted\(\s*)?(ERWARTET\w*)\s*\)?"
+)
+
 
 def erkenne_testdaten_drift(dateiinhalt: str, dateiname: str) -> List[Fund]:
     funde: List[Fund] = []
@@ -196,6 +217,28 @@ def erkenne_testdaten_drift(dateiinhalt: str, dateiname: str) -> List[Fund]:
                 f"{dateiname}:{i + 1} prüft eine Länge/Anzahl direkt aus "
                 f"unkopierten Produktionsdaten gegen eine hartkodierte "
                 f"Zahl — Musterverdacht Testdaten-Drift (#115/#117/#120): "
+                f"{zeile.strip()!r}"
+            ),
+            betroffene_dateien=[dateiname],
+        ))
+
+    listen_konstanten = {
+        mm.group(1) for zeile in zeilen
+        for mm in [_ERWARTET_LISTE_DEF.match(zeile)] if mm
+    }
+    for i, zeile in enumerate(zeilen):
+        if zeile.strip().startswith("#"):
+            continue
+        m = _ERWARTET_VERGLEICH.search(zeile)
+        if not m or m.group(1) not in listen_konstanten:
+            continue
+        funde.append(Fund(
+            klasse=KLASSE_TESTDATEN_DRIFT, datei=dateiname, zeile=i + 1,
+            beschreibung=(
+                f"{dateiname}:{i + 1} vergleicht direkt gegen die "
+                f"hartkodierte Liste `{m.group(1)}` — Musterverdacht "
+                f"Testdaten-Drift (AOF.DE-Diagnose #22.09.2026, Muster wie "
+                f"#115/#117/#120, hier als Listen- statt Längen-Vergleich): "
                 f"{zeile.strip()!r}"
             ),
             betroffene_dateien=[dateiname],

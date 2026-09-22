@@ -396,12 +396,34 @@ def test_das_gate_erzeugt_KEINEN_eigenen_push():
 
 # ---------------------------------------------------------------------------
 # 9) Marker über die echte Historie
+#
+# ZWEI GETRENNTE LISTEN, BEWUSST NICHT DIESELBE (Diagnose 22.09.2026, siehe
+# docs/validation_registry.md):
+# - ERWARTETE_MARKIERUNGEN: was TATSÄCHLICH im committeten `forward_
+#   collection.json` markiert ist (`mark_stale_market_records.py --live`,
+#   ein manueller, bewusster Schritt — läuft NICHT automatisch mit jedem
+#   Tageslauf). Ändert sich nur, wenn Easy das Skript live laufen lässt.
+# - ERWARTETE_REPLAY_TREFFER: was `finde_stale_records()` HEUTE beim
+#   Nachrechnen über die committete Rohhistorie findet — wächst mit jedem
+#   neuen echten Stale-Market-Vorfall, UNABHÄNGIG davon, ob er schon markiert
+#   wurde. Die beiden laufen bewusst auseinander, bis der nächste `--live`-
+#   Lauf sie wieder deckungsgleich macht.
+#
+# AOF.DE (DE, Lauf 2026-09-22T01:09:47Z, Rückstand 2) kam in der Nacht vom
+# 21./22.09.2026 hinzu — ein echter, neuer Kalendertag-Rückstand ≥2, per
+# `finde_stale_records()` gegen die volle committete Historie nachgerechnet
+# (nicht geraten). Gehört in ERWARTETE_REPLAY_TREFFER, NICHT in
+# ERWARTETE_MARKIERUNGEN — dafür fehlt der `--live`-Marker-Lauf noch.
 # ---------------------------------------------------------------------------
 ERWARTETE_MARKIERUNGEN = [
     ("ADS.DE", "DE", "2026-07-30T22:45:00Z", 1),
     ("MTX.DE", "DE", "2026-07-31T22:40:44Z", 1),
     ("G1A.DE", "DE", "2026-07-31T22:40:44Z", 1),
     ("KKR", "US", "2026-08-04T04:46:23Z", 2),
+]
+
+ERWARTETE_REPLAY_TREFFER = ERWARTETE_MARKIERUNGEN + [
+    ("AOF.DE", "DE", "2026-09-22T01:09:47Z", 2),
 ]
 
 
@@ -424,10 +446,15 @@ def replay():
 
 
 @braucht_historie
-def test_der_replay_findet_genau_die_vier_faelle(replay):
+def test_der_replay_findet_die_bekannten_faelle(replay):
+    """Hieß bis 22.09.2026 '...findet_genau_die_vier_faelle' — der Name
+    behauptete eine feste Zahl, die per Konstruktion wächst (jeder neue
+    echte Stale-Market-Vorfall kommt automatisch dazu). Bewusst umbenannt,
+    nicht nur die Zahl im Namen erhöht — sonst wiederholt sich genau das
+    Muster, das AOF.DE hier ausgelöst hat, beim nächsten echten Vorfall."""
     gefunden = [(t["ticker"], t["market"], t["run_utc"], t["lag_trading_days"])
                 for t in replay]
-    assert gefunden == ERWARTETE_MARKIERUNGEN
+    assert gefunden == ERWARTETE_REPLAY_TREFFER
 
 
 @braucht_historie

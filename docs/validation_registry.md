@@ -1739,3 +1739,47 @@ vor n ≥ 100) gilt unverändert.
   Revert = diese vier Nachträge einzeln zurücknehmen (unabhängig
   voneinander, kein gemeinsamer Zustand); kein Datenstand betroffen, kein
   Score/Gate/Auswertungscode berührt.
+
+- **2026-09-22 — AOF.DE-Diagnose: roter Test behoben, zweites Testdaten-
+  Drift-Muster ergänzt, Phase-2-Push-Rauschen unterdrückt.**
+  - **`tests/test_sammlungs_schutz.py::test_der_replay_findet_genau_die_
+    vier_faelle` behoben, in `test_der_replay_findet_die_bekannten_faelle`
+    umbenannt.** Ursache: `finde_stale_records()` fand beim Nachrechnen
+    über die volle committete Historie einen echten 5. Fall (AOF.DE, DE,
+    Lauf 2026-09-22T01:09:47Z, Rückstand 2) — gegen den vollen,
+    entschachtelten Klon nachgerechnet (nicht geraten). NEUE Konstante
+    `ERWARTETE_REPLAY_TREFFER` (= `ERWARTETE_MARKIERUNGEN` + AOF.DE),
+    bewusst GETRENNT von `ERWARTETE_MARKIERUNGEN`: Letztere beschreibt, was
+    im committeten `forward_collection.json` TATSÄCHLICH markiert ist
+    (`mark_stale_market_records.py --live`, ein manueller Schritt, läuft
+    nicht automatisch) — AOF.DE ist ein echter, noch UNMARKIERTER Vorfall.
+    Beide Konstanten liefen deshalb absichtlich auseinander; ein einzelnes
+    Zusammenführen hätte `test_der_ausgelieferte_bestand_traegt_die_vier_
+    marker` und `test_alle_vier_alt_records_waeren_beim_heutigen_gate_
+    allein_nicht_mehr_gesperrt` kaputt gemacht (die vergleichen gegen den
+    TATSÄCHLICH markierten Bestand, nicht gegen den Replay).
+  - **Zweites Testdaten-Drift-Muster** (`scripts/proactive_watcher.py::
+    erkenne_testdaten_drift`, `_ERWARTET_LISTE_DEF`/`_ERWARTET_VERGLEICH`):
+    ein `assert X == ERWARTETE_Y` (optional `sorted(...)`-gewrappt) gegen
+    eine als Liste/Tupel definierte `ERWARTET*`-Konstante. Bewusst NICHT an
+    eine Produktionsdaten-Ladezeile im selben Fenster gekoppelt (anders als
+    das Längen-Muster) — der reale Fall lädt die Historie über eine
+    pytest-Fixture (`replay`), ein Zeilen-Fenster sähe diesen Zusammenhang
+    nie. Die `ERWARTET*`-Namenskonvention selbst (bereits im Repo etabliert:
+    `ERWARTETE_MARKIERUNGEN`, `ERWARTETE_FAELLE`, `ERWARTETE_SECRETS`) ist
+    das Signal. Live-Kalibrierung: findet `ERWARTETE_FAELLE` (test_episoden_
+    split_marker.py) und `ERWARTETE_MARKIERUNGEN` (test_sammlungs_
+    schutz.py) — keine neuen Fehlalarme bei den bestehenden `len(...)`-
+    Fällen (getrennter Codepfad, eigene Tests).
+  - **Phase-2-Push-Unterdrückung** (`scripts/proactive_fixer.py::soll_
+    push_unterdruecken`): Diagnose vom 21./22.09. fand zwei fast wortgleiche
+    Pushes derselben Kette binnen 32 Sekunden (Phase 1 meldet 3 Self-Merge-
+    Kandidaten, Phase 2 bestätigt dieselben 3 nur als „kein Fix möglich" —
+    keine neue Information). Unterdrückt NUR, wenn kein einziger Draft-PR
+    entstand UND die Phase-2-„kein Fix"-Zahl exakt der Phase-1-„Self-Merge-
+    Kandidat"-Zahl entspricht; bei jeder Abweichung (auch scheinbar
+    unplausiblen, z. B. durch `MAX_FIXES_PRO_LAUF` liegen gebliebene Funde)
+    wird NICHT unterdrückt — sichere Richtung wie überall in diesem Modul.
+  Revert = alle drei Änderungen einzeln zurücknehmen; kein Datenstand
+  betroffen (reine Test-/Detektor-/Push-Logik), kein Score/Gate/
+  Auswertungscode berührt.
