@@ -1827,3 +1827,22 @@ vor n ≥ 100) gilt unverändert.
   NICHT geändert:** `fmtR()`/`rWerteHtml()` selbst (produktiv korrekt, keine
   Änderung nötig), keine Score-/Gate-/Sammlungslogik. Revert = nur die
   `_fmt_r()`-Funktion im Test zurücknehmen.
+
+- **2026-09-23 — NEM (US) als neuer Stale-Market-Replay-Treffer ergänzt
+  (`tests/test_sammlungs_schutz.py::ERWARTETE_REPLAY_TREFFER`).** CI auf
+  PR #144 (Ersatzbank/Nachrücker, separater PR) war rot — durch einen davon
+  unabhängigen, echten neuen Vorfall: `finde_stale_records()` findet in der
+  Nacht vom 22./23.09.2026 einen neuen Kalendertag-Rückstand ≥2 für NEM
+  (US, Lauf `2026-09-23T00:55:39Z`), noch nicht in der hartkodierten
+  Erwartungsliste — dieselbe Klasse Testdaten-Drift wie AOF.DE (PR #141),
+  nur ein neuer Vorfall. Verifiziert per `git fetch --unshallow` + direktem
+  Aufruf von `mark_stale_market_records.finde_stale_records()` gegen die
+  volle committete Historie (135 Reports/116 Sammlungs-Stände) — nicht
+  geraten, dieselbe Sorgfalt wie beim AOF.DE-Fund. **Fix:** NEM in
+  `ERWARTETE_REPLAY_TREFFER` ergänzt (NICHT in `ERWARTETE_MARKIERUNGEN` —
+  dafür fehlt weiterhin der manuelle `--live`-Marker-Lauf, eine bewusste
+  Easy-Entscheidung, keine automatische Folge). Volle Suite: 1610 passed.
+  **Bewusst NICHT geändert:** `mark_stale_market_records.py` selbst, das
+  Sammlungs-Gate, `ERWARTETE_MARKIERUNGEN`, `data/forward_collection.json`
+  (kein `--live`-Lauf). Revert = NEM-Zeile aus `ERWARTETE_REPLAY_TREFFER`
+  zurücknehmen.
