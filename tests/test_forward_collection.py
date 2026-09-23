@@ -220,6 +220,66 @@ def test_reappearance_after_gap_new_episode():
 
 
 # ---------------------------------------------------------------------------
+# Ersatzbank (Auftrag 23.09.2026, Nachrücker-Funktion, #118-Folge)
+# ---------------------------------------------------------------------------
+# market["candidates"] kann seither bis zu config.TOP_N_STORED (8) Einträge
+# tragen (sichtbare Top-5 + Platz 6-8) — update_forward_collection darf davon
+# WEITERHIN nur die ersten config.TOP_N (5) episode-fähig behandeln.
+def test_ersatzbank_platz_6_8_bekommt_keine_episode():
+    coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}
+    regimes = {"US": "risk_on"}
+    acht = [_entry(f"T{i}", score=90.0 - i) for i in range(8)]  # Rang 1..8
+    price = {e["ticker"]: _series("day1", [101, 102]) for e in acht}
+
+    fc.update_forward_collection(coll, _report(*acht), price, regimes,
+                                 "2026-07-01", NOW)
+    tickers = {r["ticker"] for r in coll["records"]}
+    assert tickers == {"T0", "T1", "T2", "T3", "T4"}          # nur die sichtbaren Top-5
+    assert "T5" not in tickers and "T6" not in tickers and "T7" not in tickers
+
+
+def test_normale_top5_ohne_ersatzbank_unveraendert():
+    """Regression: bringt ein Lauf genau 5 (keine Ersatzbank), ist das
+    Verhalten byte-identisch zu vor dem Ersatzbank-Auftrag."""
+    coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}
+    regimes = {"US": "risk_on"}
+    fuenf = [_entry(f"T{i}", score=90.0 - i) for i in range(5)]
+    price = {e["ticker"]: _series("day1", [101, 102]) for e in fuenf}
+
+    fc.update_forward_collection(coll, _report(*fuenf), price, regimes,
+                                 "2026-07-01", NOW)
+    tickers = {r["ticker"] for r in coll["records"]}
+    assert tickers == {"T0", "T1", "T2", "T3", "T4"}
+
+
+def test_nachruecker_wird_episode_faehig_sobald_er_selbst_top5_ist():
+    """Der eigentliche Nachrücker-Fall: T5 steht Tag 1 auf Platz 6 (Ersatzbank,
+    keine Episode). Tag 2 scheidet T0 aus (fällt aus dem Report — z. B.
+    target_exceeded), T5 rückt DURCH DAS GANZ NORMALE RANKING selbst in die
+    sichtbaren Top-5 — jetzt entsteht seine Episode, ganz regulär, ohne neuen
+    Code (GRENZEN: „nutze die bestehende Markierungslogik, nicht neu
+    erfinden" — hier: dieselbe unveränderte Top-5-Anlagelogik)."""
+    coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}
+    regimes = {"US": "risk_on"}
+    acht = [_entry(f"T{i}", score=90.0 - i) for i in range(8)]
+    price = {e["ticker"]: _series("day1", [101, 102]) for e in acht}
+
+    fc.update_forward_collection(coll, _report(*acht), price, regimes,
+                                 "2026-07-01", NOW)
+    assert "T5" not in {r["ticker"] for r in coll["records"]}
+
+    # Tag 2: T0 verschwindet aus dem Report (z. B. target_exceeded), die
+    # restlichen 7 rücken nach — T5 steht jetzt auf sichtbarem Platz 5.
+    sieben = [_entry(f"T{i}", score=90.0 - i) for i in range(1, 8)]
+    price.update({e["ticker"]: _series("day1", [101, 102]) for e in sieben})
+    fc.update_forward_collection(coll, _report(*sieben), price, regimes,
+                                 "2026-07-02", NOW)
+    assert "T5" in {r["ticker"] for r in coll["records"]}
+    # T7 bleibt weiterhin Ersatzbank (Platz 6 nach dem Nachrücken).
+    assert "T7" not in {r["ticker"] for r in coll["records"]}
+
+
+# ---------------------------------------------------------------------------
 # episode_id-Kollisionsschutz (Backlog-Punkt, Belegkette #68-Archiv)
 # ---------------------------------------------------------------------------
 # `episode_id = ticker@first_seen` hat nur zwei Achsen und keinen Schutz gegen

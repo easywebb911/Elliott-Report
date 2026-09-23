@@ -30,7 +30,9 @@ REPORT_SCHEMA = {
                     "universe_size": {"type": "integer"},
                     "candidates": {
                         "type": "array",
-                        "maxItems": config.TOP_N,
+                        # Ersatzbank (Auftrag 23.09.2026): bis zu TOP_N_STORED
+                        # (8) — sichtbare Top-N (5) + Platz 6-8.
+                        "maxItems": config.TOP_N_STORED,
                         "items": {
                             "type": "object",
                             "required": [
@@ -146,7 +148,8 @@ def test_two_markets_with_candidates():
     assert set(report["markets"].keys()) == {"US", "DE"}
     for m in report["markets"].values():
         # Synthetischer Fetcher liefert für jeden Ticker ein valides Setup.
-        assert 1 <= len(m["candidates"]) <= config.TOP_N
+        # Ersatzbank (Auftrag 23.09.2026): bis zu TOP_N_STORED (8) gespeichert.
+        assert 1 <= len(m["candidates"]) <= config.TOP_N_STORED
 
 
 def test_all_candidates_are_long():
@@ -265,10 +268,13 @@ def _build_weekly():
 
 
 def test_higher_degree_populated_with_weekly_fetcher():
+    # NUR die sichtbaren Top-N (5) bekommen einen Wochen-Fetch — die
+    # Ersatzbank (Platz 6-8, Auftrag 23.09.2026) bewusst nicht (s. eigener
+    # Test unten, GRENZEN: kein zusätzlicher Datenabruf für Unsichtbares).
     report = _build_weekly()
     seen = 0
     for m in report["markets"].values():
-        for c in m["candidates"]:
+        for c in m["candidates"][:config.TOP_N]:
             hd = c["higher_degree"]
             assert hd is not None, "Wochen-Fetcher liefert -> higher_degree gesetzt"
             for key in ("count_label", "invalidation_price", "target_zone", "target_zone_extended"):
@@ -277,6 +283,36 @@ def test_higher_degree_populated_with_weekly_fetcher():
             assert "Short" not in hd["count_label"]  # long-only
             seen += 1
     assert seen > 0
+
+
+def test_ersatzbank_ohne_higher_degree_fetch():
+    """Ersatzbank (Platz 6-8, Auftrag 23.09.2026): higher_degree ist trotz
+    Wochen-Fetcher None — Feld existiert (Schema verlangt es), aber es wird
+    NICHT zusätzlich abgerufen (GRENZEN: kein neuer Datenabruf für
+    Kandidaten, die nicht sichtbar sind)."""
+    report = _build_weekly()
+    bench_seen = 0
+    for m in report["markets"].values():
+        for c in m["candidates"][config.TOP_N:]:
+            assert c["higher_degree"] is None
+            bench_seen += 1
+    assert bench_seen > 0  # das reale Universum liefert > TOP_N Kandidaten
+
+
+def test_ersatzbank_kein_zusaetzlicher_fetch_aufruf():
+    """Mutationsprobe/Spy: der Wochen-Fetcher wird pro Markt GENAU TOP_N-mal
+    aufgerufen — NIE für die Ersatzbank (Platz 6-8). Direkt auf build_market()
+    (nicht build_report()), um Rauschen von der separaten Watchlist
+    (eigener Fetch-Kontext, committete watchlist_personal.json) auszuschließen."""
+    for market_key in config.MARKETS:
+        calls = []
+
+        def spy_weekly(ticker, _calls=calls):
+            _calls.append(ticker)
+            return pipe.fetch_synthetic_weekly(ticker)
+
+        pipe.build_market(market_key, pipe.fetch_synthetic, spy_weekly)
+        assert len(calls) == len(set(calls)) == config.TOP_N
 
 
 def test_higher_degree_none_without_weekly_fetcher():
@@ -327,6 +363,11 @@ def test_market_diag_present_and_shaped():
     for m in report["markets"].values():
         d = m["diag"]
         assert set(d) == {"reason_counts", "higher_degree_count", "top_count",
+                          # Ersatzbank (Auftrag 23.09.2026): top_count zaehlt
+                          # jetzt inkl. Platz 6-8; visible_count nennt
+                          # zusaetzlich, wie viele davon sichtbar/episode-
+                          # faehig sind (unveraendert TOP_N).
+                          "visible_count",
                           "dead_tickers",
                           # Nicht-finit-Haertung (27.07.2026)
                           "dropped_bars", "invalid_volume_bars",

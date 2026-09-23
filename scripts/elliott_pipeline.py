@@ -1953,15 +1953,31 @@ def build_market(
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
-    top = candidates[: config.TOP_N]
+    # Gespeichert werden bis zu TOP_N_STORED (8): die sichtbaren Top-N (5,
+    # Ranking-Reihenfolge unverändert) PLUS eine „Ersatzbank" auf Platz 6-8
+    # (Auftrag 23.09.2026, Nachrücker-Funktion, #118-Folge) — dieselben,
+    # bereits berechneten Kandidaten, nur nicht mehr auf TOP_N gekappt. Die
+    # Ersatzbank ist NICHT standardmäßig sichtbar und NICHT episode-fähig
+    # (s. forward_collection.update_forward_collection, das weiterhin nur
+    # die ersten TOP_N liest).
+    top_stored = candidates[: config.TOP_N_STORED]
+    top = top_stored[: config.TOP_N]
 
-    # Großer Grad NUR für die Top-N (additiv, ranking-neutral).
+    # Großer Grad NUR für die sichtbaren Top-N (additiv, ranking-neutral) —
+    # bewusst NICHT für die Ersatzbank: kein zusätzlicher Wochen-Fetch für
+    # Kandidaten, die (noch) nicht sichtbar sind (GRENZEN, kein neuer
+    # Datenabruf).
     higher_count = 0
     for entry in top:
         hd = higher_degree_for(entry["ticker"], weekly_fetcher)
         entry["higher_degree"] = hd
         if hd is not None:
             higher_count += 1
+    # Ersatzbank-Einträge tragen higher_degree explizit als None (das Schema
+    # verlangt das Feld für jeden Kandidaten) — Abwesenheit des FETCHES, nicht
+    # Abwesenheit des Feldes.
+    for entry in top_stored[config.TOP_N:]:
+        entry["higher_degree"] = None
 
     skipped = sum(reason_counts.values())
 
@@ -2015,13 +2031,20 @@ def build_market(
         "evaluated": len(universe),
         "skipped": skipped,
         "candidates_found": len(candidates),
-        "candidates": top,
+        # Enthält bis zu TOP_N_STORED (8): sichtbare Top-N (5) + Ersatzbank
+        # (Platz 6-8, Auftrag 23.09.2026) — s. Kommentar bei top_stored oben.
+        "candidates": top_stored,
         # Additive Diagnose-Zusammenfassung (die Zahlen stehen bereits im Log).
         # Rein für die „Lauf-Status"-Ansicht; Score/Ranking/Schema unberührt.
         "diag": {
             "reason_counts": dict(reason_counts),
             "higher_degree_count": higher_count,
-            "top_count": len(top),
+            # top_count == len(candidates) (inkl. Ersatzbank) — dieselbe
+            # Invariante wie vor dem Ersatzbank-Auftrag, jetzt eben bis zu 8
+            # statt 5. visible_count nennt zusätzlich, wie viele davon
+            # sichtbar/episode-fähig sind (unverändert TOP_N).
+            "top_count": len(top_stored),
+            "visible_count": len(top),
             # Listen-Hygiene: tote/fehlerhafte Symbole namentlich (Anzeige/Log).
             "dead_tickers": [{"ticker": tk, "reason": rs} for tk, rs in dead_tickers],
             # Nicht-finit-Härtung (27.07.2026): beim Parsen verworfene Bars.

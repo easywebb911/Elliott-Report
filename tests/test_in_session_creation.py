@@ -467,6 +467,59 @@ def test_ein_heute_angelegter_in_session_record_traegt_den_marker_im_selben_lauf
     assert rec[ins.MARKER_UTC] == ts       # Lauf-Stempel, nicht Systemuhr
 
 
+def test_nachruecker_episode_wird_in_session_markiert_ohne_neuen_code():
+    """Ersatzbank-Auftrag (23.09.2026, Nachrücker-Funktion, #118-Folge):
+    braucht KEINEN neuen Marker-Code. markiere_neue_records() (Teil B,
+    unverändert) fasst jede in DIESEM Lauf angelegte Episode an — unabhängig
+    davon, WARUM sie entstand (regulärer Top-5-Kandidat oder Nachrücker aus
+    der Ersatzbank, Platz 6-8). End-to-End über forward_collection.
+    update_forward_collection() (das die Episode anlegt) + markiere_neue_
+    records() (das sie markiert), mit von Hand konstruierten Kandidaten."""
+    import forward_collection as fc
+
+    def _kand(ticker, score):
+        return {"ticker": ticker, "close": 100.0,
+                "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
+                "score_heuristic": score,
+                "target_zone": {"low": 120.0, "high": 130.0},
+                "target_zone_extended": {"low": 140.0, "high": 150.0},
+                "invalidation_price": 90.0, "direction": "long"}
+
+    coll = {"schema_version": 1, "last_run_date": None, "updated_utc": None, "records": []}
+    regimes = {"US": "risk_on"}
+
+    # Tag 1 (außerhalb der Sitzung): 8 Kandidaten, T5 steht auf Platz 6 —
+    # Ersatzbank, KEINE Episode.
+    ts_tag1 = _utc("US", "2026-08-06 06:00:00")
+    bar1 = "2026-08-06"
+    acht = [_kand(f"T{i}", 90.0 - i) for i in range(8)]
+    price = {e["ticker"]: (["d0", bar1], [100.0, 101.0]) for e in acht}
+    fc.update_forward_collection(coll, {"markets": {"US": {"candidates": acht}}},
+                                 price, regimes, bar1, ts_tag1)
+    ins.markiere_neue_records(coll, ts_tag1)
+    assert "T5" not in {r["ticker"] for r in coll["records"]}
+
+    # Tag 2, MITTEN in der US-Sitzung: T0 verschwindet aus dem Report (z. B.
+    # target_exceeded) — T5 rückt durchs ganz normale Ranking selbst in die
+    # sichtbaren Top-5. Seine Episode entsteht jetzt, in einem Lauf, dessen
+    # Stempel im Sitzungsfenster liegt.
+    ts_tag2 = _utc("US", "2026-08-07 10:46:00")          # NYSE offen
+    bar2 = "2026-08-07"
+    sieben = [_kand(f"T{i}", 90.0 - i) for i in range(1, 8)]
+    price.update({e["ticker"]: (["d0", bar2], [100.0, 101.0]) for e in sieben})
+    fc.update_forward_collection(coll, {"markets": {"US": {"candidates": sieben}}},
+                                 price, regimes, bar2, ts_tag2)
+    gesetzt, unklar = ins.markiere_neue_records(coll, ts_tag2)
+
+    t5 = next(r for r in coll["records"] if r["ticker"] == "T5")
+    assert t5[ins.MARKER] is True
+    assert t5[ins.MARKER_UTC] == ts_tag2
+    assert gesetzt == 1 and unklar == []
+    # T7 bleibt weiterhin Ersatzbank (Platz 6 nach dem Nachrücken) — keine
+    # Episode, also auch kein Marker.
+    assert "T7" not in {r["ticker"] for r in coll["records"]}
+
+
 def test_ein_abendlauf_bleibt_unmarkiert():
     ts = _utc("US", "2026-08-07 17:30:00")          # NYSE zu
     coll = _kunst_coll(ts)
