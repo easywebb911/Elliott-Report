@@ -266,6 +266,14 @@
     .live-outdated[hidden] { display:none; }
     .live-outdated-zone { color:var(--ora); background:rgba(245,158,11,.14); border:1px solid rgba(245,158,11,.4); }
     .live-outdated-inval { color:var(--red); background:rgba(239,68,68,.14); border:1px solid rgba(239,68,68,.4); }
+    /* Ersatzbank (Auftrag 23.09.2026, Nachrücker-Funktion, #118-Folge):
+       Platz 6-8 — bewusst dezent/kompakt, kein zweiter voller Kartenaufbau. */
+    .bench-block { margin:14px 0 4px; font-size:.78rem; color:var(--txt-sub); }
+    .bench-block summary { cursor:pointer; font-weight:600; }
+    .bench-list { list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; }
+    .bench-list li { padding:4px 8px; border-radius:6px; background:var(--bg-met); border:1px solid var(--brd); }
+    .bench-ticker { font-weight:700; }
+    .bench-note { color:var(--ora); }
     /* Konfluenz-Chips: dezent, KEIN Alarm-Stil. Nur Anzeige/Messung, kein Score. */
     .conf-block { margin:-4px 12px 12px; display:flex; flex-direction:column; gap:4px; }
     .conf-row { display:flex; flex-wrap:wrap; align-items:center; gap:5px; }
@@ -2642,6 +2650,12 @@
         : '';
       const cardOutdatedCls = _lo === 'inval' ? ' card-outdated-inval'
         : (_lo ? ' card-outdated-zone' : '');
+      // Nachrücker-Funktion (Auftrag 23.09.2026, #118-Folge): Ausgangsstand
+      // aus dem Lauf-Schlusskurs, DIESELBE Funktion wie beim Live-Update
+      // (_setLiveOutdated) — Erstrender und Live-Tick können so nie
+      // auseinanderlaufen. Ohne diese Zeile bliebe eine noch nie live
+      // gepollte Karte für _effectiveVisible() fälschlich „Status unbekannt".
+      _liveOutdatedByTicker.set(c.ticker, _lo);
       const company = (c.company_name && c.company_name !== c.ticker)
         ? `<div class="company">${esc(c.company_name)}</div>` : '';
       const sector = c.sector ? `<div class="sector-tag">${esc(c.sector)}</div>` : '';
@@ -2667,7 +2681,11 @@
       const ac = c.appearance_count;
       const appBadge = (typeof ac === 'number' && ac >= 2)
         ? `<span class="appear-badge" title="${ac}-mal in den Top 5 seit ${COLLECTION_START}">${ac}×</span>` : '';
-      return `<article class="card${cardOutdatedCls}" data-ticker="${esc(c.ticker)}">
+      return `<article class="card${cardOutdatedCls}" data-ticker="${esc(c.ticker)}"
+        data-market="${esc(market)}" data-live-poll
+        data-zl="${c.target_zone ? c.target_zone.low : ''}"
+        data-zh="${c.target_zone ? c.target_zone.high : ''}"
+        data-inv="${c.invalidation_price ?? ''}">
         <div class="card-top">
           <div class="card-left">
             <div class="rank-col"><span class="rank">${rank}</span>${appBadge}</div>
@@ -2735,14 +2753,91 @@
     // diesem Stichtag existieren keine Erscheinungen — daher im N×-Tooltip.
     const COLLECTION_START = '22.07.2026';
     const MARKET_FLAG = { US: '🇺🇸', DE: '🇩🇪' };
+
+    // ── Nachrücker-Funktion (Auftrag 23.09.2026, #118-Folge) ─────────────
+    // market.candidates trägt seit dem Ersatzbank-Backend-Auftrag bis zu 8
+    // Kandidaten (sichtbare Top-5 + Platz 6-8). GRENZEN: Score/Ranking selbst
+    // unberührt — hier wird nur entschieden, WELCHE 5 der bis zu 8
+    // gespeicherten Kandidaten gerade als Karte erscheinen.
+    const VISIBLE_TOP_N = 5;                    // muss zu config.TOP_N passen
+    // ticker -> Live-Status ('reached'|'over'|'inval'|null) — EINE Quelle für
+    // Kartenrahmen/Hinweistext (_setLiveOutdated) UND die Sichtbarkeits-
+    // Entscheidung unten. Nie eigens zurückgesetzt: ein neuer Report-Load
+    // rendert ohnehin jede Karte neu und überschreibt jeden Eintrag zuerst
+    // mit dem frischen Lauf-Schlusskurs-Status (s. card()).
+    const _liveOutdatedByTicker = new Map();
+    const _visibleByMarket = new Map();         // marketId -> zuletzt gerenderte Ticker-Reihenfolge
+    let _lastMarkets = {};                      // marketId -> Report-Markt-Objekt (für Reflow)
+
+    // Reine Funktion des AKTUELLEN Live-Status — kein eigener Zwischenstand,
+    // der hängen bleiben könnte. Erholt sich ein Live-Kurs wieder, bevor der
+    // nächste Tageslauf kommt, taucht der ursprüngliche Kandidat hier von
+    // selbst wieder auf (Reversibilität, Auftrag Punkt 3) — einfach weil bei
+    // jedem Aufruf neu aus market.candidates (unverändert) gefiltert wird.
+    // Kriterium identisch zum Batch-Filter (#112, target_exceeded): JEDER
+    // Status ungleich null (reached/over/inval) heißt „würde beim nächsten
+    // Lauf nicht mehr in die sichtbaren Top-N sortiert".
+    function _effectiveVisible(market) {
+      const alle = market.candidates || [];
+      const uebrig = alle.filter(c => !_liveOutdatedByTicker.get(c.ticker));
+      return uebrig.slice(0, VISIBLE_TOP_N);
+    }
+
+    // Ersatzbank-Anzeige: kompakte Zeile statt volle Karte (kein zweiter,
+    // schwerer Kartenaufbau für Kandidaten, die gerade nicht sichtbar sind).
+    // Bekommt trotzdem eigenes Live-Polling (data-live-poll unten), DAMIT ein
+    // zuvor sichtbarer, live ausgeschiedener Kandidat bei Erholung erkannt
+    // werden kann (sonst gäbe es für ihn nie wieder einen Live-Tick, und die
+    // Reversibilität aus Auftrag Punkt 3 könnte nie greifen).
+    function _benchRow(c, market) {
+      const status = _liveOutdatedByTicker.get(c.ticker);
+      const note = status
+        ? ' <span class="bench-note">— zuvor sichtbar, laut Live-Kurs bereits ausgeschieden</span>'
+        : '';
+      return `<li data-ticker="${esc(c.ticker)}" data-market="${esc(market)}" data-live-poll
+        data-zl="${c.target_zone ? c.target_zone.low : ''}"
+        data-zh="${c.target_zone ? c.target_zone.high : ''}"
+        data-inv="${c.invalidation_price ?? ''}">
+        <span class="bench-ticker">${esc(c.ticker)}</span>${note}</li>`;
+    }
+
+    function _benchHtml(market, sichtbareTicker, marketId) {
+      const bench = (market.candidates || [])
+        .filter(c => !sichtbareTicker.includes(c.ticker));
+      if (!bench.length) return '';
+      const rows = bench.map(c => _benchRow(c, marketId)).join('');
+      return `<details class="bench-block">
+        <summary>Ersatzbank (${bench.length})</summary>
+        <ul class="bench-list">${rows}</ul>
+      </details>`;
+    }
+
+    // Nach jedem Live-Tick: hat sich die sichtbare Menge geändert (Kandidat
+    // ausgeschieden ODER zurückgekehrt)? Nur dann neu rendern — sonst wäre
+    // jeder 15-Sekunden-Tick ein unnötiger Reflow.
+    function _maybeReflow(marketId) {
+      const market = marketId && _lastMarkets[marketId];
+      if (!market) return;
+      const neu = _effectiveVisible(market).map(c => c.ticker);
+      const alt = _visibleByMarket.get(marketId) || [];
+      if (neu.length === alt.length && neu.every((t, i) => t === alt[i])) return;
+      renderMarket(marketId, market);
+      drawAllSparklines();   // neu gerenderte Karten brauchen ihre Sparklines
+      startQuotePolls();     // Live-Polling für die neue Kartenmenge neu aufsetzen
+    }
+
     function renderMarket(id, market) {
       const el = document.getElementById(id);
       const stand = marktStand(market);
-      const cards = (market.candidates || []).map((c, i) => card(c, i + 1, stand, id)).join('');
+      const visible = _effectiveVisible(market);
+      _visibleByMarket.set(id, visible.map(c => c.ticker));
+      const cards = visible.map((c, i) => card(c, i + 1, stand, id)).join('');
       const flag = MARKET_FLAG[id] ? ` <span class="flag">${MARKET_FLAG[id]}</span>` : '';
+      const bench = _benchHtml(market, visible.map(c => c.ticker), id);
       el.innerHTML = `<h2>${esc(market.label)}${flag}</h2>` +
         (cards ? `<div class="grid">${cards}</div>`
-               : `<div class="empty">Keine validen Kandidaten für diesen Lauf.</div>`);
+               : `<div class="empty">Keine validen Kandidaten für diesen Lauf.</div>`) +
+        bench;
     }
 
     // ── Persönliche Watchlist (Squeeze-Muster) ────────────────────────────
@@ -4885,6 +4980,10 @@
         `Stand: ${r.run_timestamp_utc || '?'} · Schema v${r.schema_version ?? '?'}`;
       document.getElementById('staleness').classList.remove('show');
       checkStaleness(r.run_timestamp_utc);
+      // Referenz für den Nachrücker-Reflow (_maybeReflow) — EIN frischer
+      // Report-Load ersetzt den kompletten Live-Status ohnehin (jede Karte
+      // registriert ihren Ausgangsstand beim Rendern neu, s. card()).
+      _lastMarkets = { US: r.markets.US, DE: r.markets.DE };
       renderMarket('US', r.markets.US);
       renderMarket('DE', r.markets.DE);
       renderWatchlist(r);  // Watchlist-Sektion (fail-soft, außer Konkurrenz)
@@ -4989,16 +5088,26 @@
     // demselben Report-Kandidaten, den card() schon einmal gerendert hat —
     // hier wird NUR neu bewertet, nie ein neuer Wert erfunden.
     function _setLiveOutdated(card, price) {
+      // Schwellen jetzt vom TOP-Element selbst (data-zl/zh/inv auf card()
+      // UND auf der Ersatzbank-Zeile, s. dort) — nicht mehr nur vom inneren
+      // Hinweis-Div, das die Ersatzbank gar nicht hat. _liveOutdatedStatus()
+      // faengt '' selbst ab (num()-Guard) — keine doppelte Pruefung noetig
+      // (Guardian-Nit 05.09.2026).
+      const status = _liveOutdatedStatus(price, card.dataset.zl, card.dataset.zh, card.dataset.inv);
+      const ticker = card.dataset.ticker;
+      // Nachrücker-Funktion (Auftrag 23.09.2026): EINE Stelle, die den
+      // Live-Status je Ticker festhält — Grundlage für _effectiveVisible().
+      const veraendert = ticker && _liveOutdatedByTicker.get(ticker) !== status;
+      if (ticker) _liveOutdatedByTicker.set(ticker, status);
       const el = card.querySelector('[data-live-outdated]');
-      if (!el) return;
-      // _liveOutdatedStatus() faengt '' selbst ab (num()-Guard) — keine
-      // doppelte Pruefung noetig (Guardian-Nit 05.09.2026).
-      const status = _liveOutdatedStatus(price, el.dataset.zl, el.dataset.zh, el.dataset.inv);
-      el.hidden = !status;
-      el.className = 'live-outdated' + (status ? ` live-outdated-${status === 'inval' ? 'inval' : 'zone'}` : '');
-      el.textContent = _liveOutdatedText(status, _wlZeitKurz(_lastReportTs));
-      card.classList.toggle('card-outdated-zone', status === 'reached' || status === 'over');
-      card.classList.toggle('card-outdated-inval', status === 'inval');
+      if (el) {
+        el.hidden = !status;
+        el.className = 'live-outdated' + (status ? ` live-outdated-${status === 'inval' ? 'inval' : 'zone'}` : '');
+        el.textContent = _liveOutdatedText(status, _wlZeitKurz(_lastReportTs));
+        card.classList.toggle('card-outdated-zone', status === 'reached' || status === 'over');
+        card.classList.toggle('card-outdated-inval', status === 'inval');
+      }
+      if (veraendert) _maybeReflow(card.dataset.market);
     }
 
     // „Beobachtungszone erreicht/überschritten"-Badge aus einem Preis neu setzen
@@ -5083,7 +5192,7 @@
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
           stopAllQuotePolls();
-          document.querySelectorAll('.card[data-ticker]').forEach(c => quoteSetDot(c, 'paused'));
+          document.querySelectorAll('[data-live-poll][data-ticker]').forEach(c => quoteSetDot(c, 'paused'));
         } else {
           startQuotePolls();  // Resume: sofort-Fetch + neue Intervalle
         }
@@ -5095,7 +5204,11 @@
       stopAllQuotePolls();
       ensureQuoteVisHook();
       const hidden = document.visibilityState === 'hidden';
-      document.querySelectorAll('.card[data-ticker]').forEach(card => {
+      // [data-live-poll] deckt sowohl volle Karten als auch Ersatzbank-
+      // Zeilen ab (Nachrücker-Funktion, Auftrag 23.09.2026) — eine zuvor
+      // sichtbare, live ausgeschiedene Karte braucht weiter Live-Ticks,
+      // sonst könnte sie nie als „erholt" erkannt werden (Reversibilität).
+      document.querySelectorAll('[data-live-poll][data-ticker]').forEach(card => {
         const ticker = card.getAttribute('data-ticker');
         if (!ticker) return;
         quoteFetchOnce(card, ticker);  // sofortiger erster Fetch

@@ -971,11 +971,17 @@ def update_forward_collection(
 
     # 1) Anlegen / Verlängern für die heutigen Top-5 — je Markt, mit
     #    markt-eigenen Ankern.
+    #    NUR die ersten config.TOP_N (5): seit dem Ersatzbank-Auftrag
+    #    (23.09.2026) kann market["candidates"] bis zu TOP_N_STORED (8)
+    #    Einträge tragen (sichtbare Top-5 + Platz 6-8 als reine Speicherung
+    #    fürs Frontend) — die Ersatzbank ist NICHT episode-fähig, solange sie
+    #    nicht selbst in die sichtbaren TOP_N aufsteigt (dann steht sie beim
+    #    nächsten Lauf ganz regulär hier in den ersten TOP_N).
     for mk, market in report.get("markets", {}).items():
         if mk in stale:
             continue                       # Markt unsichtbar (Sammlungs-Schutz)
         anchors = episode_anchor_dates(coll, run_date, mk)
-        for entry in market.get("candidates", []):
+        for entry in market.get("candidates", [])[: config.TOP_N]:
             ticker = entry["ticker"]
             active = _open_episode(records, ticker, anchors)
             if active is not None:

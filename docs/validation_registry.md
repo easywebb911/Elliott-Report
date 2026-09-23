@@ -1827,3 +1827,107 @@ vor n ≥ 100) gilt unverändert.
   NICHT geändert:** `fmtR()`/`rWerteHtml()` selbst (produktiv korrekt, keine
   Änderung nötig), keine Score-/Gate-/Sammlungslogik. Revert = nur die
   `_fmt_r()`-Funktion im Test zurücknehmen.
+
+- **2026-09-23 — Ersatzbank/Nachrücker-Funktion (Auftrag, berührt die rote
+  Linie: Episoden-Anlage-Logik).** Easy-Entscheidung: nachrückende Kandidaten
+  (Top-5-Titel scheidet live durch Zone/Invalidierung aus, #118) bekommen
+  SOFORT eine echte Episode wie ein normaler Top-5-Kandidat, markiert mit
+  `in_session_creation`. Speicherung: Top-8 statt Top-5 pro Markt.
+
+  **Rückfrage vor der Umsetzung (Auftrags-GRENZE: „falls unklar, STOPP und
+  Rückfrage").** Zwei Punkte geklärt, BEVOR Code geändert wurde:
+  1. **PRU-Guard (#112) vs. Platz 6-8** — recherchiert, NICHT geraten: der
+     `target_exceeded`/`target_ext_exceeded`-Filter
+     (`build_candidate(exclude_target_reached=True)`) läuft in `_scan_market()`
+     über das GESAMTE Marktuniversum, VOR Sortierung und TOP_N-Kappung
+     (`elliott_pipeline.py`, Zeile ~1956 vor diesem Auftrag). Platz 6-8 sind
+     also bereits heute genauso PRU-Guard-geschützt wie Platz 1-5 — keine
+     Ambiguität, keine Rückfrage nötig.
+  2. **„Sofort eine echte Episode anlegen" — technischer Trigger.** Die
+     bestehende Live-Kurs-Anzeige (#118) ist laut eigenem Kommentar bewusst
+     NUR Anzeige („Score/Ranking/#112-Filter … werden das erst beim NÄCHSTEN
+     Lauf nachziehen") — es gibt KEINEN Mechanismus, mit dem das Frontend
+     einen echten Schreibvorgang in `forward_collection.json` auslöst.
+     Rückfrage gestellt (AskUserQuestion), Easy hat entschieden: die echte
+     Episode entsteht beim NÄCHSTEN regulären Batch-Lauf (kein neuer
+     Live-Trigger vom Frontend aus) — das Frontend zeigt bis dahin nur eine
+     reine Live-Vorschau.
+
+  **Backend (`config.py`, `scripts/elliott_pipeline.py`,
+  `scripts/forward_collection.py`):**
+  - `config.TOP_N_STORED = 8` NEU, `config.TOP_N = 5` unverändert (sichtbar/
+    episode-fähig/großer Grad).
+  - `build_market()`: `top_stored = candidates[:TOP_N_STORED]`,
+    `top = top_stored[:TOP_N]` — `higher_degree`-Wochen-Fetch (echter
+    Netzabruf) bleibt AUSSCHLIESSLICH für `top` (5); die Ersatzbank (Platz
+    6-8) bekommt `higher_degree = None` OHNE eigenen Fetch (GRENZEN: kein
+    neuer Datenabruf — belegt per Spy-Test, der Fetcher-Aufrufe zählt).
+    `market["candidates"]` trägt jetzt `top_stored` (bis zu 8); `diag.
+    top_count` zählt entsprechend mit, NEUES additives `diag.visible_count`
+    nennt weiterhin die sichtbare Zahl (5).
+  - `forward_collection.update_forward_collection()`: die Anlage-/
+    Verlängerungs-Schleife liest jetzt explizit `market["candidates"]
+    [:config.TOP_N]` statt der vollen (jetzt bis zu 8 Einträge langen) Liste
+    — sonst hätte JEDER Batch-Lauf Episoden für die Ersatzbank angelegt, was
+    dem „Ersatzbank, nicht standardmäßig episode-fähig"-Entwurf widersprochen
+    hätte. Ein Nachrücker wird episode-fähig GENAU dann, wenn er durch das
+    unveränderte Ranking selbst in die ersten TOP_N rutscht (kein neuer
+    Code-Pfad — belegt in `tests/test_forward_collection.py::
+    test_nachruecker_wird_episode_faehig_sobald_er_selbst_top5_ist`).
+  - `in_session.py` NICHT verändert: `markiere_neue_records()` (Teil B, die
+    bestehende laufende Markierung) fasst jede in einem Lauf angelegte
+    Episode an, unabhängig vom Anlass — ein Nachrücker, der mitten in der
+    Sitzung selbst in die sichtbaren Top-5 rutscht, wird dadurch automatisch
+    `in_session_creation`-markiert, OHNE neuen Marker-Code (belegt in
+    `tests/test_in_session_creation.py::
+    test_nachruecker_episode_wird_in_session_markiert_ohne_neuen_code`).
+
+  **Frontend (`docs/index.html`):** rein additive Live-Vorschau, KEINE
+  Berührung von Score/Ranking/#112-Filter (Muster aus der #118-Anzeige
+  übernommen, dieselbe `_liveOutdatedStatus()`-Funktion, nicht neu erfunden).
+  - `_effectiveVisible(market)`: reine Funktion — filtert `market.candidates`
+    (bis zu 8) nach `_liveOutdatedByTicker` (Live-Status je Ticker, dieselbe
+    Klassifikation wie #118: reached/over/inval) und nimmt die ersten
+    `VISIBLE_TOP_N` (5) der übrig gebliebenen. KEIN eigener Zwischenspeicher,
+    der „hängen bleiben" könnte — Reversibilität (Auftrag Punkt 3) folgt
+    daraus von selbst: erholt sich ein Live-Kurs, taucht der ursprüngliche
+    Kandidat beim nächsten Aufruf automatisch wieder auf.
+  - `renderMarket()` rendert die sichtbaren Karten aus `_effectiveVisible()`
+    (Neu-Nummerierung ergibt sich aus der Listenposition) + eine kompakte
+    „Ersatzbank"-Sektion (`_benchHtml`/`_benchRow`) für den Rest — bewusst
+    KEIN zweiter voller Kartenaufbau.
+  - Live-Polling (`startQuotePolls`) erweitert von `.card[data-ticker]` auf
+    `[data-live-poll][data-ticker]` — deckt jetzt auch Ersatzbank-Zeilen ab.
+    Nötig für Punkt 3 (Reversibilität): eine zuvor sichtbare, live
+    ausgeschiedene Karte MUSS weiter Live-Ticks bekommen, sonst könnte eine
+    Erholung nie erkannt werden.
+  - `_setLiveOutdated()` liest die Schwellen jetzt vom TOP-Element
+    (`data-zl/zh/inv` direkt auf `card()`/`_benchRow()`) statt nur vom
+    inneren `[data-live-outdated]`-Div (das die Ersatzbank nicht hat),
+    aktualisiert `_liveOutdatedByTicker` und stößt bei einer ÄNDERUNG
+    `_maybeReflow()` an (Re-Render nur wenn sich die sichtbare Menge
+    tatsächlich ändert — kein Reflow bei jedem 15-s-Tick ohne Anlass).
+  - Punkt 5 (Episode bleibt bestehen, auch wenn der Nachrücker vor Reifung
+    wieder verschwindet): braucht KEINEN Code — folgt direkt aus Punkt 2
+    (Episode entsteht ohnehin erst am nächsten Batch-Lauf, nie live) UND aus
+    der bestehenden, unveränderten „nichts heilen"-Invariante der Sammlung
+    (MET/D/PRU-Prinzip, s. `in_session.py`-Kopf).
+
+  **Tests:** `tests/test_schema.py` (maxItems/Ersatzbank-higher_degree-None/
+  Spy-Test „kein zusätzlicher Fetch"), `tests/test_forward_collection.py`
+  (Ersatzbank ohne Episode, Regression normale Top-5, Nachrücker-Episode),
+  `tests/test_in_session_creation.py` (Nachrücker + in_session_creation
+  End-to-End), `tests/test_ersatzbank_nachruecker.py` (NEU — echter
+  ADBE-04.09.-Fall als Wert-Test, Reversibilität, mehrfaches Ausscheiden
+  am selben Tag, Quellcode-Abgleich GRENZEN). Mutationsprobe:
+  `_effectiveVisible()` auf „erste 5, ohne Live-Filter" zurückgesetzt → 7 der
+  11 neuen Frontend-Tests schlagen fehl (belegt, dass sie wirklich prüfen).
+  Volle Suite: 1627 passed.
+
+  **Guardian-Zweitblick:** zwingend (rote Linie) — s. PR-Beschreibung für das
+  Urteil. Draft-PR, KEIN Self-Merge — Entscheidung bleibt bei Easy.
+
+  Revert = Backend- und Frontend-Änderungen einzeln zurücknehmen (in der
+  Reihenfolge Frontend → forward_collection → elliott_pipeline → config,
+  da jede Stufe auf der vorigen aufbaut); kein Datenstand wird ungültig,
+  Score/Ranking/Auswertungscode unberührt.

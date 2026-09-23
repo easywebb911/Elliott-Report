@@ -235,7 +235,18 @@ CONFLUENCE_ROUND_STEP_LARGE = 50.0  # ab 500
 # ---------------------------------------------------------------------------
 # OUTPUT
 # ---------------------------------------------------------------------------
-TOP_N = 5                       # Top-N Kandidaten je Markt
+TOP_N = 5                       # Sichtbare Top-N Kandidaten je Markt (episode-fähig,
+                                 # großer Grad/Wochen-Fetch) — UNVERÄNDERT.
+# „Ersatzbank" (Auftrag 23.09.2026, Nachrücker-Funktion, #118-Folge): Platz
+# 6-8 werden ZUSÄTZLICH gespeichert (dieselben, bereits berechneten
+# Kandidaten — kein neuer Datenabruf), aber NICHT standardmäßig angezeigt und
+# NICHT episode-fähig (forward_collection.update_forward_collection liest
+# weiterhin nur die ersten TOP_N). Deckt mehrfaches Ausscheiden am selben Tag
+# ab, wenn das Frontend live erkennt, dass ein sichtbarer Top-5-Kandidat
+# Zone/Invalidierung bereits erreicht hat (Nachrücker-Vorschau) — die echte
+# Episode entsteht dafür erst beim nächsten regulären Lauf, wenn er dann
+# selbst in den sichtbaren TOP_N steht.
+TOP_N_STORED = 8
 SCHEMA_VERSION = 1              # additiv erweiterbar; bei Breaking-Change +1
 CARD_STATUS = "heuristisch · unvalidiert"
 
