@@ -152,6 +152,13 @@ class FetchOutcome:
     # Notfall-Fallback (fetch_twelvedata) auf "twelvedata_fallback" gesetzt,
     # rein additiv, kein Einfluss auf Zählung/Score/Ranking.
     source: str = "yfinance"
+    # Intraday-MFE/MAE-Auftrag (26.09.2026): Tages-Hoch/-Tief, GENAU wie
+    # `volumes` zu data[1] (closes) ausgerichtet, aus DEMSELBEN Download
+    # (dieselbe `_extract_bars()`-Extraktion, die bisher nur atr14() speiste
+    # und die Reihen danach verwarf) — KEIN Extra-Call, keine zweite Quelle.
+    # Fail-soft None, wenn keine High/Low-Spalte vorliegt (z. B. synthetisch).
+    highs: Optional[List[Optional[float]]] = None
+    lows: Optional[List[Optional[float]]] = None
 
 
 # Ein Fetcher liefert ein FetchOutcome (Daten ODER Skip-Grund + Detail).
@@ -310,7 +317,8 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
                         dropped_dates=tuple(dropped_dates),
                         dropped_last_row=dropped_last,
                         dropped_mid_row=dropped_mid,
-                        atr_14=atr14(highs, lows, closes))
+                        atr_14=atr14(highs, lows, closes),
+                        highs=highs, lows=lows)
 
 
 # ---------------------------------------------------------------------------
@@ -1826,6 +1834,7 @@ def _scan_market(
     volume_sink: Optional[Dict[str, List[float]]] = None,
     series_sink: Optional[Dict[str, Tuple[int, str, str]]] = None,
     atr_sink: Optional[Dict[str, float]] = None,
+    hilo_sink: Optional[Dict[str, Tuple[List[Optional[float]], List[Optional[float]]]]] = None,
 ) -> Tuple[List[Dict], Dict[str, int], List[Tuple[str, str, str]], List[Tuple[str, str]]]:
     """Verarbeitet ein Universum (fail-soft je Ticker) — ohne I/O/Logging.
 
@@ -1842,6 +1851,10 @@ def _scan_market(
         letztes_bar: jüngster gültiger Handelstag im Markt (informativ)
         bad_bars: (ticker, dropped, bad_vol, dropped_dates, last, mid) je Ticker mit
             nicht-finiten Rohdaten (Nicht-finit-Härtung, 27.07.2026).
+
+    hilo_sink (additiv, optional, 26.09.2026): {ticker: (highs, lows)} —
+    GENAU wie volume_sink aus demselben Download, kein Re-Fetch. Für die
+    Intraday-MFE/MAE-Felder der Forward-Sammlung (siehe forward_collection.py).
     """
     candidates: List[Dict] = []
     reason_counts: Dict[str, int] = {r: 0 for r in SKIP_REASONS}
@@ -1911,6 +1924,11 @@ def _scan_market(
         # ATR (Messfeld v2) analog mitnehmen — additiv, kein Re-Fetch.
         if atr_sink is not None and outcome.atr_14 is not None:
             atr_sink[ticker] = outcome.atr_14
+        # High/Low (Intraday-MFE/MAE-Auftrag, 26.09.2026) analog mitnehmen —
+        # additiv, kein Re-Fetch. Beide None möglich (z. B. synthetisch); dann
+        # bleiben mfe_high_10d/mae_low_10d in der Sammlung fail-soft None.
+        if hilo_sink is not None and (outcome.highs is not None or outcome.lows is not None):
+            hilo_sink[ticker] = (outcome.highs, outcome.lows)
         entry, reason, detail = build_candidate(ticker, dates, closes,
                                                 volumes=outcome.volumes,
                                                 atr_14=outcome.atr_14)
@@ -1931,6 +1949,7 @@ def build_market(
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
     atr_sink: Optional[Dict[str, float]] = None,
+    hilo_sink: Optional[Dict[str, Tuple[List[Optional[float]], List[Optional[float]]]]] = None,
 ) -> Dict:
     """Verarbeitet ein Marktuniversum (fail-soft je Ticker).
 
@@ -1949,7 +1968,7 @@ def build_market(
     _series: Dict[str, Tuple[int, str, str]] = {}
     (candidates, reason_counts, first_samples, dead_tickers, bad_bars,
      _letztes_bar) = _scan_market(
-        universe, fetcher, price_sink, volume_sink, _series, atr_sink)
+        universe, fetcher, price_sink, volume_sink, _series, atr_sink, hilo_sink)
 
     # Deterministische Sortierung: Score desc, dann Ticker asc.
     candidates.sort(key=lambda e: (-e["score_heuristic"], e["ticker"]))
@@ -2371,6 +2390,7 @@ def build_report(
     monthly_fetcher: Optional[Fetcher] = None,
     price_sink: Optional[Dict[str, Tuple[List[str], List[float]]]] = None,
     volume_sink: Optional[Dict[str, List[float]]] = None,
+    hilo_sink: Optional[Dict[str, Tuple[List[Optional[float]], List[Optional[float]]]]] = None,
 ) -> Dict:
     """Baut das komplette Report-Objekt (deterministisch bei festem Input).
 
@@ -2378,6 +2398,10 @@ def build_report(
     geladenen Ticker gefüllt — für die Forward-Sammlung, ohne Re-Fetch.
     volume_sink (optional): analog {ticker: volumes} (Messfeld v1), ebenfalls
     ohne Re-Fetch — nur für die Anzeige/Messung, NICHT für die Sammlung nötig.
+    hilo_sink (additiv, optional, 26.09.2026): analog {ticker: (highs, lows)},
+    ebenfalls ohne Re-Fetch — NUR für die Forward-Sammlung (Intraday-MFE/MAE),
+    anders als volume_sink NICHT für die Watchlist/Anzeige (dort bislang kein
+    Bedarf; bewusst minimal verdrahtet).
 
     monthly_fetcher (optional): NUR für die Watchlist (Monatsgrad). Die
     Markt-Pipeline (Top-5) bekommt ihn NICHT — sie bleibt Tag+Woche.
@@ -2391,7 +2415,7 @@ def build_report(
     markets: Dict[str, Dict] = {}
     for key in config.MARKETS:
         markets[key] = build_market(key, fetcher, weekly_fetcher, price_sink,
-                                    volume_sink, atr_sink)
+                                    volume_sink, atr_sink, hilo_sink)
         _annotiere_bar_rueckstand(markets[key], run_timestamp_utc, key)
     # Sammlungs-Schutz (05.08.2026): welche Märkte legen heute KEINE neuen
     # Episoden an? Die Entscheidung fällt hier, damit sie im Report steht und
@@ -2511,9 +2535,13 @@ def main() -> int:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     price_sink: Dict[str, Tuple[List[str], List[float]]] = {}
     volume_sink: Dict[str, List[float]] = {}  # Messfeld v1 (Volumen), kein Re-Fetch
+    # Intraday-MFE/MAE-Auftrag (26.09.2026): analog price_sink/volume_sink,
+    # kein Re-Fetch — reicht Tages-Hoch/-Tief bis zur Forward-Sammlung durch.
+    hilo_sink: Dict[str, Tuple[List[Optional[float]], List[Optional[float]]]] = {}
     _t0 = time.monotonic()
     report = build_report(fetcher, ts, get_weekly_fetcher(),
-                          get_monthly_fetcher(), price_sink, volume_sink)
+                          get_monthly_fetcher(), price_sink, volume_sink,
+                          hilo_sink)
     # Lauf-Dauer additiv (nur in main gesetzt -> build_report bleibt
     # deterministisch/testbar). Rein informativ für die „Lauf-Status"-Ansicht.
     report["generated_in_seconds"] = round(time.monotonic() - _t0, 1)
@@ -2678,7 +2706,8 @@ def main() -> int:
         for _mk, _lag in sorted(_gated.items()):
             _log(f"[elliott] {_mk}: keine neuen Episoden — Kurs-Stand veraltet "
                  f"({_lag} Handelstag{'e' if _lag != 1 else ''} zurück).")
-        fc.update_forward_collection(coll, report, price_sink, regimes, run_date, ts)
+        fc.update_forward_collection(coll, report, price_sink, regimes, run_date, ts,
+                                     hilo_sink)
         # In-Session-Marker (07.08.2026, Beschluss Easy): trug der ANLEGENDE Lauf
         # seinen Stempel mitten in der Sitzung des eigenen Markts, sind alle bei
         # der Anlage eingefrorenen Werte Zwischenstände (entry_close, Score,
