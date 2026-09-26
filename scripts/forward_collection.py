@@ -137,7 +137,9 @@ def market_regimes(offline: bool) -> Dict[str, str]:
 # Reifung (pure) — je Lauf aus der vollen Historie neu berechnet
 # ---------------------------------------------------------------------------
 def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
-                  now_iso: str) -> None:
+                  now_iso: str,
+                  highs: Optional[Sequence[Optional[float]]] = None,
+                  lows: Optional[Sequence[Optional[float]]] = None) -> None:
     """Füllt die forward-Kennzahlen aus den Kursen NACH first_seen_date.
 
     Binär (long): target_hit = Basiszone (low) erreicht VOR Invalidierung;
@@ -154,6 +156,15 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     gezählt; die Reifung läuft mit den GÜLTIGEN Bars weiter (``bars_elapsed``
     zählt gültige Bars) — ein Record bleibt also nie still ewig offen, sobald
     genügend gültige Kurse nachkommen.
+
+    highs/lows (additiv, ab 26.09.2026, Intraday-MFE/MAE-Auftrag): optionale,
+    zu ``dates``/``closes`` BAR-GENAU ausgerichtete Tages-Hoch/-Tief-Reihen —
+    GENAU wie ``closes`` aus demselben Download, kein Extra-Fetch (siehe
+    ``elliott_pipeline._extract_bars``). Fehlt eine der beiden Reihen GANZ
+    (``None`` — offline/synthetisch/Quelle ohne High/Low-Spalte), bleiben
+    ``mfe_high_10d``/``mae_low_10d`` unten fail-soft ``None``. Ein einzelner
+    fehlender Wert (``highs[i] is None``) wird wie beim Volumen NUR für den
+    betroffenen Tag ausgelassen, nicht der ganze Bar verworfen.
     """
     try:
         idx = list(dates).index(rec["first_seen_date"])
@@ -166,16 +177,26 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
     # also um einen Handelstag, er blockiert sie nicht.
     # Für gesunde Daten identisch: dort stoppt der Scan exakt bei idx+1+HORIZON.
     pairs: List[Tuple[str, float]] = []
+    hilo_pairs: List[Tuple[Optional[float], Optional[float]]] = []
     skipped = 0
-    for d, c in zip(list(dates)[idx + 1:], list(closes)[idx + 1:]):
+    # Dieselbe Verschiebung (idx+1:) wie bei dates/closes -> Position i im
+    # nachfolgenden zip() ist damit identisch zur Position in highs/lows.
+    highs_off = list(highs)[idx + 1:] if highs is not None else None
+    lows_off = list(lows)[idx + 1:] if lows is not None else None
+    for i, (d, c) in enumerate(zip(list(dates)[idx + 1:], list(closes)[idx + 1:])):
         if len(pairs) >= HORIZON_DAYS:
             break
         if finite(c):
             pairs.append((d, float(c)))
+            h = highs_off[i] if highs_off is not None and i < len(highs_off) else None
+            lo = lows_off[i] if lows_off is not None and i < len(lows_off) else None
+            hilo_pairs.append((h, lo))
         else:
             skipped += 1
     fwd_dates = [d for d, _ in pairs]
     fwd = [c for _, c in pairs]
+    fwd_highs = [h for h, _ in hilo_pairs]
+    fwd_lows = [lo for _, lo in hilo_pairs]
     rec["last_update_utc"] = now_iso
     rec["bars_elapsed"] = len(fwd)
     # additiv, nur wenn es etwas zu melden gibt — und WIEDER WEG, sobald die
@@ -260,6 +281,22 @@ def mature_record(rec: Dict, dates: Sequence[str], closes: Sequence[float],
                            if entry else None)
     rec["max_drawdown_10d"] = (round((minc - entry) / entry * 100.0, 4)
                                if entry else None)
+    # Intraday-MFE/MAE (additiv, ab 26.09.2026, siehe validation_registry.md):
+    # GENAU dieselbe 10-Tage-Fensterlogik wie max_gain_10d/max_drawdown_10d,
+    # aber aus dem TAGES-HOCH/-TIEF statt dem Schlusskurs — deckt echte
+    # Intraday-Ausschläge auf, die ein Close-only-Fenster nicht sieht. NEUE,
+    # rein additive Felder (Eingefrorene-Dimensionen-Regel): max_gain_10d/
+    # max_drawdown_10d bleiben unverändert Close-basiert. Betrifft nur ab jetzt
+    # NEU angelegte/laufende Episoden — kein Backfill hier (separate
+    # Easy-Entscheidung). Fail-soft wie beim Volumen: fehlt highs/lows GANZ
+    # (offline/synthetisch/Quelle ohne High/Low-Spalte), bleiben beide Felder
+    # None statt eines falschen Werts.
+    max_high = max((h for h in fwd_highs if h is not None), default=None)
+    min_low = min((lo for lo in fwd_lows if lo is not None), default=None)
+    rec["mfe_high_10d"] = (round((max_high - entry) / entry * 100.0, 4)
+                           if entry and max_high is not None else None)
+    rec["mae_low_10d"] = (round((min_low - entry) / entry * 100.0, 4)
+                          if entry and min_low is not None else None)
     risk = entry - inval
     rec["r_multiple"] = (round((maxc - entry) / risk, 4)
                          if finite(risk) and risk > 0 else None)
@@ -800,6 +837,9 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         "pre_reached_ext": False,
         "max_gain_10d": None,
         "max_drawdown_10d": None,
+        # Intraday-MFE/MAE (additiv, ab 26.09.2026) — s. mature_record().
+        "mfe_high_10d": None,
+        "mae_low_10d": None,
         "r_multiple": None,
         # R-Multiple-Erfassung (additiv, ab 06.09.2026): Geometrie bei Anlage
         # sofort berechenbar (reine Funktion von entry_close/invalidation_price/
@@ -940,8 +980,15 @@ def update_forward_collection(
     regimes: Dict[str, str],
     run_date: str,
     now_iso: str,
+    hilo_data: Optional[Dict[str, Tuple[Sequence[Optional[float]], Sequence[Optional[float]]]]] = None,
 ) -> Dict:
     """Legt neue Episoden an, reift offene Records, aktualisiert Metadaten.
+
+    hilo_data (additiv, optional, ab 26.09.2026): {ticker: (highs, lows)},
+    GENAU wie price_data aus demselben Download, kein Extra-Fetch — reicht
+    ``mature_record()`` die Tages-Hoch/-Tief-Reihen für mfe_high_10d/
+    mae_low_10d durch. ``None`` (Default, alle bestehenden Aufrufer/Tests
+    unverändert lauffähig) -> beide Felder bleiben fail-soft ``None``.
 
     Episoden-Regel: ein Record je Ticker-Episode. Konsekutive Top-5-KALENDER-
     TAGE verlängern dieselbe Episode (kein Doppel-Record), unabhängig davon,
@@ -1001,7 +1048,9 @@ def update_forward_collection(
             continue
         pdata = price_data.get(r["ticker"])
         if pdata:
-            mature_record(r, pdata[0], pdata[1], now_iso)
+            hilo = hilo_data.get(r["ticker"]) if hilo_data else None
+            highs, lows = hilo if hilo is not None else (None, None)
+            mature_record(r, pdata[0], pdata[1], now_iso, highs=highs, lows=lows)
 
     # 3) W5->A-Nachprüfung (Lit-Check b) — SEPARATER Durchgang, damit die Reifung
     #    (Schritt 2) byte-identisch bleibt. Angehängtes Beobachtungsfenster für
