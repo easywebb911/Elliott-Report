@@ -421,6 +421,12 @@ def test_das_gate_erzeugt_KEINEN_eigenen_push():
 # `git fetch --unshallow` verifiziert, 135 Reports/116 Sammlungs-Stände).
 # Gleiches Muster wie AOF.DE: gehört in ERWARTETE_REPLAY_TREFFER, NICHT in
 # ERWARTETE_MARKIERUNGEN.
+#
+# STM.DE/AMZN/DELL/ADM/GILD/TXN/VNA.DE kamen in den Nächten vom 23.–26.09.2026
+# hinzu — wieder per `finde_stale_records()` gegen die volle committete
+# Historie nachgerechnet (nicht geraten; verifiziert: Repo nicht flach,
+# 141 Reports/119 Sammlungs-Stände). Gleiches Muster: gehören in
+# ERWARTETE_REPLAY_TREFFER, NICHT in ERWARTETE_MARKIERUNGEN.
 # ---------------------------------------------------------------------------
 ERWARTETE_MARKIERUNGEN = [
     ("ADS.DE", "DE", "2026-07-30T22:45:00Z", 1),
@@ -432,6 +438,13 @@ ERWARTETE_MARKIERUNGEN = [
 ERWARTETE_REPLAY_TREFFER = ERWARTETE_MARKIERUNGEN + [
     ("AOF.DE", "DE", "2026-09-22T01:09:47Z", 2),
     ("NEM", "US", "2026-09-23T00:55:39Z", 2),
+    ("STM.DE", "DE", "2026-09-24T00:52:41Z", 2),
+    ("AMZN", "US", "2026-09-25T00:49:09Z", 2),
+    ("DELL", "US", "2026-09-25T00:49:09Z", 2),
+    ("ADM", "US", "2026-09-25T00:49:09Z", 2),
+    ("GILD", "US", "2026-09-26T00:52:46Z", 1),
+    ("TXN", "US", "2026-09-26T00:52:46Z", 1),
+    ("VNA.DE", "DE", "2026-09-26T00:52:46Z", 1),
 ]
 
 
