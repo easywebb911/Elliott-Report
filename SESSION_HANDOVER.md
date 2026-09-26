@@ -731,6 +731,17 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Fibonacci-Bonus**. Der Score diskriminiert oben deutlich schwächer, als drei
   Komponenten vermuten lassen. Dazu: `end_of_c` steht in
   `SETUP_BASE_POINTS`, wird von `classify_setup` aber **nie erzeugt**.
+  **26.09.2026 — Score↔R-Multiple-Korrelation (Wegwerf-Diagnose, nichts
+  committet/geändert):** Primär (a) n=128 Spearman ρ=0,154 (p≈0,08),
+  Sensitivität (b) n=68 ρ=0,182 (p≈0,13), beide Basiszone; Extension-Zone
+  schwächer (ρ=0,104 / 0,111). Richtung durchgehend leicht positiv, aber
+  kein Wert p<0,05 — bei diesem n eher Rauschen. Markt-Split (a,
+  Basiszone): US n=67 ρ≈−0,004, DE n=61 ρ≈0,188 — bestätigt den bekannten
+  Typ-Mix-Vorbehalt, kein neuer Befund. Zwei dämpfende Effekte
+  identifiziert (Invalidierungs-Bonus-Deckelung 55,4 % + `r_erreicht_basis`
+  selbst bei Zielzonen-Treffer gedeckelt) → wahrer Zusammenhang eher unter-
+  als überschätzt. Verdikt: informativ fürs Dezember-Dossier, kein festes
+  Feld, kein neuer Maßstab; erst bei wachsendem n erneut prüfen.
 - **Score-Alert typ-relativ (#24, berichtigt 31.07.2026):** IM Daily-Lauf, in `elliott_pipeline.main()`
   **nach** `update_forward_collection` (Episoden existieren) und **vor**
   `write_collection` (Flag persistiert). `fc.score_alert_edges(coll, report, run_date)`
