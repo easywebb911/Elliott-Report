@@ -1950,3 +1950,23 @@ vor n ≥ 100) gilt unverändert.
   Reihenfolge Frontend → forward_collection → elliott_pipeline → config,
   da jede Stufe auf der vorigen aufbaut); kein Datenstand wird ungültig,
   Score/Ranking/Auswertungscode unberührt.
+
+- **2026-09-26 — Sieben neue Stale-Market-Replay-Treffer ergänzt**
+  (`tests/test_sammlungs_schutz.py::ERWARTETE_REPLAY_TREFFER`): STM.DE,
+  AMZN, DELL, ADM, GILD, TXN, VNA.DE. CI auf PR #146 (Push-Kurzform,
+  separater PR) war rot — durch mehrere davon unabhängige, echte neue
+  Vorfälle in den Nächten vom 23.–26.09.2026: `finde_stale_records()`
+  findet neue Kalendertag-Rückstände (STM.DE/AMZN/DELL/ADM: Rückstand 2;
+  GILD/TXN/VNA.DE: Rückstand 1, gleiches Muster wie die historischen
+  ADS.DE/MTX.DE/G1A.DE-Einträge) — dieselbe Klasse Testdaten-Drift wie
+  AOF.DE (PR #141) und NEM (PR #145), diesmal mehrere Vorfälle auf einmal.
+  Verifiziert per direktem Aufruf von `finde_stale_records()` gegen die
+  volle committete Historie (141 Reports/119 Sammlungs-Stände, Repo nicht
+  flach) — nicht geraten. **Fix:** alle sieben in `ERWARTETE_REPLAY_TREFFER`
+  ergänzt (NICHT in `ERWARTETE_MARKIERUNGEN` — dafür fehlt weiterhin der
+  manuelle `--live`-Marker-Lauf, eine bewusste Easy-Entscheidung). Volle
+  Suite: 1627 passed. **Bewusst NICHT geändert:**
+  `mark_stale_market_records.py` selbst, das Sammlungs-Gate,
+  `ERWARTETE_MARKIERUNGEN`, `data/forward_collection.json` (kein
+  `--live`-Lauf). Revert = die sieben neuen Zeilen aus
+  `ERWARTETE_REPLAY_TREFFER` zurücknehmen.
