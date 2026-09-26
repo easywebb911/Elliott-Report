@@ -412,6 +412,105 @@ def test_tagesbericht_gruppiert_nach_roter_linie():
 
 
 # ---------------------------------------------------------------------------
+# Push-Kurzform (Auftrag 26.09.2026) — Alltagssprache statt Rohdaten
+# ---------------------------------------------------------------------------
+# WERT-TEST mit der Form der 7 echten Funde vom 26.09.2026 (7×
+# testdaten_drift, alle ohne rote Linie) — bewusst als KONSTRUIERTE Liste,
+# nicht als Live-Scan: ein Assert gegen scan_repo(ROOT)s tatsächliche Zahl
+# wäre selbst genau die Testdaten-Drift-Anfälligkeit, die dieser Wächter bei
+# ANDEREN Tests aufspürt (s. Kommentar bei test_scan_repo_laeuft_ohne_
+# fehler_gegen_den_echten_baum unten). Nachgerechnet von Hand:
+# python3 -c "... pw.scan_repo(Path('.')) ..." -> 7 Fund(e), alle
+# testdaten_drift, alle rote_linie=False.
+def _sieben_echte_funde() -> list:
+    return [
+        pw.Fund(klasse=pw.KLASSE_TESTDATEN_DRIFT, datei="tests/test_a.py",
+                zeile=i + 1, beschreibung=f"tests/test_a.py:{i + 1} ...",
+                betroffene_dateien=["tests/test_a.py"])
+        for i in range(7)
+    ]
+
+
+def test_push_kurzform_mit_den_sieben_echten_funden_vom_26_09():
+    text = pw.push_kurzform(_sieben_echte_funde())
+    assert text == (
+        "🔍 Wächter: 7 Fund(e) — 7 Kosmetik-Kandidat(en), 0 wichtig — "
+        "7× Testdaten veraltet"
+    )
+
+
+def test_push_kurzform_ohne_funde():
+    assert pw.push_kurzform([]) == "🔍 Wächter: keine Funde"
+
+
+def test_push_kurzform_enthaelt_nie_dateipfade_zeilen_oder_code():
+    """Der eigentliche Auftrags-Kern (Punkt 1): OHNE Dateipfade/
+    Zeilennummern/Code im Push-Text selbst — Fund.beschreibung (die genau
+    das enthält) darf im Ergebnis nirgends auftauchen."""
+    funde = [
+        pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei="scripts/notify.py",
+                zeile=42, beschreibung="scripts/notify.py:42 API_KEY = 'geheim'",
+                betroffene_dateien=["scripts/notify.py"]),
+        pw.Fund(klasse=pw.KLASSE_STRUKTUR_INKONSISTENZ, datei="scripts/evaluate.py",
+                zeile=None, beschreibung="scripts/evaluate.py widerspricht x.py",
+                betroffene_dateien=["scripts/evaluate.py"]),
+    ]
+    text = pw.push_kurzform(funde)
+    for f in funde:
+        assert f.datei not in text
+        assert f.beschreibung not in text
+    assert ":42" not in text
+    assert "Sicherheits-Hinweis" in text
+    assert "Unstimmigkeit im Code" in text
+
+
+def test_push_kurzform_kategorien_absteigend_sortiert_deterministisch():
+    """Mutationsprobe fürs Sortierkriterium: die häufigste Kategorie zuerst,
+    bei Gleichstand alphabetisch — nicht dict-Einfüge-/Zufallsreihenfolge."""
+    funde = (
+        [pw.Fund(klasse=pw.KLASSE_VERALTETE_DOKU, datei="a.py", zeile=1,
+                 beschreibung="x", betroffene_dateien=["tests/a.py"])]
+        + [pw.Fund(klasse=pw.KLASSE_TESTDATEN_DRIFT, datei="a.py", zeile=1,
+                   beschreibung="x", betroffene_dateien=["tests/a.py"])
+           for _ in range(3)]
+    )
+    text = pw.push_kurzform(funde)
+    assert text.index("Testdaten veraltet") < text.index("Text veraltet")
+
+
+def test_kategorie_alltagssprache_deckt_alle_fuenf_klassen_ab():
+    for klasse in (pw.KLASSE_TESTDATEN_DRIFT, pw.KLASSE_VERALTETE_DOKU,
+                   pw.KLASSE_FEHLENDE_REGISTRY, pw.KLASSE_KEY_EXPOSURE,
+                   pw.KLASSE_STRUKTUR_INKONSISTENZ):
+        assert klasse in pw.KATEGORIE_ALLTAGSSPRACHE
+        # kein technischer Jargon: kein Unterstrich, keine Klassen-Kurznamen
+        assert "_" not in pw.KATEGORIE_ALLTAGSSPRACHE[klasse]
+
+
+def test_schreibe_job_summary_schreibt_bei_gesetzter_umgebungsvariable(
+        tmp_path, monkeypatch):
+    ziel = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(ziel))
+    pw.schreibe_job_summary("voller technischer Bericht mit tests/a.py:12")
+    assert "tests/a.py:12" in ziel.read_text(encoding="utf-8")
+
+
+def test_schreibe_job_summary_ohne_umgebungsvariable_ist_fail_soft(monkeypatch):
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    pw.schreibe_job_summary("irrelevant")  # darf nicht werfen
+
+
+def test_tagesbericht_bleibt_unveraendert_die_volle_technische_quelle():
+    """GRENZEN: tagesbericht() selbst (Job-Summary-Inhalt) ändert sich
+    NICHT — nur der Push nutzt jetzt push_kurzform() statt dieses Texts."""
+    gruen = pw.Fund(klasse="x", datei="tests/test_a.py", zeile=1,
+                    beschreibung="tests/test_a.py:1 A")
+    text = pw.tagesbericht([gruen])
+    assert "tests/test_a.py:1" in text
+    assert "[self-merge-kandidat]" in text
+
+
+# ---------------------------------------------------------------------------
 # Integrations-Rauchtest gegen den echten Baum — rein informativ, KEINE
 # Assertion gegen Zahlen (sonst wäre der Wächter-Test selbst Testdaten-
 # Drift-anfällig — die Ironie wäre nicht witzig).
@@ -422,3 +521,13 @@ def test_scan_repo_laeuft_ohne_fehler_gegen_den_echten_baum():
     for f in funde:
         assert isinstance(f, pw.Fund)
         assert f.rote_linie == pw.beruehrt_rote_linie(f.betroffene_dateien)
+
+
+def test_push_kurzform_gegen_den_echten_baum_bleibt_dateifrei():
+    """Rein informativ, keine Zahlen-Assertion (s. o.) — aber die
+    STRUKTURELLE Garantie (keine Dateipfade im Push-Text) muss auch gegen
+    den echten, sich wandelnden Fund-Bestand halten."""
+    funde = pw.scan_repo(ROOT)
+    text = pw.push_kurzform(funde)
+    for f in funde:
+        assert f.datei not in text

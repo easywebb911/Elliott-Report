@@ -28,7 +28,9 @@ Qualitäts-Marker (`mark_episode_splits.py`, `mark_in_session_creation.py`,
 """
 from __future__ import annotations
 
+import os
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -509,13 +511,74 @@ def tagesbericht(funde: Sequence[Fund]) -> str:
     return "\n".join(zeilen)
 
 
-def main() -> int:
-    import os
+# ---------------------------------------------------------------------------
+# Push-Kurzform (Auftrag 26.09.2026) — Alltagssprache statt Rohdaten
+# ---------------------------------------------------------------------------
+# ANLASS: Bisher landete tagesbericht()s kompletter Text (Dateipfade,
+# Zeilennummern, Code-Zitate aus Fund.beschreibung) direkt im Push — für den
+# Alltag unlesbar. Bestehende Push-Stile im Projekt (health_check.push_body:
+# "kurz und handlungsorientiert", notify.py: fester "Elliott: ..."-Titel +
+# kompakter Body) sind hier das Vorbild. tagesbericht() selbst bleibt
+# UNVERÄNDERT — sie liefert weiterhin die vollen Details für stdout/
+# Job-Summary (schreibe_job_summary), nur nicht mehr für den Push.
+KATEGORIE_ALLTAGSSPRACHE: Dict[str, str] = {
+    KLASSE_TESTDATEN_DRIFT: "Testdaten veraltet",
+    KLASSE_VERALTETE_DOKU: "Text veraltet",
+    KLASSE_FEHLENDE_REGISTRY: "Dokumentation fehlt",
+    KLASSE_KEY_EXPOSURE: "Sicherheits-Hinweis",
+    KLASSE_STRUKTUR_INKONSISTENZ: "Unstimmigkeit im Code",
+}
 
+
+def push_kurzform(funde: Sequence[Fund]) -> str:
+    """Kurze, alltagssprachliche Push-Zusammenfassung — OHNE Dateipfade,
+    Zeilennummern oder Code (Auftrag 26.09.2026, Punkte 1+4). Reine
+    Formatierung, kein I/O. Wert-Test mit den echten Funden vom 26.09.2026
+    steht in tests/test_proactive_watcher.py."""
+    if not funde:
+        return "🔍 Wächter: keine Funde"
+    rote = sum(1 for f in funde if f.rote_linie)
+    gruene = len(funde) - rote
+    zaehler = Counter(f.klasse for f in funde)
+    # Häufigste Kategorie zuerst, bei Gleichstand alphabetisch — deterministisch,
+    # keine Zufalls-Reihenfolge aus dict-Iteration.
+    kategorien = ", ".join(
+        f"{n}× {KATEGORIE_ALLTAGSSPRACHE.get(klasse, klasse)}"
+        for klasse, n in sorted(zaehler.items(), key=lambda kv: (-kv[1], kv[0]))
+    )
+    return (
+        f"🔍 Wächter: {len(funde)} Fund(e) — {gruene} Kosmetik-Kandidat(en), "
+        f"{rote} wichtig — {kategorien}"
+    )
+
+
+def schreibe_job_summary(text: str) -> None:
+    """Die vollen technischen Details (Dateipfade/Zeilen/Code) landen seit
+    dem 26.09.2026 nicht mehr im Push, sondern hier: im GitHub-Actions-
+    Job-Summary DIESES Laufs (Auftrag Punkt 3). Fail-soft: ohne
+    ``GITHUB_STEP_SUMMARY`` (z. B. ein lokaler Lauf) passiert nichts — kein
+    Fehler, kein Absturz. Von proactive_fixer.py mitgenutzt (EINE Stelle,
+    keine Kopie)."""
+    pfad = os.environ.get("GITHUB_STEP_SUMMARY", "")
+    if not pfad:
+        return
+    try:
+        with open(pfad, "a", encoding="utf-8") as fh:
+            fh.write(text + "\n")
+    except OSError:
+        pass  # fail-soft — stdout (print(bericht)) hat den Text bereits
+
+
+def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     funde = scan_repo(repo_root)
     bericht = tagesbericht(funde)
     print(bericht)
+    # Volle technische Details (Dateipfade/Zeilen/Code-Zitate) landen seit
+    # dem 26.09.2026 NICHT mehr im Push, sondern hier im Job-Summary dieses
+    # Laufs (Auftrag Punkt 3) — zusätzlich zur stdout-Ausgabe oben, nicht
+    # statt ihr.
+    schreibe_job_summary(bericht)
 
     ntfy_topic = os.environ.get("NTFY_TOPIC", "")
     if ntfy_topic:
@@ -525,18 +588,15 @@ def main() -> int:
         # sys.path[0], `notify` also direkt importierbar.
         import notify  # noqa: WPS433 — lazy wie in auto_retry_watcher.py
 
-        rote = sum(1 for f in funde if f.rote_linie)
-        gruene = len(funde) - rote
-        titel = (
-            "Elliott: proaktiver Wächter — keine Funde" if not funde
-            else f"Elliott: proaktiver Wächter — {gruene} Self-Merge-"
-                 f"Kandidat(en), {rote} für Easy"
-        )
         # EIN Push für den GESAMTEN Lauf (Auftrag Punkt 5) — keine
         # Einzelmeldung pro Fund. Push nur, wenn es überhaupt etwas zu
-        # berichten gibt; ein Lauf ohne Funde ist kein Alarm.
+        # berichten gibt; ein Lauf ohne Funde ist kein Alarm. Titel bleibt
+        # der bestehende "Elliott: ..."-Stil (health_check.py/notify.py);
+        # der eigentliche Inhalt ist seit dem 26.09.2026 die alltags-
+        # sprachliche Kurzform (push_kurzform), nicht mehr der volle Bericht.
         if funde:
-            notify.send_ntfy(ntfy_topic, titel, bericht, priority="default",
+            notify.send_ntfy(ntfy_topic, "Elliott: proaktiver Wächter",
+                              push_kurzform(funde), priority="default",
                               tags="mag_right")
     return 0
 
