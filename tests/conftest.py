@@ -43,6 +43,12 @@ NEUTRALE_UMGEBUNG = (
     # elliott_pipeline.fetch_alphavantage / _make_yfinance_with_av_fallback
     # lesen das Secret. Gleicher Grund wie bei TWELVE_DATA_API_KEY oben.
     "ALPHA_VANTAGE_API_KEY",
+    # Push-Kurzform (Auftrag 26.09.2026): proactive_watcher.schreibe_job_
+    # summary() (von proactive_fixer.py mitgenutzt) schreibt die vollen
+    # technischen Details dorthin statt in den Push — in der CI real gesetzt,
+    # lokal nicht. Dieselbe Falle wie GITHUB_REF: ohne Wegräumen könnte ein
+    # Test versehentlich in die echte Job-Summary-Datei des Läufers schreiben.
+    "GITHUB_STEP_SUMMARY",
 )
 
 

@@ -1950,3 +1950,63 @@ vor n ≥ 100) gilt unverändert.
   Reihenfolge Frontend → forward_collection → elliott_pipeline → config,
   da jede Stufe auf der vorigen aufbaut); kein Datenstand wird ungültig,
   Score/Ranking/Auswertungscode unberührt.
+
+- **2026-09-26 — Push-Kurzform für proactive_watcher/proactive_fixer**
+  (reine Format-/Text-Änderung, keine Erkennungs-/Fix-Logik berührt).
+  ANLASS: die Push-Meldungen trugen bisher `tagesbericht()`s/
+  `gesamtbericht()`s vollen technischen Text (Dateipfade, Zeilennummern,
+  Code-Zitate aus `Fund.beschreibung`) — im Alltag unlesbar. Bestehende
+  Push-Stile im Projekt (`health_check.push_body`: „kurz und
+  handlungsorientiert"; fester `"Elliott: ..."`-Titel + kompakter Body)
+  waren das Vorbild.
+  - **`proactive_watcher.py`:** neue `push_kurzform(funde)` — EINE
+    alltagssprachliche Zeile mit Emoji, Gesamtzahl, Kosmetik-/Wichtig-Split
+    und Kategorien-Aufschlüsselung, OHNE Dateipfade/Zeilen/Code. Wert-Test
+    mit der Form der 7 echten Funde vom 26.09.2026 (7× `testdaten_drift`,
+    alle ohne rote Linie) ergibt: `"🔍 Wächter: 7 Fund(e) — 7
+    Kosmetik-Kandidat(en), 0 wichtig — 7× Testdaten veraltet"` — bewusst als
+    KONSTRUIERTE Liste getestet, nicht per Live-Scan-Zahl (sonst wäre der
+    Wächter-Test selbst testdaten-drift-anfällig, s. bestehender Kommentar
+    bei `test_scan_repo_laeuft_ohne_fehler_gegen_den_echten_baum`).
+  - **Kategorie-Mapping** (`KATEGORIE_ALLTAGSSPRACHE`, Auftrag Punkt 4):
+    `testdaten_drift` → „Testdaten veraltet", `key_exposure` →
+    „Sicherheits-Hinweis", `veraltete_doku` → „Text veraltet",
+    `fehlende_registry` → „Dokumentation fehlt", zusätzlich
+    `struktur_inkonsistenz` → „Unstimmigkeit im Code" (im Auftrag nicht
+    vorgegeben, hier ergänzt — einzige der 5 Klassen ohne Beispieltext).
+  - **`proactive_fixer.py`:** neue `push_kurzform(ergebnisse)` — zählt
+    ausschließlich `STATUS_WARTET_AUF_EASY` (= tatsächlich entstandene
+    Draft-PRs): `"🔧 Wächter-Fix: N PR(s) warten auf dich"` bzw. `"🔧
+    Wächter: nichts zu fixen"` (auch wenn es Rote-Linie-/Kein-Fix-Funde gab
+    — die stehen im Job-Summary, nicht im Push).
+  - **Vollständige technische Details ziehen um** (Auftrag Punkt 3): NEUE
+    `proactive_watcher.schreibe_job_summary(text)` schreibt additiv
+    (zusätzlich zu `print(bericht)`, nicht statt dessen) in
+    `$GITHUB_STEP_SUMMARY` — fail-soft, wenn die Variable fehlt (z. B.
+    lokaler Lauf). `proactive_fixer.py` nutzt dieselbe Funktion (`pw.
+    schreibe_job_summary`, keine Kopie). Bei tatsächlichen Fix-Kandidaten
+    (`STATUS_WARTET_AUF_EASY`) stehen die vollen Details zusätzlich
+    unverändert im PR-Text selbst (`wende_fix_an_und_erstelle_pr` — dort
+    bereits vor diesem Auftrag vorhanden, nicht neu).
+  - **`GITHUB_STEP_SUMMARY`** in `tests/conftest.py::NEUTRALE_UMGEBUNG`
+    ergänzt (dieselbe Isolations-Regel wie bei `GITHUB_REF` — sonst könnte
+    ein Test versehentlich in die echte Job-Summary-Datei des Läufers
+    schreiben; von `tests/test_umgebungs_isolation.py` erzwungen, dort
+    zunächst zu Recht rot geworden und hier gefixt).
+  - **Bewusst NICHT geändert:** `tagesbericht()`/`gesamtbericht()`/
+    `phase2_bericht()` selbst (bleiben die volle technische Quelle für
+    Job-Summary + PR-Text), `entscheide()`/die Fünf-Klassen-Erkennung/
+    `beruehrt_rote_linie()` (Erkennungs-/Fix-Logik und rote-Linie-
+    Klassifikation unberührt, wie beauftragt), `soll_push_unterdruecken()`.
+  - Mutationsprobe: Sortierkriterium der Kategorien-Aufschlüsselung
+    (häufigste zuerst, bei Gleichstand alphabetisch) testweise auf
+    unsortierte dict-Reihenfolge zurückgesetzt → Test schlägt fehl;
+    wiederhergestellt → grün.
+  - Volle Suite: 1640 passed (ein unabhängiger, vorbestehender
+    Testdaten-Drift-Fund — sieben neue Stale-Market-Fälle in
+    `test_sammlungs_schutz.py`, u. a. STM.DE — wurde per Stash-Probe isoliert
+    bestätigt und bleibt außerhalb der GRENZEN dieses PRs).
+  Revert = `push_kurzform()`/`schreibe_job_summary()` in beiden Skripten,
+  die `main()`-Anpassungen und den `NEUTRALE_UMGEBUNG`-Eintrag einzeln
+  zurücknehmen; kein Datenstand betroffen, keine Erkennungs-/Fix-Logik
+  berührt.

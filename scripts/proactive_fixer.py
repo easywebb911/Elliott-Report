@@ -460,10 +460,29 @@ def phase2_bericht(ergebnisse: Sequence[FixEntscheidung]) -> str:
 
 
 def gesamtbericht(funde: Sequence[pw.Fund], ergebnisse: Sequence[FixEntscheidung]) -> str:
-    """EIN Text für Push/Report-Panel — Phase-1-Bericht + Phase-2-Anhang."""
+    """EIN Text für Push/Report-Panel — Phase-1-Bericht + Phase-2-Anhang.
+
+    Vollständiger technischer Text — seit dem 26.09.2026 nicht mehr für den
+    Push selbst gedacht (s. push_kurzform), sondern fürs Job-Summary
+    (pw.schreibe_job_summary) UND unverändert als Basis für den PR-Text bei
+    tatsächlichen Fix-Kandidaten (s. wende_fix_an_und_erstelle_pr)."""
     basis = pw.tagesbericht(funde)
     anhang = phase2_bericht(ergebnisse)
     return basis + ("\n" + anhang if anhang else "")
+
+
+def push_kurzform(ergebnisse: Sequence[FixEntscheidung]) -> str:
+    """Kurze, alltagssprachliche Push-Zusammenfassung für Phase 2 — OHNE
+    Dateipfade/Zeilennummern/Code (Auftrag 26.09.2026, Punkte 2+4). Die
+    vollen Details je Fix-Kandidat stehen weiterhin im jeweiligen PR-Text
+    (unverändert, s. wende_fix_an_und_erstelle_pr); für Funde OHNE PR
+    (rote Linie / kein sauber beweisbarer Fix) stehen sie im Job-Summary
+    (gesamtbericht() via pw.schreibe_job_summary). Reine Formatierung,
+    kein I/O."""
+    wartet = sum(1 for e in ergebnisse if e.status == STATUS_WARTET_AUF_EASY)
+    if wartet:
+        return f"🔧 Wächter-Fix: {wartet} PR(s) warten auf dich"
+    return "🔧 Wächter: nichts zu fixen"
 
 
 def soll_push_unterdruecken(
@@ -597,6 +616,12 @@ def main() -> int:  # pragma: no cover — Orchestrierung, siehe verarbeite_fund
                                    pr_aufruf=pr_aufruf)
     bericht = gesamtbericht(funde, ergebnisse)
     print(bericht)
+    # Volle technische Details (Dateipfade/Zeilen/Code-Zitate) landen seit
+    # dem 26.09.2026 NICHT mehr im Push, sondern hier im Job-Summary dieses
+    # Laufs (Auftrag Punkt 3) — zusätzlich zur stdout-Ausgabe oben. Für
+    # tatsächliche Fix-Kandidaten stehen dieselben Details zusätzlich im
+    # jeweiligen PR-Text (unverändert).
+    pw.schreibe_job_summary(bericht)
 
     ntfy_topic = os.environ.get("NTFY_TOPIC", "")
     if ntfy_topic and (funde or ergebnisse):
@@ -606,9 +631,11 @@ def main() -> int:  # pragma: no cover — Orchestrierung, siehe verarbeite_fund
         else:
             import notify  # noqa: WPS433 — lazy, wie proactive_watcher.main()
 
-            wartet = sum(1 for e in ergebnisse if e.status == STATUS_WARTET_AUF_EASY)
-            titel = f"Elliott: Wächter — {wartet} Fix-Draft-PR(s) warten auf Easy"
-            notify.send_ntfy(ntfy_topic, titel, bericht, priority="default",
+            # Titel bleibt der bestehende "Elliott: ..."-Stil; der Inhalt ist
+            # seit dem 26.09.2026 die alltagssprachliche Kurzform
+            # (push_kurzform), nicht mehr der volle Bericht.
+            notify.send_ntfy(ntfy_topic, "Elliott: Wächter-Fix",
+                              push_kurzform(ergebnisse), priority="default",
                               tags="mag_right")
     return 0
 

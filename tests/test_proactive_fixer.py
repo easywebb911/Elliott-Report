@@ -496,6 +496,53 @@ def test_gesamtbericht_kombiniert_phase1_und_phase2():
 
 
 # ---------------------------------------------------------------------------
+# Push-Kurzform (Auftrag 26.09.2026) — Alltagssprache statt Rohdaten
+# ---------------------------------------------------------------------------
+def test_push_kurzform_ohne_ergebnisse():
+    assert fx.push_kurzform([]) == "🔧 Wächter: nichts zu fixen"
+
+
+def test_push_kurzform_nur_rote_linie_und_kein_fix_heisst_nichts_zu_fixen():
+    """Kein Draft-PR entstanden -> "nichts zu fixen", auch wenn es
+    inhaltlich Funde gab (die stehen im Job-Summary, nicht im Push)."""
+    fund = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei="tests/x.py", zeile=1,
+                    beschreibung="tests/x.py:1 geheim")
+    ergebnisse = [
+        fx.FixEntscheidung(fund, fx.STATUS_ROTE_LINIE, "x"),
+        fx.FixEntscheidung(fund, fx.STATUS_KEIN_FIX_MOEGLICH, "x"),
+    ]
+    text = fx.push_kurzform(ergebnisse)
+    assert text == "🔧 Wächter: nichts zu fixen"
+    assert "tests/x.py" not in text
+
+
+def test_push_kurzform_zaehlt_nur_wartet_auf_easy_als_pr():
+    fund = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei="tests/x.py", zeile=1,
+                    beschreibung="tests/x.py:1 geheim")
+    ergebnisse = [
+        fx.FixEntscheidung(fund, fx.STATUS_WARTET_AUF_EASY, "x", neuer_inhalt="y"),
+        fx.FixEntscheidung(fund, fx.STATUS_WARTET_AUF_EASY, "x", neuer_inhalt="y"),
+        fx.FixEntscheidung(fund, fx.STATUS_KEIN_FIX_MOEGLICH, "x"),
+    ]
+    assert fx.push_kurzform(ergebnisse) == "🔧 Wächter-Fix: 2 PR(s) warten auf dich"
+
+
+def test_push_kurzform_enthaelt_nie_dateipfade_oder_code():
+    fund = pw.Fund(klasse=pw.KLASSE_KEY_EXPOSURE, datei="scripts/notify.py",
+                    zeile=42, beschreibung="scripts/notify.py:42 API_KEY = 'geheim'")
+    e = fx.FixEntscheidung(fund, fx.STATUS_WARTET_AUF_EASY, "x", neuer_inhalt="y")
+    text = fx.push_kurzform([e])
+    assert fund.datei not in text
+    assert fund.beschreibung not in text
+
+
+def test_schreibe_job_summary_ueber_pw_erreichbar():
+    """GRENZEN: keine Kopie der Job-Summary-Logik — proactive_fixer nutzt
+    dieselbe Funktion wie proactive_watcher (EINE Stelle)."""
+    assert fx.pw.schreibe_job_summary is pw.schreibe_job_summary
+
+
+# ---------------------------------------------------------------------------
 # soll_push_unterdruecken() — Auftrag Punkt 3 (22.09.2026): ein Push pro
 # Kette reicht, wenn Phase 2 nichts Neues gegenüber Phase 1 beiträgt.
 # Mutationsprobe: jede der drei Bedingungen einzeln durchgetestet.
