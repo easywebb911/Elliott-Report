@@ -10,15 +10,23 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 16.09.2026**, nach PR **#127** (Recalculate-Button prüft
-Sitzungs-Fenster vor Dispatch, gemerged `4ddb162`, Merge-Commit `b80b52c`) —
-auf `main`. Zahlen gegen `main` (`6366c2c`) geprüft, nicht aus dem
-Gedächtnis: **1461 Tests** grün auf `main` · Sammlung **140 Records** (120
-gereift, **114 auswertbar**, `scripts/forward_collection.py::eval_counts`) ·
-Marker **65 von 140** tragen mindestens einen (`in_session_creation` 55 ·
-`episode_split_suspect` 10 · `stale_market_suspect` 4) · Beweis-Datei
-`data/in_session_evidence.json` **17 Einträge** · Universum **353** Ticker
-(US 236 · DE 117, unverändert seit #93/#94).
+**Stand: 26.09.2026**, nach PR **#148** (Score↔R-Multiple-Korrelation als
+Vormerkung ergänzt, Merge-Commit `8d583dc`) — auf `main`. Zahlen gegen
+`main` (`8d583dc`) geprüft, nicht aus dem Gedächtnis: **1641 Tests** grün
+auf `main` · Sammlung **164 Records** (139 gereift, **133 auswertbar**,
+`scripts/forward_collection.py::eval_counts`) · Marker **65 von 164**
+tragen mindestens einen (`in_session_creation` 55 · `episode_split_suspect`
+10 · `stale_market_suspect` 4) · Beweis-Datei `data/in_session_evidence.json`
+**17 Einträge** · Universum **353** Ticker (US 236 · DE 117, unverändert
+seit #93/#94).
+
+> **Realitätscheck 26.09.2026 (read-only-Diagnose, s. PR mit diesem
+> Update):** dieses Dokument war seit #127 (16.09.2026) nicht mehr auf
+> Stand — **21 gemergte PRs (#128–#148)** fehlten im PR-Index; die Zahlen
+> oben wurden aus den 21 fehlenden Zeilen und den frischen Live-Zahlen
+> nachgezogen. Abschnitte **2b, 3 und 4** wurden dabei bewusst **nicht**
+> angefasst (das wäre Bewertung/Interpretation, nicht Bestandsaufnahme) —
+> sie können weitere Nachträge brauchen.
 
 > **Offizielle n≥100-Auswertung (#121, n=101, 06.09.2026): NICHT BESTANDEN.**
 > `data/evaluation/ergebnis.json`: `urteil.belegt = false` — Trefferquote
@@ -28,8 +36,8 @@ Marker **65 von 140** tragen mindestens einen (`in_session_creation` 55 ·
 > Abschnitt 1 („heuristisch · unvalidiert" bis Registry-Beweis vorliegt)
 > bleibt damit unverändert in Kraft. Details: Abschnitt 2b.
 
-> **BRANCH-BASIS:** `claude/fibonacci-labels-update-1abdof`, auf
-> `origin/main` (enthält #127) aufgesetzt. Nach jedem Merge neu von
+> **BRANCH-BASIS:** je Task ein neuer Branch, frisch von `origin/main`
+> aufgesetzt (aktuell enthält `main` bis #148). Nach jedem Merge neu von
 > `origin/main` aufsetzen — **nie** auf gemergter Historie stapeln.
 
 
@@ -74,7 +82,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#127
+## 2. PR-INDEX #1–#148
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -211,6 +219,27 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #125 | `9a43436` | Sitzungs-Gate für manuelle Dispatches während der Sitzung (s. 2b) |
 | #126 | `250d0e1` | Validierung-Panel unterscheidet Zwischenstand von echtem Fehler (s. 2b) |
 | #127 | `b80b52c` | Recalculate-Button prüft Sitzungs-Fenster vor Dispatch (s. 2b) |
+| #128 | `e3ba9f1` | SESSION_HANDOVER.md auf Stand #127 aktualisiert |
+| #129 | `4728a43` | Kurs-Stand-Gate von warn (>=1) auf crit (>=2) angehoben |
+| #130 | `4a68cb6` | Sitzungs-Gate schließt die Vormittags-Lücke |
+| #131 | `ac2a149` | Gate auf bar_lag_session_days umgestellt |
+| #132 | `942f36a` | Wegwerf-Workflow für Stooq-vs.-yfinance-Vergleich (diag) |
+| #133 | `3f096e5` | Wegwerf-Workflow für Twelve-Data-vs.-yfinance-Vergleich (diag) |
+| #134 | `c5215a2` | Twelve-Data-Notfall-Fallback für einzelne US-Ticker |
+| #135 | `5c07dc0` | Wegwerf-Workflow für Alpha-Vantage-vs.-yfinance-Vergleich, DE (diag) |
+| #136 | `c0d70e5` | Alpha-Vantage-Notfall-Fallback für einzelne DE-Ticker |
+| #137 | `430ceb2` | Twelve-Data-API-Key auch im status==error-Zweig redigiert |
+| #138 | `5b3f5f4` | Proaktiver Fehler-Wächter, Selbstwartung Stufe 4 Phase 1 |
+| #139 | `1cda6d4` | Proaktiver Fehler-Wächter Phase 2 — Fixen, immer Draft-PR (kein Self-Merge) |
+| #140 | `3d1df92` | Key-Exposure-Kalibrierung, Klassifikations-Korrektur, 2 Nachträge |
+| #141 | `4fbb800` | AOF.DE-Testfix, Listen-Vergleich-Drift-Muster, Phase-2-Push-Dedupe |
+| #142 | `44ec7b8` | Mittagslauf-Cron von 17:00 auf 12:00 UTC verschoben |
+| #143 | `ede34fe` | R-Werte-Vorzeichen-Rundungsfehler in `_fmt_r()` behoben |
+| #144 | `3cbe44c` | Ersatzbank/Nachrücker-Funktion (Top-8-Speicherung, Live-Vorschau) |
+| #145 | `dfda7ad` | NEM (US) als neuen Stale-Market-Replay-Treffer ergänzt |
+| #146 | `0b40e47` | Alltagssprachliche Push-Kurzform für Watcher/Fixer |
+| #147 | `09d41bd` | Sieben neue Stale-Market-Replay-Treffer ergänzt |
+| #148 | `8d583dc` | Score↔R-Multiple-Korrelation als Vormerkung ergänzt (s. 2b, Score-Review 07.12.) |
 
 <sub>**Hash-Spalte #96–#127:** Merge-Commit-Hash auf `main` (`git log --merges`,
 „Merge pull request #N …") — im Unterschied zu #1–#95, wo der
