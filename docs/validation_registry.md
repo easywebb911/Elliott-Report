@@ -2083,3 +2083,52 @@ vor n ≥ 100) gilt unverändert.
   `update_forward_collection()`/`main()` sowie die beiden neuen Testdateien
   einzeln zurücknehmen; rein additiv, kein bestehendes Feld/Verhalten
   geändert, kein Datenstand betroffen.
+- **2026-09-27 — Proaktiver Wächter (#138): 6. Fehlerklasse `fremde_datenquelle`
+  (reine Beobachtungs-Meldung, kein Fehler/Block, kein Self-Merge).** ANLASS:
+  Diagnose vom 26.09.2026 bestätigte, dass `data_source` (yfinance/
+  twelvedata_fallback/alphavantage_fallback) je Kandidat in `report.json`
+  gesetzt wird, aber in KEINEM der 12 committeten Stände seit Einführung der
+  Fallbacks (#134/#136, 20.09.2026) je bei einem TATSÄCHLICHEN Top-5/-8-
+  Kandidaten `!= "yfinance"` war — der Twelve-Data-Fallback (US) zieht
+  praktisch nie (Free-Tier-Limit), der Alpha-Vantage-Fallback (DE) zieht
+  regelmäßig (KCO.DE/HAB.DE), aber beide erzeugen bis heute nie ein gültiges
+  Elliott-Setup. Auftrag: NUR die Meldung bauen — die OHLC→Pivot→Ranking-
+  Konsistenzprüfung selbst kommt erst, WENN dieser Wächter tatsächlich
+  anschlägt, nicht vorher.
+  - Neuer Detektor `erkenne_nicht_yfinance_datenquelle(report, dateiname)`
+    (scripts/proactive_watcher.py) — anders als die fünf bestehenden
+    Detektoren KEIN Quellcode-Scan, sondern liest den zuletzt committeten
+    Lauf-Stand `data/report.json` direkt (in `scan_repo()` neu eingebunden,
+    fail-soft bei fehlender Datei/kaputtem JSON/unerwarteter Struktur).
+  - Prüfung bewusst `!= "yfinance"`, NICHT gegen eine feste Quellen-Liste —
+    eine künftige dritte Fallback-Quelle löst denselben Fund aus, ohne den
+    Detektor anfassen zu müssen (per Test mit einer erfundenen dritten
+    Quelle `polygon_fallback` belegt).
+  - Klassifikation folgt der bestehenden Ausnahme-freien Regel (Fund landet
+    unter `data/report.json`, kein Eintrag in `ROTE_LINIE_PFADE`/
+    `SICHERE_PFADE_PRAEFIXE` → Default-Fall greift → `rote_linie=True`,
+    Draft-PR/Easy-only wie alle Klassen außer `key_exposure`). Kein Eintrag
+    in `proactive_fixer.FIX_GENERATOREN` — Phase 2 behandelt eine unbekannte
+    Klasse ohnehin bereits als `STATUS_KEIN_FIX_MOEGLICH` (reine Meldung,
+    kein automatischer Fix-Versuch, kein Self-Merge — seit 21.09.2026 mergt
+    Phase 2 ohnehin nie selbst), deshalb dort unverändert.
+  - `KATEGORIE_ALLTAGSSPRACHE["fremde_datenquelle"] = "Datenquelle
+    ungewöhnlich"` für die Push-Kurzform ergänzt.
+  - Sichtbarkeit ab dem ERSTEN echten Auftreten (Auftrags-Kriterium 1): der
+    Wächter läuft nach jedem Daily-/Midday-Lauf gegen den frisch committeten
+    `data/report.json`-Stand — kein rückwirkender Scan nötig.
+  - Tests (`tests/test_proactive_watcher.py`): Wert-Tests inkl. des
+    zentralen Auftrags-Tests (synthetischer Kandidat mit `data_source=
+    "alphavantage_fallback"` löst genau einen Fund aus), Generik-Test mit
+    erfundener dritter Quelle, Negativ-Fälle (yfinance, fehlendes Feld,
+    kaputte Struktur), Markt-Abdeckung (US+DE), Orchestrator-Integration
+    über eine isolierte `tmp_path`-Kopie von `report.json` (nicht den echten
+    Baum — der hat aktuell keinen solchen Kandidaten). Drei Mutationsproben
+    bestätigt (feste Quellen-Liste statt `!= "yfinance"`; Bedingung
+    invertiert; nur ein Markt statt beider durchsucht) — alle von den neuen
+    Tests gefangen. Volle Suite: 1661 passed (9 neue Tests).
+  Revert = `erkenne_nicht_yfinance_datenquelle()`, `KLASSE_FREMDE_DATENQUELLE`,
+  den `KATEGORIE_ALLTAGSSPRACHE`-Eintrag und die `scan_repo()`-Erweiterung aus
+  `scripts/proactive_watcher.py` sowie die neuen Tests einzeln zurücknehmen;
+  reine Beobachtungs-Meldung, kein bestehendes Feld/Verhalten geändert, kein
+  Datenstand betroffen.

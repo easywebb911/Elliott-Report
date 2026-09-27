@@ -5,7 +5,8 @@ NÄCHSTE STUFE NACH #111 (Struktur-Wächter, nur MELDEN) UND der Selbst-Handlung
 aus `auto_retry_watcher.py` (Stufe 3, aber dort nur EIN Aktionstyp: Retry-
 Dispatch nach Fehlschlag). Dieser Wächter sucht AKTIV, ohne Anlass, nach
 bekannten Fehlerklassen (Testdaten-Drift, veraltete Kommentare, fehlende
-Registry-Einträge, Key-Exposure-Muster, Struktur-Inkonsistenz) und
+Registry-Einträge, Key-Exposure-Muster, Struktur-Inkonsistenz, fremde
+Datenquelle in einem Kandidaten) und
 klassifiziert jeden Fund gegen dieselbe rote Linie, die Guardian für
 Manual-Merge-PRs bereits prüft.
 
@@ -28,6 +29,7 @@ Qualitäts-Marker (`mark_episode_splits.py`, `mark_in_session_creation.py`,
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 from collections import Counter
@@ -128,7 +130,7 @@ class Fund:
         # selbst wenn die Fund-Datei (z. B. elliott_pipeline.py) sonst als
         # rote Linie gilt. Das ist eine Ausnahme nach FUND-KLASSE, nicht
         # nach Datei — `beruehrt_rote_linie()` selbst bleibt unverändert
-        # dateibasiert und gilt für alle anderen 4 Klassen unverändert
+        # dateibasiert und gilt für alle anderen 5 Klassen unverändert
         # konservativ (Auftrags-Grenze: nur diese eine Klasse ausnehmen,
         # nicht die Datei als Ganzes freigeben).
         if self.klasse == KLASSE_KEY_EXPOSURE:
@@ -151,6 +153,7 @@ KLASSE_VERALTETE_DOKU = "veraltete_doku"
 KLASSE_FEHLENDE_REGISTRY = "fehlende_registry"
 KLASSE_KEY_EXPOSURE = "key_exposure"
 KLASSE_STRUKTUR_INKONSISTENZ = "struktur_inkonsistenz"
+KLASSE_FREMDE_DATENQUELLE = "fremde_datenquelle"
 
 
 # ---------------------------------------------------------------------------
@@ -447,6 +450,64 @@ def erkenne_struktur_inkonsistenz(dateiinhalt: str, dateiname: str) -> List[Fund
 
 
 # ---------------------------------------------------------------------------
+# 6) Fremde Datenquelle in einem TATSÄCHLICHEN Kandidaten (Diagnose-Auftrag
+#    26.09.2026) — reiner Beobachtungs-Zusatz zum bestehenden Wächter, KEINE
+#    neue OHLC->Pivot->Ranking-Konsistenzprüfung (die kommt erst, WENN dieser
+#    Wächter tatsächlich anschlägt — Auftrags-Grenze).
+#
+#    Anders als die fünf Detektoren oben scannt dieser KEINEN Quellcode,
+#    sondern die zuletzt committete `data/report.json` (Laufergebnis, keine
+#    Diff-Prüfung nötig — der aktuelle Stand allein reicht).
+#
+#    HINTERGRUND (Diagnose 26.09.2026, gegen 12 committete report.json-Stände
+#    seit Einführung der Fallbacks (#134/#136, 20.09.2026) verifiziert): der
+#    Twelve-Data-Fallback (US, Ticker EA) zieht praktisch nie (Free-Tier-
+#    Limit, HTTP 404). Der Alpha-Vantage-Fallback (DE, KCO.DE/HAB.DE) zieht
+#    dagegen regelmäßig — aber beide Ticker haben bis heute in KEINEM
+#    committeten Stand ein gültiges Elliott-Setup erzeugt, `data_source` war
+#    dort also nie != "yfinance" bei einem TATSÄCHLICHEN Kandidaten (nur
+#    Kandidaten tragen das Feld überhaupt — verworfene Ticker ohne Setup
+#    nicht). Bewusst `!= "yfinance"`, NICHT gegen eine feste Quellen-Liste
+#    (Twelve-Data/Alpha-Vantage) geprüft: eine künftige dritte Fallback-
+#    Quelle soll nicht unbemerkt durchrutschen, nur weil sie hier nicht
+#    namentlich gelistet ist.
+# ---------------------------------------------------------------------------
+def erkenne_nicht_yfinance_datenquelle(report: Dict, dateiname: str) -> List[Fund]:
+    """Meldet jeden Top-5/-8-Kandidaten (beide Märkte), dessen `data_source`
+    nicht "yfinance" ist. Reine Beobachtungs-Meldung (kein Fehler, kein
+    Block) — wie die anderen fünf Wächter-Klassen. Fail-soft: eine kaputte/
+    unerwartete `report`-Struktur liefert einfach keine Funde (kein Absturz),
+    siehe `scan_repo()`."""
+    funde: List[Fund] = []
+    maerkte = report.get("markets")
+    if not isinstance(maerkte, dict):
+        return funde
+    for markt, daten in sorted(maerkte.items()):
+        if not isinstance(daten, dict):
+            continue
+        for eintrag in daten.get("candidates") or []:
+            if not isinstance(eintrag, dict):
+                continue
+            quelle = eintrag.get("data_source")
+            if not quelle or quelle == "yfinance":
+                continue
+            funde.append(Fund(
+                klasse=KLASSE_FREMDE_DATENQUELLE, datei=dateiname, zeile=None,
+                beschreibung=(
+                    f"{markt}/{eintrag.get('ticker', '?')} ist ein "
+                    f"TATSÄCHLICHER Kandidat mit data_source={quelle!r} "
+                    f"(nicht yfinance) — laut Diagnose vom 26.09.2026 bisher "
+                    f"noch nie beobachtet. Reine Beobachtungs-Meldung, keine "
+                    f"automatisierte OHLC->Pivot->Ranking-Konsistenzprüfung "
+                    f"vorhanden — die wäre jetzt der nächste sinnvolle "
+                    f"Schritt (Easy-Entscheidung, nicht Teil dieses Wächters)."
+                ),
+                betroffene_dateien=[dateiname],
+            ))
+    return funde
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 _SCAN_DATEIEN = (
@@ -458,7 +519,7 @@ _SCAN_DATEIEN = (
 
 
 def scan_repo(repo_root: Path) -> List[Fund]:
-    """Läuft alle 5 Detektoren über den aktuellen Stand des Repos.
+    """Läuft alle 6 Detektoren über den aktuellen Stand des Repos.
 
     Rein lesend — keine Datei wird verändert. Gibt die rohe Fundliste
     zurück; die Aufteilung "rote Linie ja/nein" steht bereits an jedem
@@ -488,6 +549,20 @@ def scan_repo(repo_root: Path) -> List[Fund]:
             config_pfad.read_text(encoding="utf-8"),
             registry_pfad.read_text(encoding="utf-8"),
         )
+
+    # 6) Fremde Datenquelle in einem tatsächlichen Kandidaten — liest den
+    # LAUF-STAND (data/report.json), keinen Quellcode. Fail-soft: fehlende
+    # Datei, kaputtes JSON oder eine unerwartete Struktur (Mini-Stopp-Fall,
+    # s. Modul-Docstring zu Klasse 6) liefern schlicht keine Funde, statt
+    # den ganzen Lauf zu brechen.
+    report_pfad = repo_root / "data" / "report.json"
+    if report_pfad.is_file():
+        try:
+            report = json.loads(report_pfad.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            report = None
+        if isinstance(report, dict):
+            funde += erkenne_nicht_yfinance_datenquelle(report, "data/report.json")
 
     return funde
 
@@ -527,6 +602,7 @@ KATEGORIE_ALLTAGSSPRACHE: Dict[str, str] = {
     KLASSE_FEHLENDE_REGISTRY: "Dokumentation fehlt",
     KLASSE_KEY_EXPOSURE: "Sicherheits-Hinweis",
     KLASSE_STRUKTUR_INKONSISTENZ: "Unstimmigkeit im Code",
+    KLASSE_FREMDE_DATENQUELLE: "Datenquelle ungewöhnlich",
 }
 
 

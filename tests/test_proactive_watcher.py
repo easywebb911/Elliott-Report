@@ -9,6 +9,7 @@ einem eigenen Test ohne Assertions gegen Zahlen abgedeckt.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -273,6 +274,136 @@ def _make_yfinance_with_av_fallback():
 
 
 # ---------------------------------------------------------------------------
+# 6) Fremde Datenquelle in einem tatsächlichen Kandidaten (26.09.2026,
+# Wächter-Zusatz zur Diagnose "Twelve-Data/Alpha-Vantage-Fallback"). Reine
+# Beobachtungs-Meldung — KEIN Fehler, KEIN Block, keine neue Konsistenz-
+# prüfung. Der zentrale Test simuliert genau den in der Diagnose als
+# "bisher nie beobachtet" beschriebenen Fall (synthetischer Kandidat mit
+# data_source="alphavantage_fallback") und prüft, dass der Wächter darauf
+# TATSÄCHLICH anschlägt (nicht nur, dass die Funktion aufgerufen wird).
+# ---------------------------------------------------------------------------
+def _report_mit_kandidat(data_source):
+    eintrag = {"ticker": "KCO.DE"}
+    if data_source is not None:
+        eintrag["data_source"] = data_source
+    return {"markets": {"DE": {"candidates": [eintrag]},
+                        "US": {"candidates": [{"ticker": "AAPL",
+                                                "data_source": "yfinance"}]}}}
+
+
+def test_erkennt_alphavantage_fallback_bei_tatsaechlichem_kandidaten():
+    """Der zentrale Auftrags-Test: ein synthetischer Kandidat mit
+    data_source="alphavantage_fallback" MUSS einen Fund auslösen — genau
+    der Fall, der laut Diagnose vom 26.09.2026 bisher in keinem committeten
+    report.json-Stand je aufgetreten ist."""
+    report = _report_mit_kandidat("alphavantage_fallback")
+    funde = pw.erkenne_nicht_yfinance_datenquelle(report, "data/report.json")
+    assert len(funde) == 1
+    assert funde[0].klasse == pw.KLASSE_FREMDE_DATENQUELLE
+    assert funde[0].rote_linie is True  # keine Ausnahme wie bei key_exposure
+    assert "KCO.DE" in funde[0].beschreibung
+    assert "alphavantage_fallback" in funde[0].beschreibung
+    # Der Yfinance-Kandidat im selben Report darf KEINEN zweiten Fund
+    # auslösen — sonst wäre die Prüfung nicht auf den einen Ticker verengt.
+    assert "AAPL" not in funde[0].beschreibung
+
+
+def test_erkennt_twelvedata_fallback_ebenso_generisch():
+    """Prüft != "yfinance" statt einer festen Quellen-Liste (Auftrags-
+    Kriterium 4): Twelve-Data ist NICHT eigens im Code genannt, muss aber
+    trotzdem als Fund auffallen."""
+    report = _report_mit_kandidat("twelvedata_fallback")
+    funde = pw.erkenne_nicht_yfinance_datenquelle(report, "data/report.json")
+    assert len(funde) == 1
+    assert "twelvedata_fallback" in funde[0].beschreibung
+
+
+def test_erkennt_eine_hypothetische_dritte_quelle_ungeraten():
+    """Auftrags-Kriterium 4, wörtlich geprüft: eine völlig neue, im Code nie
+    erwähnte Quelle ("polygon_fallback") muss GENAUSO anschlagen — die
+    Prüfung ist gegen != "yfinance" gebaut, nicht gegen eine Aufzählung."""
+    report = _report_mit_kandidat("polygon_fallback")
+    funde = pw.erkenne_nicht_yfinance_datenquelle(report, "data/report.json")
+    assert len(funde) == 1
+    assert "polygon_fallback" in funde[0].beschreibung
+
+
+def test_kein_fund_bei_yfinance_datenquelle():
+    report = _report_mit_kandidat("yfinance")
+    assert pw.erkenne_nicht_yfinance_datenquelle(report, "data/report.json") == []
+
+
+def test_kein_fund_wenn_data_source_feld_fehlt():
+    """Alt-Records/Watchlist-Randfälle ohne das Feld sind kein Fund —
+    fehlend heißt nicht "fremd"."""
+    report = _report_mit_kandidat(None)
+    assert pw.erkenne_nicht_yfinance_datenquelle(report, "data/report.json") == []
+
+
+def test_kein_fund_bei_leerem_oder_kaputtem_markets_block():
+    """Fail-soft (Auftrags-Kriterium 6): eine unerwartete/fehlende Struktur
+    liefert keine Funde, keinen Absturz."""
+    assert pw.erkenne_nicht_yfinance_datenquelle({}, "data/report.json") == []
+    assert pw.erkenne_nicht_yfinance_datenquelle(
+        {"markets": "kaputt"}, "data/report.json") == []
+    assert pw.erkenne_nicht_yfinance_datenquelle(
+        {"markets": {"DE": "kaputt"}}, "data/report.json") == []
+    assert pw.erkenne_nicht_yfinance_datenquelle(
+        {"markets": {"DE": {"candidates": ["kaputt"]}}}, "data/report.json") == []
+
+
+def test_beide_maerkte_werden_geprueft():
+    report = {"markets": {
+        "US": {"candidates": [{"ticker": "EA", "data_source": "twelvedata_fallback"}]},
+        "DE": {"candidates": [{"ticker": "KCO.DE", "data_source": "alphavantage_fallback"}]},
+    }}
+    funde = pw.erkenne_nicht_yfinance_datenquelle(report, "data/report.json")
+    assert len(funde) == 2
+    getroffene_ticker = {f.beschreibung.split(" ")[0].split("/")[1] for f in funde}
+    assert getroffene_ticker == {"EA", "KCO.DE"}
+
+
+def test_scan_repo_bindet_klasse_6_gegen_das_echte_report_json_ein(tmp_path):
+    """Integrations-Mutationsprobe (Auftrags-Kriterium 1: der Fund muss beim
+    ERSTEN echten Auftreten sichtbar werden, nicht erst rückwirkend) —
+    simuliert genau das über eine isolierte Kopie von data/report.json,
+    NICHT über den echten Baum (der hat laut Diagnose aktuell keinen
+    solchen Kandidaten, s. test_scan_repo_laeuft_ohne_fehler_gegen_den_
+    echten_baum unten)."""
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "report.json").write_text(
+        json.dumps(_report_mit_kandidat("alphavantage_fallback")),
+        encoding="utf-8",
+    )
+    funde = pw.scan_repo(tmp_path)
+    treffer = [f for f in funde if f.klasse == pw.KLASSE_FREMDE_DATENQUELLE]
+    assert len(treffer) == 1
+    assert treffer[0].datei == "data/report.json"
+
+    # Mutationsprobe: derselbe Report OHNE die fremde Quelle -> der Fund
+    # verschwindet wieder (beweist, dass scan_repo() den Fund tatsächlich
+    # AN DIESER STELLE erzeugt, nicht zufällig aus einer anderen Quelle).
+    (tmp_path / "data" / "report.json").write_text(
+        json.dumps(_report_mit_kandidat("yfinance")), encoding="utf-8",
+    )
+    funde_ohne = pw.scan_repo(tmp_path)
+    assert not [f for f in funde_ohne if f.klasse == pw.KLASSE_FREMDE_DATENQUELLE]
+
+
+def test_scan_repo_uebersteht_fehlendes_oder_kaputtes_report_json(tmp_path):
+    """Fail-soft am Orchestrator selbst: fehlende Datei UND kaputtes JSON
+    dürfen den gesamten Lauf nie brechen."""
+    funde = pw.scan_repo(tmp_path)  # gar kein data/report.json vorhanden
+    assert isinstance(funde, list)
+
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "report.json").write_text("{ nicht valides json",
+                                                    encoding="utf-8")
+    funde = pw.scan_repo(tmp_path)  # kaputtes JSON
+    assert isinstance(funde, list)
+
+
+# ---------------------------------------------------------------------------
 # Rote Linie — Mutationsprobe: jede Zeile der Klassifikation einzeln
 # durchgetestet, inkl. der beiden Default-Fälle (leer, unbekannt).
 # ---------------------------------------------------------------------------
@@ -373,12 +504,13 @@ def test_key_exposure_ausnahme_gilt_nach_klasse_nicht_nach_datei():
     assert f_andere_klasse.rote_linie is True
 
 
-def test_andere_vier_klassen_bleiben_dateibasiert_klassifiziert():
+def test_andere_fuenf_klassen_bleiben_dateibasiert_klassifiziert():
     """Regressionsschutz: die Ausnahme darf NUR key_exposure betreffen —
-    keine der anderen vier Klassen darf durch diese Änderung plötzlich
+    keine der anderen fünf Klassen darf durch diese Änderung plötzlich
     ebenfalls nie rote Linie sein."""
     for klasse in (pw.KLASSE_TESTDATEN_DRIFT, pw.KLASSE_VERALTETE_DOKU,
-                   pw.KLASSE_FEHLENDE_REGISTRY, pw.KLASSE_STRUKTUR_INKONSISTENZ):
+                   pw.KLASSE_FEHLENDE_REGISTRY, pw.KLASSE_STRUKTUR_INKONSISTENZ,
+                   pw.KLASSE_FREMDE_DATENQUELLE):
         f = pw.Fund(klasse=klasse, datei="config.py", zeile=1,
                     beschreibung="egal")
         assert f.rote_linie is True, klasse
@@ -478,10 +610,10 @@ def test_push_kurzform_kategorien_absteigend_sortiert_deterministisch():
     assert text.index("Testdaten veraltet") < text.index("Text veraltet")
 
 
-def test_kategorie_alltagssprache_deckt_alle_fuenf_klassen_ab():
+def test_kategorie_alltagssprache_deckt_alle_sechs_klassen_ab():
     for klasse in (pw.KLASSE_TESTDATEN_DRIFT, pw.KLASSE_VERALTETE_DOKU,
                    pw.KLASSE_FEHLENDE_REGISTRY, pw.KLASSE_KEY_EXPOSURE,
-                   pw.KLASSE_STRUKTUR_INKONSISTENZ):
+                   pw.KLASSE_STRUKTUR_INKONSISTENZ, pw.KLASSE_FREMDE_DATENQUELLE):
         assert klasse in pw.KATEGORIE_ALLTAGSSPRACHE
         # kein technischer Jargon: kein Unterstrich, keine Klassen-Kurznamen
         assert "_" not in pw.KATEGORIE_ALLTAGSSPRACHE[klasse]
