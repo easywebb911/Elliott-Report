@@ -10,9 +10,9 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 26.09.2026**, nach PR **#148** (Score↔R-Multiple-Korrelation als
-Vormerkung ergänzt, Merge-Commit `8d583dc`) — auf `main`. Zahlen gegen
-`main` (`8d583dc`) geprüft, nicht aus dem Gedächtnis: **1641 Tests** grün
+**Stand: 27.09.2026**, nach PR **#151** (Proaktiver Wächter: 6. Fehlerklasse
+`fremde_datenquelle`, Merge-Commit `a7a771a`) — auf `main`. Zahlen gegen
+`main` (`a7a771a`) geprüft, nicht aus dem Gedächtnis: **1661 Tests** grün
 auf `main` · Sammlung **164 Records** (139 gereift, **133 auswertbar**,
 `scripts/forward_collection.py::eval_counts`) · Marker **65 von 164**
 tragen mindestens einen (`in_session_creation` 55 · `episode_split_suspect`
@@ -20,13 +20,15 @@ tragen mindestens einen (`in_session_creation` 55 · `episode_split_suspect`
 **17 Einträge** · Universum **353** Ticker (US 236 · DE 117, unverändert
 seit #93/#94).
 
-> **Realitätscheck 26.09.2026 (read-only-Diagnose, s. PR mit diesem
-> Update):** dieses Dokument war seit #127 (16.09.2026) nicht mehr auf
-> Stand — **21 gemergte PRs (#128–#148)** fehlten im PR-Index; die Zahlen
-> oben wurden aus den 21 fehlenden Zeilen und den frischen Live-Zahlen
-> nachgezogen. Abschnitte **2b, 3 und 4** wurden dabei bewusst **nicht**
-> angefasst (das wäre Bewertung/Interpretation, nicht Bestandsaufnahme) —
-> sie können weitere Nachträge brauchen.
+> **Realitätscheck 27.09.2026 (read-only-Diagnose, s. PR mit diesem
+> Update):** dieses Dokument war seit #148 (26.09.2026) nicht mehr auf
+> Stand — **3 gemergte PRs (#149–#151)** fehlten im PR-Index (Handover-
+> Realitätscheck-Fix, Intraday-MFE/MAE `mfe_high_10d`/`mae_low_10d`,
+> Wächter-6.-Klasse `fremde_datenquelle`); die Zahlen oben wurden aus den 3
+> fehlenden Zeilen und den frischen Live-Zahlen nachgezogen. Abschnitte
+> **2b, 3 und 4** wurden dabei bewusst **nicht** angefasst (das wäre
+> Bewertung/Interpretation, nicht Bestandsaufnahme) — sie können weitere
+> Nachträge brauchen.
 
 > **Offizielle n≥100-Auswertung (#121, n=101, 06.09.2026): NICHT BESTANDEN.**
 > `data/evaluation/ergebnis.json`: `urteil.belegt = false` — Trefferquote
@@ -37,7 +39,7 @@ seit #93/#94).
 > bleibt damit unverändert in Kraft. Details: Abschnitt 2b.
 
 > **BRANCH-BASIS:** je Task ein neuer Branch, frisch von `origin/main`
-> aufgesetzt (aktuell enthält `main` bis #148). Nach jedem Merge neu von
+> aufgesetzt (aktuell enthält `main` bis #151). Nach jedem Merge neu von
 > `origin/main` aufsetzen — **nie** auf gemergter Historie stapeln.
 
 
@@ -82,7 +84,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#148
+## 2. PR-INDEX #1–#151
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -240,6 +242,9 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #146 | `0b40e47` | Alltagssprachliche Push-Kurzform für Watcher/Fixer |
 | #147 | `09d41bd` | Sieben neue Stale-Market-Replay-Treffer ergänzt |
 | #148 | `8d583dc` | Score↔R-Multiple-Korrelation als Vormerkung ergänzt (s. 2b, Score-Review 07.12.) |
+| #149 | `0eba400` | Handover-Realitätscheck — Stand von #127 auf #148 nachgezogen |
+| #150 | `6d5a241` | Intraday-MFE/MAE (`mfe_high_10d`/`mae_low_10d`), additiv, kein Backfill |
+| #151 | `a7a771a` | Proaktiver Wächter: 6. Fehlerklasse `fremde_datenquelle` (Beobachtungs-Meldung) |
 
 <sub>**Hash-Spalte #96–#127:** Merge-Commit-Hash auf `main` (`git log --merges`,
 „Merge pull request #N …") — im Unterschied zu #1–#95, wo der
