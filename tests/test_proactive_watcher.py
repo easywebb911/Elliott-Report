@@ -10,6 +10,7 @@ einem eigenen Test ohne Assertions gegen Zahlen abgedeckt.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -404,6 +405,129 @@ def test_scan_repo_uebersteht_fehlendes_oder_kaputtes_report_json(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# 7) SESSION_HANDOVER.md fällt hinter main zurück (Diagnose-Auftrag
+# 27.09.2026). Zentraler Test: eine synthetische Commit-Historie mit BEIDEN
+# PR-tragenden Formaten (echter Merge-Commit, Squash-Suffix), einem
+# Bot-Datencommit OHNE PR-Bezug und einer echten Lücke — der Wächter muss
+# GENAU die Lücke finden, den Bot-Commit nicht fälschlich meden.
+# ---------------------------------------------------------------------------
+def _git_repo_mit_commits(repo_pfad, commit_subjects):
+    """Baut ein Mini-Git-Repo mit leeren Commits — nur die Subject-Zeile
+    zählt für den Detektor (der liest ausschließlich `git log --format=%s`),
+    echte Dateiänderungen sind für diesen Test irrelevant."""
+    subprocess.run(["git", "init", "-q"], cwd=repo_pfad, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"],
+                    cwd=repo_pfad, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"],
+                    cwd=repo_pfad, check=True)
+    for subject in commit_subjects:
+        subprocess.run(["git", "commit", "--allow-empty", "-q", "-m", subject],
+                        cwd=repo_pfad, check=True)
+
+
+_SYNTHETISCHE_HISTORIE = (
+    "Initial commit",
+    "Merge pull request #10 from x/feature-a",       # echter Merge-Commit
+    "chore(data): täglicher Elliott-Report + Sammlung [skip ci]",  # Bot, kein PR
+    "feat(x): irgendein Fix (#11)",                   # Squash-Suffix
+    "Merge pull request #12 from x/feature-b",        # DIE LÜCKE — fehlt unten
+)
+
+
+def test_erkennt_fehlende_pr_ueber_beide_commit_formate(tmp_path):
+    """Zentraler Auftrags-Test: das Handover erwähnt NUR #10 (Merge-Commit) —
+    #11 (Squash-Suffix) UND #12 (Merge-Commit) fehlen und müssen BEIDE
+    gefunden werden. Bewusst so aufgebaut (statt #11 im Handover mit
+    aufzuführen): nur so fällt eine kaputte Squash-Suffix-Erkennung
+    überhaupt auf — wäre #11 bereits im Handover erwähnt, würde ihr
+    Verschwinden aus der Extraktion unsichtbar bleiben (Mutationsprobe
+    27.09.2026 hat genau diese Schwäche in einer Vorfassung aufgedeckt)."""
+    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE)
+    (tmp_path / "SESSION_HANDOVER.md").write_text(
+        "Stand nach PR #10 — im PR-Index erwähnt.\n",
+        encoding="utf-8",
+    )
+    funde = pw.erkenne_handover_luecke(tmp_path)
+    assert len(funde) == 1
+    assert funde[0].klasse == pw.KLASSE_HANDOVER_LUECKE
+    assert "#11" in funde[0].beschreibung
+    assert "#12" in funde[0].beschreibung
+    assert "#10" not in funde[0].beschreibung
+
+
+def test_kein_fund_wenn_handover_alle_main_prs_erwaehnt(tmp_path):
+    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE)
+    (tmp_path / "SESSION_HANDOVER.md").write_text(
+        "Stand nach PR #10, #11 und #12 — vollständig nachgezogen.\n",
+        encoding="utf-8",
+    )
+    assert pw.erkenne_handover_luecke(tmp_path) == []
+
+
+def test_kein_fund_ohne_git_repo(tmp_path):
+    """Fail-soft: kein .git-Verzeichnis (z. B. ein reines Datenverzeichnis)
+    darf den Lauf nie brechen."""
+    (tmp_path / "SESSION_HANDOVER.md").write_text("Stand nach PR #1.\n",
+                                                    encoding="utf-8")
+    assert pw.erkenne_handover_luecke(tmp_path) == []
+
+
+def test_kein_fund_ohne_handover_datei(tmp_path):
+    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE)
+    assert pw.erkenne_handover_luecke(tmp_path) == []  # SESSION_HANDOVER.md fehlt
+
+
+def test_kein_fund_bei_leerer_pr_extraktion(tmp_path):
+    """Regressionsschutz (nicht mehr durch expliziten Guard erzwungen, siehe
+    Mutationsprobe 27.09.2026 im Modul-Kommentar zu Klasse 7): eine Historie
+    ganz ohne PR-tragenden Commit (z. B. Shallow-Checkout mit fetch-depth:1,
+    hier simuliert durch reine Bot-/Init-Commits) ergibt korrekt KEINEN
+    Fund — mathematisch zwingend (main_prs - erwaehnte_prs bei leerer
+    main_prs), nicht durch eine Sonderbedingung."""
+    _git_repo_mit_commits(tmp_path, (
+        "Initial commit",
+        "chore(data): täglicher Elliott-Report + Sammlung [skip ci]",
+    ))
+    (tmp_path / "SESSION_HANDOVER.md").write_text("Stand: leer.\n",
+                                                    encoding="utf-8")
+    assert pw.erkenne_handover_luecke(tmp_path) == []
+
+
+def test_handover_luecke_determinismus(tmp_path):
+    """Gleicher main-Stand -> gleicher Fund, kein Zufallselement (Auftrags-
+    Kriterium 6)."""
+    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE)
+    (tmp_path / "SESSION_HANDOVER.md").write_text("Stand nach PR #10 und #11.\n",
+                                                    encoding="utf-8")
+    erster_lauf = [f.beschreibung for f in pw.erkenne_handover_luecke(tmp_path)]
+    zweiter_lauf = [f.beschreibung for f in pw.erkenne_handover_luecke(tmp_path)]
+    assert erster_lauf == zweiter_lauf
+
+
+def test_handover_luecke_ist_keine_rote_linie():
+    """SESSION_HANDOVER.md endet auf .md -> SICHERE_DATEIEN_SUFFIXE greift,
+    genau wie bei den bisherigen reinen Doku-Fixes (#149/#152): ein echter
+    Fund dieser Klasse ist ein Self-Merge-Kandidat, kein Draft-PR-Fall."""
+    f = pw.Fund(klasse=pw.KLASSE_HANDOVER_LUECKE, datei="SESSION_HANDOVER.md",
+                zeile=None, beschreibung="egal",
+                betroffene_dateien=["SESSION_HANDOVER.md"])
+    assert f.rote_linie is False
+
+
+def test_scan_repo_bindet_klasse_7_ein(tmp_path):
+    """Integrations-Test: scan_repo() muss den Fund über den Orchestrator
+    finden, nicht nur bei direktem Funktionsaufruf."""
+    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE)
+    (tmp_path / "SESSION_HANDOVER.md").write_text(
+        "Stand nach PR #10 und #11.\n", encoding="utf-8",
+    )
+    funde = pw.scan_repo(tmp_path)
+    treffer = [f for f in funde if f.klasse == pw.KLASSE_HANDOVER_LUECKE]
+    assert len(treffer) == 1
+    assert "#12" in treffer[0].beschreibung
+
+
+# ---------------------------------------------------------------------------
 # Rote Linie — Mutationsprobe: jede Zeile der Klassifikation einzeln
 # durchgetestet, inkl. der beiden Default-Fälle (leer, unbekannt).
 # ---------------------------------------------------------------------------
@@ -504,13 +628,13 @@ def test_key_exposure_ausnahme_gilt_nach_klasse_nicht_nach_datei():
     assert f_andere_klasse.rote_linie is True
 
 
-def test_andere_fuenf_klassen_bleiben_dateibasiert_klassifiziert():
+def test_andere_sechs_klassen_bleiben_dateibasiert_klassifiziert():
     """Regressionsschutz: die Ausnahme darf NUR key_exposure betreffen —
-    keine der anderen fünf Klassen darf durch diese Änderung plötzlich
+    keine der anderen sechs Klassen darf durch diese Änderung plötzlich
     ebenfalls nie rote Linie sein."""
     for klasse in (pw.KLASSE_TESTDATEN_DRIFT, pw.KLASSE_VERALTETE_DOKU,
                    pw.KLASSE_FEHLENDE_REGISTRY, pw.KLASSE_STRUKTUR_INKONSISTENZ,
-                   pw.KLASSE_FREMDE_DATENQUELLE):
+                   pw.KLASSE_FREMDE_DATENQUELLE, pw.KLASSE_HANDOVER_LUECKE):
         f = pw.Fund(klasse=klasse, datei="config.py", zeile=1,
                     beschreibung="egal")
         assert f.rote_linie is True, klasse
@@ -610,10 +734,11 @@ def test_push_kurzform_kategorien_absteigend_sortiert_deterministisch():
     assert text.index("Testdaten veraltet") < text.index("Text veraltet")
 
 
-def test_kategorie_alltagssprache_deckt_alle_sechs_klassen_ab():
+def test_kategorie_alltagssprache_deckt_alle_sieben_klassen_ab():
     for klasse in (pw.KLASSE_TESTDATEN_DRIFT, pw.KLASSE_VERALTETE_DOKU,
                    pw.KLASSE_FEHLENDE_REGISTRY, pw.KLASSE_KEY_EXPOSURE,
-                   pw.KLASSE_STRUKTUR_INKONSISTENZ, pw.KLASSE_FREMDE_DATENQUELLE):
+                   pw.KLASSE_STRUKTUR_INKONSISTENZ, pw.KLASSE_FREMDE_DATENQUELLE,
+                   pw.KLASSE_HANDOVER_LUECKE):
         assert klasse in pw.KATEGORIE_ALLTAGSSPRACHE
         # kein technischer Jargon: kein Unterstrich, keine Klassen-Kurznamen
         assert "_" not in pw.KATEGORIE_ALLTAGSSPRACHE[klasse]
