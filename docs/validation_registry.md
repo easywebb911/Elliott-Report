@@ -2132,3 +2132,70 @@ vor n ≥ 100) gilt unverändert.
   `scripts/proactive_watcher.py` sowie die neuen Tests einzeln zurücknehmen;
   reine Beobachtungs-Meldung, kein bestehendes Feld/Verhalten geändert, kein
   Datenstand betroffen.
+- **2026-09-27 — Proaktiver Wächter (#138): 7. Fehlerklasse `handover_luecke`
+  (reine Beobachtungs-Meldung, kein Fehler/Block, kein Self-Merge).** ANLASS:
+  `SESSION_HANDOVER.md` fiel zweimal in kurzer Folge hinter `main` zurück
+  (#128–#148, dann #150–#151), obwohl die eigene Pflegeregel im Dokument
+  "wird bei JEDEM Merge im selben PR aktualisiert" vorschreibt — beide
+  Lücken wurden bisher nur per manuellem Realitätscheck gefunden, teils
+  erst nach mehreren Tagen.
+  - Neuer Detektor `erkenne_handover_luecke(repo_root)`
+    (scripts/proactive_watcher.py) — liest `git log --first-parent` auf
+    main, extrahiert PR-Nummern aus BEIDEN im Repo vorkommenden Commit-
+    Formaten (echter Merge-Commit `^Merge pull request #(\d+)`, Squash-
+    Commit mit `\(#(\d+)\)$`-Suffix — beide kommen parallel vor, siehe
+    Diagnose 27.09.2026) und vergleicht sie gegen alle `#<Nummer>`-
+    Erwähnungen in `SESSION_HANDOVER.md`.
+  - WIDERSPRUCH ZUR AUFTRAGS-ANNAHME gemeldet statt umgangen: eine
+    vollständige Auswertung (nicht nur die Stichprobe der letzten ~25
+    Commits) zeigte einen VIERTEN Commit-Typ neben den drei genannten
+    (Merge-Commit, Squash-Suffix, `github-actions[bot]`-Datencommit) —
+    direkte PR-lose Pushes von `easywebb911` (manuelle Datei-Updates,
+    der initiale "Initial commit", 44 von 399 First-Parent-Commits). Ändert
+    nichts an der Umsetzung: da nur die zwei PR-tragenden Muster überhaupt
+    eine Nummer liefern, braucht dieser vierte Typ (wie der Bot-Commit)
+    keine explizite Ausschlussliste — er erzeugt schlicht kein Regex-Match.
+  - MUTATIONSPROBE DECKTE EINEN FEHLERHAFTEN FAIL-SOFT-GUARD AUF UND FÜHRTE
+    ZUR KORREKTUR: eine erste Fassung hatte einen Guard "0 extrahierte
+    PR-Nummern → keine Funde" mit der Begründung, das verhindere Fehl-Funde
+    bei einem Shallow-Checkout. Die Mutationsprobe (Guard entfernt) zeigte:
+    kein Test schlug fehl, der Guard war wirkungslos (`main_prs -
+    erwaehnte_prs` ist bei leerer `main_prs` mathematisch immer leer, mit
+    oder ohne Guard — ein Shallow-Checkout kann mit dieser
+    Subtraktionsrichtung nur zu übersehenen, nie zu erfundenen Funden
+    führen). Guard entfernt, Kommentar korrigiert, statt die falsche
+    Begründung stehen zu lassen. Die eigentliche Absicherung bleibt
+    `fetch-depth: 0` im Checkout-Schritt von `proactive_watcher.yml`
+    (vorher `fetch-depth: 1`-Default, hätte die volle Historie ohnehin
+    nicht gesehen).
+  - Klassifikation: `betroffene_dateien=["SESSION_HANDOVER.md"]` endet auf
+    `.md` → `SICHERE_DATEIEN_SUFFIXE` greift → `rote_linie=False` — ein
+    echter Fund dieser Klasse ist (wie bei den bisherigen reinen
+    Doku-Realitätschecks #149/#152) ein Self-Merge-Kandidat, kein
+    Draft-PR-Fall.
+  - Prüfzeitpunkt: KEIN neuer Cron — der Detektor läuft über die bestehende
+    `scan_repo()`-Einbindung automatisch bei JEDEM Wächter-Lauf (nach jedem
+    erfolgreichen Daily-Lauf), nicht erst wöchentlich im Wartungs-Cron.
+    Begründung: beide realen Lücken blieben mehrere Tage unbemerkt — der
+    tägliche Rhythmus des bestehenden Wächters deckt das deutlich schneller
+    ab als eine wöchentliche Prüfung, ohne zusätzliche Infrastruktur.
+  - `KATEGORIE_ALLTAGSSPRACHE["handover_luecke"] = "Handover veraltet"` für
+    die Push-Kurzform ergänzt.
+  - Tests (`tests/test_proactive_watcher.py`): zentraler Test mit
+    synthetischer Git-Historie (beide Commit-Formate + ein Bot-Datencommit
+    + eine echte, im Handover unerwähnte Lücke) — bewusst so aufgebaut, dass
+    NUR eine der beiden fehlenden PRs im Handover erwähnt wird (sonst bliebe
+    eine kaputte Formaterkennung unsichtbar, siehe Mutationsprobe), Negativ-
+    Fälle (vollständig erwähnt, kein Git-Repo, kein Handover, leere
+    PR-Extraktion), Determinismus-Test, `rote_linie`-Test,
+    Orchestrator-Integration. Drei Mutationsproben bestätigt (Squash-Suffix-
+    Erkennung deaktiviert; Differenz invertiert; Merge-Commit-Regex auf
+    nie-treffend gesetzt) — alle von den Tests gefangen, Datei danach
+    byte-identisch wiederhergestellt (`diff -q`). Volle Suite: 1669 passed
+    (12 neue Tests).
+  Revert = `erkenne_handover_luecke()`, `KLASSE_HANDOVER_LUECKE`, die beiden
+  neuen Regexe, den `KATEGORIE_ALLTAGSSPRACHE`-Eintrag und die
+  `scan_repo()`-Erweiterung aus `scripts/proactive_watcher.py`, `fetch-depth:
+  0` aus `.github/workflows/proactive_watcher.yml` sowie die neuen Tests
+  einzeln zurücknehmen; reine Beobachtungs-Meldung, kein bestehendes
+  Feld/Verhalten geändert, kein Datenstand betroffen.

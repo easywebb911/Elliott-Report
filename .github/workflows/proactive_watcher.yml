@@ -7,11 +7,12 @@
 # Registry-Einträge, Key-Exposure-Muster, Struktur-Inkonsistenz zwischen
 # parallelem Code) — siehe scripts/proactive_watcher.py für die Detektoren.
 #
-# PHASE 1 (DIESER WORKFLOW, so gebaut): rein lesend. Scannt, klassifiziert
-# jeden Fund gegen dieselbe rote Linie, die Guardian für Manual-Merge-Fälle
-# nutzt (Score/Sammlungs-Gate/evaluate.py/Marker/Auswertungsregel), und
-# schickt GENAU EINEN zusammenfassenden Push pro Lauf (keine Einzelmeldung
-# je Fund). Verändert KEINE Datei — MD5-Prüfung vor/nach dem Scan wie in
+# PHASE 1 (DIESER WORKFLOW, so gebaut): rein lesend. Scannt (inzwischen 7
+# Fehlerklassen, siehe scripts/proactive_watcher.py), klassifiziert jeden
+# Fund gegen dieselbe rote Linie, die Guardian für Manual-Merge-Fälle nutzt
+# (Score/Sammlungs-Gate/evaluate.py/Marker/Auswertungsregel), und schickt
+# GENAU EINEN zusammenfassenden Push pro Lauf (keine Einzelmeldung je
+# Fund). Verändert KEINE Datei — MD5-Prüfung vor/nach dem Scan wie in
 # midday_report_refresh.yml, aus demselben Grund: ein Wächter, der ver-
 # sehentlich Daten anfasst, ist schlimmer als einer, der schweigt.
 #
@@ -55,6 +56,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: main
+          # Volle Historie nötig für Klasse 7 (handover_luecke, 27.09.2026):
+          # `git log --first-parent` muss ALLE main-PRs sehen können, sonst
+          # meldet der Detektor bei fetch-depth:1 (Checkout-Default)
+          # fälschlich "alles fehlt" — abgefangen per Fail-Soft-Guard im
+          # Detektor selbst (0 extrahierte PR-Nummern -> keine Funde), aber
+          # der eigentliche Fix ist volle Historie hier.
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5

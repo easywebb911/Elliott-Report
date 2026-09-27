@@ -6,7 +6,7 @@ aus `auto_retry_watcher.py` (Stufe 3, aber dort nur EIN Aktionstyp: Retry-
 Dispatch nach Fehlschlag). Dieser Wächter sucht AKTIV, ohne Anlass, nach
 bekannten Fehlerklassen (Testdaten-Drift, veraltete Kommentare, fehlende
 Registry-Einträge, Key-Exposure-Muster, Struktur-Inkonsistenz, fremde
-Datenquelle in einem Kandidaten) und
+Datenquelle in einem Kandidaten, SESSION_HANDOVER.md hinter main zurück) und
 klassifiziert jeden Fund gegen dieselbe rote Linie, die Guardian für
 Manual-Merge-PRs bereits prüft.
 
@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -154,6 +155,7 @@ KLASSE_FEHLENDE_REGISTRY = "fehlende_registry"
 KLASSE_KEY_EXPOSURE = "key_exposure"
 KLASSE_STRUKTUR_INKONSISTENZ = "struktur_inkonsistenz"
 KLASSE_FREMDE_DATENQUELLE = "fremde_datenquelle"
+KLASSE_HANDOVER_LUECKE = "handover_luecke"
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +510,107 @@ def erkenne_nicht_yfinance_datenquelle(report: Dict, dateiname: str) -> List[Fun
 
 
 # ---------------------------------------------------------------------------
+# 7) SESSION_HANDOVER.md fällt hinter main zurück (Diagnose-Auftrag
+#    27.09.2026) — reine Beobachtungs-Meldung, kein Block. Hausregel im
+#    Handover: "wird bei JEDEM Merge im selben PR aktualisiert" — wurde in
+#    kurzer Folge zweimal verfehlt (Lücke 1: #128-#148, Lücke 2: #150-#151,
+#    beide erst nachträglich per Hand-Realitätscheck gefunden).
+#
+#    WIDERSPRUCH ZUR DIAGNOSE-ANNAHME (muss gemeldet, nicht still umgangen
+#    werden): eine Auswertung von `git log --first-parent` über ALLE
+#    First-Parent main-Commits (nicht nur die Stichprobe der letzten ~25)
+#    zeigt einen VIERTEN Commit-Typ neben den drei genannten (Merge-Commit,
+#    Squash-Suffix, github-actions[bot]-Datencommit): direkte Pushes von
+#    `easywebb911` OHNE PR-Bezug (manuelle Datei-Updates an persönlichen
+#    JSON-Dateien außerhalb des Backends, der initiale "Initial commit") —
+#    44 von 399 First-Parent-Commits. Das ändert aber nichts an der Umsetzung: da
+#    NUR die beiden PR-tragenden Muster (Merge-Commit, Squash-Suffix)
+#    überhaupt eine Nummer liefern, aus der eine Lücke prüfbar wäre, braucht
+#    dieser vierte Typ (wie der Bot-Datencommit) KEINE explizite Ausschluss-
+#    liste — er liefert schlicht kein Regex-Match und wird dadurch bereits
+#    strukturell ignoriert. Die in Punkt 2 des Auftrags vorgesehene
+#    "explizite" Bot-Filterung ist also für BEIDE PR-losen Fälle bereits
+#    durch die Match-Bedingung selbst erledigt, nicht durch eine
+#    Autoren-Prüfung.
+#
+#    Heuristik: `git log --first-parent` auf main liefert die Commit-
+#    Subjects; daraus werden PR-Nummern über zwei Muster extrahiert
+#    (`^Merge pull request #(\d+)` für echte Merge-Commits, `\(#(\d+)\)$`
+#    für Squash-Commits — beide kommen in diesem Repo parallel vor, siehe
+#    Diagnose 27.09.2026). Jede so gefundene main-PR-Nummer, die NICHT als
+#    `#<Nummer>` irgendwo in SESSION_HANDOVER.md auftaucht, ist ein Fund.
+#
+#    SHALLOW-CHECKOUT-RISIKO GEPRÜFT UND KORRIGIERT (Mutationsprobe
+#    27.09.2026): die erste Fassung hatte hier einen expliziten Guard
+#    ("0 extrahierte PR-Nummern -> keine Funde"), mit der (falschen)
+#    Begründung, das verhindere hunderte Fehl-Funde bei einem Shallow-
+#    Checkout. Eine Mutationsprobe (Guard entfernt) zeigte: KEIN Test schlug
+#    fehl — der Guard war wirkungslos. Grund: die Differenz wird als
+#    `main_prs - erwaehnte_prs` gebildet, NIE umgekehrt; ist `main_prs`
+#    leer, ist diese Differenz mathematisch immer leer, mit oder ohne Guard.
+#    Ein Shallow-Checkout (`fetch-depth: 1`, GitHub-Actions-Default) kann
+#    mit dieser Subtraktionsrichtung NUR zu WENIGER erkannten main-PRs
+#    führen (fehlende ältere Commits jenseits des Fetch-Horizonts) — also
+#    höchstens zu übersehenen echten Lücken (false negative), NIE zu
+#    erfundenen (false positive). Der tote Guard wurde deshalb entfernt statt
+#    beibehalten; die eigentliche Absicherung ist `fetch-depth: 0` im
+#    Checkout-Schritt von proactive_watcher.yml (volle Historie, keine
+#    Lücke durch Trunkierung).
+# ---------------------------------------------------------------------------
+_MERGE_COMMIT_PR_NUMMER = re.compile(r"^Merge pull request #(\d+)")
+_SQUASH_SUFFIX_PR_NUMMER = re.compile(r"\(#(\d+)\)\s*$")
+_HANDOVER_PR_ERWAEHNUNG = re.compile(r"#(\d+)")
+
+
+def erkenne_handover_luecke(repo_root: Path) -> List[Fund]:
+    """Vergleicht die auf main gemergten PR-Nummern (aus `git log
+    --first-parent`, beide Commit-Formate) gegen die in SESSION_HANDOVER.md
+    erwähnten PR-Nummern. Reine Beobachtungs-Meldung, kein Block. Fail-soft:
+    kein Handover oder kein Git-Zugriff liefern keine Funde, kein Absturz.
+    Eine leere PR-Extraktion (z. B. Shallow-Checkout) kann laut Mutationsprobe
+    nur zu übersehenen, nie zu erfundenen Funden führen (siehe Modul-
+    Kommentar zu Klasse 7) — kein Sonderfall nötig. Deterministisch: reine
+    Funktion des aktuellen main-Stands."""
+    handover_pfad = repo_root / "SESSION_HANDOVER.md"
+    if not handover_pfad.is_file():
+        return []
+    try:
+        ausgabe = subprocess.run(
+            ["git", "-C", str(repo_root), "log", "--first-parent",
+             "--format=%s", "HEAD"],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout
+    except (subprocess.SubprocessError, OSError):
+        return []
+
+    main_prs = set()
+    for zeile in ausgabe.splitlines():
+        treffer = _MERGE_COMMIT_PR_NUMMER.match(zeile)
+        if not treffer:
+            treffer = _SQUASH_SUFFIX_PR_NUMMER.search(zeile)
+        if treffer:
+            main_prs.add(int(treffer.group(1)))
+
+    handover_text = handover_pfad.read_text(encoding="utf-8")
+    erwaehnte_prs = {int(n) for n in _HANDOVER_PR_ERWAEHNUNG.findall(handover_text)}
+
+    fehlende = sorted(main_prs - erwaehnte_prs)
+    if not fehlende:
+        return []
+    liste = ", ".join(f"#{n}" for n in fehlende)
+    return [Fund(
+        klasse=KLASSE_HANDOVER_LUECKE, datei="SESSION_HANDOVER.md", zeile=None,
+        beschreibung=(
+            f"{len(fehlende)} auf main gemergte PR(s) fehlen in "
+            f"SESSION_HANDOVER.md: {liste} — Pflegeregel (\"wird bei JEDEM "
+            f"Merge im selben PR aktualisiert\") nicht eingehalten (Muster "
+            f"wie #149/#152)."
+        ),
+        betroffene_dateien=["SESSION_HANDOVER.md"],
+    )]
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 _SCAN_DATEIEN = (
@@ -519,7 +622,7 @@ _SCAN_DATEIEN = (
 
 
 def scan_repo(repo_root: Path) -> List[Fund]:
-    """Läuft alle 6 Detektoren über den aktuellen Stand des Repos.
+    """Läuft alle 7 Detektoren über den aktuellen Stand des Repos.
 
     Rein lesend — keine Datei wird verändert. Gibt die rohe Fundliste
     zurück; die Aufteilung "rote Linie ja/nein" steht bereits an jedem
@@ -564,6 +667,12 @@ def scan_repo(repo_root: Path) -> List[Fund]:
         if isinstance(report, dict):
             funde += erkenne_nicht_yfinance_datenquelle(report, "data/report.json")
 
+    # 7) SESSION_HANDOVER.md fällt hinter main zurück — vergleicht main-
+    # Historie gegen Handover-Erwähnungen. Fail-soft (siehe Funktion): kein
+    # Absturz bei fehlendem Git-Zugriff, fehlendem Handover oder leerer
+    # PR-Extraktion.
+    funde += erkenne_handover_luecke(repo_root)
+
     return funde
 
 
@@ -603,6 +712,7 @@ KATEGORIE_ALLTAGSSPRACHE: Dict[str, str] = {
     KLASSE_KEY_EXPOSURE: "Sicherheits-Hinweis",
     KLASSE_STRUKTUR_INKONSISTENZ: "Unstimmigkeit im Code",
     KLASSE_FREMDE_DATENQUELLE: "Datenquelle ungewöhnlich",
+    KLASSE_HANDOVER_LUECKE: "Handover veraltet",
 }
 
 
