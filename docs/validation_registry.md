@@ -2030,3 +2030,56 @@ vor n ≥ 100) gilt unverändert.
   die `main()`-Anpassungen und den `NEUTRALE_UMGEBUNG`-Eintrag einzeln
   zurücknehmen; kein Datenstand betroffen, keine Erkennungs-/Fix-Logik
   berührt.
+- **2026-09-26 — Intraday-MFE/MAE (`mfe_high_10d`/`mae_low_10d`): zwei NEUE,
+  additive Mess-Felder auf Tages-High/Low-Basis.** ANLASS: `max_gain_10d`/
+  `max_drawdown_10d` (und die daraus abgeleiteten `r_erreicht_*`) sind
+  bislang Close-to-Close berechnet — ein Intraday-Ausschlag, der innerhalb
+  eines Tages Ziel-/Invalidierungszone berührt und sich bis Handelsschluss
+  wieder zurückzieht, bleibt darin unsichtbar. **STEHENDE REGEL beachtet
+  (Eingefrorene-Dimensionen):** `max_gain_10d`/`max_drawdown_10d`/
+  `r_erreicht_*` bleiben byte-identisch Close-basiert — KEINE Umdefinition,
+  reine NEUE Felder daneben.
+  - **Quelle:** High/Low liefen bereits durch denselben yfinance-/Twelve-
+    Data-/Alpha-Vantage-Download wie Close (`_extract_bars`, seit dem
+    ATR-Auftrag 23.08.2026), wurden bisher nur für `atr14()` genutzt und
+    danach verworfen. Diagnose vom 26.09.2026 bestätigt: **kein Extra-Call,
+    keine zweite Quelle** — reines Durchreichen der bereits vorhandenen,
+    bar-genau ausgerichteten Reihen. Neu additiv auf `FetchOutcome`
+    (`highs`/`lows`, Muster wie `volumes`) und `hilo_sink`/`hilo_data`
+    (Muster wie `volume_sink`) bis `update_forward_collection()`
+    durchgereicht.
+  - **Berechnung** (`forward_collection.mature_record()`, unmittelbar neben
+    `max_gain_10d`/`max_drawdown_10d`): `mfe_high_10d` = höchstes Tages-High,
+    `mae_low_10d` = tiefstes Tages-Low über dieselben bis zu `HORIZON_DAYS`
+    gültigen Handelstage, relativ zu `entry_close` (%). Fail-soft wie beim
+    Volumen: ein einzelner fehlender Tages-Wert (`None`) wird NUR für den
+    betroffenen Tag ausgelassen; fehlt die Spalte GANZ (offline/synthetisch/
+    Quelle ohne High/Low), bleiben beide Felder `None`.
+  - **Geltungsbereich (Auftrags-Entscheidung Easy):** betrifft NUR ab diesem
+    Merge NEU angelegte/laufende Episoden. **Kein Backfill in diesem PR** —
+    bereits erfasste, noch nicht gereifte Episoden (z. B. ADM@23.09.) bleiben
+    zunächst ohne die Felder; ein Backfill ist rückwirkend möglich (Yahoo
+    liefert Tages-High/Low über die vollen `config.DATA_PERIOD` = 2 Jahre,
+    nichts geht dabei verloren), aber eine separate Easy-Entscheidung nach
+    demselben Muster wie `scripts/backfill_r_multiple.py`.
+  - **`evaluate.FROZEN_FIELDS` bewusst NICHT geändert** — die neuen Felder
+    fließen nicht automatisch in die Registry-Auswertung ein.
+  - Mutationsproben (alle bestätigt: mutiert → mind. ein Test rot,
+    zurückgesetzt → wieder grün): (1) `max(...)` → `min(...)` in der
+    MFE-Berechnung, (2) Index-Zuordnung der High/Low-Werte auf die
+    laufende Anzahl gültiger Paare statt die rohe Tages-Position
+    umgestellt (simuliert exakt die historische Datums-/Index-Versatz-
+    Fehlerklasse aus #51 — ein reiner Off-by-eins-Shift verändert `max()`
+    NICHT zuverlässig, der Testaufbau platziert den Sentinel-Wert deshalb
+    auf der letzten rohen Fensterposition, die ein sequenzieller Index nie
+    erreicht), (3) Vorzeichen-Fehler in `mae_low_10d` (`entry - min_low`
+    statt `min_low - entry`).
+  - Volle Suite: 1652 passed (11 neue Tests: 5 Wert-Tests in
+    `tests/test_mfe_mae_intraday.py`, 6 Verdrahtungs-Tests in
+    `tests/test_mfe_mae_pipeline_wiring.py`).
+  Revert = `mfe_high_10d`/`mae_low_10d` aus `mature_record()`/`_new_record()`,
+  `highs`/`lows` aus `FetchOutcome`, `hilo_sink`/`hilo_data`-Parameter aus
+  `_scan_market()`/`build_market()`/`build_report()`/
+  `update_forward_collection()`/`main()` sowie die beiden neuen Testdateien
+  einzeln zurücknehmen; rein additiv, kein bestehendes Feld/Verhalten
+  geändert, kein Datenstand betroffen.
