@@ -57,11 +57,14 @@ jobs:
         with:
           ref: main
           # Volle Historie nötig für Klasse 7 (handover_luecke, 27.09.2026):
-          # `git log --first-parent` muss ALLE main-PRs sehen können, sonst
-          # meldet der Detektor bei fetch-depth:1 (Checkout-Default)
-          # fälschlich "alles fehlt" — abgefangen per Fail-Soft-Guard im
-          # Detektor selbst (0 extrahierte PR-Nummern -> keine Funde), aber
-          # der eigentliche Fix ist volle Historie hier.
+          # `git log --first-parent` muss ALLE main-PRs sehen können. Ohne
+          # dies (fetch-depth:1, Checkout-Default) würde der Detektor NICHT
+          # "alles fehlt" melden (Mutationsprobe bestätigt: die Subtraktion
+          # main_prs - erwaehnte_prs kann bei unvollständiger main_prs nur zu
+          # übersehenen, nie zu erfundenen Funden führen), sondern schlicht
+          # ältere Lücken übersehen — das hier ist die eigentliche
+          # Absicherung dagegen, kein Fail-Soft-Guard im Detektor selbst
+          # (siehe scripts/proactive_watcher.py, Klasse-7-Kommentar).
           fetch-depth: 0
 
       - name: Setup Python
