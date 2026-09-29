@@ -643,7 +643,9 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   allen 169 Fällen) verwechselt werden. Empfohlene, aber NICHT gebaute
   Ausgabe: separate Datei (nicht `forward_collection.json`), expliziter
   `explorativ`-Marker, kein Eintrag in `FROZEN_FIELDS`/`validation_
-  registry.md` selbst — höchstens ein Verweis dorthin.
+  registry.md` selbst — höchstens ein Verweis dorthin. **Wiedervorlage:**
+  zusammen mit dem Score-Review am **07.12.2026** erneut aufgreifen, falls
+  dann gewünscht — kein eigenes, separates Datum.
 
 ---
 
