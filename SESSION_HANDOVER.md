@@ -625,6 +625,25 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   P0→P3 drückt die Ext unter die Basis; Frontend blendet sie dann ehrlich aus,
   siehe `test_schema` W4-Kommentar).
 - **Score-Smoothing** — erst nach Validierungsbefund.
+- **29.09.2026 — Explorative Verlängerungs-Auswertung der 53 „gereift ·
+  neutral"-Fälle** (20/30 statt 10 Handelstage) — **GEPARKT (Easy-
+  Entscheid)**. Diagnose (read-only) ergab: (1) technisch machbar, alle 53
+  innerhalb des 2-Jahres-Fensters (`first_seen` 22.07.–09.09.2026); (2)
+  Abdeckung partiell — 7/53 haben noch keine 20, 17/53 noch keine 30
+  Handelstage seit Entry (jüngster Fall S92.DE erst 14); (3) Aufwand
+  **MITTEL**, weil ein neuer, begrenzter Live-Fetch nötig wäre — die
+  Backfill-Vorbilder (`backfill_r_multiple.py`, #150) rechnen beide rein
+  offline mit dem bereits eingefrorenen 10-Bar-`price_path`, keines von
+  beiden holt neue Kurse nach; (4) **Selektionsverzerrung**: die 53 sind
+  bereits durch Nichttreffen vorselektiert (keine Bewegung in 10 Tagen) —
+  ein Ergebnis wäre keine allgemeine Fensterlängen-Aussage, sondern nur
+  eine Aussage über das Schicksal bereits „stehengebliebener" Fälle; müsste
+  bei Umsetzung explizit als „Exploration einer vorselektierten Teilgruppe"
+  gekennzeichnet werden, nie mit einer echten Sensitivitätsprüfung (auf
+  allen 169 Fällen) verwechselt werden. Empfohlene, aber NICHT gebaute
+  Ausgabe: separate Datei (nicht `forward_collection.json`), expliziter
+  `explorativ`-Marker, kein Eintrag in `FROZEN_FIELDS`/`validation_
+  registry.md` selbst — höchstens ein Verweis dorthin.
 
 ---
 
