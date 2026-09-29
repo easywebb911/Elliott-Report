@@ -10,25 +10,35 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 27.09.2026**, nach PR **#151** (Proaktiver Wächter: 6. Fehlerklasse
-`fremde_datenquelle`, Merge-Commit `a7a771a`) — auf `main`. Zahlen gegen
-`main` (`a7a771a`) geprüft, nicht aus dem Gedächtnis: **1661 Tests** grün
-auf `main` · Sammlung **164 Records** (139 gereift, **133 auswertbar**,
-`scripts/forward_collection.py::eval_counts`) · Marker **65 von 164**
-tragen mindestens einen (`in_session_creation` 55 · `episode_split_suspect`
-10 · `stale_market_suspect` 4) · Beweis-Datei `data/in_session_evidence.json`
-**17 Einträge** · Universum **353** Ticker (US 236 · DE 117, unverändert
-seit #93/#94).
+**Stand: 29.09.2026**, nach PR **#153** (Proaktiver Wächter: 7. Fehlerklasse
+`handover_luecke`, Merge-Commit `e4fc288`) — auf `main`. Zahlen gegen
+`main` (`1043575`) geprüft, nicht aus dem Gedächtnis: **1669 Tests**
+(1668 grün, **1 rot** — `test_sammlungs_schutz.py::
+test_der_replay_findet_die_bekannten_faelle`, hartkodierte Liste
+`ERWARTETE_REPLAY_TREFFER` veraltet durch 5 neue reale Stale-Market-
+Replay-Treffer inkl. INTC/US, 29.09.2026 — bereits vom proaktiven Wächter
+als `testdaten_drift`-Musterverdacht gemeldet, s. u.; Fix nicht Teil
+dieses PRs, reiner Doku-Fix) · Sammlung **169 Records** (139 gereift,
+**133 auswertbar**, `scripts/forward_collection.py::eval_counts`) ·
+Marker **65 von 169** tragen mindestens einen (`in_session_creation` 55 ·
+`episode_split_suspect` 10 · `stale_market_suspect` 4) · Beweis-Datei
+`data/in_session_evidence.json` **17 Einträge** · Universum **353** Ticker
+(US 236 · DE 117, unverändert seit #93/#94).
 
-> **Realitätscheck 27.09.2026 (read-only-Diagnose, s. PR mit diesem
-> Update):** dieses Dokument war seit #148 (26.09.2026) nicht mehr auf
-> Stand — **3 gemergte PRs (#149–#151)** fehlten im PR-Index (Handover-
-> Realitätscheck-Fix, Intraday-MFE/MAE `mfe_high_10d`/`mae_low_10d`,
-> Wächter-6.-Klasse `fremde_datenquelle`); die Zahlen oben wurden aus den 3
-> fehlenden Zeilen und den frischen Live-Zahlen nachgezogen. Abschnitte
-> **2b, 3 und 4** wurden dabei bewusst **nicht** angefasst (das wäre
-> Bewertung/Interpretation, nicht Bestandsaufnahme) — sie können weitere
-> Nachträge brauchen.
+> **Realitätscheck 29.09.2026 (read-only-Diagnose, s. PR mit diesem
+> Update):** dieses Dokument war seit #151 (27.09.2026) nicht mehr auf
+> Stand — **1 gemergter PR (#153)** fehlte im PR-Index (Proaktiver
+> Wächter: 7. Fehlerklasse `handover_luecke`) — just jene Klasse, die
+> genau diese Art Lücke künftig selbst meldet; sie schlug in der Nacht auf
+> den 29.09.2026 zum ersten Mal real an (`1× Handover veraltet`), noch
+> bevor sie sich selbst im Handover eintragen konnte (die eigene
+> Einführungs-PR kann sich nicht im selben PR referenzieren). Die Zahlen
+> oben wurden aus der fehlenden Zeile und den frischen Live-Zahlen
+> nachgezogen. Abschnitte **2b, 3 und 4** wurden dabei bewusst **nicht**
+> angefasst (das wäre Bewertung/Interpretation, nicht Bestandsaufnahme) —
+> sie können weitere Nachträge brauchen. Die rote Testsuite (s. o.) ist
+> ebenfalls **nicht** Teil dieses Fixes — reine Bestandsaufnahme, kein
+> Code-/Logik-Eingriff.
 
 > **Offizielle n≥100-Auswertung (#121, n=101, 06.09.2026): NICHT BESTANDEN.**
 > `data/evaluation/ergebnis.json`: `urteil.belegt = false` — Trefferquote
@@ -39,7 +49,7 @@ seit #93/#94).
 > bleibt damit unverändert in Kraft. Details: Abschnitt 2b.
 
 > **BRANCH-BASIS:** je Task ein neuer Branch, frisch von `origin/main`
-> aufgesetzt (aktuell enthält `main` bis #151). Nach jedem Merge neu von
+> aufgesetzt (aktuell enthält `main` bis #153). Nach jedem Merge neu von
 > `origin/main` aufsetzen — **nie** auf gemergter Historie stapeln.
 
 
@@ -84,7 +94,7 @@ Wahrscheinlichkeits-/Erfolgs-Sprache** irgendwo — nicht im JSON, nicht im UI.
 
 ---
 
-## 2. PR-INDEX #1–#151
+## 2. PR-INDEX #1–#153
 
 Nur Nummer, Feature-Hash auf `main` und Kern in einer Zeile. **Die vollen
 Zeilen mit Belegketten, Mutationsproben, Guardian-Urteilen und Revert-Wegen
@@ -245,6 +255,8 @@ Merge-Klassen, Guardian-Urteile und Screenshot-Freigaben: ebenfalls im Archiv.
 | #149 | `0eba400` | Handover-Realitätscheck — Stand von #127 auf #148 nachgezogen |
 | #150 | `6d5a241` | Intraday-MFE/MAE (`mfe_high_10d`/`mae_low_10d`), additiv, kein Backfill |
 | #151 | `a7a771a` | Proaktiver Wächter: 6. Fehlerklasse `fremde_datenquelle` (Beobachtungs-Meldung) |
+| #152 | `87b9081` | Handover-Realitätscheck — Stand von #148 auf #151 nachgezogen |
+| #153 | `e4fc288` | Proaktiver Wächter: 7. Fehlerklasse `handover_luecke` (Beobachtungs-Meldung) |
 
 <sub>**Hash-Spalte #96–#127:** Merge-Commit-Hash auf `main` (`git log --merges`,
 „Merge pull request #N …") — im Unterschied zu #1–#95, wo der
