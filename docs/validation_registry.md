@@ -2199,3 +2199,29 @@ vor n ≥ 100) gilt unverändert.
   0` aus `.github/workflows/proactive_watcher.yml` sowie die neuen Tests
   einzeln zurücknehmen; reine Beobachtungs-Meldung, kein bestehendes
   Feld/Verhalten geändert, kein Datenstand betroffen.
+
+- **2026-09-29 — Fünf neue Stale-Market-Replay-Treffer ergänzt**
+  (`tests/test_sammlungs_schutz.py::ERWARTETE_REPLAY_TREFFER`): INTC, MO, PM
+  (US, Lauf 2026-09-29T02:18:01Z, Rückstand 1), CBK.DE, FPE3.DE (DE,
+  derselbe Lauf, Rückstand 2). CI auf `main` war seit dem Montags-Lauf
+  (#139, 29.09.2026) rot — der proaktive Wächter (#138) hatte den zugrunde
+  liegenden fragilen Vergleich bereits generisch als `testdaten_drift`
+  gemeldet (`tests/test_proactive_watcher.py`-Klasse, keine Aktion), jetzt
+  hat sich das Muster (wie schon bei AOF.DE/PR #141, NEM/PR #145, den
+  sieben vom 26.09./PR #147) in einem echten Testfehlschlag materialisiert.
+  Verifiziert per direktem Aufruf von `finde_stale_records()` gegen die
+  volle committete Historie (143 Reports/120 Sammlungs-Stände, Repo nicht
+  flach) UND einzeln gegen die tatsächlichen Records in
+  `data/forward_collection.json` geprüft (alle fünf per
+  `created_utc`/`episode_id` dem Lauf zuordenbar, keiner trägt bereits
+  einen `stale_market_suspect`-Marker — kein `--live`-Lauf seither). Kein
+  sechster Treffer über die fünf hinaus (Historie war zum Prüfzeitpunkt
+  aktuell, kein neuerer Daten-Commit seit dem Montags-Lauf). **Fix:** alle
+  fünf in `ERWARTETE_REPLAY_TREFFER` ergänzt (NICHT in
+  `ERWARTETE_MARKIERUNGEN` — dafür fehlt weiterhin der manuelle
+  `--live`-Marker-Lauf, eine bewusste Easy-Entscheidung). Volle Suite: 1669
+  passed. **Bewusst NICHT geändert:** `mark_stale_market_records.py`
+  selbst, `in_session.py`, `filter_sensitivity_sammlung.py`, das
+  Sammlungs-Gate, `ERWARTETE_MARKIERUNGEN`, `data/forward_collection.json`
+  (kein `--live`-Lauf). Revert = die fünf neuen Zeilen aus
+  `ERWARTETE_REPLAY_TREFFER` zurücknehmen.

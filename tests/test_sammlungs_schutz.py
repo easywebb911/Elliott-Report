@@ -427,6 +427,17 @@ def test_das_gate_erzeugt_KEINEN_eigenen_push():
 # Historie nachgerechnet (nicht geraten; verifiziert: Repo nicht flach,
 # 141 Reports/119 Sammlungs-Stände). Gleiches Muster: gehören in
 # ERWARTETE_REPLAY_TREFFER, NICHT in ERWARTETE_MARKIERUNGEN.
+#
+# INTC/MO/PM (US, Lauf 2026-09-29T02:18:01Z, Rückstand 1) und CBK.DE/FPE3.DE
+# (DE, derselbe Lauf, Rückstand 2) kamen in der Nacht vom 28./29.09.2026
+# hinzu — wieder per `finde_stale_records()` gegen die volle committete
+# Historie nachgerechnet (nicht geraten; verifiziert: Repo nicht flach,
+# 143 Reports/120 Sammlungs-Stände) UND einzeln gegen die tatsächlichen
+# Records in `data/forward_collection.json` geprüft (alle fünf per
+# `created_utc`/`episode_id` diesem Lauf zuordenbar, keiner trägt bereits
+# einen `stale_market_suspect`-Marker — kein `--live`-Lauf seither).
+# Gleiches Muster wie AOF.DE/NEM/die sieben vom 26.09.: gehören in
+# ERWARTETE_REPLAY_TREFFER, NICHT in ERWARTETE_MARKIERUNGEN.
 # ---------------------------------------------------------------------------
 ERWARTETE_MARKIERUNGEN = [
     ("ADS.DE", "DE", "2026-07-30T22:45:00Z", 1),
@@ -445,6 +456,11 @@ ERWARTETE_REPLAY_TREFFER = ERWARTETE_MARKIERUNGEN + [
     ("GILD", "US", "2026-09-26T00:52:46Z", 1),
     ("TXN", "US", "2026-09-26T00:52:46Z", 1),
     ("VNA.DE", "DE", "2026-09-26T00:52:46Z", 1),
+    ("INTC", "US", "2026-09-29T02:18:01Z", 1),
+    ("MO", "US", "2026-09-29T02:18:01Z", 1),
+    ("PM", "US", "2026-09-29T02:18:01Z", 1),
+    ("CBK.DE", "DE", "2026-09-29T02:18:01Z", 2),
+    ("FPE3.DE", "DE", "2026-09-29T02:18:01Z", 2),
 ]
 
 
