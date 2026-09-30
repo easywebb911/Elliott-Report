@@ -646,6 +646,27 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   registry.md` selbst — höchstens ein Verweis dorthin. **Wiedervorlage:**
   zusammen mit dem Score-Review am **07.12.2026** erneut aufgreifen, falls
   dann gewünscht — kein eigenes, separates Datum.
+- **29.09.2026 — Economic-Edge-Report** (score-neutrale, rein explorative
+  Auswertung) — **GEPARKT**. Idee: R-/MFE-/MAE-Kennzahlen aufgeschlüsselt
+  nach Score-Quintil, Setup (W2/W4), CRV-Klasse (`<0`, `0–1`, `1–2`, `>2`),
+  Ambiguität (1 Count / ≥2 Counts) und Marktregime — je Gruppe
+  Trefferquote, mittleres und Median-R, Profit Factor, MFE, MAE, Anteil
+  ≥+1R und ≥+2R. Fließt **nichts** in den Score. Begründung fürs Parken:
+  bei aktuell ~133 auswertbaren Fällen werden die Untergruppen zu klein —
+  Präzedenz `volumen_w3_zu_w1` (`data/evaluation/ergebnis.json`): die
+  beiden Gruppen `< 1`/`≥ 1` haben 15 bzw. 17 Fälle, beide unter der
+  eigenen Schwelle `SECONDARY_MIN_N = 30` (`scripts/evaluate.py`) und
+  entsprechend mit `"zu wenige Fälle"` markiert statt einer Quote — bei
+  noch feinerer Aufschlüsselung (5 Dimensionen gleichzeitig) wäre das
+  Muster nur verschärft. **WIEDERVORLAGE:** Score-Review 07.12.2026, dann
+  mit größerer Fallzahl neu bewerten.
+- **29.09.2026 — Regime-Analyse** (R-Werte nach Marktregime `risk_on` /
+  `risk_off` / `neutral`) — **GEPARKT**. Gleiche Begründung wie beim
+  Economic-Edge-Report: bei ~133 auswertbaren Fällen sind die
+  Regime-Untergruppen zu klein für eine belastbare Aufschlüsselung
+  (dieselbe `SECONDARY_MIN_N = 30`-Schwelle, dasselbe
+  `volumen_w3_zu_w1`-Präzedenzmuster). **WIEDERVORLAGE:** Score-Review
+  07.12.2026, dann mit größerer Fallzahl neu bewerten.
 
 ---
 
