@@ -677,6 +677,26 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **GEPARKT**. Bewusst nicht gebaut, jederzeit nachholbar, weil das
   2-Jahres-Datenfenster die Tages-High/Low weiterhin liefert.
   **WIEDERVORLAGE:** 07.12.2026.
+- **03.10.2026 — GEPARKT, Easy-Entscheid: Stale-Markierung auf
+  Sitzungs-Basis** (#162). Befund:
+  `mark_stale_market_records.py`/`rueckstaende_je_lauf` bleibt BEWUSST
+  beim Kalendertag-Anker (historische Markierung, darf sich nicht
+  rückwirkend ändern; Quellen: `tests/test_sammlungs_schutz.py`
+  Kommentarblock vom 17.09.2026, `validation_registry.md` Zeilen um 1555).
+  Diagnose: von 24 Replay-Treffern haben 8 sitzungsbewusst Lag 0
+  (Fehlalarme: INTC, MO, PM am 29.09.; MSFT 30.09.; VLO, MPC, IT 01.10.;
+  DELL 02.10. — DELL kommt auch am 25.09. vor, dieser bleibt; Identifikation
+  immer nach Ticker UND Anlegedatum), 16 bleiben markiert, darunter alle 9
+  DE-Fälle. Auswirkung: erst relevant, wenn ein `--live`-Lauf die
+  Markierung setzt; die 20 unmarkierten Fälle sind noch nicht gereift,
+  (a) und (b) heute nicht betroffen. **HARTE SPERRE:** kein `--live`-Lauf
+  und keine offizielle Auswertung, bevor entschieden ist, was die
+  Markierung künftig bedeuten soll. Optionen: (1) parallele
+  sitzungsbewusste Funktion mit eigener Liste, alte Regel unangetastet,
+  (2) alte Regel bewusst aufheben, (3) unverändert lassen. Nicht empfohlen:
+  Schwelle auf 2 anheben (würde echte DE-Rückstände verwerfen) und
+  automatisches Nachziehen der Testliste. **WIEDERVORLAGE:** vor dem
+  nächsten `--live`-Lauf, spätestens Score-Review 07.12.2026.
 
 ---
 
