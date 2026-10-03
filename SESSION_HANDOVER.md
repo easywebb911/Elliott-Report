@@ -712,6 +712,66 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Easy-Entscheid (Optionen 1–3) klärt auch, ob/wie dieser Stichtag künftig
   fortgeschrieben wird. **WIEDERVORLAGE:** zusammen mit dem Stale-
   Markierungs-Entscheid, spätestens Score-Review 07.12.2026.
+- **03.10.2026 — Robustheits-Hinweis, explorativ, keine Änderung der
+  Primärauswertung** (#164). ANLASS: die präregistrierte
+  n=101-Auswertung (#121, 06.09.2026, `data/evaluation/ergebnis.json`,
+  AUC 0,647, CI [0,5138; 0,7685]) behandelt Episoden als unabhängig.
+  Diagnose (zwei read-only-Stränge, 03.10.2026):
+
+  **Resampling-Einheit in `evaluate.py` ist durchgängig der Einzelfall**
+  (ein Record/eine Episode, `_Case`, `build_population()` Zeilen 120–151):
+  Bootstrap-AUC-CI zieht einzelne Fälle (`auc_test` Zeile 359:
+  `idx = [rng.randrange(n) for _ in range(n)]`, `n = len(cases)`), der
+  Permutations-p-Wert mischt Labels global über alle Fälle (Zeilen
+  368–375), und `benchmark_test` zieht pro Fall unabhängig einen
+  zufälligen Einstiegstag (Zeilen 290–294). Holm (Zeilen 393–430, Aufruf
+  Zeile 623) ist selbst kein Resampling, sondern passt nur die zwei
+  p-Werte der Primär-Familie (`PRIMARY_KEYS`, Zeile 88) an — die
+  Unabhängigkeits-Annahme liegt vollständig in den beiden Schritten davor.
+
+  **Überlappungs-Kennzahlen** (n=101, rekonstruiert aus Commit `dd79b31`,
+  `eval_counts()` bestätigt exakt `(133, 107, 101)`): bis zu 52 gleichzeitig
+  aktive Episoden an einem Tag (US+DE gepoolt), 21 von 71 Tickern mit ≥2
+  Episoden (51 von 101 Fällen betroffen), bis zu 10 von 10 Handelstagen
+  Fensterüberlappung bei mehrfachen Episoden desselben Tickers (z. B.
+  ADS.DE, EVK.DE, KKR, MTX.DE). Heute (a, n=133): 31 von 87 Tickern mit ≥2
+  Episoden (77 von 133 Fällen), gleiches Maximum 52.
+
+  **Σu_i (Mittelwert von 1/c_t über das 10-Tage-Fenster) ist AUSDRÜCKLICH
+  ein grobes Worst-Case-Maß, NICHT eine effektive Stichprobengröße im
+  strengen Sinn** — es zählt gleichzeitig aktive Fälle verschiedener
+  Ticker als vollständig redundant, was die Fensterüberlappung allein
+  nicht rechtfertigt. Werte: n=101 → Σu_i 3,2 (gepoolt US+DE) / 6,4 (nur
+  selber Markt); heute n=133 → 4,5 / 9,0.
+
+  **Tag-Block-Bootstrap** (Block = Entry-Kalendertag, 23 Blöcke, 10.000
+  Ziehungen, 5 Seeds, CI-Niveau 0,975): Untergrenze stabil **0,5192–0,5216**
+  — leicht ÜBER der primären Untergrenze 0,5138, nicht darunter (Punkt-
+  schätzung unverändert 0,6470).
+
+  **Ticker-Block-Bootstrap** (Block = Ticker, 71 Cluster bei n=101, 10.000
+  Ziehungen, 5 Seeds, CI-Niveau 0,975): Untergrenze **fällt in ALLEN 5
+  Seeds unter 0,5** (Bereich 0,4928–0,4964; Beispiel Seed 20260728:
+  CI [0,4963; 0,7860]). Bei der heutigen Population (a, n=133, 87
+  Ticker-Cluster, nur als Zusatzinfo) ebenfalls in allen 5 Seeds unter 0,5
+  (Bereich 0,4879–0,4917). Unter dieser (konservativeren) Clusterbildung
+  wäre die AUC-Signifikanz NICHT mehr gegeben — klar hervorgehoben, nicht
+  geglättet.
+
+  **Grenzen dieser explorativen Diagnose:** nur 23 Tag-Blöcke bzw. 71
+  Ticker-Cluster — Block-Bootstrap-CIs sind bei so wenigen Clustern selbst
+  unzuverlässig; die Trefferquote-Benchmark (`benchmark_test`) wurde NICHT
+  blockweise getestet, nur die AUC; Fenster über die marktunabhängige
+  `market_calendar.is_trading_day`-Kalenderfunktion angenähert, nicht über
+  die ticker-genaue Preisreihen-Logik aus `_eligible_starts`.
+
+  **Primärverdikt unverändert: NICHT BESTANDEN** (wegen Trefferquote,
+  p=0,38 — die AUC allein reicht laut Registry-Regel nicht). Diese
+  Diagnose ändert daran nichts; `evaluate.py`, `FROZEN_FIELDS` und
+  `validation_registry.md` bleiben unangetastet. Eine Methodik-Änderung
+  an `evaluate.py` (z. B. Block-Resampling als neue Primär-Methode) nur
+  per eigener, datierter Entscheidung — nie rückwirkend auf #121.
+  **WIEDERVORLAGE:** Score-Review 07.12.2026.
 
 ---
 
