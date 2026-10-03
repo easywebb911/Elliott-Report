@@ -667,6 +667,16 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   (dieselbe `SECONDARY_MIN_N = 30`-Schwelle, dasselbe
   `volumen_w3_zu_w1`-Präzedenzmuster). **WIEDERVORLAGE:** Score-Review
   07.12.2026, dann mit größerer Fallzahl neu bewerten.
+- **03.10.2026 — Datenquellen-Konsistenzprüfung (OHLC→Pivot→Ranking)** —
+  **GEPARKT**. Zurückgestellt, weil Fallback-Daten (Twelve-Data/
+  Alpha-Vantage) bisher nie in einen tatsächlichen Kandidaten eingeflossen
+  sind (Diagnose 26.09.2026, Wächter-Klasse `fremde_datenquelle`, #151).
+  **WIEDERVORLAGE:** sobald der Wächter `fremde_datenquelle` erstmals
+  anschlägt, spätestens Score-Review 07.12.2026.
+- **03.10.2026 — Kein Backfill für `mfe_high_10d`/`mae_low_10d`** (#150) —
+  **GEPARKT**. Bewusst nicht gebaut, jederzeit nachholbar, weil das
+  2-Jahres-Datenfenster die Tages-High/Low weiterhin liefert.
+  **WIEDERVORLAGE:** 07.12.2026.
 
 ---
 
