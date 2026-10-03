@@ -713,7 +713,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   fortgeschrieben wird. **WIEDERVORLAGE:** zusammen mit dem Stale-
   Markierungs-Entscheid, spätestens Score-Review 07.12.2026.
 - **03.10.2026 — Robustheits-Hinweis, explorativ, keine Änderung der
-  Primärauswertung** (#PR_NUMMER_NACHTRAGEN). ANLASS: die präregistrierte
+  Primärauswertung** (#164). ANLASS: die präregistrierte
   n=101-Auswertung (#121, 06.09.2026, `data/evaluation/ergebnis.json`,
   AUC 0,647, CI [0,5138; 0,7685]) behandelt Episoden als unabhängig.
   Diagnose (zwei read-only-Stränge, 03.10.2026):
