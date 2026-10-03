@@ -2225,3 +2225,29 @@ vor n ≥ 100) gilt unverändert.
   Sammlungs-Gate, `ERWARTETE_MARKIERUNGEN`, `data/forward_collection.json`
   (kein `--live`-Lauf). Revert = die fünf neuen Zeilen aus
   `ERWARTETE_REPLAY_TREFFER` zurücknehmen.
+
+- **2026-10-03 — Sechs neue Stale-Market-Replay-Treffer ergänzt**
+  (`tests/test_sammlungs_schutz.py::ERWARTETE_REPLAY_TREFFER`): MSFT (US,
+  Lauf 2026-09-30T01:33:52Z, Rückstand 1), VLO/MPC/IT (US, Lauf
+  2026-10-01T01:34:32Z, Rückstand 1), VNA.DE (DE, derselbe Lauf, Rückstand
+  2 — eine andere, spätere Episode als der VNA.DE-Eintrag vom 26.09.), DELL
+  (US, Lauf 2026-10-02T01:48:50Z, Rückstand 1 — ebenfalls eine andere,
+  spätere Episode als der DELL-Eintrag vom 25.09.). CI auf `main` war
+  erneut rot — drittes Mal nach #141/#145 und #147/#155, gleiches Muster.
+  Auftrag bat ausdrücklich zu prüfen, ob über den ursprünglich bekannten
+  MSFT-Treffer hinaus weitere neue Treffer existieren — **ja, fünf
+  weitere** (VLO/MPC/IT/VNA.DE/DELL), alle verifiziert per direktem Aufruf
+  von `finde_stale_records()` gegen die volle committete Historie (151
+  Reports/124 Sammlungs-Stände, Repo nicht flach) UND einzeln gegen die
+  tatsächlichen Records in `data/forward_collection.json` geprüft (alle
+  sechs per `created_utc`/`episode_id` ihrem jeweiligen Lauf zuordenbar,
+  keiner trägt bereits einen `stale_market_suspect`-Marker). **Fix:** alle
+  sechs in `ERWARTETE_REPLAY_TREFFER` ergänzt (NICHT in
+  `ERWARTETE_MARKIERUNGEN`). Volle Suite: 1669 passed. **Bewusst NICHT
+  geändert:** `mark_stale_market_records.py` selbst, `in_session.py`,
+  `filter_sensitivity_sammlung.py`, das Sammlungs-Gate,
+  `ERWARTETE_MARKIERUNGEN`, `data/forward_collection.json` (kein
+  `--live`-Lauf). Siehe separate Diagnose (2026-10-03, Handover/Chat) zur
+  Frage, ob dieser Test strukturell anders verankert werden sollte, damit
+  künftige echte Treffer ihn nicht jedes Mal rot machen. Revert = die
+  sechs neuen Zeilen aus `ERWARTETE_REPLAY_TREFFER` zurücknehmen.

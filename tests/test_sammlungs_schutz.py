@@ -438,6 +438,21 @@ def test_das_gate_erzeugt_KEINEN_eigenen_push():
 # einen `stale_market_suspect`-Marker — kein `--live`-Lauf seither).
 # Gleiches Muster wie AOF.DE/NEM/die sieben vom 26.09.: gehören in
 # ERWARTETE_REPLAY_TREFFER, NICHT in ERWARTETE_MARKIERUNGEN.
+#
+# MSFT (US, Lauf 2026-09-30T01:33:52Z, Rückstand 1), VLO/MPC/IT (US,
+# Lauf 2026-10-01T01:34:32Z, Rückstand 1), VNA.DE (DE, derselbe Lauf,
+# Rückstand 2 — eine ANDERE, spätere Episode als der VNA.DE-Eintrag vom
+# 26.09. oben) und DELL (US, Lauf 2026-10-02T01:48:50Z, Rückstand 1 —
+# ebenfalls eine andere, spätere Episode als der DELL-Eintrag vom 25.09.)
+# kamen in den Nächten vom 29.09.–02.10.2026 hinzu — wieder per
+# `finde_stale_records()` gegen die volle committete Historie nachgerechnet
+# (nicht geraten; verifiziert: Repo nicht flach, 151 Reports/124 Sammlungs-
+# Stände) UND einzeln gegen die tatsächlichen Records in
+# `data/forward_collection.json` geprüft (alle sechs per
+# `created_utc`/`episode_id` ihrem jeweiligen Lauf zuordenbar, keiner trägt
+# bereits einen `stale_market_suspect`-Marker — kein `--live`-Lauf seither).
+# Gleiches Muster wie zuvor: gehören in ERWARTETE_REPLAY_TREFFER, NICHT in
+# ERWARTETE_MARKIERUNGEN.
 # ---------------------------------------------------------------------------
 ERWARTETE_MARKIERUNGEN = [
     ("ADS.DE", "DE", "2026-07-30T22:45:00Z", 1),
@@ -461,6 +476,12 @@ ERWARTETE_REPLAY_TREFFER = ERWARTETE_MARKIERUNGEN + [
     ("PM", "US", "2026-09-29T02:18:01Z", 1),
     ("CBK.DE", "DE", "2026-09-29T02:18:01Z", 2),
     ("FPE3.DE", "DE", "2026-09-29T02:18:01Z", 2),
+    ("MSFT", "US", "2026-09-30T01:33:52Z", 1),
+    ("VLO", "US", "2026-10-01T01:34:32Z", 1),
+    ("MPC", "US", "2026-10-01T01:34:32Z", 1),
+    ("IT", "US", "2026-10-01T01:34:32Z", 1),
+    ("VNA.DE", "DE", "2026-10-01T01:34:32Z", 2),
+    ("DELL", "US", "2026-10-02T01:48:50Z", 1),
 ]
 
 
