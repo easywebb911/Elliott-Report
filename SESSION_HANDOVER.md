@@ -699,7 +699,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   nächsten `--live`-Lauf, spätestens Score-Review 07.12.2026.
 - **03.10.2026 — Replay-Test `test_der_replay_findet_die_bekannten_faelle`
   am Stichtag `2026-10-03T00:00:00Z` eingefroren** (`tests/
-  test_sammlungs_schutz.py::REPLAY_STICHTAG_UTC`, #PR_NUMMER_NACHTRAGEN).
+  test_sammlungs_schutz.py::REPLAY_STICHTAG_UTC`, #163).
   `ERWARTETE_REPLAY_TREFFER` musste bisher 5× von Hand nachgezogen werden
   (#141/#145/#147/#155/#159) — strukturell garantiert (Ein-Tage-Versatz ×
   `ab_lag=1`, s. Diagnose 03.10.2026), nicht durch Bugs. Treffer vor dem
