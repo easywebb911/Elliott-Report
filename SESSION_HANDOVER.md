@@ -678,7 +678,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   2-Jahres-Datenfenster die Tages-High/Low weiterhin liefert.
   **WIEDERVORLAGE:** 07.12.2026.
 - **03.10.2026 — GEPARKT, Easy-Entscheid: Stale-Markierung auf
-  Sitzungs-Basis** (#PR_NUMMER_NACHTRAGEN). Befund:
+  Sitzungs-Basis** (#162). Befund:
   `mark_stale_market_records.py`/`rueckstaende_je_lauf` bleibt BEWUSST
   beim Kalendertag-Anker (historische Markierung, darf sich nicht
   rückwirkend ändern; Quellen: `tests/test_sammlungs_schutz.py`
