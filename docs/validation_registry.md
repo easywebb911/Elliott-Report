@@ -2273,3 +2273,102 @@ vor n ≥ 100) gilt unverändert.
   `_SYNTH_*`-Hilfskonstanten/-Funktion aus `tests/test_sammlungs_schutz.py`
   zurücknehmen; reine Testdatei-Änderung, keine Produktionslogik, kein
   Datenstand betroffen.
+
+- **2026-10-03 — Replay-Test auf Stichtag `2026-10-03T00:00:00Z`
+  eingefroren** (`tests/test_sammlungs_schutz.py`, Vorbild #94: fester
+  Anker statt wachsender Zahl). ANLASS: `test_der_replay_findet_die_
+  bekannten_faelle` (Gleichheit `gefunden == ERWARTETE_REPLAY_TREFFER`)
+  musste bisher 5× von Hand nachgezogen werden (#141/#145/#147/#155/#159),
+  weil jeder neue echte Stale-Market-Vorfall main rot macht. Diagnose
+  03.10.2026 (separater read-only-Strang): das ist strukturell garantiert
+  (Ein-Tage-Versatz trifft `ab_lag=1`, ~78–100 % der Overnight-Läufe
+  betroffen), kein Bug und kein neu wachsendes Problem.
+
+  **Konsumenten vorher geprüft (gegrept):** `ERWARTETE_REPLAY_TREFFER`
+  wird außerhalb von `tests/test_sammlungs_schutz.py` selbst nur
+  NAMENTLICH erwähnt (Kommentar-Historie, `docs/validation_registry.md`,
+  `SESSION_HANDOVER.md` Zeile 18 der Stand-Zusammenfassung) — kein anderer
+  Test, kein Skript liest die Liste oder prüft ihre Länge. Einziger echter
+  Konsument des Vergleichs ist der eine Assert in `test_der_replay_
+  findet_die_bekannten_faelle`; `test_KKR_ist_dabei_...` nutzt die
+  `replay`-Fixture direkt, nicht die Liste.
+
+  **Zeitliches Ordnungsfeld:** `run_utc` (3. Tupel-Element, = der Lauf, der
+  den Record anlegte, `scripts/mark_stale_market_records.py` Zeilen 16/126;
+  Test-Zeile `t["run_utc"]` in der Comprehension).
+
+  **Aktueller Replay-Stand vor der Änderung, direkt nachgerechnet** (Repo
+  nicht flach, 151 Reports / 124 Sammlungs-Stände, `finde_stale_records()`
+  gegen die volle committete Historie): **genau 24 Treffer**, identisch mit
+  der bestehenden `ERWARTETE_REPLAY_TREFFER` — der Lauf in der Nacht zum
+  03.10. hat KEINEN neuen Treffer erzeugt. FRAGILE ANNAHME damit NICHT
+  verletzt, kein Mini-Stopp nötig.
+
+  | Ticker | Markt | Lauf (`run_utc`) | Lag |
+  |---|---|---|---|
+  | ADS.DE | DE | 2026-07-30T22:45:00Z | 1 |
+  | MTX.DE | DE | 2026-07-31T22:40:44Z | 1 |
+  | G1A.DE | DE | 2026-07-31T22:40:44Z | 1 |
+  | KKR | US | 2026-08-04T04:46:23Z | 2 |
+  | AOF.DE | DE | 2026-09-22T01:09:47Z | 2 |
+  | NEM | US | 2026-09-23T00:55:39Z | 2 |
+  | STM.DE | DE | 2026-09-24T00:52:41Z | 2 |
+  | AMZN | US | 2026-09-25T00:49:09Z | 2 |
+  | DELL | US | 2026-09-25T00:49:09Z | 2 |
+  | ADM | US | 2026-09-25T00:49:09Z | 2 |
+  | GILD | US | 2026-09-26T00:52:46Z | 1 |
+  | TXN | US | 2026-09-26T00:52:46Z | 1 |
+  | VNA.DE | DE | 2026-09-26T00:52:46Z | 1 |
+  | INTC | US | 2026-09-29T02:18:01Z | 1 |
+  | MO | US | 2026-09-29T02:18:01Z | 1 |
+  | PM | US | 2026-09-29T02:18:01Z | 1 |
+  | CBK.DE | DE | 2026-09-29T02:18:01Z | 2 |
+  | FPE3.DE | DE | 2026-09-29T02:18:01Z | 2 |
+  | MSFT | US | 2026-09-30T01:33:52Z | 1 |
+  | VLO | US | 2026-10-01T01:34:32Z | 1 |
+  | MPC | US | 2026-10-01T01:34:32Z | 1 |
+  | IT | US | 2026-10-01T01:34:32Z | 1 |
+  | VNA.DE | DE | 2026-10-01T01:34:32Z | 2 |
+  | DELL | US | 2026-10-02T01:48:50Z | 1 |
+
+  **Stichtag-Begründung:** `REPLAY_STICHTAG_UTC = "2026-10-03T00:00:00Z"`,
+  festes Literal mit datiertem Kommentar (kein `datetime.utcnow()`,
+  Determinismus). Liegt genau einen Kalendertag nach dem letzten der 24
+  verifizierten Läufe (DELL, 2026-10-02T01:48:50Z) — schließt alle 24 ein,
+  jeder künftige Lauf (ab 03.10.2026) liegt danach.
+
+  **Umsetzung:** neue reine Filterfunktion `_treffer_vor_stichtag(treffer,
+  stichtag)` (Test-Hilfsfunktion, keine Produktionslogik). Der bestehende
+  Assert bleibt `... == ERWARTETE_REPLAY_TREFFER` (linke Seite jetzt
+  gefiltert) — das vom Auftrag verlangte `==`-Muster gegen `ERWARTET*`
+  bleibt damit für den Wächter (`proactive_watcher.py::_ERWARTET_
+  VERGLEICH`) erhalten. Neuer, nie rot werdender Test meldet Treffer nach
+  dem Stichtag per `warnings.warn` (pytest-Zusammenfassung, kein `-s`
+  nötig) — EXZELLENZ-Empfehlung, umgesetzt: sonst würden künftige echte
+  Vorfälle unbemerkt durchrutschen, nur weil CI grün bleibt.
+
+  **Tests:** 5 neu (der bestehende Haupttest wurde angepasst, nicht neu
+  gezählt) — die Sichtbarkeits-Meldung, 3 Unit-Tests der Filterfunktion an
+  Mini-Listen (Vorher/Nachher-Grenzfall, Werte-Erhalt, Ignorieren neuer
+  Treffer) und ein Test, der das Wächter-Regex gegen die eigene
+  Quelldatei prüft (liest die reale Assert-Zeile, kein hartkodiertes
+  Abbild).
+
+  **Zwei Mutationsproben bestätigt** (Datei danach byte-identisch
+  wiederhergestellt, `diff -q`):
+  1. Filter aus dem Assert entfernt (`_treffer_vor_stichtag(gefunden)` →
+     `gefunden`) → `test_waechter_regex_erkennt_den_neuen_replay_assert`
+     wird rot (der Haupttest bleibt an diesem Tag zufällig grün, weil
+     `gefunden` heute exakt der Liste entspricht — genau deshalb prüft der
+     Wächter-Test die Quelldatei direkt, statt sich darauf zu verlassen).
+  2. `REPLAY_STICHTAG_UTC` einen Tag vor DELL verschoben (`2026-10-
+     02T00:00:00Z`) → `test_der_replay_findet_die_bekannten_faelle` wird
+     rot (DELL fällt aus dem Filter, Listen weichen ab).
+
+  Volle Suite: 1678 passed (5 neue Tests). **Bewusst NICHT geändert:**
+  `rueckstaende_je_lauf()`, `finde_stale_records()`, `mark_stale_market_
+  records.py`, `ERWARTETE_MARKIERUNGEN`, die Kalendertag-Anker-Regel vom
+  17.09., `data/forward_collection.json` (kein `--live`-Lauf). Hängt am
+  geparkten Stale-Markierungs-Entscheid (HARTE SPERRE, #162,
+  `SESSION_HANDOVER.md`) — derselbe Easy-Entscheid klärt auch die Zukunft
+  dieses Stichtags. Revert = `git revert`, reine Testdatei-Änderung.

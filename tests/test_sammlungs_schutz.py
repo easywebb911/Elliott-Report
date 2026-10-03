@@ -19,6 +19,7 @@ import copy
 import json
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import forward_collection as fc  # noqa: E402
 import mark_stale_market_records as msr  # noqa: E402
 import market_calendar as cal  # noqa: E402
+import proactive_watcher as pw  # noqa: E402
 
 W4 = "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)"
 
@@ -485,6 +487,49 @@ ERWARTETE_REPLAY_TREFFER = ERWARTETE_MARKIERUNGEN + [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Stichtag-Einfrierung des Replay-Tests (03.10.2026, s. docs/validation_
+# registry.md). ANLASS: `ERWARTETE_REPLAY_TREFFER` musste bisher 5× von Hand
+# nachgezogen werden (#141/#145/#147/#155/#159), weil jeder neue echte
+# Stale-Market-Vorfall main rot macht — strukturell garantiert, s. Diagnose
+# 03.10.2026 (Ein-Tage-Versatz trifft `ab_lag=1`). Vorbild #94 (fester Anker
+# statt wachsender Zahl).
+#
+# Der Replay-Test bleibt für Treffer BIS zu diesem Stichtag strikt (Gleichheit
+# gegen `ERWARTETE_REPLAY_TREFFER`, s.u. — WICHTIG für den Wächter, siehe
+# nächster Absatz). Treffer AB dem Stichtag lassen CI nicht mehr rot werden,
+# werden aber nicht unsichtbar: `test_replay_treffer_nach_stichtag_nur_
+# gemeldet_nicht_rot` unten meldet sie per `warnings.warn` (pytest zeigt
+# Warnings per Default in der Zusammenfassung, kein `-s` nötig).
+#
+# Das `==`-Muster gegen `ERWARTET*` MUSS im Assert von
+# `test_der_replay_findet_die_bekannten_faelle` erhalten bleiben — sonst wird
+# der proaktive Wächter (`scripts/proactive_watcher.py::_ERWARTET_VERGLEICH`)
+# für genau diesen Fall blind. Das filtert NICHT den Vergleich selbst heraus,
+# sondern nur die linke Seite (`gefunden`) vor dem Vergleich — der Assert
+# bleibt `... == ERWARTETE_REPLAY_TREFFER`. Belegt durch
+# `test_waechter_regex_erkennt_den_neuen_replay_assert` unten.
+#
+# Harte Grenzen unangetastet: `rueckstaende_je_lauf()`, `finde_stale_
+# records()`, `mark_stale_market_records.py`, `ERWARTETE_MARKIERUNGEN` und
+# die Kalendertag-Anker-Regel vom 17.09. — reine Test-Änderung.
+#
+# REPLAY_STICHTAG_UTC ist ein festes Literal, NICHT die aktuelle Uhrzeit
+# (Determinismus — derselbe Stand ergibt dasselbe Ergebnis, egal wann der
+# Test läuft). Gewählt so, dass genau die 24 oben verifizierten Treffer davor
+# liegen: der letzte (DELL, Lauf 2026-10-02T01:48:50Z) liegt vor dem
+# Stichtag, jeder Lauf ab dem 03.10.2026 danach.
+# ---------------------------------------------------------------------------
+REPLAY_STICHTAG_UTC = "2026-10-03T00:00:00Z"
+
+
+def _treffer_vor_stichtag(treffer, stichtag=REPLAY_STICHTAG_UTC):
+    """Reine Filterfunktion: nur Treffer, deren anlegender Lauf (`run_utc`,
+    3. Tupel-Element) vor `stichtag` liegt. Bewusst klein und einzeln
+    testbar — keine Produktionslogik, nur Test-Hilfsfunktion."""
+    return [t for t in treffer if t[2] < stichtag]
+
+
 def _flach() -> bool:
     out = subprocess.run(["git", "rev-parse", "--is-shallow-repository"],
                          cwd=ROOT, capture_output=True, text=True)
@@ -509,10 +554,32 @@ def test_der_replay_findet_die_bekannten_faelle(replay):
     behauptete eine feste Zahl, die per Konstruktion wächst (jeder neue
     echte Stale-Market-Vorfall kommt automatisch dazu). Bewusst umbenannt,
     nicht nur die Zahl im Namen erhöht — sonst wiederholt sich genau das
-    Muster, das AOF.DE hier ausgelöst hat, beim nächsten echten Vorfall."""
+    Muster, das AOF.DE hier ausgelöst hat, beim nächsten echten Vorfall.
+
+    Seit 03.10.2026 am REPLAY_STICHTAG_UTC eingefroren (s. Kommentarblock
+    oben): nur Treffer VOR dem Stichtag müssen exakt übereinstimmen. Treffer
+    danach lassen diesen Test nicht mehr rot werden, s. den nächsten Test."""
     gefunden = [(t["ticker"], t["market"], t["run_utc"], t["lag_trading_days"])
                 for t in replay]
-    assert gefunden == ERWARTETE_REPLAY_TREFFER
+    assert _treffer_vor_stichtag(gefunden) == ERWARTETE_REPLAY_TREFFER
+
+
+@braucht_historie
+def test_replay_treffer_nach_stichtag_nur_gemeldet_nicht_rot(replay):
+    """Neue Treffer ab REPLAY_STICHTAG_UTC sollen sichtbar bleiben, auch wenn
+    sie CI nicht mehr rot machen (03.10.2026). pytest zeigt `warnings.warn`
+    per Default in der Zusammenfassung an, auch ohne `-s` — dieser Test wird
+    selbst nie rot."""
+    gefunden = [(t["ticker"], t["market"], t["run_utc"], t["lag_trading_days"])
+                for t in replay]
+    neu = [t for t in gefunden if t[2] >= REPLAY_STICHTAG_UTC]
+    if neu:
+        warnings.warn(
+            f"{len(neu)} neue(r) Replay-Treffer nach Stichtag "
+            f"{REPLAY_STICHTAG_UTC}, NICHT in ERWARTETE_REPLAY_TREFFER "
+            f"(CI bleibt grün, s. docs/validation_registry.md): {neu}",
+            UserWarning,
+        )
 
 
 @braucht_historie
@@ -521,6 +588,58 @@ def test_KKR_ist_dabei_und_traegt_den_lauf_vom_04_08(replay):
     assert len(kkr) == 1
     assert kkr[0]["run_utc"] == "2026-08-04T04:46:23Z"
     assert kkr[0]["lag_trading_days"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Unit-Tests für _treffer_vor_stichtag() an handgebauten Mini-Listen (keine
+# echte Historie nötig — anders als die @braucht_historie-Tests oben).
+# ---------------------------------------------------------------------------
+def test_treffer_vor_stichtag_mini_liste():
+    mini = [
+        ("AAA", "US", "2026-10-02T00:00:00Z", 1),  # vor Stichtag -> bleibt
+        ("BBB", "US", "2026-10-03T00:00:00Z", 1),  # == Stichtag -> raus
+        ("CCC", "US", "2026-10-04T00:00:00Z", 1),  # nach Stichtag -> raus
+    ]
+    assert _treffer_vor_stichtag(mini) == [mini[0]]
+
+
+def test_treffer_vor_stichtag_aendert_werte_nicht():
+    """Belegt Punkt b) aus dem Auftrag: der Filter normalisiert Werte nicht
+    weg — ein geänderter Lag an einem Alt-Treffer bleibt sichtbar und würde
+    den echten Replay-Test (Vergleich gegen ERWARTETE_REPLAY_TREFFER) rot
+    machen."""
+    alt = [("AAA", "US", "2026-10-01T00:00:00Z", 1)]
+    mit_geaendertem_lag = [("AAA", "US", "2026-10-01T00:00:00Z", 2)]
+    assert _treffer_vor_stichtag(alt) != _treffer_vor_stichtag(mit_geaendertem_lag)
+
+
+def test_treffer_vor_stichtag_ignoriert_treffer_nach_stichtag():
+    """Belegt Punkt c) aus dem Auftrag: ein zusätzlicher Treffer NACH dem
+    Stichtag ändert das gefilterte Ergebnis nicht."""
+    alt = [("AAA", "US", "2026-10-01T00:00:00Z", 1)]
+    mit_neuem_treffer = alt + [("BBB", "US", "2026-10-05T00:00:00Z", 1)]
+    assert (_treffer_vor_stichtag(mit_neuem_treffer)
+            == _treffer_vor_stichtag(alt))
+
+
+def test_waechter_regex_erkennt_den_neuen_replay_assert():
+    """Belegt Punkt d) aus dem Auftrag: der Wächter-Regex `_ERWARTET_
+    VERGLEICH` (proactive_watcher.py) erkennt den neuen Assert in
+    test_der_replay_findet_die_bekannten_faelle weiterhin — auch nachdem die
+    linke Seite durch den Stichtag-Filter läuft. Liest die eigene Quelldatei,
+    nicht ein hartkodiertes Abbild der Zeile (sonst könnte dieser Test grün
+    bleiben, während der echte Assert längst anders aussieht)."""
+    quelltext = Path(__file__).read_text(encoding="utf-8")
+    kandidaten = [
+        z for z in quelltext.splitlines()
+        if z.strip().startswith("assert _treffer_vor_stichtag(gefunden)")
+    ]
+    assert len(kandidaten) == 1, (
+        "erwartet genau eine Zeile 'assert _treffer_vor_stichtag(gefunden) "
+        "== ...' in dieser Datei")
+    assert pw._ERWARTET_VERGLEICH.search(kandidaten[0]) is not None, (
+        "Wächter-Regex _ERWARTET_VERGLEICH erkennt den neuen Assert nicht "
+        "mehr - macht den testdaten_drift-Detektor fuer diesen Fall blind")
 
 
 # ---------------------------------------------------------------------------

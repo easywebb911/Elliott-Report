@@ -697,6 +697,21 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Schwelle auf 2 anheben (würde echte DE-Rückstände verwerfen) und
   automatisches Nachziehen der Testliste. **WIEDERVORLAGE:** vor dem
   nächsten `--live`-Lauf, spätestens Score-Review 07.12.2026.
+- **03.10.2026 — Replay-Test `test_der_replay_findet_die_bekannten_faelle`
+  am Stichtag `2026-10-03T00:00:00Z` eingefroren** (`tests/
+  test_sammlungs_schutz.py::REPLAY_STICHTAG_UTC`, #PR_NUMMER_NACHTRAGEN).
+  `ERWARTETE_REPLAY_TREFFER` musste bisher 5× von Hand nachgezogen werden
+  (#141/#145/#147/#155/#159) — strukturell garantiert (Ein-Tage-Versatz ×
+  `ab_lag=1`, s. Diagnose 03.10.2026), nicht durch Bugs. Treffer vor dem
+  Stichtag bleiben strikt geschützt (Gleichheit), Treffer danach lassen CI
+  nicht mehr rot werden, bleiben aber über eine `warnings.warn`-Meldung
+  sichtbar. Reine Test-Änderung; `rueckstaende_je_lauf()`, `finde_stale_
+  records()`, `mark_stale_market_records.py`, `ERWARTETE_MARKIERUNGEN` und
+  die Kalendertag-Anker-Regel vom 17.09. unangetastet. Hängt am geparkten
+  Stale-Markierungs-Entscheid direkt oberhalb (HARTE SPERRE) — derselbe
+  Easy-Entscheid (Optionen 1–3) klärt auch, ob/wie dieser Stichtag künftig
+  fortgeschrieben wird. **WIEDERVORLAGE:** zusammen mit dem Stale-
+  Markierungs-Entscheid, spätestens Score-Review 07.12.2026.
 
 ---
 
