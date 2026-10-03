@@ -523,6 +523,89 @@ def test_KKR_ist_dabei_und_traegt_den_lauf_vom_04_08(replay):
     assert kkr[0]["lag_trading_days"] == 2
 
 
+# ---------------------------------------------------------------------------
+# Synthetische Fixture-Tests für finde_stale_records() (Diagnose 03.10.2026,
+# s. docs/validation_registry.md): die EINZIGE bisherige Prüfung dieser
+# Funktion war der volle Replay gegen die echte, wachsende Historie oben —
+# jede der inzwischen 3 Nachträge (#141/#145, #147/#155, #159) war ein
+# Testdaten-Fix, nie ein Hinweis auf einen Algorithmus-Bug. Diese Tests
+# entkoppeln "Algorithmus korrekt" dauerhaft von "Liste aktuell": von Hand
+# gebaute Mini-Historie, Literale nachgerechnet, KEINE Berührung von
+# ERWARTETE_REPLAY_TREFFER oder der Produktionslogik selbst.
+#
+# Drei von Hand nachgerechnete Fälle, EIN Lauf je Fall, EIN Ticker je Lauf:
+#   AAA (Lauf 1, lag=1)  — Anfangsbestand ("erster"-Sonderfall, s.
+#                           finde_stale_records()-Kommentar: "der Anfangs-
+#                           bestand ist kein 'neu angelegt'") -> GRENZFALL,
+#                           darf NIE als Treffer zählen, obwohl lag>=ab_lag.
+#   BBB (Lauf 2, lag=1)  — echter NEUER Record bei lag>=ab_lag -> TREFFER.
+#   CCC (Lauf 3, lag=0)  — echter NEUER Record bei lag<ab_lag -> KEIN Treffer.
+# ---------------------------------------------------------------------------
+def _synth_coll(updated_utc: str, tickers_markets):
+    """Baut einen Sammlungs-Stand mit genau den übergebenen (ticker, markt,
+    created_utc)-Records — minimal, nur die von record_key()/finde_stale_
+    records() tatsächlich gelesenen Felder."""
+    return {
+        "updated_utc": updated_utc,
+        "records": [
+            {"ticker": tk, "market": mk, "created_utc": created,
+             "episode_id": f"{tk}@synth"}
+            for tk, mk, created in tickers_markets
+        ],
+    }
+
+
+_SYNTH_LAUF_1 = "2026-01-01T00:00:00Z"   # Anfangsbestand, lag=1 (Grenzfall)
+_SYNTH_LAUF_2 = "2026-01-02T00:00:00Z"   # echter Treffer, lag=1
+_SYNTH_LAUF_3 = "2026-01-03T00:00:00Z"   # kein Treffer, lag=0
+
+_SYNTH_COLL_STAENDE = [
+    _synth_coll(_SYNTH_LAUF_1, [("AAA", "US", _SYNTH_LAUF_1)]),
+    _synth_coll(_SYNTH_LAUF_2, [("AAA", "US", _SYNTH_LAUF_1),
+                                 ("BBB", "US", _SYNTH_LAUF_2)]),
+    _synth_coll(_SYNTH_LAUF_3, [("AAA", "US", _SYNTH_LAUF_1),
+                                 ("BBB", "US", _SYNTH_LAUF_2),
+                                 ("CCC", "US", _SYNTH_LAUF_3)]),
+]
+
+_SYNTH_LAG_JE_LAUF = {
+    _SYNTH_LAUF_1: {"US": 1},   # Grenzfall: lag>=1, aber AAA ist Anfangsbestand
+    _SYNTH_LAUF_2: {"US": 1},   # echter Treffer
+    _SYNTH_LAUF_3: {"US": 0},   # kein Treffer
+}
+
+
+def test_finde_stale_records_synthetische_mini_historie():
+    """Von Hand nachgerechnet (nicht aus der echten Historie kopiert):
+    genau EIN Treffer (BBB), AAA (Anfangsbestand) und CCC (lag=0) fehlen."""
+    treffer = msr.finde_stale_records(_SYNTH_COLL_STAENDE, _SYNTH_LAG_JE_LAUF)
+    assert [(t["ticker"], t["market"], t["run_utc"], t["lag_trading_days"])
+            for t in treffer] == [("BBB", "US", _SYNTH_LAUF_2, 1)]
+
+
+def test_finde_stale_records_grenzfall_anfangsbestand_zaehlt_nie():
+    """Isolierter Grenzfall-Test: AAA hat lag=1 (>= ab_lag) in SEINEM eigenen
+    Lauf, zählt aber nicht, weil er im ERSTEN Sammlungs-Stand steht — der
+    Anfangsbestand ist per Definition kein 'neu angelegter' Record."""
+    treffer = msr.finde_stale_records(_SYNTH_COLL_STAENDE, _SYNTH_LAG_JE_LAUF)
+    tickers = {t["ticker"] for t in treffer}
+    assert "AAA" not in tickers
+
+
+def test_finde_stale_records_kein_treffer_unter_ab_lag():
+    """Isolierter Nicht-Treffer-Test: CCC entsteht in einem Lauf mit lag=0
+    (< ab_lag=1) -> kein Treffer."""
+    treffer = msr.finde_stale_records(_SYNTH_COLL_STAENDE, _SYNTH_LAG_JE_LAUF)
+    tickers = {t["ticker"] for t in treffer}
+    assert "CCC" not in tickers
+
+
+def test_finde_stale_records_leere_eingabe_liefert_leere_liste():
+    """Fail-soft-Randfall: keine Sammlungs-Stände -> keine Funde, kein
+    Absturz."""
+    assert msr.finde_stale_records([], {}) == []
+
+
 def test_der_ausgelieferte_bestand_traegt_die_vier_marker():
     coll = json.loads((ROOT / "data/forward_collection.json").read_text("utf-8"))
     markiert = [(r["ticker"], r["market"], r[msr.MARKER]["run_utc"],

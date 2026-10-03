@@ -2251,3 +2251,25 @@ vor n ≥ 100) gilt unverändert.
   Frage, ob dieser Test strukturell anders verankert werden sollte, damit
   künftige echte Treffer ihn nicht jedes Mal rot machen. Revert = die
   sechs neuen Zeilen aus `ERWARTETE_REPLAY_TREFFER` zurücknehmen.
+
+- **2026-10-03 — Synthetische Fixture-Tests für `finde_stale_records()`
+  ergänzt** (`tests/test_sammlungs_schutz.py`). ANLASS: die Funktion hatte
+  bis dahin KEINE eigene Unit-Test-Abdeckung — die einzige Prüfung war der
+  volle Replay gegen die echte, wachsende Historie
+  (`test_der_replay_findet_die_bekannten_faelle`), die inzwischen dreimal
+  (#141/#145, #147/#155, #159) wegen neuer realer Stale-Market-Vorfälle
+  nachgezogen werden musste — nie wegen eines Algorithmus-Bugs. Vier neue
+  Tests mit von Hand gebauter, literaler Mini-Historie (3 Läufe, 3 Ticker):
+  ein echter Treffer (lag=1 bei einem NEU angelegten Record), ein
+  Nicht-Treffer (lag=0), ein Grenzfall (Anfangsbestand mit lag=1 zählt NIE,
+  da er kein "neu angelegter" Record ist — eigener, isolierter Test dafür)
+  sowie ein Fail-Soft-Randfall (leere Eingabe). Zwei Mutationsproben
+  bestätigt (Anfangsbestand-Sonderfall entfernt; `>=` zu `>` verschärft,
+  Grenzfall-Treffer verschwindet) — beide von den neuen Tests gefangen,
+  Datei danach byte-identisch wiederhergestellt (`diff -q`). **Bewusst
+  NICHT geändert:** `mark_stale_market_records.py` selbst (reine Tests),
+  `ERWARTETE_REPLAY_TREFFER` (unangetastet). Volle Suite: 1673 passed (4
+  neue Tests). Revert = die vier neuen Testfunktionen und die
+  `_SYNTH_*`-Hilfskonstanten/-Funktion aus `tests/test_sammlungs_schutz.py`
+  zurücknehmen; reine Testdatei-Änderung, keine Produktionslogik, kein
+  Datenstand betroffen.
