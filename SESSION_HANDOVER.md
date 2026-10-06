@@ -11,7 +11,8 @@ ihren vollständigen Belegketten im Archiv.
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
 **Stand: 29.09.2026**, nach PR **#153** (Proaktiver Wächter: 7. Fehlerklasse
-`handover_luecke`, Merge-Commit `e4fc288`) — auf `main`. Zahlen gegen
+`handover_luecke`, Merge-Commit `e4fc288`) — auf `main` (dieser Stand-Satz
+zuletzt durch #154 nachgezogen). Zahlen gegen
 `main` (`1043575`) geprüft, nicht aus dem Gedächtnis: **1669 Tests**
 (1668 grün, **1 rot** — `test_sammlungs_schutz.py::
 test_der_replay_findet_die_bekannten_faelle`, hartkodierte Liste
@@ -626,8 +627,9 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   siehe `test_schema` W4-Kommentar).
 - **Score-Smoothing** — erst nach Validierungsbefund.
 - **29.09.2026 — Explorative Verlängerungs-Auswertung der 53 „gereift ·
-  neutral"-Fälle** (20/30 statt 10 Handelstage) — **GEPARKT (Easy-
-  Entscheid)**. Diagnose (read-only) ergab: (1) technisch machbar, alle 53
+  neutral"-Fälle** (20/30 statt 10 Handelstage, #156; Wiedervorlage-Satz
+  ergänzt in #157) — **GEPARKT (Easy-Entscheid)**. Diagnose (read-only)
+  ergab: (1) technisch machbar, alle 53
   innerhalb des 2-Jahres-Fensters (`first_seen` 22.07.–09.09.2026); (2)
   Abdeckung partiell — 7/53 haben noch keine 20, 17/53 noch keine 30
   Handelstage seit Entry (jüngster Fall S92.DE erst 14); (3) Aufwand
@@ -647,7 +649,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   zusammen mit dem Score-Review am **07.12.2026** erneut aufgreifen, falls
   dann gewünscht — kein eigenes, separates Datum.
 - **29.09.2026 — Economic-Edge-Report** (score-neutrale, rein explorative
-  Auswertung) — **GEPARKT**. Idee: R-/MFE-/MAE-Kennzahlen aufgeschlüsselt
+  Auswertung, #158) — **GEPARKT**. Idee: R-/MFE-/MAE-Kennzahlen aufgeschlüsselt
   nach Score-Quintil, Setup (W2/W4), CRV-Klasse (`<0`, `0–1`, `1–2`, `>2`),
   Ambiguität (1 Count / ≥2 Counts) und Marktregime — je Gruppe
   Trefferquote, mittleres und Median-R, Profit Factor, MFE, MAE, Anteil
@@ -661,20 +663,20 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Muster nur verschärft. **WIEDERVORLAGE:** Score-Review 07.12.2026, dann
   mit größerer Fallzahl neu bewerten.
 - **29.09.2026 — Regime-Analyse** (R-Werte nach Marktregime `risk_on` /
-  `risk_off` / `neutral`) — **GEPARKT**. Gleiche Begründung wie beim
+  `risk_off` / `neutral`, #158) — **GEPARKT**. Gleiche Begründung wie beim
   Economic-Edge-Report: bei ~133 auswertbaren Fällen sind die
   Regime-Untergruppen zu klein für eine belastbare Aufschlüsselung
   (dieselbe `SECONDARY_MIN_N = 30`-Schwelle, dasselbe
   `volumen_w3_zu_w1`-Präzedenzmuster). **WIEDERVORLAGE:** Score-Review
   07.12.2026, dann mit größerer Fallzahl neu bewerten.
-- **03.10.2026 — Datenquellen-Konsistenzprüfung (OHLC→Pivot→Ranking)** —
-  **GEPARKT**. Zurückgestellt, weil Fallback-Daten (Twelve-Data/
+- **03.10.2026 — Datenquellen-Konsistenzprüfung (OHLC→Pivot→Ranking)**
+  (#160) — **GEPARKT**. Zurückgestellt, weil Fallback-Daten (Twelve-Data/
   Alpha-Vantage) bisher nie in einen tatsächlichen Kandidaten eingeflossen
   sind (Diagnose 26.09.2026, Wächter-Klasse `fremde_datenquelle`, #151).
   **WIEDERVORLAGE:** sobald der Wächter `fremde_datenquelle` erstmals
   anschlägt, spätestens Score-Review 07.12.2026.
-- **03.10.2026 — Kein Backfill für `mfe_high_10d`/`mae_low_10d`** (#150) —
-  **GEPARKT**. Bewusst nicht gebaut, jederzeit nachholbar, weil das
+- **03.10.2026 — Kein Backfill für `mfe_high_10d`/`mae_low_10d`** (Feature
+  #150, dieser GEPARKT-Eintrag #160) — **GEPARKT**. Bewusst nicht gebaut, jederzeit nachholbar, weil das
   2-Jahres-Datenfenster die Tages-High/Low weiterhin liefert.
   **WIEDERVORLAGE:** 07.12.2026.
 - **03.10.2026 — GEPARKT, Easy-Entscheid: Stale-Markierung auf
@@ -697,6 +699,13 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Schwelle auf 2 anheben (würde echte DE-Rückstände verwerfen) und
   automatisches Nachziehen der Testliste. **WIEDERVORLAGE:** vor dem
   nächsten `--live`-Lauf, spätestens Score-Review 07.12.2026.
+- **03.10.2026 — Synthetische Fixture-Tests für `finde_stale_records()`
+  ergänzt** (#161, `tests/test_sammlungs_schutz.py`). Vier neue Tests mit
+  handgebauter Mini-Historie (echter Treffer, Nicht-Treffer, Grenzfall
+  Anfangsbestand, leere Eingabe) — die Funktion hatte bis dahin keine
+  eigene Unit-Test-Abdeckung, nur den Replay gegen die echte Historie.
+  Zwei Mutationsproben bestätigt. Reine Testdatei-Änderung, keine
+  Produktionslogik, `ERWARTETE_REPLAY_TREFFER` unangetastet.
 - **03.10.2026 — Replay-Test `test_der_replay_findet_die_bekannten_faelle`
   am Stichtag `2026-10-03T00:00:00Z` eingefroren** (`tests/
   test_sammlungs_schutz.py::REPLAY_STICHTAG_UTC`, #163).
