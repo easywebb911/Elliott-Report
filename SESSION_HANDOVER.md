@@ -12,7 +12,8 @@ ihren vollständigen Belegketten im Archiv.
 
 **Stand: 29.09.2026**, nach PR **#153** (Proaktiver Wächter: 7. Fehlerklasse
 `handover_luecke`, Merge-Commit `e4fc288`) — auf `main` (dieser Stand-Satz
-zuletzt durch #154 nachgezogen). Zahlen gegen
+zuletzt durch #154 nachgezogen, Handover-Lücke #154/#156/#157/#158/#160/
+#161 per #165 geschlossen). Zahlen gegen
 `main` (`1043575`) geprüft, nicht aus dem Gedächtnis: **1669 Tests**
 (1668 grün, **1 rot** — `test_sammlungs_schutz.py::
 test_der_replay_findet_die_bekannten_faelle`, hartkodierte Liste
