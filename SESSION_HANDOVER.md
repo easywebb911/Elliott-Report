@@ -663,6 +663,32 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   noch feinerer Aufschlüsselung (5 Dimensionen gleichzeitig) wäre das
   Muster nur verschärft. **WIEDERVORLAGE:** Score-Review 07.12.2026, dann
   mit größerer Fallzahl neu bewerten.
+  **08.10.2026 — Auswertungsrahmen (VORSCHLAG, Easy-Entscheid steht
+  aus):** falls/wenn dieser Report bei größerer Fallzahl umgesetzt wird,
+  Vorschlag für den methodischen Rahmen, bevor Ergebnisse angesehen
+  werden:
+  1. **Raster der Aufteilungen vorab ausschreiben**, bevor irgendein
+     Ergebnis angesehen wird (Score-Quintil, Setup W2/W4, CRV-Klasse,
+     Ambiguität, Marktregime — exakt wie oben benannt, keine Dimension
+     nachträglich hinzufügen oder weglassen, nachdem erste Zahlen
+     bekannt sind).
+  2. **Anzahl der tatsächlich gerechneten Auswertungen mitzählen und im
+     Bericht nennen** (z. B. „5 Dimensionen × X Gruppen = Y Zellen").
+  3. **Korrektur der Familie über False Discovery Rate
+     (Benjamini-Hochberg)** für diese explorativen Zellen — die
+     **Primärkriterien (Trefferquote/AUC) bleiben unverändert bei Holm**
+     (s. „Wann Erfolg als BELEGT gilt" oben); FDR gilt ausschließlich für
+     diesen sekundären, explorativen Rahmen, keine Vermischung der
+     beiden Korrekturverfahren.
+  4. **Zellen unter `SECONDARY_MIN_N = 30` nicht interpretieren** —
+     weiterhin nur `"zu wenige Fälle"` ausweisen, wie bisher.
+  5. **Alles als explorativ markieren**, keine Bestätigungs-Sprache.
+  6. **Eine Bestätigung gilt nur über eine neue, VORAB festgelegte
+     Hypothese auf ausschließlich künftigen Daten** — nie auf denselben
+     Fällen, die den Rahmen inspiriert haben.
+  Nichts davon ist bereits entschieden oder umgesetzt — reiner
+  Methodik-Vorschlag für die spätere Easy-Entscheidung, keine
+  Registry-Änderung.
 - **29.09.2026 — Regime-Analyse** (R-Werte nach Marktregime `risk_on` /
   `risk_off` / `neutral`, #158) — **GEPARKT**. Gleiche Begründung wie beim
   Economic-Edge-Report: bei ~133 auswertbaren Fällen sind die
