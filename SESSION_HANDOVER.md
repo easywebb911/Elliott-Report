@@ -818,7 +818,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   byte-identisch wiederhergestellt. 17 neue Tests, volle Suite danach
   grün. **WIEDERVORLAGE:** keine mehr — Folgeauftrag erledigt.
   **08.10.2026 — Begriffsklärung für den Bericht der nächsten
-  offiziellen Auswertung:** der OFFIZIELLE primäre Wert ist die eine
+  offiziellen Auswertung** (#168)**:** der OFFIZIELLE primäre Wert ist die eine
   Zahl aus `evaluate.py`. Die „primär"-Zeilen je Seed im Skript
   `scripts/evaluate_cluster_sensitivity.py` sind ein Methodenvergleich
   auf derselben Population und KEIN zweiter offizieller Wert — dieser
