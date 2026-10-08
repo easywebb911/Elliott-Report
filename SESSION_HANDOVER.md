@@ -789,7 +789,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Tag-Block- UND Ticker-Block-Bootstrap berechnet (10.000 Ziehungen,
   CI-Niveau 0,975, Seeds 20260728/1/42/7/999), alle drei Untergrenzen
   einzeln berichtet. Erfolgsdefinition und Verdikt vom 06.09.2026
-  unverändert — reine Doku-Zusage, noch kein Code. **WIEDERVORLAGE:**
+  unverändert — reine Doku-Zusage, noch kein Code (#166). **WIEDERVORLAGE:**
   Skript (nicht `evaluate.py`) + festnagelnder Test als eigener
   Folgeauftrag, muss **vor** der nächsten offiziellen Auswertung fertig
   sein, spätestens Score-Review 07.12.2026.
