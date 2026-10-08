@@ -782,6 +782,24 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   an `evaluate.py` (z. B. Block-Resampling als neue Primär-Methode) nur
   per eigener, datierter Entscheidung — nie rückwirkend auf #121.
   **WIEDERVORLAGE:** Score-Review 07.12.2026.
+- **08.10.2026 — Cluster-Sensitivität der AUC als neue Registry-Regel**
+  (`docs/validation_registry.md`, Abschnitt „Regeln (nicht verhandelbar)",
+  #166). Ab der nächsten offiziellen Auswertung nach
+  #121 wird die AUC-Bootstrap-CI für Population (a) zusätzlich zur
+  Primärrechnung per Tag-Block- UND Ticker-Block-Bootstrap berechnet
+  (NUR (a), nicht (b); 10.000 Ziehungen, CI-Niveau 0,975, Seeds
+  20260728/1/42/7/999), genau vier Untergrenzen einzeln berichtet:
+  primär (a), Tag-Block (a), Ticker-Block (a), primär (b).
+  Erfolgsdefinition und Verdikt vom 06.09.2026 unverändert — reine
+  Doku-Zusage, noch kein Code (Population auf (a) präzisiert,
+  Transparenz-Hinweis ergänzt — die Regel wurde in Kenntnis der
+  #121-Ergebnisse aufgestellt und kann die nächste Auswertung nur
+  erschweren, nie erleichtern). **WIEDERVORLAGE:** Skript
+  (nicht `evaluate.py`) + festnagelnder Test als eigener Folgeauftrag,
+  muss **vor** der nächsten offiziellen Auswertung fertig sein,
+  spätestens Score-Review 07.12.2026 — der Auswertungsbericht des
+  Skripts weist die Cluster-Anzahl direkt neben jeder Untergrenze aus und
+  trennt AUC-Zahlen deutlich von den Trefferquote-Zahlen.
 
 ---
 
