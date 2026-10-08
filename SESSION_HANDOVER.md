@@ -859,7 +859,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   dafür NICHT geändert. Im Auswertungsbericht beide getrennt benennen
   und nie als „primär" ohne diese Unterscheidung zitieren.
 - **08.10.2026 — Explorative Score-Beobachtungen für das Score-Review
-  (keine Änderung der Primärauswertung).** Population n=101 (Commit
+  (keine Änderung der Primärauswertung)** (#170)**.** Population n=101 (Commit
   `dd79b31`, wie #164), heutige Population (a, n=154) als Zusatzinfo.
   "Treffer" = `target_hit` (`scripts/evaluate.py:141`/`:148`), identisch
   zur Primärauswertung.
