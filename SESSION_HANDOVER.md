@@ -664,7 +664,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Muster nur verschärft. **WIEDERVORLAGE:** Score-Review 07.12.2026, dann
   mit größerer Fallzahl neu bewerten.
   **08.10.2026 — Auswertungsrahmen (VORSCHLAG, Easy-Entscheid steht
-  aus):** falls/wenn dieser Report bei größerer Fallzahl umgesetzt wird,
+  aus)** (#169)**:** falls/wenn dieser Report bei größerer Fallzahl umgesetzt wird,
   Vorschlag für den methodischen Rahmen, bevor Ergebnisse angesehen
   werden:
   1. **Raster der Aufteilungen vorab ausschreiben**, bevor irgendein
