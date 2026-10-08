@@ -800,6 +800,23 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   spätestens Score-Review 07.12.2026 — der Auswertungsbericht des
   Skripts weist die Cluster-Anzahl direkt neben jeder Untergrenze aus und
   trennt AUC-Zahlen deutlich von den Trefferquote-Zahlen.
+- **08.10.2026 — Skript für die Cluster-Sensitivität vorhanden**
+  (`scripts/evaluate_cluster_sensitivity.py`, #167) —
+  **WIEDERVORLAGE oben damit erfüllt.** Nur lesend (importiert `evaluate.
+  build_population`/`auc`/`_quantil` und `filter_sensitivity_sammlung.
+  filtere()`, keine eigene Neu-Implementierung dieser Logik), läuft nie im
+  Tageslauf, schreibt nie in Sammlung/Report/Registry/`evaluate.py`
+  (Ausgabe nur Konsole, optional `--out` mit Schutz gegen geschützte
+  Projektpfade), verweigert unter `EVAL_MIN_N` wie `evaluate.py::run()`.
+  Manuell auf der historischen n=101-Population (Commit `dd79b31`)
+  ausgeführt: reproduziert die #164-Zahlen bei Seed 20260728 EXAKT
+  (Tag-Block (a) [0,5216; 0,7576], Ticker-Block (a) [0,4963; 0,7860]) —
+  keine Abweichung. Zusätzlich auf der heutigen Population (a, n=154)
+  als Information gelaufen (nicht offiziell, nur zur Kenntnis). Zwei
+  Mutationsproben bestätigt (Block=Ticker durch Block=Einzelfall ersetzt;
+  Seed-Liste verändert — beide machen je einen Test rot), Datei danach
+  byte-identisch wiederhergestellt. 17 neue Tests, volle Suite danach
+  grün. **WIEDERVORLAGE:** keine mehr — Folgeauftrag erledigt.
 
 ---
 
