@@ -801,7 +801,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Skripts weist die Cluster-Anzahl direkt neben jeder Untergrenze aus und
   trennt AUC-Zahlen deutlich von den Trefferquote-Zahlen.
 - **08.10.2026 — Skript für die Cluster-Sensitivität vorhanden**
-  (`scripts/evaluate_cluster_sensitivity.py`, #PR_NUMMER_NACHTRAGEN) —
+  (`scripts/evaluate_cluster_sensitivity.py`, #167) —
   **WIEDERVORLAGE oben damit erfüllt.** Nur lesend (importiert `evaluate.
   build_population`/`auc`/`_quantil` und `filter_sensitivity_sammlung.
   filtere()`, keine eigene Neu-Implementierung dieser Logik), läuft nie im

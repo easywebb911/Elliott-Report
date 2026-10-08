@@ -150,7 +150,7 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   sollte das bewusst zur Kenntnis nehmen.
 
   **Nachtrag 08.10.2026 — Umsetzung:** `scripts/
-  evaluate_cluster_sensitivity.py`, #PR_NUMMER_NACHTRAGEN. Reproduziert die Zahlen aus
+  evaluate_cluster_sensitivity.py`, #167. Reproduziert die Zahlen aus
   dem Handover-Eintrag #164 bei Seed 20260728 exakt (Tag-Block (a)
   [0,5216; 0,7576], Ticker-Block (a) [0,4963; 0,7860], n=101, Commit
   `dd79b31`) — keine Abweichung.
