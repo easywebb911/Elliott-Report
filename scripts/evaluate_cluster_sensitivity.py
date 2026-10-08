@@ -238,9 +238,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = ap.parse_args(argv)
 
     if args.out:
-        out_rel = str(Path(args.out))
+        # Relativ zum Repo-Root aufgelöst — konsistent mit --sammlung
+        # (Zeile unten) und unabhängig vom tatsächlichen Arbeitsverzeichnis
+        # des Aufrufers (Guardian-Nit, 08.10.2026, PR #167).
+        out_aufgeloest = (REPO_ROOT / args.out).resolve()
         for verboten in _VERBOTENE_ZIELE:
-            if Path(out_rel).resolve() == (REPO_ROOT / verboten).resolve():
+            if out_aufgeloest == (REPO_ROOT / verboten).resolve():
                 print(f"[evaluate_cluster_sensitivity] VERWEIGERT: --out "
                       f"zeigt auf eine geschützte Projektdatei ({verboten}) "
                       f"— das darf dieses Skript nie beschreiben.",
@@ -265,7 +268,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     text = bericht(ergebnisse)
     print(text)
     if args.out:
-        Path(args.out).write_text(text, encoding="utf-8")
+        out_aufgeloest.write_text(text, encoding="utf-8")
     return 0
 
 
