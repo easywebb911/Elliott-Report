@@ -73,6 +73,59 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   ausgewiesen und **nicht** nachträglich zugunsten einer Seite entschieden.
   **Keine weiteren Varianten post hoc.**
 - Ein **Punktschätzer allein ist nie Bestätigung**.
+- **Cluster-Sensitivität der AUC ab der nächsten offiziellen Auswertung**
+  (festgelegt 08.10.2026, Diagnose-Quelle: `SESSION_HANDOVER.md`, Eintrag
+  „03.10.2026 — Robustheits-Hinweis, explorativ, keine Änderung der
+  Primärauswertung" (#164)). **ANLASS:** die Bootstrap-CI-Untergrenze der
+  AUC hängt an der Resampling-Einheit — primär (fallweise, n=101,
+  `data/evaluation/ergebnis.json`) **0,5138**; Tag-Block-Bootstrap (Block =
+  Entry-Kalendertag, 23 Blöcke) **0,5192–0,5216** (über 0,5, über fünf
+  Seeds); Ticker-Block-Bootstrap (Block = Ticker, 71 Cluster) fällt in
+  **allen fünf** geprüften Seeds **unter 0,5** (**0,4928–0,4964**). Die
+  Signifikanz der AUC hängt also an der Gruppierung, nicht nur am
+  Punktschätzer.
+
+  **Regel:** Ab der nächsten offiziellen Auswertung **nach** dem
+  06.09.2026 (#121) wird die Bootstrap-CI der AUC zusätzlich zur
+  Primärrechnung in zwei weiteren, fest definierten Varianten berechnet:
+  (a) **Tag-Block-Bootstrap** — Block = Entry-Kalendertag
+  (`first_seen_date`). (b) **Ticker-Block-Bootstrap** — Block = Ticker.
+  Beide fest mit: **10.000 Ziehungen**, **CI-Niveau 0,975**, **fünf feste
+  Seeds** (ausgeschrieben, Reihenfolge wie in der Diagnose vom 03.10.2026):
+  **20260728, 1, 42, 7, 999**.
+
+  Alle **drei** Untergrenzen (primär, Tag-Block, Ticker-Block) werden
+  **einzeln** berichtet. Weicht eine Untergrenze (≤ 0,5) von einer anderen
+  (> 0,5) ab, wird das **ausgewiesen, nicht entschieden** — keine
+  Post-hoc-Varianten darüber hinaus.
+
+  **Die Erfolgsdefinition oben ("Wann Erfolg als BELEGT gilt") bleibt
+  UNVERÄNDERT:** sie bezieht sich weiterhin ausschließlich auf die
+  primäre (fallweise) Bootstrap-CI der AUC. Diese Regel fügt zusätzliche
+  Berichterstattung hinzu, ersetzt und entscheidet nichts. Das Verdikt vom
+  06.09.2026 (#121, NICHT BESTANDEN wegen Trefferquote, p=0,38) bleibt
+  unberührt.
+
+  **Nicht festgelegt (Vormerkung):** eine gleichzeitige Gruppierung nach
+  Ticker UND Tag (zweidimensionales Clustering) wurde nicht geprüft und
+  ist nicht Teil dieser Regel.
+
+  **Umsetzung:** als eigenes Skript (NICHT in `evaluate.py`), mit einem
+  Test, der diese Zusage festnagelt — eigener Folgeauftrag, muss **vor**
+  der nächsten offiziellen Auswertung fertig sein (Wiedervorlage s.
+  `SESSION_HANDOVER.md`).
+
+  **Hinweis auf mögliche Spannung zur vorstehenden Regel** (gemeldet,
+  nicht einseitig entschieden): die Regel „Der Stichtag berichtet ZWEI
+  Rechnungen, nicht eine" (oben, 08.08.2026, #83/#84) schließt „weitere
+  Varianten post hoc" aus. Gemeint war dort die post-hoc-Auswahl
+  eingeschlossener Records (Primär vs. Sensitivität), nicht die
+  Resampling-Methodik der AUC — diese Regel hier ist vorab, datiert und
+  methodisch fest definiert für eine künftige Auswertung, keine
+  nachträgliche, ergebnisabhängige Variante. Dennoch: zwei zusätzliche
+  Untergrenzen neben Primär und Sensitivität erweitern die Berichterstattung
+  faktisch von „zwei Rechnungen" auf vier Zahlen allein für die AUC — Easy
+  sollte das bewusst zur Kenntnis nehmen.
 
 ## Score-Status & Review-Wecker (`review_by`)
 
