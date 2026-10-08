@@ -686,6 +686,10 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   6. **Eine Bestätigung gilt nur über eine neue, VORAB festgelegte
      Hypothese auf ausschließlich künftigen Daten** — nie auf denselben
      Fällen, die den Rahmen inspiriert haben.
+  **Ergänzung 08.10.2026:** Setup-Typ (W2/W4) wird als
+  **Pflicht-Stratifizierung** behandelt, nicht nur als eine von fünf
+  gleichrangigen Dimensionen — weil die Typ-Decken den Score-Vergleich
+  dominieren (s. explorative Score-Beobachtungen unten).
   Nichts davon ist bereits entschieden oder umgesetzt — reiner
   Methodik-Vorschlag für die spätere Easy-Entscheidung, keine
   Registry-Änderung.
@@ -854,6 +858,65 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Vergleichsrechnung … NICHT die offizielle Primärauswertung"), Skript
   dafür NICHT geändert. Im Auswertungsbericht beide getrennt benennen
   und nie als „primär" ohne diese Unterscheidung zitieren.
+- **08.10.2026 — Explorative Score-Beobachtungen für das Score-Review
+  (keine Änderung der Primärauswertung).** Population n=101 (Commit
+  `dd79b31`, wie #164), heutige Population (a, n=154) als Zusatzinfo.
+  "Treffer" = `target_hit` (`scripts/evaluate.py:141`/`:148`), identisch
+  zur Primärauswertung.
+
+  **Terzile (n=101):**
+
+  | Terzil | Score-Bereich | n | Treffer | Quote |
+  |---|---|---|---|---|
+  | 1 | 63,9–75,7 | 34 | 12 | 0,353 |
+  | 2 | 75,7–77,5 | 33 | 12 | 0,364 |
+  | 3 | 77,5–89,8 | 34 | 21 | 0,618 |
+
+  Monoton steigend (gepoolt), aber getragen vom Sprung in Terzil 3.
+
+  **Nach Setup-Typ getrennt (n=101):** Ende W4 (n=37) Terzile 0,333 /
+  0,769 / 0,667 — **NICHT monoton** (Mitte am höchsten). Ende W2 (n=64)
+  Terzile 0,238 / 0,318 / 0,524 — monoton. Heute (Zusatzinfo, n=154):
+  Ende W4 (n=63) ebenfalls nicht monoton (0,476 / 0,333 / 0,667), Ende
+  W2 (n=91) monoton (0,233 / 0,290 / 0,400).
+
+  **Brier-Skill gegen konstante Basisquote (n=101):** Basisquote 0,4455.
+  Isotone Regression: Brier=0,2036, Skill=0,176. Logistik: Brier=0,2314,
+  Skill=0,063. **Die isotone Zahl ist IN-SAMPLE angepasst** (PAVA passt
+  sich beliebig flexibel an dieselben Daten an, die sie bewertet) — kein
+  Beleg für echte, out-of-sample Vorhersagekraft. CI per
+  Ticker-Block-Bootstrap (71 Cluster, Methodik/Seeds wie #167): Seed
+  20260728 [0,058; 0,401], übrige vier Seeds im selben Bereich
+  (0,056–0,058 Untergrenze, 0,395–0,403 Obergrenze) — Untergrenze bleibt
+  knapp über 0 in allen 5 Seeds, aber mit demselben In-Sample-Vorbehalt.
+
+  **Wie viel der AUC kommt vom Setup-Typ (n=101)?** AUC voller Score
+  0,6470 (Referenz). AUC NUR Setup-Typ als Wert: **0,6105** — der
+  größte Teil der AUC stammt aus dem Typ-Unterschied allein, nicht aus
+  einer Rang-Information innerhalb eines Typs. AUC innerhalb Ende W2
+  (n=64): 0,5838, CI Seed 20260728 [0,386; 0,762] — breit, schließt 0,5
+  nicht aus. AUC innerhalb Ende W4 (n=37): 0,6439 (fast identisch zur
+  vollen AUC), CI Seed 20260728 [0,330; 0,890] — bei n=37 extrem breit,
+  ebenfalls nicht von 0,5 zu unterscheiden. Heute (Zusatzinfo, n=154):
+  AUC voller Score 0,6258, NUR Setup-Typ 0,5943, innerhalb Ende W2
+  (n=91) 0,5984, innerhalb Ende W4 (n=63) 0,5842 — gleiches Muster,
+  etwas schwächer.
+
+  **Einschätzung:** der Score trägt innerhalb eines Typs möglicherweise
+  etwas bei (Punktschätzer > 0,5 in beiden Untergruppen, beiden
+  Zeitpunkten), aber bei n=37–91 je Gruppe sind die Konfidenzintervalle
+  so breit, dass das NICHT von reinem Zufall zu unterscheiden ist —
+  reine Beobachtung, keine Bestätigung. Risiko: kleine Gruppen
+  (**n=37 für Ende W4** ist die fragilste Zahl in dieser Diagnose).
+  Empfehlung für das Score-Review 07.12.2026: den Score primär als
+  groben, richtungsgebenden Hinweis behandeln, NICHT als kalibrierte
+  Wahrscheinlichkeit — vor allem nicht innerhalb Ende W4, wo die
+  Terzil-Reihenfolge nicht monoton ist und die AUC-Untergrenze breit um
+  0,5 streut.
+
+  Rein explorativ, nichts gespeichert, nichts in die Primärauswertung
+  übernommen; `evaluate.py`/`FROZEN_FIELDS`/Sammlung unangetastet.
+  **WIEDERVORLAGE:** Score-Review 07.12.2026.
 
 ---
 
