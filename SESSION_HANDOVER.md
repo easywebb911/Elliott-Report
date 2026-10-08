@@ -817,6 +817,17 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Seed-Liste verändert — beide machen je einen Test rot), Datei danach
   byte-identisch wiederhergestellt. 17 neue Tests, volle Suite danach
   grün. **WIEDERVORLAGE:** keine mehr — Folgeauftrag erledigt.
+  **08.10.2026 — Begriffsklärung für den Bericht der nächsten
+  offiziellen Auswertung** (#168)**:** der OFFIZIELLE primäre Wert ist die eine
+  Zahl aus `evaluate.py`. Die „primär"-Zeilen je Seed im Skript
+  `scripts/evaluate_cluster_sensitivity.py` sind ein Methodenvergleich
+  auf derselben Population und KEIN zweiter offizieller Wert — dieser
+  Hinweis steht bereits im Ausgabetext des Skripts selbst
+  (`scripts/evaluate_cluster_sensitivity.py`, Funktion `bericht()`,
+  Zeilen 200–205: „die 'primär (a)'/'primär (b)'-Zeilen hier sind eine
+  Vergleichsrechnung … NICHT die offizielle Primärauswertung"), Skript
+  dafür NICHT geändert. Im Auswertungsbericht beide getrennt benennen
+  und nie als „primär" ohne diese Unterscheidung zitieren.
 
 ---
 
