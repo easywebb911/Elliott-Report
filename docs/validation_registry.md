@@ -85,19 +85,36 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   Signifikanz der AUC hängt also an der Gruppierung, nicht nur am
   Punktschätzer.
 
+  **TRANSPARENZ zur Regel selbst:** diese Regel wurde in Kenntnis der
+  Ergebnisse auf den ersten 101 Fällen (#121, 06.09.2026) aufgestellt, und
+  die nächste offizielle Auswertung wird diese 101 Fälle voraussichtlich
+  erneut enthalten (die Population wächst additiv, nichts fällt heraus).
+  Sie kann die nächste Auswertung deshalb nur **erschweren** — weitere,
+  strengere Untergrenzen, die auch unter 0,5 fallen können — niemals
+  **erleichtern**. Sie ist kein nachträglicher Versuch, ein günstigeres
+  Ergebnis zu erzeugen.
+
   **Regel:** Ab der nächsten offiziellen Auswertung **nach** dem
-  06.09.2026 (#121) wird die Bootstrap-CI der AUC zusätzlich zur
-  Primärrechnung in zwei weiteren, fest definierten Varianten berechnet:
-  (a) **Tag-Block-Bootstrap** — Block = Entry-Kalendertag
-  (`first_seen_date`). (b) **Ticker-Block-Bootstrap** — Block = Ticker.
+  06.09.2026 (#121) wird die Bootstrap-CI der AUC für die
+  **Primärrechnung, Population (a)** (alle auswertbaren Fälle) zusätzlich
+  in zwei weiteren, fest definierten Varianten berechnet — **NUR für
+  Population (a)**, NICHT für die Sensitivitätsauswertung, Population
+  (b) (s. Regel „ZWEI Rechnungen" oben):
+  - **Tag-Block-Bootstrap** (Population (a)) — Block = Entry-Kalendertag
+    (`first_seen_date`).
+  - **Ticker-Block-Bootstrap** (Population (a)) — Block = Ticker.
+
   Beide fest mit: **10.000 Ziehungen**, **CI-Niveau 0,975**, **fünf feste
   Seeds** (ausgeschrieben, Reihenfolge wie in der Diagnose vom 03.10.2026):
   **20260728, 1, 42, 7, 999**.
 
-  Alle **drei** Untergrenzen (primär, Tag-Block, Ticker-Block) werden
-  **einzeln** berichtet. Weicht eine Untergrenze (≤ 0,5) von einer anderen
-  (> 0,5) ab, wird das **ausgewiesen, nicht entschieden** — keine
-  Post-hoc-Varianten darüber hinaus.
+  Berichtet werden damit genau **vier** AUC-Untergrenzen, einzeln benannt:
+  **primär (a)**, **Tag-Block (a)**, **Ticker-Block (a)**, **primär (b)**
+  — für Population (b) wird ausschließlich die bestehende, fallweise
+  Primärrechnung berichtet, keine Cluster-Varianten. Weicht eine
+  Untergrenze (≤ 0,5) von einer anderen (> 0,5) ab, wird das
+  **ausgewiesen, nicht entschieden** — keine Post-hoc-Varianten darüber
+  hinaus.
 
   **Die Erfolgsdefinition oben ("Wann Erfolg als BELEGT gilt") bleibt
   UNVERÄNDERT:** sie bezieht sich weiterhin ausschließlich auf die
@@ -113,7 +130,12 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   **Umsetzung:** als eigenes Skript (NICHT in `evaluate.py`), mit einem
   Test, der diese Zusage festnagelt — eigener Folgeauftrag, muss **vor**
   der nächsten offiziellen Auswertung fertig sein (Wiedervorlage s.
-  `SESSION_HANDOVER.md`).
+  `SESSION_HANDOVER.md`). Im Auswertungsbericht dieses Skripts wird die
+  **Cluster-Anzahl jeder Rechnung direkt neben ihrer Untergrenze**
+  ausgewiesen (z. B. „Tag-Block (a), 23 Blöcke: Untergrenze …"), und die
+  **AUC-Zahlen werden deutlich von den Trefferquote-Zahlen getrennt**
+  dargestellt — keine gemeinsame Tabelle/Liste, in der beide Kriterien
+  vermischt erscheinen.
 
   **Hinweis auf mögliche Spannung zur vorstehenden Regel** (gemeldet,
   nicht einseitig entschieden): die Regel „Der Stichtag berichtet ZWEI
