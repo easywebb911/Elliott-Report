@@ -106,7 +106,7 @@ jobs:
           fi
           echo "pr_created=true" >> "$GITHUB_OUTPUT"
           echo "pr_url=$AUSGABE" >> "$GITHUB_OUTPUT"
-          PR_NUMMER=$(echo "$AUSGABE" | grep -oE '[0-9]+$')
+          PR_NUMMER=$(echo "$AUSGABE" | grep -oE '[0-9]+$' | tail -n1)
           echo "pr_nummer=$PR_NUMMER" >> "$GITHUB_OUTPUT"
           HEAD_SHA=$(git rev-parse HEAD)
           echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
