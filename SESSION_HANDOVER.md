@@ -919,7 +919,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **WIEDERVORLAGE:** Score-Review 07.12.2026.
 - **09.10.2026 — Easy-Entscheid: Auto-Merge ausnahmsweise für Bot-PRs,
   die AUSSCHLIESSLICH neue Zeilen im Auto-PR-Index von
-  `SESSION_HANDOVER.md` hinzufügen.** Kontrollabgabe bewusst auf diese
+  `SESSION_HANDOVER.md` hinzufügen** (#171)**.** Kontrollabgabe bewusst auf diese
   eine Zeilenart begrenzt. Alle übrigen Auto-Merge-Vorschläge bleiben
   abgelehnt — die archivierte Ablehnung „Auto-Merge grüner PRs — die
   Merge-Policy ist bewusst manuell; das ist keine Wartung, sondern
