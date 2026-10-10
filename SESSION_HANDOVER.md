@@ -274,6 +274,19 @@ ihre Commit-Nachrichten sind die Quelle.</sub>
 
 <sub>**#76** fehlt bewusst: geschlossen, **nicht gemergt** (Wiederhol-Abruf; im Archiv begründet, der Zweig `claude/wiederhol-abruf` liegt noch auf dem Remote). **#80** war ein reiner Daten-/Doku-PR ohne eigene Historien-Zeile. Bei **#79** und **#81** nennt die Archiv-Zeile noch `(offen, dieser)` — hier steht der erste Feature-Commit (`9a2206a` bzw. `97060d8`), gemergt als `1acfe96` bzw. `eb0cd43`.</sub>
 
+### AUTO-PR-INDEX (ab #154, Handover-Sync-Bot, Weg B — 10.10.2026)
+
+Eigener, markierter Block — **getrennt** von der Tabelle oben, die seit
+#153 nicht mehr gepflegt wird. Einziger Konsument: `erkenne_handover_luecke`
+(`scripts/proactive_watcher.py`, Klasse 7), die jede `#N`-Erwähnung
+irgendwo im Handover als „nachgezogen" zählt. Zeilen hier werden
+AUSSCHLIESSLICH vom Handover-Sync-Bot (`scripts/handover_sync.py`,
+PR-Titelpräfix `chore(handover-sync):`) ergänzt — nie von Hand, nie von
+anderen PRs.
+
+<!-- AUTO-PR-INDEX-ANFANG -->
+<!-- AUTO-PR-INDEX-ENDE -->
+
 ---
 
 ## 2b. WICHTIGSTE STRUKTURELLE EREIGNISSE SEIT #94 (grober Überblick, kein Vollprotokoll)
@@ -917,42 +930,81 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Rein explorativ, nichts gespeichert, nichts in die Primärauswertung
   übernommen; `evaluate.py`/`FROZEN_FIELDS`/Sammlung unangetastet.
   **WIEDERVORLAGE:** Score-Review 07.12.2026.
-- **09.10.2026 — Easy-Entscheid: Auto-Merge ausnahmsweise für Bot-PRs,
-  die AUSSCHLIESSLICH neue Zeilen im Auto-PR-Index von
-  `SESSION_HANDOVER.md` hinzufügen** (#171)**.** Kontrollabgabe bewusst auf diese
-  eine Zeilenart begrenzt. Alle übrigen Auto-Merge-Vorschläge bleiben
-  abgelehnt — die archivierte Ablehnung „Auto-Merge grüner PRs — die
-  Merge-Policy ist bewusst manuell; das ist keine Wartung, sondern
-  Kontrollabgabe" (`SESSION_ARCHIVE.md:300-301`) bleibt im Übrigen
-  unverändert gültig; dieser Eintrag ist eine eng begrenzte, bewusste
-  Ausnahme davon, keine generelle Aufhebung. `SESSION_ARCHIVE.md` selbst
-  bleibt unangetastet.
+- **09.10.2026 — Easy-Entscheid (Weg B): Bot legt den Handover-Sync-PR
+  an, der AUSSCHLIESSLICH neue Zeilen im Auto-PR-Index von
+  `SESSION_HANDOVER.md` hinzufügt; Easy gibt den CI-Lauf per Tap frei und
+  mergt selbst** (#171, Korrektur 10.10.2026 nach Experiment-Ergebnis)**.**
+  **KEIN Auto-Merge, KEIN PAT, KEINE GitHub-App.** (Ursprüngliche
+  Formulierung dieses Eintrags sprach noch von „Auto-Merge ausnahmsweise
+  für Bot-PRs" — das war der zuerst angedachte Weg A, inzwischen durch
+  Weg B ersetzt, s. Experiment-Ergebnis unten.) Alle übrigen
+  Auto-Merge-Vorschläge bleiben abgelehnt — die archivierte Ablehnung
+  „Auto-Merge grüner PRs — die Merge-Policy ist bewusst manuell; das ist
+  keine Wartung, sondern Kontrollabgabe" (`SESSION_ARCHIVE.md:300-301`)
+  bleibt unverändert gültig. `SESSION_ARCHIVE.md` selbst bleibt
+  unangetastet.
 
-  **Drei Entwurfsentscheidungen für den Bau (noch nicht umgesetzt):**
+  **Drei Entwurfsentscheidungen für den Bau:**
   1. Ein **eigener, markierter Block** trägt die Auto-PR-Index-Zeilen
-     (z. B. zwischen `<!-- AUTO-PR-INDEX-ANFANG -->`/`-ENDE`-Markern).
-     Die seit #153 nicht mehr geführte alte PR-Tabelle
-     (`SESSION_HANDOVER.md`, Abschnitt „## 2. PR-INDEX #1–#153") und der
-     restliche Fließtext bleiben **unberührt** — keine Reaktivierung,
-     keine Vermischung mit Urteils-/Erzähltext.
+     (Marker ANFANG/ENDE des AUTO-PR-INDEX-Blocks, s. Abschnitt
+     „AUTO-PR-INDEX" oben). Die seit #153 nicht mehr geführte alte
+     PR-Tabelle (Abschnitt „## 2. PR-INDEX #1–#153") und der restliche
+     Fließtext bleiben **unberührt** — keine Reaktivierung, keine
+     Vermischung mit Urteils-/Erzähltext.
   2. Der Wächter `erkenne_handover_luecke`
-     (`scripts/proactive_watcher.py:565-610`) zählt diesen neuen Block
-     als Abdeckung — eine dort per Bot-PR ergänzte Nummer gilt als
-     „erwähnt", genau wie heute jede `#N`-Erwähnung irgendwo im Fließtext
-     zählt (`_HANDOVER_PR_ERWAEHNUNG = re.compile(r"#(\d+)")`).
-  3. Bot-PRs tragen das Titelpräfix `chore(handover-sync):`, werden per
-     **Squash** gemergt und vom Wächter **ausgenommen** (Autor-/Titel-
-     Erkennung, Begründung: s. Diagnose vom 08.10.2026 zur
+     (`scripts/proactive_watcher.py`) zählt diesen neuen Block als
+     Abdeckung — eine dort per Bot-PR ergänzte Nummer gilt als
+     „erwähnt", genau wie jede `#N`-Erwähnung irgendwo im Fließtext zählt
+     (`_HANDOVER_PR_ERWAEHNUNG = re.compile(r"#(\d+)")`).
+  3. Bot-PRs tragen das Titelpräfix `chore(handover-sync):` und werden
+     vom Wächter **ausgenommen** (Autor-/Titel-Erkennung in
+     `_main_pr_titel`, Begründung: s. Diagnose vom 08.10.2026 zur
      Schleifen-Frage — ohne Ausnahme würde der eigene Merge-Commit des
      Bot-PRs vom bestehenden Regex genauso erfasst wie jeder menschliche
-     PR und am Folgetag fälschlich als Lücke gemeldet).
+     PR und am Folgetag fälschlich als Lücke gemeldet). Sie **werden von
+     Easy per Squash gemergt, nach manueller CI-Freigabe** — kein
+     Self-Merge durch den Bot, an keiner Stelle im Code.
 
-  **WIEDERVORLAGE:** Bau-Auftrag erst NACH dem Wegwerf-Experiment
-  (`.github/workflows/diagnose_bot_pr_ci.yml`, separater PR), das belegt,
-  ob ein mit `GITHUB_TOKEN` angelegter PR den Pflicht-Check `test`
-  auslöst — dieselbe vorab zu klärende Frage, die
-  `SESSION_HANDOVER.md:529-532` schon für den Auto-Re-Dispatch verlangt
-  („per Wegwerf-Experiment und nicht per Annahme").
+     **WICHTIG FÜR EASY, belegt (Test
+     `test_handover_sync_bot_pr_braucht_squash_sonst_fehlalarm`,
+     `tests/test_proactive_watcher.py`):** „Squash" ist hier keine
+     Stilfrage, sondern Voraussetzung. Der Ausschluss prüft den
+     Commit-Subject-Text auf das Präfix `chore(handover-sync):` — das
+     steht nur im **Squash**-Commit (Subject = PR-Titel). Ein **normaler
+     Merge-Commit** heißt stattdessen `"Merge pull request #N from
+     .../handover-sync/auto-pr-index"`, trägt das Präfix NICHT und wird
+     NICHT ausgenommen. Folge, falls versehentlich normal statt Squash
+     gemergt wird: der Wächter meldet die eigene Bot-PR-Nummer am
+     nächsten Lauf als neue Lücke, der Handover-Sync-Bot legt dafür einen
+     neuen PR an, dessen Merge (wieder nur bei Squash) die Lücke schließt
+     — bei wiederholt normalem Merge entsteht so ein sich **nie von
+     selbst beendendes** Ein-Zeilen-Nachziehen, keine echte Endlosschleife
+     (die Suite wächst nicht unkontrolliert), aber dauerhafter, unnötiger
+     Bot-Verkehr. **Bitte beim Mergen eines `chore(handover-sync):`-PRs
+     immer „Squash and merge" wählen, nie „Create a merge commit".**
+
+  **EXPERIMENT-ERGEBNIS (Wegwerf-Workflow
+  `.github/workflows/diagnose_bot_pr_ci.yml`, PR #171, CI-Läufe #446 auf
+  PR #172 und #447 auf PR #173):** Ein mit dem Standard-`GITHUB_TOKEN`
+  angelegter PR bekommt den Pflicht-Check `CI / test` zwar angelegt, der
+  Lauf wartet aber auf manuelle Freigabe — Annotation wörtlich: *"This
+  workflow run required approval but was not approved before it
+  expired."* Eine Lockerung der Fork-Freigabe-Regel half nicht (#447) und
+  wurde zurückgenommen. **Das ist die Freigabe-Pflicht, nicht eine
+  Rekursionssperre des `GITHUB_TOKEN`** — Weg A (natives Auto-Merge) war
+  damit nicht gangbar, ohne diese Repo-Einstellung dauerhaft zu lockern
+  (abgelehnt); Weg B umgeht das Problem, indem ohnehin kein Auto-Merge
+  gebraucht wird.
+
+  **RULESET „Main" (ID 19583923, Diagnose 10.10.2026):** `test` ist dort
+  als `required_status_checks`-Kontext konfiguriert, aber
+  `enforcement: "disabled"` — der Check ist aktuell **nicht erzwungen**.
+  Eine klassische Branch-Protection-Regel zusätzlich zum Ruleset ist mit
+  diesem Token nicht einsehbar (`403`) — hier nicht geraten. **Folge:**
+  Die Mergbarkeit hängt aktuell nicht am CI-Lauf; Easy wartet trotzdem
+  bewusst auf Grün, bevor gemergt wird. Das **Einschalten** dieses
+  Rulesets ist **nicht** Teil dieses Baus (eigene Diagnose später, wegen
+  Wirkung auf Codes Self-Merges).
 
 ---
 

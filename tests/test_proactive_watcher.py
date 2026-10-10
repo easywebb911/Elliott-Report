@@ -504,6 +504,79 @@ def test_handover_luecke_determinismus(tmp_path):
     assert erster_lauf == zweiter_lauf
 
 
+def test_auto_pr_index_block_zaehlt_als_abdeckung(tmp_path):
+    """Entwurfsentscheidung 2 (Handover, 09./10.10.2026): eine PR-Nummer, die
+    NUR im markierten AUTO-PR-INDEX-Block steht (nirgendwo sonst im
+    Fließtext erwähnt), gilt als abgedeckt — der Detektor unterscheidet
+    nicht nach Fundort, `_HANDOVER_PR_ERWAEHNUNG` scannt den ganzen Text."""
+    _git_repo_mit_commits(tmp_path, (
+        "Initial commit",
+        "Merge pull request #999 from x/y",
+    ))
+    (tmp_path / "SESSION_HANDOVER.md").write_text(
+        "Fließtext ohne Erwähnung von #999.\n"
+        "<!-- AUTO-PR-INDEX-ANFANG -->\n"
+        "- #999 — per Bot ergänzt\n"
+        "<!-- AUTO-PR-INDEX-ENDE -->\n",
+        encoding="utf-8",
+    )
+    assert pw.erkenne_handover_luecke(tmp_path) == []
+
+
+def test_handover_sync_bot_pr_wird_ausgeschlossen(tmp_path):
+    """Handover-Sync-Bot-PRs (Weg B, 10.10.2026, scripts/handover_sync.py)
+    tragen das Titelpräfix 'chore(handover-sync):' — ihr eigener
+    Squash-Merge-Commit darf sich NICHT selbst als neue Lücke melden.
+    Ohne den Ausschluss in `_main_pr_titel` würde #13 unten als fehlend
+    auftauchen, obwohl das Handover nur #10/#11/#12 erwähnt — genau der
+    Selbstbezugs-Fehlalarm, den die Ausnahme verhindert."""
+    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE + (
+        "chore(handover-sync): 1 Zeile(n) im AUTO-PR-INDEX-Block ergänzt (#13)",
+    ))
+    (tmp_path / "SESSION_HANDOVER.md").write_text(
+        "Stand nach PR #10, #11 und #12 — vollständig nachgezogen.\n",
+        encoding="utf-8",
+    )
+    assert pw.erkenne_handover_luecke(tmp_path) == []
+    assert 13 not in pw._main_pr_titel(tmp_path)
+
+
+def test_handover_sync_bot_pr_braucht_squash_sonst_fehlalarm(tmp_path):
+    """Entwurfsentscheidung 3 verlangt Squash-Merge für Bot-PRs — hier
+    bewiesen, WARUM: ein regulärer Merge-Commit ('Merge pull request #N
+    from .../handover-sync/auto-pr-index') beginnt NICHT mit
+    'chore(handover-sync):' (das steht nur im Squash-Commit-Subject, das
+    dem PR-Titel entspricht). Der Ausschluss greift dann NICHT — der Bot
+    meldet sich am Folgetag fälschlich selbst als neue Lücke. Squash ist
+    also keine Stilfrage, sondern Voraussetzung für die Selbstausnahme."""
+    _git_repo_mit_commits(tmp_path, (
+        "Initial commit",
+        "Merge pull request #175 from easywebb911/handover-sync/auto-pr-index",
+    ))
+    (tmp_path / "SESSION_HANDOVER.md").write_text(
+        "<!-- AUTO-PR-INDEX-ANFANG -->\n<!-- AUTO-PR-INDEX-ENDE -->\n",
+        encoding="utf-8",
+    )
+    funde = pw.erkenne_handover_luecke(tmp_path)
+    assert len(funde) == 1
+    assert "#175" in funde[0].beschreibung
+
+
+def test_main_pr_titel_liefert_commit_subject():
+    """`_main_pr_titel` ist die gemeinsame Quelle für
+    `erkenne_handover_luecke` UND `scripts/handover_sync.py` — Letzteres
+    braucht den Commit-Subject-Text je PR-Nummer, nicht nur die Nummer."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE)
+        titel = pw._main_pr_titel(tmp_path)
+        assert titel[10] == "Merge pull request #10 from x/feature-a"
+        assert titel[11] == "feat(x): irgendein Fix (#11)"
+        assert titel[12] == "Merge pull request #12 from x/feature-b"
+
+
 def test_handover_luecke_ist_keine_rote_linie():
     """SESSION_HANDOVER.md endet auf .md -> SICHERE_DATEIEN_SUFFIXE greift,
     genau wie bei den bisherigen reinen Doku-Fixes (#149/#152): ein echter

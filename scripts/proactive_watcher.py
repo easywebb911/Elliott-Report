@@ -561,19 +561,23 @@ _MERGE_COMMIT_PR_NUMMER = re.compile(r"^Merge pull request #(\d+)")
 _SQUASH_SUFFIX_PR_NUMMER = re.compile(r"\(#(\d+)\)\s*$")
 _HANDOVER_PR_ERWAEHNUNG = re.compile(r"#(\d+)")
 
+# Handover-Sync-Bot (Weg B, Easy-Entscheid 09./10.10.2026, scripts/
+# handover_sync.py): legt PRs mit genau diesem Titelpräfix an, die
+# AUSSCHLIESSLICH den markierten AUTO-PR-INDEX-Block in SESSION_HANDOVER.md
+# ergänzen. Ohne den Ausschluss unten würde der eigene Squash-Merge-Commit
+# eines solchen Bot-PRs von `_SQUASH_SUFFIX_PR_NUMMER` genauso erfasst wie
+# jeder menschliche PR und am Folgetag fälschlich als neue Lücke an sich
+# selbst gemeldet — ein Selbstbezugs-Fehlalarm, kein echter Fund.
+_BOT_HANDOVER_SYNC_PRAEFIX = "chore(handover-sync):"
 
-def erkenne_handover_luecke(repo_root: Path) -> List[Fund]:
-    """Vergleicht die auf main gemergten PR-Nummern (aus `git log
-    --first-parent`, beide Commit-Formate) gegen die in SESSION_HANDOVER.md
-    erwähnten PR-Nummern. Reine Beobachtungs-Meldung, kein Block. Fail-soft:
-    kein Handover oder kein Git-Zugriff liefern keine Funde, kein Absturz.
-    Eine leere PR-Extraktion (z. B. Shallow-Checkout) kann laut Mutationsprobe
-    nur zu übersehenen, nie zu erfundenen Funden führen (siehe Modul-
-    Kommentar zu Klasse 7) — kein Sonderfall nötig. Deterministisch: reine
-    Funktion des aktuellen main-Stands."""
-    handover_pfad = repo_root / "SESSION_HANDOVER.md"
-    if not handover_pfad.is_file():
-        return []
+
+def _main_pr_titel(repo_root: Path) -> Dict[int, str]:
+    """Extrahiert {PR-Nummer: Commit-Subject} für alle auf main gemergten
+    PRs (`git log --first-parent`, beide Commit-Formate: Merge-Commit und
+    Squash-Suffix) — schließt Handover-Sync-Bot-PRs aus (s.
+    `_BOT_HANDOVER_SYNC_PRAEFIX`). Fail-soft: kein Git-Zugriff liefert `{}`,
+    kein Absturz. Gemeinsame Quelle für `erkenne_handover_luecke` (Klasse 7)
+    und `scripts/handover_sync.py` — eine Extraktion, nicht zwei."""
     try:
         ausgabe = subprocess.run(
             ["git", "-C", str(repo_root), "log", "--first-parent",
@@ -581,15 +585,33 @@ def erkenne_handover_luecke(repo_root: Path) -> List[Fund]:
             capture_output=True, text=True, timeout=30, check=True,
         ).stdout
     except (subprocess.SubprocessError, OSError):
-        return []
+        return {}
 
-    main_prs = set()
+    ergebnis: Dict[int, str] = {}
     for zeile in ausgabe.splitlines():
+        if zeile.startswith(_BOT_HANDOVER_SYNC_PRAEFIX):
+            continue
         treffer = _MERGE_COMMIT_PR_NUMMER.match(zeile)
         if not treffer:
             treffer = _SQUASH_SUFFIX_PR_NUMMER.search(zeile)
         if treffer:
-            main_prs.add(int(treffer.group(1)))
+            ergebnis[int(treffer.group(1))] = zeile
+    return ergebnis
+
+
+def erkenne_handover_luecke(repo_root: Path) -> List[Fund]:
+    """Vergleicht die auf main gemergten PR-Nummern (`_main_pr_titel`) gegen
+    die in SESSION_HANDOVER.md erwähnten PR-Nummern. Reine Beobachtungs-
+    Meldung, kein Block. Fail-soft: kein Handover oder kein Git-Zugriff
+    liefern keine Funde, kein Absturz. Eine leere PR-Extraktion (z. B.
+    Shallow-Checkout) kann laut Mutationsprobe nur zu übersehenen, nie zu
+    erfundenen Funden führen (siehe Modul-Kommentar zu Klasse 7) — kein
+    Sonderfall nötig. Deterministisch: reine Funktion des aktuellen
+    main-Stands."""
+    handover_pfad = repo_root / "SESSION_HANDOVER.md"
+    if not handover_pfad.is_file():
+        return []
+    main_prs = set(_main_pr_titel(repo_root))
 
     handover_text = handover_pfad.read_text(encoding="utf-8")
     erwaehnte_prs = {int(n) for n in _HANDOVER_PR_ERWAEHNUNG.findall(handover_text)}
