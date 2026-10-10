@@ -108,8 +108,15 @@ def test_baue_neuen_text_fuegt_vor_ende_marker_ein():
         "Fließtext NACH dem Block — unberührt.\n"
     )
     neu = hs.baue_neuen_text(text, ["- #12 — Merge pull request #12 from x/y"])
-    assert "Fließtext VOR dem Block — unberührt.\n" in neu
-    assert "Fließtext NACH dem Block — unberührt.\n" in neu
+    # Byte-identisch AUSSERHALB des Blocks: exakter Slice-Vergleich, nicht
+    # nur Substring-Enthaltensein — alles bis zum ANFANG-Marker und alles
+    # ab dem ENDE-Marker muss Zeichen für Zeichen übereinstimmen.
+    alt_vor = text[:text.index(hs.MARKER_ANFANG)]
+    alt_nach = text[text.index(hs.MARKER_ENDE):]
+    neu_vor = neu[:neu.index(hs.MARKER_ANFANG)]
+    neu_nach = neu[neu.index(hs.MARKER_ENDE):neu.index(hs.MARKER_ENDE) + len(alt_nach)]
+    assert neu_vor == alt_vor
+    assert neu_nach == alt_nach
     assert "- #12 — Merge pull request #12 from x/y" in neu
     # Reihenfolge: neue Zeile liegt zwischen ANFANG und ENDE.
     anfang_pos = neu.index(hs.MARKER_ANFANG)
@@ -120,11 +127,19 @@ def test_baue_neuen_text_fuegt_vor_ende_marker_ein():
 
 def test_baue_neuen_text_mit_bereits_vorhandenen_zeilen_haengt_an():
     text = (
+        "Fließtext davor — unberührt.\n"
         "<!-- AUTO-PR-INDEX-ANFANG -->\n"
         "- #10 — Merge pull request #10 from x/feature-a\n"
         "<!-- AUTO-PR-INDEX-ENDE -->\n"
+        "Fließtext danach — unberührt.\n"
     )
     neu = hs.baue_neuen_text(text, ["- #11 — feat(x): irgendein Fix (#11)"])
+    alt_vor = text[:text.index(hs.MARKER_ANFANG)]
+    alt_nach = text[text.index(hs.MARKER_ENDE):]
+    neu_vor = neu[:neu.index(hs.MARKER_ANFANG)]
+    neu_nach = neu[neu.index(hs.MARKER_ENDE):neu.index(hs.MARKER_ENDE) + len(alt_nach)]
+    assert neu_vor == alt_vor
+    assert neu_nach == alt_nach
     assert "- #10 — Merge pull request #10 from x/feature-a" in neu
     assert "- #11 — feat(x): irgendein Fix (#11)" in neu
     assert neu.index("#10") < neu.index("#11")

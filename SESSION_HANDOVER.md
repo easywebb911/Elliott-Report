@@ -965,6 +965,24 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
      Easy per Squash gemergt, nach manueller CI-Freigabe** — kein
      Self-Merge durch den Bot, an keiner Stelle im Code.
 
+     **WICHTIG FÜR EASY, belegt (Test
+     `test_handover_sync_bot_pr_braucht_squash_sonst_fehlalarm`,
+     `tests/test_proactive_watcher.py`):** „Squash" ist hier keine
+     Stilfrage, sondern Voraussetzung. Der Ausschluss prüft den
+     Commit-Subject-Text auf das Präfix `chore(handover-sync):` — das
+     steht nur im **Squash**-Commit (Subject = PR-Titel). Ein **normaler
+     Merge-Commit** heißt stattdessen `"Merge pull request #N from
+     .../handover-sync/auto-pr-index"`, trägt das Präfix NICHT und wird
+     NICHT ausgenommen. Folge, falls versehentlich normal statt Squash
+     gemergt wird: der Wächter meldet die eigene Bot-PR-Nummer am
+     nächsten Lauf als neue Lücke, der Handover-Sync-Bot legt dafür einen
+     neuen PR an, dessen Merge (wieder nur bei Squash) die Lücke schließt
+     — bei wiederholt normalem Merge entsteht so ein sich **nie von
+     selbst beendendes** Ein-Zeilen-Nachziehen, keine echte Endlosschleife
+     (die Suite wächst nicht unkontrolliert), aber dauerhafter, unnötiger
+     Bot-Verkehr. **Bitte beim Mergen eines `chore(handover-sync):`-PRs
+     immer „Squash and merge" wählen, nie „Create a merge commit".**
+
   **EXPERIMENT-ERGEBNIS (Wegwerf-Workflow
   `.github/workflows/diagnose_bot_pr_ci.yml`, PR #171, CI-Läufe #446 auf
   PR #172 und #447 auf PR #173):** Ein mit dem Standard-`GITHUB_TOKEN`
