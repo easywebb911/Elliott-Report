@@ -1,0 +1,161 @@
+# WEGWERF-EXPERIMENT (09.10.2026) — beantwortet NUR eine Frage, baut NICHTS:
+# löst ein mit dem Standard-`GITHUB_TOKEN` angelegter PR den Pflicht-Check
+# "test" (`.github/workflows/ci.yml`, `on: pull_request`) tatsächlich aus?
+# Dieselbe, vorab zu klärende Frage, die `SESSION_HANDOVER.md` (Zeilen
+# ~529-532) schon für den Auto-Re-Dispatch verlangt: "per Wegwerf-Experiment
+# und nicht per Annahme". Hintergrund und Easy-Entscheid (Auto-Merge
+# ausnahmsweise für Bot-PRs im Auto-PR-Index): `SESSION_HANDOVER.md`,
+# Eintrag 09.10.2026.
+#
+# NUR MANUELL (`workflow_dispatch`). Kein Cron, kein `pull_request`-Trigger
+# auf sich selbst — dieser Workflow ist bewusst NICHT Teil des Tageslaufs
+# und ändert an keinem bestehenden Workflow etwas.
+#
+# ANNAHME, DIE DIESES EXPERIMENT NICHT SELBST SETZEN KANN: ob das Repo
+# "Allow GitHub Actions to create and approve pull requests" aktiviert hat
+# (Settings → Actions → General), entscheidet, ob Schritt 2 überhaupt
+# gelingt. Ist das aus, scheitert `gh pr create` mit einem Rechtefehler —
+# das ist dann selbst ein gültiges, aussagekräftiges Experiment-Ergebnis
+# (s. Schritt 2 unten), kein Workflow-Bug. Eine Branch-Schutzregel auf
+# `main`, die den Check "test" als Pflicht einträgt, erzwingt NICHT, dass
+# der Check überhaupt startet — sie blockiert nur das Mergen, solange er
+# fehlt oder rot ist. Beide Annahmen werden hier NICHT verändert, nur ihre
+# Wirkung beobachtet.
+#
+# AUFRÄUMEN PASSIERT INNERHALB DIESES WORKFLOW-LAUFS (direkter GitHub-
+# Netzzugriff des Runners), NICHT über den lokalen Sitzungs-Proxy — eine
+# frühere Branch-Löschung über den Proxy ist schon einmal gescheitert;
+# dieses Risiko betrifft diesen Workflow nicht, weil `gh`/`git` hier direkt
+# auf github.com laufen.
+#
+# RÜCKWEG: `git revert` auf den PR, der diese Datei hinzufügt. Das Löschen
+# dieser Workflow-Datei selbst ist ein SEPARATER Folge-PR NACH dem Lauf
+# (nicht Teil dieses PRs) — der eigentliche Bau (Auto-Sync + Auto-Merge)
+# kommt ohnehin erst in einem eigenen, späteren Auftrag.
+name: "Diagnose: löst ein Bot-PR den Pflicht-Check aus? (Wegwerf)"
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write        # Branch anlegen + pushen, am Ende wieder löschen
+  pull-requests: write    # PR anlegen UND wieder schließen — kein Merge-Aufruf
+  checks: read            # NUR die Check-Runs des PR-Head-SHA abfragen
+
+concurrency:
+  group: diagnose-bot-pr-ci
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      BRANCH: diag/bot-pr-ci-${{ github.run_id }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      # --- Schritt 1: Branch + triviale Datei -------------------------------
+      - name: "Schritt 1: Branch anlegen, triviale Diag-Datei hinzufügen"
+        id: setup
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          mkdir -p .github/diag
+          {
+            echo "Wegwerf-Diagnose, Lauf ${{ github.run_id }}, $(date -u +%Y-%m-%dT%H:%M:%SZ)."
+            echo "Zweck: prueft, ob ein mit dem Standard-GITHUB_TOKEN angelegter PR"
+            echo "den Pflicht-Check 'test' (.github/workflows/ci.yml) ausloest."
+            echo "Diese Datei und der PR werden am Ende dieses Laufs automatisch"
+            echo "entfernt/geschlossen. S. SESSION_HANDOVER.md, Eintrag 09.10.2026."
+          } > .github/diag/bot_pr_ci_probe.txt
+          git add .github/diag/bot_pr_ci_probe.txt
+          git commit -m "chore(diag): Wegwerf-Probe Bot-PR-CI-Experiment (Lauf ${{ github.run_id }})"
+          git push origin "$BRANCH"
+          echo "Branch \`$BRANCH\` gepusht." >> "$GITHUB_STEP_SUMMARY"
+
+      # --- Schritt 2: PR anlegen (NICHT-Draft) mit Standard-GITHUB_TOKEN ----
+      - name: "Schritt 2: Nicht-Draft-PR mit GITHUB_TOKEN anlegen"
+        id: create_pr
+        if: always() && steps.setup.outcome == 'success'
+        run: |
+          set +e
+          AUSGABE=$(gh pr create \
+            --title "diag(bot-pr-ci): Wegwerf-Experiment Lauf ${{ github.run_id }}" \
+            --body "Automatisches Wegwerf-Experiment (SESSION_HANDOVER.md, 09.10.2026) — prueft, ob ein mit dem Standard-\`GITHUB_TOKEN\` angelegter PR den Pflicht-Check \`test\` ausloest. Wird am Ende dieses Laufs automatisch geschlossen, der Branch geloescht. Kein Merge, keine inhaltliche Aenderung." \
+            --base main --head "$BRANCH" 2>&1)
+          RC=$?
+          set -e
+          echo "## Ergebnis PR-Erstellung" >> "$GITHUB_STEP_SUMMARY"
+          if [ $RC -ne 0 ]; then
+            echo "pr_created=false" >> "$GITHUB_OUTPUT"
+            echo "**PR-Erstellung fehlgeschlagen (Exit $RC).** Fehlertext wörtlich:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "$AUSGABE" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "Mögliche Ursache: Repo-Einstellung \"Allow GitHub Actions to create and approve pull requests\" ist aus (Settings → Actions → General) — das ist selbst ein gültiges Experiment-Ergebnis, kein Workflow-Fehler." >> "$GITHUB_STEP_SUMMARY"
+            echo "$AUSGABE"
+            exit 0
+          fi
+          echo "pr_created=true" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$AUSGABE" >> "$GITHUB_OUTPUT"
+          PR_NUMMER=$(echo "$AUSGABE" | grep -oE '[0-9]+$' | tail -n1)
+          echo "pr_nummer=$PR_NUMMER" >> "$GITHUB_OUTPUT"
+          HEAD_SHA=$(git rev-parse HEAD)
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "PR erstellt: $AUSGABE (Head-SHA \`$HEAD_SHA\`)." >> "$GITHUB_STEP_SUMMARY"
+
+      # --- Schritt 3: bis zu 5 Minuten auf den Check-Run "test" warten -----
+      - name: "Schritt 3: Check-Runs des PR-Head-SHA abfragen (max. 5 Minuten)"
+        id: poll
+        if: always() && steps.create_pr.outputs.pr_created == 'true'
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ steps.create_pr.outputs.head_sha }}"
+          GEFUNDEN=false
+          START=$(date +%s)
+          for i in $(seq 1 20); do
+            NAMEN=$(gh api "repos/${{ github.repository }}/commits/$HEAD_SHA/check-runs" \
+              --jq '.check_runs[].name' 2>/dev/null || echo "")
+            if echo "$NAMEN" | grep -qx "test"; then
+              GEFUNDEN=true
+              break
+            fi
+            sleep 15
+          done
+          ENDE=$(date +%s)
+          WARTEZEIT=$((ENDE - START))
+          echo "gefunden=$GEFUNDEN" >> "$GITHUB_OUTPUT"
+          echo "wartezeit=$WARTEZEIT" >> "$GITHUB_OUTPUT"
+
+      # --- Schritt 4: eindeutiges Ergebnis in die Zusammenfassung ----------
+      - name: "Schritt 4: Ergebnis-Zeile in die Job-Zusammenfassung schreiben"
+        if: always()
+        run: |
+          echo "## Experiment-Ergebnis" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.create_pr.outputs.pr_created }}" != "true" ]; then
+            echo "**TEST-CHECK AUSGELÖST: nicht ermittelbar** — PR-Erstellung ist fehlgeschlagen, s. Fehlertext oben." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.poll.outputs.gefunden }}" = "true" ]; then
+            echo "**TEST-CHECK AUSGELÖST: ja** (nach ${{ steps.poll.outputs.wartezeit }}s)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**TEST-CHECK AUSGELÖST: nein** (nach ${{ steps.poll.outputs.wartezeit }}s Wartezeit, maximal 5 Minuten abgefragt)" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # --- Schritt 5: aufräumen — PR schließen, Branch löschen -------------
+      - name: "Schritt 5: aufräumen (PR schließen, Branch löschen)"
+        if: always()
+        run: |
+          set +x
+          if [ "${{ steps.create_pr.outputs.pr_created }}" = "true" ]; then
+            gh pr close "${{ steps.create_pr.outputs.pr_nummer }}" --delete-branch || true
+          else
+            git push origin --delete "$BRANCH" || true
+          fi
+          echo "Aufgeräumt: PR geschlossen (falls erstellt) und Branch \`$BRANCH\` gelöscht (bestmöglich, Fehler hier werden nicht eskaliert)." >> "$GITHUB_STEP_SUMMARY"

@@ -917,6 +917,42 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Rein explorativ, nichts gespeichert, nichts in die Primärauswertung
   übernommen; `evaluate.py`/`FROZEN_FIELDS`/Sammlung unangetastet.
   **WIEDERVORLAGE:** Score-Review 07.12.2026.
+- **09.10.2026 — Easy-Entscheid: Auto-Merge ausnahmsweise für Bot-PRs,
+  die AUSSCHLIESSLICH neue Zeilen im Auto-PR-Index von
+  `SESSION_HANDOVER.md` hinzufügen** (#171)**.** Kontrollabgabe bewusst auf diese
+  eine Zeilenart begrenzt. Alle übrigen Auto-Merge-Vorschläge bleiben
+  abgelehnt — die archivierte Ablehnung „Auto-Merge grüner PRs — die
+  Merge-Policy ist bewusst manuell; das ist keine Wartung, sondern
+  Kontrollabgabe" (`SESSION_ARCHIVE.md:300-301`) bleibt im Übrigen
+  unverändert gültig; dieser Eintrag ist eine eng begrenzte, bewusste
+  Ausnahme davon, keine generelle Aufhebung. `SESSION_ARCHIVE.md` selbst
+  bleibt unangetastet.
+
+  **Drei Entwurfsentscheidungen für den Bau (noch nicht umgesetzt):**
+  1. Ein **eigener, markierter Block** trägt die Auto-PR-Index-Zeilen
+     (z. B. zwischen `<!-- AUTO-PR-INDEX-ANFANG -->`/`-ENDE`-Markern).
+     Die seit #153 nicht mehr geführte alte PR-Tabelle
+     (`SESSION_HANDOVER.md`, Abschnitt „## 2. PR-INDEX #1–#153") und der
+     restliche Fließtext bleiben **unberührt** — keine Reaktivierung,
+     keine Vermischung mit Urteils-/Erzähltext.
+  2. Der Wächter `erkenne_handover_luecke`
+     (`scripts/proactive_watcher.py:565-610`) zählt diesen neuen Block
+     als Abdeckung — eine dort per Bot-PR ergänzte Nummer gilt als
+     „erwähnt", genau wie heute jede `#N`-Erwähnung irgendwo im Fließtext
+     zählt (`_HANDOVER_PR_ERWAEHNUNG = re.compile(r"#(\d+)")`).
+  3. Bot-PRs tragen das Titelpräfix `chore(handover-sync):`, werden per
+     **Squash** gemergt und vom Wächter **ausgenommen** (Autor-/Titel-
+     Erkennung, Begründung: s. Diagnose vom 08.10.2026 zur
+     Schleifen-Frage — ohne Ausnahme würde der eigene Merge-Commit des
+     Bot-PRs vom bestehenden Regex genauso erfasst wie jeder menschliche
+     PR und am Folgetag fälschlich als Lücke gemeldet).
+
+  **WIEDERVORLAGE:** Bau-Auftrag erst NACH dem Wegwerf-Experiment
+  (`.github/workflows/diagnose_bot_pr_ci.yml`, separater PR), das belegt,
+  ob ein mit `GITHUB_TOKEN` angelegter PR den Pflicht-Check `test`
+  auslöst — dieselbe vorab zu klärende Frage, die
+  `SESSION_HANDOVER.md:529-532` schon für den Auto-Re-Dispatch verlangt
+  („per Wegwerf-Experiment und nicht per Annahme").
 
 ---
 
