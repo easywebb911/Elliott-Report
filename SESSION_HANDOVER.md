@@ -285,6 +285,7 @@ PR-Titelpräfix `chore(handover-sync):`) ergänzt — nie von Hand, nie von
 anderen PRs.
 
 <!-- AUTO-PR-INDEX-ANFANG -->
+- #174 — Merge pull request #174 from easywebb911/claude/elliott-report-gate-diagnosis-sjs33w
 <!-- AUTO-PR-INDEX-ENDE -->
 
 ---
