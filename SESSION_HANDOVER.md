@@ -946,7 +946,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 
   **Drei Entwurfsentscheidungen für den Bau:**
   1. Ein **eigener, markierter Block** trägt die Auto-PR-Index-Zeilen
-     (`<!-- AUTO-PR-INDEX-ANFANG -->`/`-ENDE`-Marker, s. Abschnitt
+     (Marker ANFANG/ENDE des AUTO-PR-INDEX-Blocks, s. Abschnitt
      „AUTO-PR-INDEX" oben). Die seit #153 nicht mehr geführte alte
      PR-Tabelle (Abschnitt „## 2. PR-INDEX #1–#153") und der restliche
      Fließtext bleiben **unberührt** — keine Reaktivierung, keine

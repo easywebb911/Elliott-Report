@@ -224,3 +224,33 @@ def test_fehlende_pr_zeilen_leer_wenn_alles_erwaehnt(tmp_path):
 def test_fehlende_pr_zeilen_ohne_handover_datei(tmp_path):
     _git_repo_mit_commits(tmp_path, _HISTORIE)
     assert hs.fehlende_pr_zeilen(tmp_path) == []
+
+
+# ---------------------------------------------------------------------------
+# 4) Regressionsschutz gegen die ECHTE SESSION_HANDOVER.md: eine Prosa-
+# Erwähnung der Marker-Zeichenfolge außerhalb des echten Blocks (wie am
+# 10.10.2026 in Entscheidung 1 passiert — dort stand die literale
+# Zeichenfolge in Klammern) ließe den Bot sonst unbemerkt abbrechen.
+# ---------------------------------------------------------------------------
+def test_pruefe_marker_gegen_echte_handover_datei():
+    """Trockenlauf gegen die echte Datei im Repo-Root — nichts wird
+    geschrieben. Muss OK sein; sonst würde jeder echte Lauf des
+    Handover-Sync-Bots ohne PR abbrechen."""
+    echte_handover_pfad = ROOT / "SESSION_HANDOVER.md"
+    text = echte_handover_pfad.read_text(encoding="utf-8")
+    hs.pruefe_marker(text)  # wirft nicht
+
+
+def test_mutationsprobe_zusaetzlicher_marker_im_fliesstext_der_echten_datei():
+    """Mutationsprobe: ein zusätzliches, literales Vorkommen von
+    MARKER_ANFANG irgendwo im Fließtext der ECHTEN Datei (simuliert durch
+    Anhängen) muss `pruefe_marker` zum Abbruch bringen — belegt, dass der
+    Regressionstest oben nicht nur zufällig grün ist."""
+    echte_handover_pfad = ROOT / "SESSION_HANDOVER.md"
+    text = echte_handover_pfad.read_text(encoding="utf-8")
+    kaputt = text + f"\nVersehentliche Prosa-Erwähnung: {hs.MARKER_ANFANG}\n"
+    try:
+        hs.pruefe_marker(kaputt)
+        assert False, "MarkerFehler erwartet"
+    except hs.MarkerFehler:
+        pass
