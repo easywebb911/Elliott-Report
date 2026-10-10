@@ -1,0 +1,84 @@
+# Handover-Sync-Bot — Weg B (Easy-Entscheid 09./10.10.2026, Korrektur
+# 10.10.2026 am Eintrag vom 09.10.2026 in SESSION_HANDOVER.md).
+#
+# VORGESCHICHTE: Das Wegwerf-Experiment `diagnose_bot_pr_ci.yml` (CI-Läufe
+# #446/#447 auf PR #172/#173) belegte: ein mit dem Standard-`GITHUB_TOKEN`
+# angelegter PR bekommt den Pflicht-Check "CI / test" zwar angelegt, der
+# Lauf wartet aber auf manuelle Freigabe ("This workflow run required
+# approval but was not approved before it expired") — keine Rekursionssperre,
+# sondern die Freigabe-Pflicht für von Actions erzeugte PRs. Lockern der
+# Fork-Freigabe-Regel half nicht (#447) und wurde zurückgenommen. Deshalb
+# WEG B statt nativem Auto-Merge: dieser Workflow legt NUR den PR an bzw.
+# aktualisiert ihn — Easy gibt den CI-Lauf per Tap frei und mergt selbst.
+# KEIN Auto-Merge-Aufruf, KEIN PAT, KEINE GitHub-App, an keiner Stelle.
+#
+# UMFANG: ändert in SESSION_HANDOVER.md AUSSCHLIESSLICH den markierten
+# Block `<!-- AUTO-PR-INDEX-ANFANG -->`/`-ENDE` (scripts/handover_sync.py
+# bricht ohne PR ab, wenn der Marker fehlt, doppelt ist, oder an
+# ungewöhnlicher Stelle steht — kein Raten). Fließtext und die alte
+# PR-Tabelle (`## 2. PR-INDEX #1–#153`) bleiben byte-identisch.
+#
+# AUSLÖSER: direkt nach dem rein lesenden Phase-1-Wächter
+# (`proactive_watcher.yml`), der dieselbe Lücke (Klasse 7,
+# `erkenne_handover_luecke`) bereits täglich erkennt und meldet — dieser
+# Workflow wiederverwendet exakt diese Erkennung (`scripts/handover_sync.py`
+# importiert `proactive_watcher`, keine zweite Implementierung) und schließt
+# sie, statt sie nur zu melden. Passt in die bestehende Wächter-Kette
+# (SESSION_HANDOVER.md, Abschnitt 5): kein zusätzlicher, vierter Zeitplan.
+#
+# KEINE MEHRFACH-PRS: fester Branch (`handover-sync/auto-pr-index`), bei
+# jedem Lauf frisch von `origin/main` aufgesetzt und force-gepusht — ein
+# bereits offener PR auf diesem Branch wird von GitHub automatisch
+# mitaktualisiert, `scripts/handover_sync.py` behandelt das erwartbare
+# "already exists" von `gh pr create` fail-soft als Aktualisierung.
+name: "Handover-Sync-Bot (Weg B)"
+
+on:
+  workflow_run:
+    workflows: ["Proaktiver Fehler-Wächter"]
+    types: [completed]
+  workflow_dispatch: {}   # manueller Testlauf, unabhängig vom Wächter
+
+permissions:
+  contents: write        # Branch/Commit/Push des Sync-PRs
+  pull-requests: write    # NUR PR-Erstellung/-Aktualisierung — kein Merge-Aufruf im Code
+
+concurrency:
+  group: handover-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          # Volle Historie nötig: `_main_pr_titel` liest `git log
+          # --first-parent` über ALLE main-PRs (wie proactive_watcher.yml,
+          # Klasse-7-Begründung dort).
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Handover-Sync-Tests VOR jedem Lauf (kein blinder Lauf)
+        run: python -m pytest tests/test_handover_sync.py tests/test_proactive_watcher.py -q
+
+      - name: Sync-Zyklus laufen lassen (legt PR an/aktualisiert ihn — nicht Draft, kein Merge)
+        run: python scripts/handover_sync.py
