@@ -201,10 +201,47 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   nicht vorhanden — Zufalls-Baseline „nicht durchführbar", nur die rohen
   Quoten):** gesamt 79,0 % (124/157), Ende W4 76,6 % (49/64), Ende W2
   80,6 % (75/93); davon 61 echte Beobachtungszonen-Treffer, 63 gereift-neutral.
-  Zum Vergleich, unverändert: Primär-Trefferquote 44,6 % (#121-Nachfolge-
-  Stand). Der Zufalls-Baseline-Vergleich (und damit FDR) wird erst
-  ausgewiesen, wenn `data/eval_prices.json` per `eval_prices.yml`
-  manuell geholt wurde.
+
+  **KORREKTUR 11.10.2026 (nicht still überschrieben, sondern als eigener
+  Nachtrag sichtbar — Easy hat auf eine missverständliche Nebeneinander-
+  Stellung hingewiesen):** Der ursprüngliche Satz „Zum Vergleich,
+  unverändert: Primär-Trefferquote 44,6 %" direkt neben der
+  61/157-Angabe konnte wie ein Vergleich auf **derselben Fallbasis**
+  wirken. Das stimmt nicht: 44,55 % ist die **eingefrorene offizielle
+  Auswertung vom 06.09.2026** (#121, n=101) — sie wird **nicht**
+  automatisch nachgerechnet, wenn neue Episoden reifen („Auswertung v1"
+  ist per Moduldoc eingefroren). Richtig gegenübergestellt: Primärzahl
+  44,6 % bei n=101 (06.09.2026) **versus** die heutige Trefferquote nach
+  derselben Primärregel (`target_hit`) bei der gewachsenen Population,
+  61/157 = 38,9 % — **andere Fallbasis, kein Vergleich, kein Verdikt**.
+  Das Skript gibt seitdem beide Zahlen so beschriftet aus.
+
+  **VERLUSTBILD (Easy-Entscheid, Variante A, 11.10.2026, #177):**
+  zusätzlich zur Quote die Kehrseite — explorativ, NACHTRÄGLICH definiert,
+  dieselbe Kopfzeile wie oben.
+  - **Gesamt-Verlustbild:** 67 von 157 (42,7 %) sind invalidiert ODER
+    gereift-neutral im Minus am Tag 10 (invalidiert 33, neutral-im-Minus
+    34) — direkt neben die 79,0-%-Quote gestellt.
+  - **Neutrale Fälle (n=63):** `r_erreicht_basis` (= `neutral_r` aus
+    `forward_collection.mature_record`, WIEDERVERWENDET) zeigt **34 von
+    63 (54 %) im Minus** am Tag 10, Median −0,044 R. Nach Setup-Typ: Ende
+    W4 (n=17) **unter `SECONDARY_MIN_N`, nicht interpretieren**; Ende W2
+    (n=46) Median 0,000 R.
+  - **61 Beobachtungszonen-Treffer:** 13 davon liegen am Tag 10 trotzdem
+    unter dem Einstieg — nur ausgewiesen, nicht in eine Quote gemischt.
+  - **Gap-Messung bei 33 Invalidierten** (Close-basiert, NICHT Intraday):
+    alle 33 rutschen unter die Marke durch (0 exakt auf der Marke),
+    Median −1,77 %, größter Durchrutsch −48,98 %; in R (`risiko_abstand`,
+    WIEDERVERWENDET, 25 Fälle mit gültigem Risiko) Median −1,192 —
+    schlechter als die angenommene glatte −1R.
+  - **Stopp-gerissen-Quote (21,0 %) als Baseline-Komplement:** keine neue
+    Simulation — derselbe p-Wert wie „nicht invalidiert" (gesamt),
+    nur gespiegelt; „nicht durchführbar" ohne Kursbasis, wie oben.
+
+  **Fragile Annahme geprüft, nicht angenommen:** „`r_erreicht_basis < 0`
+  heißt Verlust am Tag 10" stimmt, weil das Feld exakt
+  `(Tag-10-Close − Entry) / Risiko` ist (`forward_collection.py` Zeile 328)
+  — keine Mehrdeutigkeit.
 
   **WIEDERVORLAGE:** Score-Review 07.12.2026.
 

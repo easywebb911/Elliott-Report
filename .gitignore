@@ -12,3 +12,13 @@ venv/
 # sofort und gehoert deshalb nicht ins Repo (gleiche Logik wie
 # eval_prices_snapshot.json, das aus demselben Grund nie committet wird).
 data/forward_collection_sensitivity.json
+
+# KORREKTUR 11.10.2026 (PR #177, Verlustbild-Diagnose): diese beiden
+# Dateien waren nur per Kommentar/Konvention als "nie committet"
+# dokumentiert, aber NIE tatsaechlich hier eingetragen — git status zeigte
+# sie als untracked statt ignoriert. Kursbasis-Momentaufnahmen fuer den
+# Zufalls-Benchmark (evaluate.py --kurse-holen, evaluate_nicht_invalidiert.py):
+# veralten sofort, gehoeren nicht ins Repo, Reproduzierbarkeit laeuft ueber
+# die Pruefsumme im Ergebnis, nicht ueber die Rohdatei.
+data/eval_prices.json
+eval_prices_snapshot.json

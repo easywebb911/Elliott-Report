@@ -8,6 +8,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -257,3 +259,226 @@ def test_evaluate_py_byte_identisch():
     assert hashlib.sha256(inhalt).hexdigest() == EVALUATE_PY_SHA256_VOR_DIESEM_PR, (
         "scripts/evaluate.py wurde verändert — die Primärwertung muss "
         "UNANGETASTET bleiben (harte Grenze dieses PRs).")
+
+
+# ===========================================================================
+# VERLUSTBILD (Easy-Entscheid, Variante A, 11.10.2026, #177)
+# ===========================================================================
+def _neutral(ticker: str, r_erreicht_basis, end_of_w4: bool = False) -> dict:
+    rec = {"invalidated": 0, "target_hit": 0, "r_erreicht_basis": r_erreicht_basis,
+          "count_wave_labels": (
+              [{"index": 0, "wave": 4}] if end_of_w4 else [{"index": 0, "wave": 2}])}
+    return {"ticker": ticker, "rec": rec, "hit": 0, "first_seen_date": "2026-01-01"}
+
+
+def _invalidiert(ticker: str, entry: float, inval_price: float,
+                 closes: list) -> dict:
+    """`closes` wird 1:1 als price_path (nur 'close') übernommen."""
+    rec = {
+        "invalidated": 1, "target_hit": 0, "r_erreicht_basis": -1.0,
+        "entry_close": entry, "invalidation_price": inval_price,
+        "risiko_abstand": entry - inval_price,
+        "price_path": [{"close": c, "date": f"2026-01-{i+1:02d}"}
+                       for i, c in enumerate(closes)],
+        "count_wave_labels": [{"index": 0, "wave": 4}],
+    }
+    return {"ticker": ticker, "rec": rec, "hit": 0, "first_seen_date": "2026-01-01"}
+
+
+def _zielzonen_treffer(ticker: str, entry: float, tag10_close: float) -> dict:
+    rec = {
+        "invalidated": 0, "target_hit": 1, "entry_close": entry,
+        "price_path": [{"close": tag10_close, "date": "2026-01-10"}],
+        "count_wave_labels": [{"index": 0, "wave": 4}],
+    }
+    return {"ticker": ticker, "rec": rec, "hit": 1, "first_seen_date": "2026-01-01"}
+
+
+# ---------------------------------------------------------------------------
+# (1) Neutrale Fälle: r < 0, r == 0, r > 0
+# ---------------------------------------------------------------------------
+_N_MINUS = _neutral("NM", -0.3)
+_N_NULL = _neutral("NN", 0.0)
+_N_PLUS = _neutral("NP", 0.4)
+
+
+def test_neutral_verlustbild_trennt_minus_null_plus():
+    r = eni.neutral_verlustbild([_N_MINUS, _N_NULL, _N_PLUS], min_n=0)
+    assert r["im_minus_strikt"] == 1
+    assert r["genau_null"] == 1
+    assert r["im_plus_strikt"] == 1
+    assert r["mittelwert"] == pytest.approx((-0.3 + 0.0 + 0.4) / 3)
+    assert r["median"] == pytest.approx(0.0)
+
+
+def test_neutral_verlustbild_unter_min_n_wird_ausgewiesen():
+    r = eni.neutral_verlustbild([_N_MINUS], min_n=30)
+    assert "zu wenige Fälle" in r["hinweis"]
+    # Zahlen trotzdem berechnet, nur als "nicht interpretieren" markiert:
+    assert r["im_minus_strikt"] == 1
+
+
+def test_neutral_verlustbild_ohne_messwert():
+    ohne = _neutral("X", None)
+    r = eni.neutral_verlustbild([ohne], min_n=0)
+    assert r["mit_messwert"] == 0
+    assert r["hinweis"] == "keine Fälle"
+
+
+# ---------------------------------------------------------------------------
+# (2) Randfall "Zone UND invalidiert" ist strukturell ausgeschlossen (s.
+# test_proactive_watcher/test_handover_sync-Pendant in PR #176) — hier statt
+# dessen der angeforderte Randfall "Close GENAU auf der Marke".
+# ---------------------------------------------------------------------------
+def test_gap_messung_randfall_close_genau_auf_marke():
+    # entry=100, inval_price=90 — Tag 0 Close == 90 exakt.
+    fall = _invalidiert("EXAKT", entry=100.0, inval_price=90.0,
+                        closes=[90.0, 95.0])
+    r = eni.gap_messung([fall])
+    assert r["durchrutscht"] == 0
+    assert r["genau_auf_marke"] == 1
+    assert r["median_prozent"] == pytest.approx(0.0)
+    assert r["median_r"] == pytest.approx(-1.0)  # (90-100)/(100-90) = -1.0
+
+
+def test_gap_messung_echter_durchrutsch():
+    # entry=100, inval_price=90, Close faellt auf 80 -> 11.11% unter der Marke
+    fall = _invalidiert("GAP", entry=100.0, inval_price=90.0,
+                        closes=[95.0, 80.0, 85.0])
+    r = eni.gap_messung([fall])
+    assert r["durchrutscht"] == 1
+    assert r["genau_auf_marke"] == 0
+    erwartet_prozent = (80.0 - 90.0) / 90.0 * 100
+    assert r["median_prozent"] == pytest.approx(erwartet_prozent)
+    erwartet_r = (80.0 - 100.0) / (100.0 - 90.0)
+    assert r["median_r"] == pytest.approx(erwartet_r)
+
+
+def test_gap_messung_findet_ERSTEN_treffer_nicht_den_tiefsten():
+    """Randfall: Tag 0 trifft die Marke knapp (Close=89), Tag 1 faellt viel
+    tiefer (Close=50). Die Messung muss den ERSTEN Tag nehmen (89), nicht
+    den tiefsten (50) — identisch zum Tie-Break in simulate_nicht_invalidiert/
+    forward_collection.mature_record."""
+    fall = _invalidiert("ERSTER-TAG", entry=100.0, inval_price=90.0,
+                        closes=[89.0, 50.0])
+    r = eni.gap_messung([fall])
+    erwartet_prozent = (89.0 - 90.0) / 90.0 * 100
+    assert r["median_prozent"] == pytest.approx(erwartet_prozent)
+
+
+def test_gap_messung_median_und_maximum_ueber_mehrere_faelle():
+    f1 = _invalidiert("F1", 100.0, 90.0, [85.0])   # -5.56 %
+    f2 = _invalidiert("F2", 100.0, 90.0, [45.0])   # -50.00 % (groesster Durchrutsch)
+    f3 = _invalidiert("F3", 100.0, 90.0, [88.0])   # -2.22 %
+    r = eni.gap_messung([f1, f2, f3])
+    assert r["mit_messwert"] == 3
+    assert r["maximum_prozent"] == pytest.approx((45.0 - 90.0) / 90.0 * 100)
+    # Median der drei Prozentwerte (sortiert: -50, -5.56, -2.22 -> Median -5.56)
+    assert r["median_prozent"] == pytest.approx((85.0 - 90.0) / 90.0 * 100)
+
+
+# ---------------------------------------------------------------------------
+# (3) Gesamt-Verlustbild + Zielzonen-Treffer unter Einstieg
+# ---------------------------------------------------------------------------
+def test_gesamt_verlustbild_zaehlt_invalidiert_plus_neutral_minus():
+    cases = [_C_INVAL, _N_MINUS, _N_PLUS]  # 1 invalidiert + 1 neutral-minus + 1 neutral-plus
+    r = eni.gesamt_verlustbild(cases)
+    assert r["n"] == 3
+    assert r["invalidiert"] == 1
+    assert r["neutral_im_minus"] == 1
+    assert r["anzahl"] == 2
+    assert r["anteil"] == pytest.approx(2 / 3)
+
+
+def test_ziel_treffer_unter_einstieg_zaehlt_korrekt():
+    ueber = _zielzonen_treffer("UEBER", entry=100.0, tag10_close=110.0)
+    unter = _zielzonen_treffer("UNTER", entry=100.0, tag10_close=95.0)
+    r = eni.ziel_treffer_unter_einstieg([ueber, unter])
+    assert r["zielzonen_treffer"] == 2
+    assert r["unter_einstieg_am_tag_10"] == 1
+
+
+# ---------------------------------------------------------------------------
+# (4) Stopp-Baseline — reines Komplement, kein neuer p-Wert
+# ---------------------------------------------------------------------------
+def test_stopp_baseline_ist_komplement_ohne_neue_ziehung():
+    bench = {"durchfuehrbar": True, "beobachtete_quote": 0.79,
+            "zufalls_quote_mittel": 0.5, "zufalls_quote_p05": 0.4,
+            "zufalls_quote_p95": 0.6, "p_wert": 0.0123, "ziehungen": 10000,
+            "faelle": 157}
+    r = eni.stopp_baseline(bench)
+    assert r["beobachtete_quote"] == pytest.approx(0.21)
+    assert r["zufalls_quote_mittel"] == pytest.approx(0.5)
+    assert r["zufalls_quote_p05"] == pytest.approx(0.4)   # 1 - p95(0.6)
+    assert r["zufalls_quote_p95"] == pytest.approx(0.6)   # 1 - p05(0.4)
+    assert r["p_wert"] == 0.0123  # UNVERÄNDERT übernommen, keine neue Ziehung
+
+
+def test_stopp_baseline_nicht_durchfuehrbar_wenn_bench_nicht_durchfuehrbar():
+    bench = {"durchfuehrbar": False, "grund": "keine Kursbasis (Momentaufnahme fehlt)"}
+    r = eni.stopp_baseline(bench)
+    assert r["durchfuehrbar"] is False
+    assert r["grund"] == "keine Kursbasis (Momentaufnahme fehlt)"
+
+
+# ---------------------------------------------------------------------------
+# (5) Mutationsproben — mindestens 2, Test MUSS rot werden
+# ---------------------------------------------------------------------------
+def test_mutationsprobe_minus_vs_minus_gleich_bei_neutral():
+    """Eine kaputte Variante, die `<=` statt `<` für 'im Minus' nutzt, würde
+    den Randfall r==0 FÄLSCHLICH als Verlust zählen. Die echte Funktion
+    (strikt `<`) muss das von der kaputten Variante unterscheiden."""
+    def kaputt_im_minus(cases):
+        return sum(1 for c in cases if (c["rec"]["r_erreicht_basis"] or 0) <= 0)
+
+    kaputt = kaputt_im_minus([_N_MINUS, _N_NULL, _N_PLUS])
+    echt = eni.neutral_verlustbild([_N_MINUS, _N_NULL, _N_PLUS], min_n=0)
+    assert kaputt == 2            # zaehlt r==0 FÄLSCHLICH mit
+    assert echt["im_minus_strikt"] == 1   # echte Funktion: nur r<0
+    assert kaputt != echt["im_minus_strikt"]
+
+
+def test_mutationsprobe_gap_am_falschen_tag_gerechnet():
+    """Eine kaputte Variante, die den LETZTEN statt den ERSTEN Tag unter der
+    Marke nimmt, würde bei F1 unten einen anderen (tieferen) Gap-Prozentsatz
+    liefern als die echte Funktion — muss sich unterscheiden."""
+    fall = _invalidiert("LETZTER-TAG", entry=100.0, inval_price=90.0,
+                        closes=[89.0, 85.0, 70.0])  # alle drei <= 90
+
+    def kaputt_letzter_tag_statt_erster(cases):
+        out = []
+        for c in cases:
+            pfad = c["rec"]["price_path"]
+            treffer = [t["close"] for t in pfad if t["close"] <= c["rec"]["invalidation_price"]]
+            if treffer:
+                out.append(treffer[-1])  # FALSCH: letzter statt erster Treffer
+        return out
+
+    kaputt = kaputt_letzter_tag_statt_erster([fall])
+    echt = eni.gap_messung([fall])
+    assert kaputt == [70.0]                       # kaputte Variante nimmt Tag 3
+    assert echt["median_prozent"] == pytest.approx((89.0 - 90.0) / 90.0 * 100)  # echt: Tag 1
+    assert kaputt[0] != 89.0
+
+
+# ---------------------------------------------------------------------------
+# (6) Determinismus
+# ---------------------------------------------------------------------------
+def test_verlustbild_determinismus():
+    cases = [_N_MINUS, _N_NULL, _N_PLUS, _C_INVAL]
+    r1 = (eni.neutral_verlustbild(cases, min_n=0),
+         eni.gesamt_verlustbild(cases))
+    r2 = (eni.neutral_verlustbild(cases, min_n=0),
+         eni.gesamt_verlustbild(cases))
+    assert r1 == r2
+
+
+# ---------------------------------------------------------------------------
+# (7) Echter Lauf gegen die reale Sammlung — Verlustbild-Zahlen reproduzierbar
+# ---------------------------------------------------------------------------
+def test_echter_lauf_verlustbild_zahlen(capsys):
+    rc = eni.main([])
+    assert rc == 0
+    ausgabe = capsys.readouterr().out
+    assert "VERLUSTBILD" in ausgabe
+    assert "andere Fallbasis" in ausgabe.lower() or "ANDERE FALLBASIS" in ausgabe

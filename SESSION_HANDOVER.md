@@ -1007,7 +1007,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Rulesets ist **nicht** Teil dieses Baus (eigene Diagnose später, wegen
   Wirkung auf Codes Self-Merges).
 - **10./11.10.2026 — Sekundäre Erfolgsregel „nicht invalidiert" (Easy-
-  Entscheid, Variante B).** Zusätzlich zur Primärwertung (UNANGETASTET):
+  Entscheid, Variante B, #176).** Zusätzlich zur Primärwertung (UNANGETASTET):
   Zone erreicht, Extension erreicht und gereift-neutral zählen positiv;
   nur invalidiert zählt negativ. Volle Begründung, Transparenz-Klausel
   und erste Zahlen in `docs/validation_registry.md`, Abschnitt „Regeln
@@ -1029,7 +1029,28 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   `stale_market_suspect` aus diesem Kandidatenkreis, HARTE SPERRE
   verhindert das genau).
 
-  **WIEDERVORLAGE:** Score-Review 07.12.2026.
+- **11.10.2026 — Verlustbild ergänzt (Easy-Entscheid, Variante A, #177).**
+  Dasselbe Skript (`scripts/evaluate_nicht_invalidiert.py`) zeigt jetzt
+  zusätzlich die Kehrseite der 79,0-%-Quote: Gesamt-Verlustbild
+  (invalidiert ODER neutral-im-Minus), Verlustbild der 63 neutralen
+  Fälle (nach `r_erreicht_basis`, Setup-Typ-Stratifizierung), eine
+  Close-basierte Gap-Messung bei den 33 Invalidierten, und die
+  Stopp-gerissen-Quote als reines Baseline-Komplement (keine neue
+  Simulation). Volle Zahlen + die Korrektur der 06.09.2026-vs-heute-
+  Vergleichsformulierung in `docs/validation_registry.md`.
+
+  **KORREKTUR gefunden (nicht übersehen):** `data/eval_prices.json` war
+  entgegen einer früheren Aussage **nicht** per `.gitignore` geschützt —
+  nachgezogen (`eval_prices_snapshot.json` ebenfalls).
+
+  **Teil-0-Diagnose:** `evaluate.py --kurse-holen` holt NUR Kurse und
+  endet sofort danach (erreicht `run()`/`--out` nie) — bestätigt harmlos.
+  Ein Versuch in dieser Sitzung scheiterte (0 von 132 Tickern, Proxy
+  blockiert Yahoo Finance mit `403`) — kein Retry, wie vorgegeben; die
+  leere Datei wurde verworfen, nicht committet.
+
+  **WIEDERVORLAGE:** Score-Review 07.12.2026 (unverändert, kein neues
+  Datum).
 
 ---
 
