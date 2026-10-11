@@ -118,6 +118,39 @@ VERLUSTBILD (Easy-Entscheid, Variante A, 11.10.2026) — ZUSÄTZLICH zur
     p-Wert aus `benchmark_nicht_invalidiert("gesamt")` wird unverändert
     übernommen, nur die angezeigten Quoten werden gespiegelt (1 - x).
 
+CLUSTER-SENSITIVITÄT (Easy-Entscheid 11.10.2026, Anlass: Lauf 38149306463 —
+  21,0 % vs. 15,2 %; 24/33 Invalidierungen teilen sich einen Kalendertag,
+  32/33 eine ISO-Woche, 38/103 Ticker haben mehrere Kandidaten — die
+  unabhängige Ziehung pro Fall in `benchmark_nicht_invalidiert` blendet das
+  aus, exakt dieselbe bereits dokumentierte Lücke wie bei der Primär-
+  Trefferquote, s. Diagnose 03.10.2026/#164 — Registry-Regel #166/#167
+  schloss sie bisher NUR für die AUC, nicht für eine Quoten-Differenz).
+
+  ÜBERTRAGUNG, NICHT KOPIE: Block-Bildung (`_bloecke`, Tag-/Ticker-Block)
+  WIEDERVERWENDET aus `evaluate_cluster_sensitivity.py` (#166/#167) — per
+  Import, keine zweite Implementierung. Das STATISTIK dort (AUC je Draw)
+  passt nicht direkt: #166/#167 bootstrapped Scores/Labels für die AUC;
+  hier gibt es stattdessen, je Fall, bereits einen vorgezogenen Pool
+  möglicher Zufalls-Ausgänge (ein Eintrag je zulässigem zufälligem
+  Einstiegstag im selben Ticker, aus `benchmark_nicht_invalidiert`
+  ausgelagert in `_outcome_pools` — EINMAL berechnet, von beiden Zellen
+  geteilt, teuerster Teil ist der Tage-Scan je Ticker). Die eigene
+  Übertragung hier: je Bootstrap-Ziehung werden ganze Blöcke (Tag oder
+  Ticker) von FÄLLEN gezogen (wie #166/#167), aber die Statistik je Draw
+  ist die Differenz „beobachtete Quote − Zufalls-Quote" über die gezogenen
+  Fälle (Zufalls-Anteil: je Fall EIN frischer Zug aus seinem eigenen Pool,
+  nicht wiederverwendet über Draws). Fünf feste Seeds (20260728, 1, 42, 7,
+  999, identisch zu #166/#167), 10.000 Ziehungen, CI-Niveau 0,975 —
+  dieselben Werte, aber KEINE Übernahme der Registry-Vorgabe (die galt nur
+  für die AUC): hier eine eigene, bewusst identisch gewählte Wiederholung
+  der Parameter für Konsistenz der Berichtsform, s. Registry-Nachtrag.
+  NUR Zelle „gesamt" — wie #166/#167 nur Population (a), keine
+  Stratifizierung nach Setup-Typ (Umfangsbegrenzung, nicht Zufall).
+
+  Stopp-gerissen-Variante: reine Spiegelung (Differenz × −1, CI-Grenzen
+  vertauscht und gespiegelt) — KEINE zweite Bootstrap-Rechnung, aus
+  demselben Grund wie `stopp_baseline()` oben (dasselbe Ereignis).
+
 VERWENDUNG (nur manuell):
   python scripts/evaluate_nicht_invalidiert.py
       [--sammlung data/forward_collection.json] [--kurse data/eval_prices.json]
@@ -137,6 +170,7 @@ import repo_path  # noqa: F401 — legt Repo-Root + scripts/ auf sys.path
 REPO_ROOT = repo_path.REPO_ROOT
 
 import evaluate as ev  # noqa: E402 — NUR LESEND genutzt, s. Moduldoc oben
+import evaluate_cluster_sensitivity as ecs  # noqa: E402 — NUR `_bloecke()`, s. Moduldoc
 import forward_collection as fc  # noqa: E402
 from numeric import finite  # noqa: E402
 
@@ -150,6 +184,13 @@ EVAL_SEED = ev.EVAL_SEED
 HORIZON_DAYS = ev.HORIZON_DAYS
 FDR_ALPHA = 0.10  # eigene Wahl dieses Skripts, s. Moduldoc — KEIN Repo-Wert
 
+# Cluster-Sensitivität (11.10.2026): dieselben Werte wie #166/#167, aber
+# eigens hier gesetzt — s. Moduldoc „CLUSTER-SENSITIVITÄT" für die
+# Begründung, warum das KEINE stille Übernahme der Registry-Vorgabe ist.
+CLUSTER_BOOTSTRAP_DRAWS = 10_000
+CLUSTER_CI_NIVEAU = 0.975
+CLUSTER_SEEDS = (20260728, 1, 42, 7, 999)
+
 _VERBOTENE_ZIELE = (
     "data/forward_collection.json",
     "data/report.json",
@@ -162,7 +203,10 @@ KOMPOSITIONS_WARNUNG = (
     "Die neutralen Fälle (gereift, nicht invalidiert, nicht target_hit — "
     "reiner Zeitablauf) haben Selektionsverzerrung (GEPARKT-Eintrag "
     "29.09.2026, SESSION_HANDOVER.md): sie sind bereits durch Nichttreffen "
-    "vorselektiert."
+    "vorselektiert. Zusätzlich (Easy-Entscheid 11.10.2026): die Fälle sind "
+    "nicht unabhängig — mehrere Kandidaten teilen sich Kalendertage/Wochen "
+    "und Ticker; s. Cluster-Sensitivität weiter unten für die "
+    "Intervallbreite unter dieser Annahme."
 )
 
 KOPFZEILE = (
@@ -206,6 +250,38 @@ def simulate_nicht_invalidiert(closes: Sequence[float], start: int,
     return 1 - invalidiert
 
 
+def _outcome_pools(cases: Sequence[Dict], prices: Optional[Dict]
+                   ) -> "tuple[List[Optional[List[int]]], str, str, List[str]]":
+    """Je Fall die Liste möglicher Zufalls-Ausgänge (0/1) über alle
+    zulässigen Einstiegstage im selben Ticker — EINMAL berechnet (teuerster
+    Teil: der Tage-Scan je Ticker), von `benchmark_nicht_invalidiert` UND
+    `cluster_sensitivitaet_nicht_invalidiert` geteilt, s. Moduldoc. `None`
+    an der Stelle eines Falls ohne verwendbare Kurse — Liste bleibt
+    1:1-ausgerichtet zu `cases`, nichts wird stillschweigend weggelassen."""
+    von = min(c["first_seen_date"] for c in cases)
+    bis = max(c["first_seen_date"] for c in cases)
+    outcomes: List[Optional[List[int]]] = []
+    ohne_kurse: List[str] = []
+    for c in cases:
+        ser = (prices or {}).get(c["ticker"])
+        entry, tlow, inval = c["entry"], c["tlow"], c["inval"]
+        if not ser or not all(finite(v) for v in (entry, tlow, inval)) or entry <= 0:
+            ohne_kurse.append(c["ticker"])
+            outcomes.append(None)
+            continue
+        dates, closes = ser.get("dates") or [], ser.get("closes") or []
+        starts = ev._eligible_starts(dates, closes, von, bis)
+        r_t, r_i = tlow / entry, inval / entry
+        vals = [h for h in (simulate_nicht_invalidiert(closes, s, r_t, r_i)
+                            for s in starts) if h is not None]
+        if not vals:
+            ohne_kurse.append(c["ticker"])
+            outcomes.append(None)
+            continue
+        outcomes.append(vals)
+    return outcomes, von, bis, ohne_kurse
+
+
 def benchmark_nicht_invalidiert(cases: Sequence[Dict], prices: Optional[Dict],
                                 rng: random.Random,
                                 draws: int = BENCH_DRAWS) -> Dict:
@@ -224,26 +300,7 @@ def benchmark_nicht_invalidiert(cases: Sequence[Dict], prices: Optional[Dict],
                 "grund": "keine Kursbasis (Momentaufnahme fehlt)",
                 "beobachtete_quote": beobachtet}
 
-    von = min(c["first_seen_date"] for c in cases)
-    bis = max(c["first_seen_date"] for c in cases)
-
-    outcomes: List[List[int]] = []
-    ohne_kurse: List[str] = []
-    for c in cases:
-        ser = prices.get(c["ticker"])
-        entry, tlow, inval = c["entry"], c["tlow"], c["inval"]
-        if not ser or not all(finite(v) for v in (entry, tlow, inval)) or entry <= 0:
-            ohne_kurse.append(c["ticker"])
-            continue
-        dates, closes = ser.get("dates") or [], ser.get("closes") or []
-        starts = ev._eligible_starts(dates, closes, von, bis)
-        r_t, r_i = tlow / entry, inval / entry
-        vals = [h for h in (simulate_nicht_invalidiert(closes, s, r_t, r_i)
-                            for s in starts) if h is not None]
-        if not vals:
-            ohne_kurse.append(c["ticker"])
-            continue
-        outcomes.append(vals)
+    pools, von, bis, ohne_kurse = _outcome_pools(cases, prices)
 
     if ohne_kurse:
         return {"durchfuehrbar": False,
@@ -252,6 +309,7 @@ def benchmark_nicht_invalidiert(cases: Sequence[Dict], prices: Optional[Dict],
                 "beobachtete_quote": beobachtet,
                 "fehlende_ticker": sorted(set(ohne_kurse))}
 
+    outcomes: List[List[int]] = pools  # keine None mehr, s. Guard oben
     n = len(outcomes)
     verteilung: List[float] = []
     for _ in range(draws):
@@ -483,6 +541,120 @@ def stopp_baseline(bench_gesamt: Dict) -> Dict:
 
 
 # ---------------------------------------------------------------------------
+# CLUSTER-SENSITIVITÄT (Easy-Entscheid 11.10.2026) — s. Moduldoc
+# "CLUSTER-SENSITIVITÄT" für die Begründung der Übertragung aus #166/#167.
+# ---------------------------------------------------------------------------
+_CLUSTER_BLOCK_FELDER = (("Tag-Block", "first_seen_date"), ("Ticker-Block", "ticker"))
+
+
+def cluster_sensitivitaet_nicht_invalidiert(
+        cases: Sequence[Dict], prices: Optional[Dict], *,
+        seeds: Sequence[int] = CLUSTER_SEEDS,
+        draws: int = CLUSTER_BOOTSTRAP_DRAWS,
+        ci_level: float = CLUSTER_CI_NIVEAU) -> Dict:
+    """Block-Bootstrap (Tag-/Ticker-Block, `evaluate_cluster_sensitivity.
+    _bloecke` WIEDERVERWENDET) auf die Differenz 'beobachtete Quote minus
+    Zufalls-Quote'. NUR Zelle 'gesamt' (Umfangsbegrenzung wie #166/#167).
+    Punktschätzung EINMAL auf den echten Fällen (Zufalls-Seite als
+    Pool-Mittelwert, nicht eine einzelne Ziehung — deterministisch, kein
+    Seed nötig dafür); die Bootstrap-Verteilung bestimmt NUR das
+    Konfidenzintervall um diese Differenz."""
+    if not cases:
+        return {"durchfuehrbar": False, "grund": "keine Fälle"}
+    if not prices:
+        return {"durchfuehrbar": False,
+                "grund": "keine Kursbasis (Momentaufnahme fehlt)"}
+
+    pools, _von, _bis, ohne_kurse = _outcome_pools(cases, prices)
+    if ohne_kurse:
+        return {"durchfuehrbar": False,
+                "grund": f"Kursbasis unvollständig ({len(ohne_kurse)} von "
+                         f"{len(cases)} Fällen ohne verwendbare Kurse)"}
+
+    nutzbar = list(zip(cases, pools))  # keine None mehr, s. Guard oben
+    n = len(nutzbar)
+    pool_by_id = {id(c): p for c, p in nutzbar}
+    beobachtete_quote_punkt = sum(1 - c["rec"]["invalidated"] for c, _ in nutzbar) / n
+    zufalls_mittel_punkt = sum(sum(p) / len(p) for _c, p in nutzbar) / n
+    diff_punkt = beobachtete_quote_punkt - zufalls_mittel_punkt
+
+    alpha = 1.0 - ci_level
+    ergebnisse: Dict[str, Dict[int, Dict]] = {}
+    for feld_name, feld in _CLUSTER_BLOCK_FELDER:
+        bloecke = ecs._bloecke([c for c, _ in nutzbar], feld)
+        keys = sorted(bloecke)
+        k = len(keys)
+        je_seed: Dict[int, Dict] = {}
+        for seed in seeds:
+            rng = random.Random(seed)
+            diffs: List[float] = []
+            for _ in range(draws):
+                gezogene_keys = [keys[rng.randrange(k)] for _ in range(k)]
+                resampled: List[Dict] = []
+                for key in gezogene_keys:
+                    resampled.extend(bloecke[key])
+                m = len(resampled)
+                beob = sum(1 - c["rec"]["invalidated"] for c in resampled) / m
+                basis = sum(
+                    (p := pool_by_id[id(c)])[rng.randrange(len(p))]
+                    for c in resampled) / m
+                diffs.append(beob - basis)
+            diffs.sort()
+            je_seed[seed] = {
+                "ci_untergrenze": ev._quantil(diffs, alpha / 2),
+                "ci_obergrenze": ev._quantil(diffs, 1 - alpha / 2),
+                "schliesst_0_ein": (ev._quantil(diffs, alpha / 2) <= 0
+                                    <= ev._quantil(diffs, 1 - alpha / 2)),
+            }
+        ergebnisse[feld_name] = {
+            "cluster_anzahl": k, "je_seed": je_seed,
+        }
+
+    return {
+        "durchfuehrbar": True,
+        "diff_punkt": diff_punkt,
+        "beobachtete_quote": beobachtete_quote_punkt,
+        "zufalls_mittel": zufalls_mittel_punkt,
+        "faelle": n,
+        "ziehungen": draws,
+        "ci_niveau": ci_level,
+        "seeds": list(seeds),
+        "bloecke": ergebnisse,
+    }
+
+
+def cluster_sensitivitaet_stopp_gerissen(ni_ergebnis: Dict) -> Dict:
+    """Stopp-gerissen-Spiegelung — KEINE zweite Bootstrap-Rechnung (s.
+    Moduldoc, derselbe Grund wie `stopp_baseline`): Differenz × −1,
+    CI-Grenzen vertauscht und gespiegelt."""
+    if not ni_ergebnis.get("durchfuehrbar"):
+        return {"durchfuehrbar": False, "grund": ni_ergebnis.get("grund")}
+    gespiegelt: Dict[str, Dict] = {}
+    for feld_name, eintrag in ni_ergebnis["bloecke"].items():
+        je_seed = {
+            seed: {
+                "ci_untergrenze": -werte["ci_obergrenze"],
+                "ci_obergrenze": -werte["ci_untergrenze"],
+                "schliesst_0_ein": werte["schliesst_0_ein"],
+            }
+            for seed, werte in eintrag["je_seed"].items()
+        }
+        gespiegelt[feld_name] = {"cluster_anzahl": eintrag["cluster_anzahl"],
+                                 "je_seed": je_seed}
+    return {
+        "durchfuehrbar": True,
+        "diff_punkt": -ni_ergebnis["diff_punkt"],
+        "beobachtete_quote": 1 - ni_ergebnis["beobachtete_quote"],
+        "zufalls_mittel": 1 - ni_ergebnis["zufalls_mittel"],
+        "faelle": ni_ergebnis["faelle"],
+        "ziehungen": ni_ergebnis["ziehungen"],
+        "ci_niveau": ni_ergebnis["ci_niveau"],
+        "seeds": ni_ergebnis["seeds"],
+        "bloecke": gespiegelt,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Bericht
 # ---------------------------------------------------------------------------
 def berechne(cases: Sequence[Dict], prices: Optional[Dict],
@@ -519,7 +691,10 @@ def berechne(cases: Sequence[Dict], prices: Optional[Dict],
             "hinweis": f"{len(strata)} Zellen betrachtet (gesamt, Ende W4, "
                       f"Ende W2), davon {gerechnet} mit tatsächlich "
                       f"berechnetem p-Wert gegen die Zufalls-Baseline — "
-                      f"FDR gilt NUR für diese {gerechnet}.",
+                      f"FDR gilt NUR für diese {gerechnet}. Zusätzlich: "
+                      f"Cluster-Sensitivität (Block-Bootstrap nach Tag und "
+                      f"nach Ticker, {len(CLUSTER_SEEDS)} Seeds) NUR für "
+                      f"Zelle 'gesamt' — s. unten.",
         },
         "zellen": zellen,
         "fdr_benjamini_hochberg": {"alpha": FDR_ALPHA, "ergebnis": fdr},
@@ -533,9 +708,17 @@ def berechne(cases: Sequence[Dict], prices: Optional[Dict],
             "gap_messung": gap_messung(cases),
             "stopp_baseline": stopp_baseline(bench_gesamt),
         },
+        "cluster_sensitivitaet": _cluster_sensitivitaet_bericht(cases, prices),
         "seed": seed,
         "warnung": KOMPOSITIONS_WARNUNG,
     }
+
+
+def _cluster_sensitivitaet_bericht(cases: Sequence[Dict],
+                                   prices: Optional[Dict]) -> Dict:
+    ni = cluster_sensitivitaet_nicht_invalidiert(cases, prices)
+    return {"nicht_invalidiert": ni,
+           "stopp_gerissen": cluster_sensitivitaet_stopp_gerissen(ni)}
 
 
 def _pct(x: Optional[float]) -> str:
@@ -652,6 +835,41 @@ def render_text(res: Dict, primaer_trefferquote: Optional[float],
                 f"{_pct(sb['zufalls_quote_mittel'])} (5.–95. Perzentil "
                 f"{_pct(sb['zufalls_quote_p05'])}–{_pct(sb['zufalls_quote_p95'])}), "
                 f"p={sb['p_wert']:.4f} ({sb['p_wert_hinweis']})")
+    z.append("")
+
+    cs = res["cluster_sensitivitaet"]
+    z.append("=== CLUSTER-SENSITIVITÄT (Easy-Entscheid 11.10.2026) ===")
+    z.append("Anlass: Stopp-gerissen 21,0 % gegen Zufalls-Mittel 15,2 % "
+             "(Lauf 38149306463) — Kandidaten teilen sich Kalendertage/"
+             "Wochen und Ticker. Block-Bootstrap nach Registry-Regel "
+             "#166/#167, übertragen auf die Differenz 'beobachtet minus "
+             "Zufall'. Zeigt nur die Breite des Intervalls unter der "
+             "Cluster-Annahme — KEIN VERDIKT.")
+    z.append("")
+    for titel, key in (("'nicht invalidiert'", "nicht_invalidiert"),
+                       ("Stopp-gerissen (gespiegelt, keine zweite "
+                        "Bootstrap-Rechnung)", "stopp_gerissen")):
+        eintrag = cs[key]
+        z.append(f"--- {titel} ---")
+        if not eintrag.get("durchfuehrbar"):
+            z.append(f"  nicht durchführbar: {eintrag.get('grund')}")
+            z.append("")
+            continue
+        z.append(f"  Punktschätzung Differenz (beobachtet minus Zufall): "
+                 f"{_pct(eintrag['diff_punkt'])} (beobachtet "
+                 f"{_pct(eintrag['beobachtete_quote'])}, Zufalls-Mittel "
+                 f"{_pct(eintrag['zufalls_mittel'])}, n={eintrag['faelle']}, "
+                 f"{eintrag['ziehungen']} Ziehungen je Seed)")
+        for feld_name, block_eintrag in eintrag["bloecke"].items():
+            z.append(f"  {feld_name} ({block_eintrag['cluster_anzahl']} "
+                     f"Cluster):")
+            for seed, werte in block_eintrag["je_seed"].items():
+                z.append(f"    Seed {seed}: CI "
+                         f"[{_pct(werte['ci_untergrenze'])}, "
+                         f"{_pct(werte['ci_obergrenze'])}] — Intervall "
+                         f"schließt 0 ein: "
+                         f"{'ja' if werte['schliesst_0_ein'] else 'nein'}")
+        z.append("")
 
     return "\n".join(z)
 

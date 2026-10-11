@@ -1078,6 +1078,41 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 
   **WIEDERVORLAGE:** Score-Review 07.12.2026 (unverändert).
 
+- **11.10.2026 — Cluster-Sensitivität für die sekundäre Erfolgsregel
+  (Easy-Entscheid, Variante A).** Anlass: Stopp-gerissen-Quote 21,0 %
+  gegen Zufalls-Mittel 15,2 % (Lauf 38149306463); 24/33 Invalidierungen
+  teilen sich einen Kalendertag, 32/33 eine ISO-Woche, 38/103 Tickern
+  haben mehrere Kandidaten — die Fälle sind NICHT unabhängig.
+  `scripts/evaluate_nicht_invalidiert.py` bekommt eine zweite Sicht auf
+  dieselbe Differenz (beobachtet minus Zufall): Block-Bootstrap nach
+  Tag und nach Ticker, analog Registry-Regel #166/#167
+  (`evaluate_cluster_sensitivity._bloecke` WIEDERVERWENDET für die
+  Blockbildung, Bootstrap-Statistik NEU — eine AUC auf Scores lässt
+  sich nicht direkt auf eine Quoten-Differenz übertragen). NUR Zelle
+  "gesamt", dieselben 5 Seeds/10.000 Ziehungen/0,975-Niveau wie
+  #166/#167. Ausgabe zeigt je Blockart und Seed das Konfidenzintervall
+  und "Intervall schließt 0 ein: ja/nein" — **kein Verdikt, keine
+  Entscheidung.** `scripts/evaluate.py` UNANGETASTET (SHA-gepinnt),
+  keine Workflow-Änderung nötig: Laufzeit-Messung dieses PRs (n=157,
+  2 Blockarten × 5 Seeds × 10.000 Ziehungen) ca. 13 s, weit innerhalb
+  der 25-Minuten-Grenze von `eval_nicht_invalidiert.yml`. 11 neue Tests
+  (2 davon Mutationsproben: Blockbildung entfernt, Seed ignoriert),
+  SHA256-Pin und "kein Schreiben nach `data/`" erneut geprüft.
+
+  **Registry-Eintrag:** eigener datierter Abschnitt mit
+  Transparenz-Klausel direkt nach dem #176/#177-Eintrag in
+  `docs/validation_registry.md`.
+
+  **Merge-Hinweis:** Registry-Regel = MANUAL (ändert eine bestehende
+  Bewertungsregel, kein reiner Workflow-Zusatz wie #178) — bewusst KEIN
+  Self-Merge, Draft-PR wartet auf Easy.
+
+  **Wächter-Fund (unabhängig von diesem PR, nicht hier behoben):** PR
+  #179 fehlt noch als eigener Eintrag in diesem Abschnitt — Pflegelücke
+  aus einer früheren Session, hier nur gemeldet.
+
+  **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review oben).
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
