@@ -1005,6 +1005,30 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   bewusst auf Grün, bevor gemergt wird. Das **Einschalten** dieses
   Rulesets ist **nicht** Teil dieses Baus (eigene Diagnose später, wegen
   Wirkung auf Codes Self-Merges).
+- **10./11.10.2026 — Sekundäre Erfolgsregel „nicht invalidiert" (Easy-
+  Entscheid, Variante B).** Zusätzlich zur Primärwertung (UNANGETASTET):
+  Zone erreicht, Extension erreicht und gereift-neutral zählen positiv;
+  nur invalidiert zählt negativ. Volle Begründung, Transparenz-Klausel
+  und erste Zahlen in `docs/validation_registry.md`, Abschnitt „Regeln
+  (nicht verhandelbar)" (neuer Eintrag direkt unter der
+  Cluster-Sensitivitäts-Regel #166).
+
+  **Skript:** `scripts/evaluate_nicht_invalidiert.py` — rein lesend,
+  schreibt nie ins Repo, läuft NUR auf Anfrage (nie automatisch, analog
+  #167), kein Eintrag in `.github/workflows/`. Start:
+  `python scripts/evaluate_nicht_invalidiert.py` (optional `--kurse
+  data/eval_prices.json` für den Zufalls-Baseline-Vergleich — ohne diese
+  Datei, z. B. vor einem `eval_prices.yml`-Lauf, meldet das Skript die
+  Baseline als „nicht durchführbar" und zeigt trotzdem die rohen Quoten).
+
+  **HARTE SPERRE aus PR #162 unberührt:** kein `--live`-Lauf von
+  `mark_stale_market_records.py`, keine offizielle Auswertung unter
+  dessen Markierung — dieses Skript liest nur, die 8/24-Fehlalarm-Frage
+  (#162) ist für diese Zahl ohnehin folgenlos (kein Record trägt aktuell
+  `stale_market_suspect` aus diesem Kandidatenkreis, HARTE SPERRE
+  verhindert das genau).
+
+  **WIEDERVORLAGE:** Score-Review 07.12.2026.
 
 ---
 
