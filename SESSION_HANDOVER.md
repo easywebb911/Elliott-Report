@@ -1051,6 +1051,32 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 
   **WIEDERVORLAGE:** Score-Review 07.12.2026 (unverändert, kein neues
   Datum).
+- **11.10.2026 — Zufalls-Baseline im Runner (Easy-Entscheid, Variante A,
+  #178).** Neuer, rein manueller Workflow
+  `.github/workflows/eval_nicht_invalidiert.yml`: holt die Kursbasis
+  UND lässt `scripts/evaluate_nicht_invalidiert.py` im selben
+  GitHub-Runner-Lauf laufen (der Runner erreicht Yahoo Finance direkt,
+  anders als diese Code-Sitzung). Ergebnis **ausschließlich** im
+  Job-Summary — kein Commit, kein Artefakt-Umweg, kein Merge-/PR-Aufruf.
+  **Start:** Actions → „Zufalls-Baseline für 'nicht invalidiert'
+  (manuell)" → Run workflow.
+
+  **Diagnose vorab (Details im PR-Text #178):** `--kurse-holen` bestätigt
+  harmlos; `.gitignore`-Ergänzung aus #177 schwächt die
+  Selbstprüfung NICHT ab (ignorierte Dateien fehlen in
+  `git status --porcelain` ohnehin standardmäßig); Kursdatei-Pfad
+  (`data/eval_prices.json`, Default beider Skripte) passt zusammen,
+  kein Widerspruch. **Korrektur gefunden:** PR #177 hatte „38 Tests (23
+  neu)" geschrieben — richtig ist **15 neu** (23 waren der Stand VOR
+  #177, aus #176); 38 gesamt und die Suiten-Summe (1738→1753) stimmen,
+  nur die „neu"-Zahl war falsch benannt.
+
+  **Fragile Annahme, offen bis zum ersten echten Lauf:** ob der
+  GitHub-Runner Yahoo Finance tatsächlich erreicht, ist ungeprüft —
+  bei Fehlschlag bleibt der Lauf grün mit einer klaren
+  „Kursbasis fehlt"-Zeile, kein zweiter Versuch.
+
+  **WIEDERVORLAGE:** Score-Review 07.12.2026 (unverändert).
 
 ---
 
