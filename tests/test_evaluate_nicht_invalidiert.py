@@ -4,6 +4,7 @@ läuft NIE im Tageslauf."""
 from __future__ import annotations
 
 import hashlib
+import random
 import re
 import sys
 from pathlib import Path
@@ -562,3 +563,215 @@ def test_keine_workflow_run_kette_reagiert_auf_diesen_workflow():
         text = wf.read_text(encoding="utf-8")
         assert "Zufalls-Baseline für 'nicht invalidiert'" not in text, wf.name
         assert "eval_nicht_invalidiert" not in text, wf.name
+
+
+# ===========================================================================
+# CLUSTER-SENSITIVITÄT (Easy-Entscheid 11.10.2026) — Block-Bootstrap nach
+# Tag und nach Ticker auf die Differenz 'beobachtet minus Zufall', analog
+# Registry-Regel #166/#167 (`evaluate_cluster_sensitivity._bloecke`
+# WIEDERVERWENDET, s. Moduldoc). Handgebaute, synthetische Fixtures mit
+# echten (aber künstlichen) Kursreihen — dieses Skript holt hier KEINE
+# echten Kurse, nur eigene `prices`-Dicts.
+# ===========================================================================
+def _kurs_fall(ticker: str, date: str, invalidated: int) -> dict:
+    """Minimaler Fall für `_outcome_pools`/`cluster_sensitivitaet_*`: braucht
+    `ticker`, `first_seen_date`, `entry`/`tlow`/`inval` (top-level, NICHT in
+    `rec`) sowie `rec['invalidated']`."""
+    return {"rec": {"invalidated": invalidated}, "hit": 0, "ticker": ticker,
+           "first_seen_date": date, "entry": 100.0, "tlow": 110.0,
+           "inval": 90.0}
+
+
+def _kurs_serie() -> dict:
+    return {"dates": [f"2026-01-{d:02d}" for d in range(1, 29)],
+           "closes": [100.0 + ((j % 7) - 3) * 0.5 for j in range(28)]}
+
+
+# Stark geclustert: 20 Fälle, aber nur 2 Kalendertage UND nur 2 Ticker.
+_GECLUSTERT = [
+    _kurs_fall("A" if i % 2 == 0 else "B",
+              "2026-01-01" if i < 10 else "2026-01-02",
+              1 if i % 4 == 0 else 0)
+    for i in range(20)
+]
+_GECLUSTERT_PREISE = {"A": _kurs_serie(), "B": _kurs_serie()}
+
+# Verstreut: 40 Fälle über 10 Ticker und 5 Tage — genug Blöcke für
+# Seed-Sensitivität (s. Prototyp-Lauf in der Diagnose dieses PRs).
+_VERSTREUT = [
+    _kurs_fall(f"T{i % 10}", f"2026-01-{(i % 5) + 1:02d}", 1 if i % 3 == 0 else 0)
+    for i in range(40)
+]
+_VERSTREUT_PREISE = {f"T{i}": _kurs_serie() for i in range(10)}
+
+
+def test_cluster_sensitivitaet_nicht_durchfuehrbar_ohne_faelle():
+    r = eni.cluster_sensitivitaet_nicht_invalidiert([], _GECLUSTERT_PREISE)
+    assert r == {"durchfuehrbar": False, "grund": "keine Fälle"}
+
+
+def test_cluster_sensitivitaet_nicht_durchfuehrbar_ohne_kursbasis():
+    r = eni.cluster_sensitivitaet_nicht_invalidiert(_GECLUSTERT, None)
+    assert r["durchfuehrbar"] is False
+    assert "Kursbasis" in r["grund"]
+
+
+def test_cluster_sensitivitaet_rechnet_nur_fuer_zelle_gesamt():
+    """Umfangsbegrenzung wie #166/#167 (s. Docstring der Funktion) — die
+    Funktion nimmt die ihr übergebene Fallmenge als EINE Zelle, keine eigene
+    Stratifizierung nach Setup-Typ."""
+    r = eni.cluster_sensitivitaet_nicht_invalidiert(
+        _VERSTREUT, _VERSTREUT_PREISE, seeds=(1,), draws=200)
+    assert r["durchfuehrbar"] is True
+    assert r["faelle"] == 40
+    assert set(r["bloecke"]) == {"Tag-Block", "Ticker-Block"}
+
+
+def test_cluster_sensitivitaet_determinismus_gleicher_seed_gleiches_ergebnis():
+    r1 = eni.cluster_sensitivitaet_nicht_invalidiert(
+        _VERSTREUT, _VERSTREUT_PREISE, seeds=(42,), draws=300)
+    r2 = eni.cluster_sensitivitaet_nicht_invalidiert(
+        _VERSTREUT, _VERSTREUT_PREISE, seeds=(42,), draws=300)
+    assert r1 == r2
+
+
+def test_cluster_sensitivitaet_stopp_gerissen_ist_spiegelung_ohne_neue_ziehung():
+    """Wie `stopp_baseline` (PR #177): Differenz × −1, CI-Grenzen vertauscht
+    und gespiegelt — KEINE zweite Bootstrap-Rechnung."""
+    ni = eni.cluster_sensitivitaet_nicht_invalidiert(
+        _VERSTREUT, _VERSTREUT_PREISE, seeds=(1, 2), draws=300)
+    sg = eni.cluster_sensitivitaet_stopp_gerissen(ni)
+    assert sg["diff_punkt"] == pytest.approx(-ni["diff_punkt"])
+    assert sg["beobachtete_quote"] == pytest.approx(1 - ni["beobachtete_quote"])
+    assert sg["zufalls_mittel"] == pytest.approx(1 - ni["zufalls_mittel"])
+    for feld in ("Tag-Block", "Ticker-Block"):
+        for seed in (1, 2):
+            n_werte = ni["bloecke"][feld]["je_seed"][seed]
+            s_werte = sg["bloecke"][feld]["je_seed"][seed]
+            assert s_werte["ci_untergrenze"] == pytest.approx(
+                -n_werte["ci_obergrenze"])
+            assert s_werte["ci_obergrenze"] == pytest.approx(
+                -n_werte["ci_untergrenze"])
+
+
+def test_cluster_sensitivitaet_stopp_gerissen_nicht_durchfuehrbar_wird_weitergegeben():
+    ni = {"durchfuehrbar": False, "grund": "keine Kursbasis (Momentaufnahme fehlt)"}
+    sg = eni.cluster_sensitivitaet_stopp_gerissen(ni)
+    assert sg == {"durchfuehrbar": False, "grund": ni["grund"]}
+
+
+def test_cluster_sensitivitaet_seeds_koennen_unterschiedliche_ergebnisse_liefern():
+    """EXZELLENZ-Punkt 7 (Determinismus): verschiedene Seeds dürfen (müssen
+    nicht, aber können) verschiedene Intervalle liefern — Beleg an der
+    Ticker-Block-Fixture, empirisch ermittelt (Prototyp-Lauf dieses PRs:
+    Seed 1/4 -> -0.425, Seed 2/3/5 -> -0.45 an der Untergrenze)."""
+    r = eni.cluster_sensitivitaet_nicht_invalidiert(
+        _VERSTREUT, _VERSTREUT_PREISE, seeds=(1, 2, 3, 4, 5), draws=1000)
+    untergrenzen = {w["ci_untergrenze"]
+                   for w in r["bloecke"]["Ticker-Block"]["je_seed"].values()}
+    assert len(untergrenzen) > 1, (
+        "alle Seeds liefern dieselbe Untergrenze — Fixture oder "
+        "Seed-Verwendung prüfen")
+
+
+# ---------------------------------------------------------------------------
+# Mutationsproben — jeweils eine ABSICHTLICH FALSCHE Variante, die sich vom
+# echten Ergebnis unterscheiden MUSS (sonst wäre die Testabdeckung Theater).
+# ---------------------------------------------------------------------------
+def test_mutationsprobe_blockbildung_entfernt_aendert_das_intervall():
+    """Eine kaputte Variante, die die Blockbildung (`_bloecke`) WEGLÄSST und
+    stattdessen jeden Einzelfall als eigenen 'Block' zieht (gewöhnlicher
+    Fall-Bootstrap statt Block-Bootstrap), muss ein ANDERES Konfidenzintervall
+    liefern als die echte Funktion — an der stark geclusterten Fixture
+    (nur 2 Tage) zeigt sich der Unterschied deutlich."""
+    echt = eni.cluster_sensitivitaet_nicht_invalidiert(
+        _GECLUSTERT, _GECLUSTERT_PREISE, seeds=(20260728,), draws=2000)
+    echt_tag = echt["bloecke"]["Tag-Block"]["je_seed"][20260728]
+
+    pools, _von, _bis, ohne_kurse = eni._outcome_pools(_GECLUSTERT,
+                                                       _GECLUSTERT_PREISE)
+    assert not ohne_kurse
+    nutzbar = list(zip(_GECLUSTERT, pools))
+    n = len(nutzbar)
+    pool_by_id = {id(c): p for c, p in nutzbar}
+    rng = random.Random(20260728)
+    diffs = []
+    for _ in range(2000):
+        resampled = [nutzbar[rng.randrange(n)][0] for _ in range(n)]
+        m = len(resampled)
+        beob = sum(1 - c["rec"]["invalidated"] for c in resampled) / m
+        basis = sum((p := pool_by_id[id(c)])[rng.randrange(len(p))]
+                   for c in resampled) / m
+        diffs.append(beob - basis)
+    diffs.sort()
+    kaputt_u = ev._quantil(diffs, (1 - echt["ci_niveau"]) / 2)
+    kaputt_o = ev._quantil(diffs, 1 - (1 - echt["ci_niveau"]) / 2)
+
+    assert (kaputt_u, kaputt_o) != (
+        echt_tag["ci_untergrenze"], echt_tag["ci_obergrenze"])
+
+
+def test_mutationsprobe_seed_ignoriert_liefert_immer_dasselbe_ergebnis():
+    """Eine kaputte Variante, die den `seed`-Parameter ignoriert (immer
+    `random.Random(0)` statt `random.Random(seed)`), liefert für
+    verschiedene angeforderte Seeds IMMER dasselbe Ergebnis — die echte
+    Funktion muss sich (an der verstreuten Fixture) zwischen mindestens zwei
+    der angeforderten Seeds unterscheiden."""
+    seeds = (1, 2, 3, 4, 5)
+    echt = eni.cluster_sensitivitaet_nicht_invalidiert(
+        _VERSTREUT, _VERSTREUT_PREISE, seeds=seeds, draws=1000)
+    echt_werte = [tuple(echt["bloecke"]["Ticker-Block"]["je_seed"][s].values())[:2]
+                 for s in seeds]
+    assert len(set(echt_werte)) > 1  # echte Funktion: nicht alle gleich
+
+    pools, _von, _bis, _ohne = eni._outcome_pools(_VERSTREUT, _VERSTREUT_PREISE)
+    nutzbar = list(zip(_VERSTREUT, pools))
+    pool_by_id = {id(c): p for c, p in nutzbar}
+    bloecke = eni.ecs._bloecke(_VERSTREUT, "ticker")
+    keys = sorted(bloecke)
+    k = len(keys)
+
+    def kaputt_mit_ignoriertem_seed(_seed: int) -> "tuple[float, float]":
+        rng = random.Random(0)  # FALSCH: ignoriert `_seed`
+        diffs = []
+        for _ in range(1000):
+            gezogene = [keys[rng.randrange(k)] for _ in range(k)]
+            resampled = [c for key in gezogene for c in bloecke[key]]
+            m = len(resampled)
+            beob = sum(1 - c["rec"]["invalidated"] for c in resampled) / m
+            basis = sum((p := pool_by_id[id(c)])[rng.randrange(len(p))]
+                       for c in resampled) / m
+            diffs.append(beob - basis)
+        diffs.sort()
+        return (ev._quantil(diffs, 0.0125), ev._quantil(diffs, 0.9875))
+
+    kaputt_werte = [kaputt_mit_ignoriertem_seed(s) for s in seeds]
+    assert len(set(kaputt_werte)) == 1  # kaputte Variante: immer gleich
+    assert set(kaputt_werte) != set(echt_werte)  # unterscheidet sich von echt
+
+
+def test_cluster_sensitivitaet_schreibt_keine_datei_in_data(tmp_path):
+    """Read-only-Beleg wie bei der bestehenden Baseline — die neue Rechnung
+    hängt am selben `main()`, der bereits geprüft ist, hier zusätzlich
+    direkt an der Funktion selbst."""
+    data_dir = ROOT / "data"
+    vorher = {p: p.stat().st_mtime_ns for p in data_dir.rglob("*")
+             if p.is_file()}
+    eni.cluster_sensitivitaet_nicht_invalidiert(
+        _VERSTREUT, _VERSTREUT_PREISE, seeds=(1,), draws=50)
+    nachher = {p: p.stat().st_mtime_ns for p in data_dir.rglob("*")
+              if p.is_file()}
+    assert vorher == nachher
+
+
+def test_cluster_sensitivitaet_erscheint_im_bericht_und_im_text():
+    """`berechne()` liefert den neuen Schlüssel, `render_text()` druckt die
+    Schlusszeile ohne Verdikt-Sprache."""
+    res = eni.berechne(_VERSTREUT, _VERSTREUT_PREISE, draws=200)
+    assert "cluster_sensitivitaet" in res
+    assert set(res["cluster_sensitivitaet"]) == {"nicht_invalidiert",
+                                                  "stopp_gerissen"}
+    text = eni.render_text(res, None, None, None, 0)
+    assert "CLUSTER-SENSITIVITÄT" in text
+    assert "Intervall schließt 0 ein:" in text
+    assert "verdikt" not in text.lower() or "KEIN VERDIKT" in text

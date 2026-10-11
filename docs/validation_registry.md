@@ -245,6 +245,51 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
 
   **WIEDERVORLAGE:** Score-Review 07.12.2026.
 
+- **11.10.2026 — Cluster-Sensitivität für die sekundäre Erfolgsregel
+  (Easy-Entscheid, Variante A).** Anlass: Stopp-gerissen-Quote 21,0 %
+  gegen Zufalls-Mittel 15,2 % (Lauf 38149306463); 24 von 33
+  Invalidierungen teilen sich einen Kalendertag, 32 von 33 eine
+  ISO-Woche; 38 von 103 Tickern haben mehrere Kandidaten — die Fälle
+  sind NICHT unabhängig.
+
+  **TRANSPARENZ-KLAUSEL:** diese Regel entstand NACHTRÄGLICH, in
+  Kenntnis des Laufs 38149306463 und der darin beobachteten
+  Clusterung — sie wurde gezielt gewählt, um diese bereits bekannte
+  Beobachtung zu prüfen, nicht blind vorab festgelegt. Das ist explizit
+  festgehalten, nicht verschleiert.
+
+  **Methode (analog #166/#167, Block-Bootstrap nach Tag und nach
+  Ticker):** `evaluate_cluster_sensitivity._bloecke` WIEDERVERWENDET für
+  die Blockbildung; die Bootstrap-Statistik selbst ist NEU
+  (`scripts/evaluate_nicht_invalidiert.cluster_sensitivitaet_nicht_invalidiert`),
+  weil #166/#167 eine AUC auf Scores/Labels resampeln, hier aber eine
+  Differenz „beobachtete Quote minus Zufalls-Quote" gefragt ist —
+  beides setzt dieselbe Blockbildung ein, aber eine andere Statistik
+  je Ziehung. Punktschätzung EINMAL auf den echten Fällen (Zufalls-Seite
+  als Pool-Mittelwert); die Bootstrap-Verteilung bestimmt NUR das
+  Konfidenzintervall. NUR Zelle „gesamt" (Umfangsbegrenzung wie
+  #166/#167). 5 feste Seeds (20260728, 1, 42, 7, 999), je 10.000
+  Ziehungen, Konfidenzniveau 0,975 — identische Konstanten wie
+  `evaluate_cluster_sensitivity`. Stopp-gerissen-Variante: keine zweite
+  Bootstrap-Rechnung, Differenz × −1, CI-Grenzen vertauscht und
+  gespiegelt (wie `stopp_baseline`, #177).
+
+  **Keine neue Aussage, nur eine neue Sicht:** das Verfahren entscheidet
+  nichts und ersetzt nichts — es zeigt zusätzlich zu Punktschätzung und
+  p-Wert, wie breit das Konfidenzintervall der Differenz wird, wenn man
+  Tage bzw. Ticker statt einzelner Fälle als Resampling-Einheit nimmt.
+  Ob ein Intervall die 0 einschließt, wird ausgewiesen — ohne
+  Verdikt-Sprache.
+
+  **`scripts/evaluate.py` unverändert** (SHA-gepinnter Test), keine
+  Workflow-Änderung — die Rechnung läuft im selben
+  `evaluate_nicht_invalidiert.py`-Aufruf wie bisher; Laufzeit-Prüfung
+  dieses PRs: 2 Blockarten × 5 Seeds × 10.000 Ziehungen bei n=157 ca.
+  13 Sekunden — weit innerhalb des 25-Minuten-Timeouts von
+  `eval_nicht_invalidiert.yml`.
+
+  **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review oben).
+
 ## Score-Status & Review-Wecker (`review_by`)
 
 **Status:** `heuristisch · unvalidiert` — bleibt so, **bis** die obige
