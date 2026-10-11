@@ -106,7 +106,7 @@ VERLUSTBILD (Easy-Entscheid, Variante A, 11.10.2026) — ZUSÄTZLICH zur
     oben: `close <= invalidation_price`), weil kein Feld im Record den
     tatsächlichen Schlusskurs am Invalidierungstag festhält (nur die
     harte Konvention `r_erreicht_basis = -1.0`). R-Definition
-    WIEDERVERWENDET aus `forward_collection.py` Zeile 300
+    WIEDERVERWENDET aus `forward_collection.py` Zeile 751/756
     (`risiko_abstand = entry_close - invalidation_price`, aus dem Record
     gelesen, nicht neu gerechnet). **Close-basiert, NICHT Intraday** —
     ein echter Intraday-Durchrutsch kann größer sein, als dieser
@@ -406,7 +406,7 @@ def gap_messung(cases: Sequence[Dict]) -> Dict:
     """Close-basierte Durchrutsch-Messung bei den invalidierten Fällen:
     erster Tag in `price_path` mit `close <= invalidation_price` (gleicher
     Tie-Break wie `simulate_nicht_invalidiert`), Close gegenüber der Marke
-    in Prozent UND in R (`risiko_abstand` aus dem Record, Zeile 300
+    in Prozent UND in R (`risiko_abstand` aus dem Record, Zeile 751/756
     `forward_collection.py` — WIEDERVERWENDET). NICHT Intraday."""
     invalidiert = [c for c in cases if c["rec"]["invalidated"]]
     prozent_werte: List[float] = []
