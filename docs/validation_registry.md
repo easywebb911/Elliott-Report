@@ -155,6 +155,59 @@ Erfolg gilt **NUR** als belegt, wenn **BEIDES** zutrifft:
   [0,5216; 0,7576], Ticker-Block (a) [0,4963; 0,7860], n=101, Commit
   `dd79b31`) — keine Abweichung.
 
+- **10./11.10.2026 — Sekundäre Erfolgsregel „nicht invalidiert"
+  (Easy-Entscheid, Variante B).** Zusätzlich zur Primärwertung eine
+  zweite, explorative Zeile: Beobachtungszone erreicht, Extension erreicht UND
+  gereift-neutral (Zeitablauf ohne Invalidierung) zählen hier POSITIV;
+  nur „invalidiert" zählt NEGATIV — eine weichere Latte als `target_hit`.
+
+  **TRANSPARENZ-KLAUSEL (wie #166):** diese Regel entstand NACHTRÄGLICH,
+  in Kenntnis des Primärverdikts vom 06.09.2026 (#121, NICHT BESTANDEN)
+  und der seither gesammelten Fälle — sie kann die wahrgenommene
+  Erfolgsquote nur verbessern, nie verschlechtern (per Konstruktion
+  ⊇ `target_hit`). Das ist explizit festgehalten, nicht verschleiert.
+
+  **Die Erfolgsdefinition oben („Wann Erfolg als BELEGT gilt") bleibt
+  UNVERÄNDERT** — ausschließlich `target_hit` gegen die Zufalls-Baseline,
+  Holm-korrigiert über die Primär-Familie (Trefferquote, AUC). Diese
+  Regel ersetzt und entscheidet nichts; das Verdikt vom 06.09.2026 bleibt
+  unberührt.
+
+  **Umsetzung:** eigenes Skript (NICHT `evaluate.py`),
+  `scripts/evaluate_nicht_invalidiert.py`. Population identisch zur
+  Primärauswertung (`evaluate.build_population`, keine zweite
+  Definition). Pflicht-Stratifizierung Setup-Typ (Ende W2/Ende W4, wie
+  von PR #170 für künftige Sekundär-Rahmen verlangt). Zellen unter
+  `SECONDARY_MIN_N = 30` bleiben unausgewertet („zu wenige Fälle").
+  Zusammensetzung der Positiven (echte Beobachtungszonen-Treffer vs.
+  gereift-neutral) wird separat ausgewiesen, OHNE eigenen p-Wert — eine
+  Quote „neutral vs. Zufall" wäre tautologisch (neutral ist per
+  Konstruktion eine Teilmenge der Positiven). **Korrektur:**
+  Benjamini-Hochberg (FDR, alpha=0,10 — eigene Wahl dieses Skripts, kein
+  Repo-Präzedenzwert) NUR über die tatsächlich gerechneten
+  Baseline-Vergleichszellen dieser sekundären Familie; die
+  Primärkriterien bleiben unverändert bei Holm.
+
+  **Zufalls-Baseline:** dieselbe Momentaufnahme-Methodik wie
+  `evaluate.benchmark_test` (gleicher Ticker, zufälliger Einstiegstag,
+  gleiche relative Abstände, gleicher Horizont) — braucht aber eine neue,
+  parallele Simulationsfunktion (`simulate_nicht_invalidiert`), weil
+  `evaluate.simulate_hit` nur das Zieltreffer-Bit zurückgibt und die
+  Information, ob ein Nicht-Treffer an einer Invalidierung oder an
+  bloßem Zeitablauf lag, dabei verwirft. `evaluate.py` bleibt dabei
+  unverändert (SHA-gepinnter Test).
+
+  **Erster Lauf (11.10.2026, n=157, Kursbasis `data/eval_prices.json`
+  nicht vorhanden — Zufalls-Baseline „nicht durchführbar", nur die rohen
+  Quoten):** gesamt 79,0 % (124/157), Ende W4 76,6 % (49/64), Ende W2
+  80,6 % (75/93); davon 61 echte Beobachtungszonen-Treffer, 63 gereift-neutral.
+  Zum Vergleich, unverändert: Primär-Trefferquote 44,6 % (#121-Nachfolge-
+  Stand). Der Zufalls-Baseline-Vergleich (und damit FDR) wird erst
+  ausgewiesen, wenn `data/eval_prices.json` per `eval_prices.yml`
+  manuell geholt wurde.
+
+  **WIEDERVORLAGE:** Score-Review 07.12.2026.
+
 ## Score-Status & Review-Wecker (`review_by`)
 
 **Status:** `heuristisch · unvalidiert` — bleibt so, **bis** die obige
