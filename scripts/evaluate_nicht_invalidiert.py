@@ -80,11 +80,43 @@ FDR_ALPHA = 0,10: in diesem Repo bisher KEIN Benjamini-Hochberg-Code
   Übernahme aus der Registry.
 
 KURSBASIS: dieselbe Momentaufnahme-Datei wie `evaluate.py`
-  (`data/eval_prices.json`, standardmäßig gitignored, nur über
-  `eval_prices.yml` manuell erzeugt). Fehlt sie, meldet dieses Skript den
-  Baseline-Vergleich — wie `evaluate.benchmark_test` — als „nicht
-  durchführbar", bricht aber NICHT ab: die rohe Quote „nicht invalidiert"
-  wird trotzdem berichtet.
+  (`data/eval_prices.json` — KORREKTUR 11.10.2026: entgegen einer früheren
+  Aussage hier im Modul ist diese Datei NICHT durch `.gitignore` geschützt,
+  nur durch Konvention nie committet; `.gitignore` deckt bisher nur
+  `eval_prices_snapshot.json`/`data/forward_collection_sensitivity.json`
+  ab — als Sicherheitsnetz in diesem PR nachgezogen). Fehlt die Datei oder
+  ist sie ohne verwertbare Kurse (z. B. nach einem gescheiterten
+  `--kurse-holen`-Versuch), meldet dieses Skript den Baseline-Vergleich —
+  wie `evaluate.benchmark_test` — als „nicht durchführbar", bricht aber
+  NICHT ab: die rohen Quoten werden trotzdem berichtet.
+
+VERLUSTBILD (Easy-Entscheid, Variante A, 11.10.2026) — ZUSÄTZLICH zur
+  Quote aus PR #176, NACHTRÄGLICH definiert, explorativ:
+  - **Neutrale Fälle:** `rec["r_erreicht_basis"]` ist für gereift-neutrale
+    Fälle bereits die `neutral_r`-Rechnung aus `forward_collection.
+    mature_record` (Tag-10-Schlusskurs relativ zum Risiko) — WIEDER-
+    VERWENDET, nicht neu berechnet. **Fragile Annahme, hier bewusst
+    geprüft statt angenommen:** „< 0 heißt Verlust am Tag 10" stimmt NUR,
+    weil `neutral_r` exakt `(Tag-10-Close - Entry) / Risiko` ist (Zeile
+    328 dort) — ein negativer Wert bedeutet per Definition einen
+    Schlusskurs unter dem Einstieg. Keine Mehrdeutigkeit, kein Mini-Stopp
+    nötig.
+  - **Gap-Messung bei Invalidierten:** eigener Tages-Scan über
+    `price_path` (derselbe Tie-Break wie `simulate_nicht_invalidiert`
+    oben: `close <= invalidation_price`), weil kein Feld im Record den
+    tatsächlichen Schlusskurs am Invalidierungstag festhält (nur die
+    harte Konvention `r_erreicht_basis = -1.0`). R-Definition
+    WIEDERVERWENDET aus `forward_collection.py` Zeile 300
+    (`risiko_abstand = entry_close - invalidation_price`, aus dem Record
+    gelesen, nicht neu gerechnet). **Close-basiert, NICHT Intraday** —
+    ein echter Intraday-Durchrutsch kann größer sein, als dieser
+    Tages-Close zeigt; das wird in der Ausgabe ausdrücklich vermerkt.
+  - **Stopp-gerissen-Baseline:** reines Komplement der bereits in diesem
+    Skript gezogenen Zufalls-Verteilung (PR #176) — KEINE neue Simulation,
+    keine neuen Ziehungen. „Zufalls-Quote invalidiert niedrig" ist
+    dasselbe Ereignis wie „Zufalls-Quote nicht-invalidiert hoch" — der
+    p-Wert aus `benchmark_nicht_invalidiert("gesamt")` wird unverändert
+    übernommen, nur die angezeigten Quoten werden gespiegelt (1 - x).
 
 VERWENDUNG (nur manuell):
   python scripts/evaluate_nicht_invalidiert.py
@@ -301,6 +333,156 @@ def stratifizieren(cases: Sequence[Dict]) -> Dict[str, List[Dict]]:
 
 
 # ---------------------------------------------------------------------------
+# VERLUSTBILD (Easy-Entscheid, Variante A, 11.10.2026) — s. Moduldoc.
+# ---------------------------------------------------------------------------
+def neutrale_faelle(cases: Sequence[Dict]) -> List[Dict]:
+    """Gereift-neutral: nicht invalidiert UND nicht target_hit (reiner
+    Zeitablauf) — dieselbe Definition wie `komposition()`."""
+    return [c for c in cases if not c["rec"]["invalidated"] and not c["hit"]]
+
+
+def neutral_verlustbild(cases: Sequence[Dict],
+                        min_n: int = SECONDARY_MIN_N) -> Dict:
+    """Verlustbild der gereift-neutralen Fälle über `r_erreicht_basis`
+    (= `neutral_r` aus `forward_collection.mature_record`, Zeile 328:
+    Tag-10-Close relativ zum Risiko) — WIEDERVERWENDET, nicht neu
+    gerechnet. Strikt `< 0` für 'im Minus' (Randfall `== 0` separat
+    ausgewiesen, s. Moduldoc fragile Annahme)."""
+    neutral = neutrale_faelle(cases)
+    werte = [c["rec"].get("r_erreicht_basis") for c in neutral]
+    werte = [w for w in werte if w is not None]
+    if not werte:
+        return {"faelle": len(neutral), "mit_messwert": 0, "hinweis": "keine Fälle"}
+    sortiert = sorted(werte)
+    n = len(sortiert)
+    median = (sortiert[n // 2] if n % 2 == 1 else
+             (sortiert[n // 2 - 1] + sortiert[n // 2]) / 2)
+    eintrag = {
+        "faelle": len(neutral),
+        "mit_messwert": n,
+        "im_minus_strikt": sum(1 for w in werte if w < 0),
+        "genau_null": sum(1 for w in werte if w == 0),
+        "im_plus_strikt": sum(1 for w in werte if w > 0),
+        "mittelwert": sum(werte) / n,
+        "median": median,
+    }
+    if n < min_n:
+        eintrag["hinweis"] = "zu wenige Fälle (< SECONDARY_MIN_N) — nicht interpretieren"
+    return eintrag
+
+
+def ziel_treffer_unter_einstieg(cases: Sequence[Dict]) -> Dict:
+    """Von den echten Zielzonen-Treffern (`target_hit=1`): wie viele
+    liegen am Tag 10 (letzter `price_path`-Close) UNTER dem Einstieg?
+    Reine Zusatz-Information — fließt NICHT in eine Quote ein (Auftrag
+    Teil 1b: 'nur ausweisen, nicht in die Quote mischen')."""
+    treffer = [c for c in cases if c["hit"] and not c["rec"]["invalidated"]]
+    mit_pfad = [c for c in treffer
+               if (c["rec"].get("price_path") and c["rec"].get("entry_close") is not None)]
+    unter_einstieg = sum(
+        1 for c in mit_pfad
+        if c["rec"]["price_path"][-1]["close"] < c["rec"]["entry_close"])
+    return {"zielzonen_treffer": len(treffer), "mit_tag10_daten": len(mit_pfad),
+           "unter_einstieg_am_tag_10": unter_einstieg}
+
+
+def gesamt_verlustbild(cases: Sequence[Dict]) -> Dict:
+    """Anteil 'invalidiert ODER neutral-im-Minus' an der Gesamtpopulation —
+    die Kehrseite der 79,0-%-Quote aus PR #176."""
+    n = len(cases)
+    invalidiert = sum(1 for c in cases if c["rec"]["invalidated"])
+    neutral_minus = sum(
+        1 for c in neutrale_faelle(cases)
+        if (c["rec"].get("r_erreicht_basis") or 0) < 0
+        and c["rec"].get("r_erreicht_basis") is not None)
+    anzahl = invalidiert + neutral_minus
+    return {
+        "n": n, "invalidiert": invalidiert, "neutral_im_minus": neutral_minus,
+        "anzahl": anzahl, "anteil": anzahl / n if n else None,
+    }
+
+
+def gap_messung(cases: Sequence[Dict]) -> Dict:
+    """Close-basierte Durchrutsch-Messung bei den invalidierten Fällen:
+    erster Tag in `price_path` mit `close <= invalidation_price` (gleicher
+    Tie-Break wie `simulate_nicht_invalidiert`), Close gegenüber der Marke
+    in Prozent UND in R (`risiko_abstand` aus dem Record, Zeile 300
+    `forward_collection.py` — WIEDERVERWENDET). NICHT Intraday."""
+    invalidiert = [c for c in cases if c["rec"]["invalidated"]]
+    prozent_werte: List[float] = []
+    r_werte: List[float] = []
+    durchrutscht = 0
+    genau_auf_marke = 0
+    ohne_messwert = 0
+    for c in invalidiert:
+        rec = c["rec"]
+        inval_price = rec.get("invalidation_price")
+        pfad = rec.get("price_path") or []
+        risiko = rec.get("risiko_abstand")
+        if inval_price is None or not pfad:
+            ohne_messwert += 1
+            continue
+        gap_close = None
+        for tag in pfad:
+            close = tag.get("close")
+            if close is not None and close <= inval_price:
+                gap_close = close
+                break
+        if gap_close is None:
+            ohne_messwert += 1
+            continue
+        prozent = (gap_close - inval_price) / inval_price * 100
+        prozent_werte.append(prozent)
+        if gap_close < inval_price:
+            durchrutscht += 1
+        else:
+            genau_auf_marke += 1
+        if risiko and finite(risiko) and risiko > 0 and rec.get("entry_close") is not None:
+            r_werte.append((gap_close - rec["entry_close"]) / risiko)
+    def _median(xs: List[float]) -> Optional[float]:
+        if not xs:
+            return None
+        s = sorted(xs)
+        m = len(s)
+        return s[m // 2] if m % 2 == 1 else (s[m // 2 - 1] + s[m // 2]) / 2
+    return {
+        "faelle_gesamt": len(invalidiert),
+        "mit_messwert": len(prozent_werte),
+        "ohne_messwert": ohne_messwert,
+        "durchrutscht": durchrutscht,
+        "genau_auf_marke": genau_auf_marke,
+        "median_prozent": _median(prozent_werte),
+        "maximum_prozent": min(prozent_werte) if prozent_werte else None,  # "Maximum" = größter Durchrutsch = kleinster (negativster) Wert
+        "median_r": _median(r_werte),
+        "r_faelle": len(r_werte),
+        "hinweis": "Close-basiert, NICHT Intraday — ein echter Durchrutsch "
+                  "kann größer sein als dieser Tages-Close zeigt.",
+    }
+
+
+def stopp_baseline(bench_gesamt: Dict) -> Dict:
+    """Stopp-gerissen-Quote als reines Komplement der bereits gezogenen
+    Zufalls-Verteilung (KEINE neue Simulation, s. Moduldoc). 'Zufalls-Quote
+    invalidiert niedrig' ist dasselbe Ereignis wie 'Zufalls-Quote
+    nicht-invalidiert hoch' — der p-Wert wird unverändert übernommen."""
+    if not bench_gesamt.get("durchfuehrbar"):
+        return {"durchfuehrbar": False, "grund": bench_gesamt.get("grund")}
+    return {
+        "durchfuehrbar": True,
+        "beobachtete_quote": 1 - bench_gesamt["beobachtete_quote"],
+        "zufalls_quote_mittel": 1 - bench_gesamt["zufalls_quote_mittel"],
+        "zufalls_quote_p05": 1 - bench_gesamt["zufalls_quote_p95"],
+        "zufalls_quote_p95": 1 - bench_gesamt["zufalls_quote_p05"],
+        "p_wert": bench_gesamt["p_wert"],
+        "p_wert_hinweis": "identisch zum p-Wert von 'nicht invalidiert' "
+                         "(gesamt) — dasselbe Ereignis gespiegelt, keine "
+                         "zweite Ziehung.",
+        "ziehungen": bench_gesamt["ziehungen"],
+        "faelle": bench_gesamt["faelle"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Bericht
 # ---------------------------------------------------------------------------
 def berechne(cases: Sequence[Dict], prices: Optional[Dict],
@@ -324,6 +506,10 @@ def berechne(cases: Sequence[Dict], prices: Optional[Dict],
                 p_werte[name] = bench["p_wert"]
         zellen[name] = eintrag
     fdr = benjamini_hochberg(p_werte) if p_werte else {}
+
+    bench_gesamt = zellen["gesamt"].get("baseline") or {"durchfuehrbar": False,
+                                                        "grund": "keine Fälle"}
+
     return {
         "kopfzeile": KOPFZEILE,
         "zaehlwerk": {
@@ -338,6 +524,15 @@ def berechne(cases: Sequence[Dict], prices: Optional[Dict],
         "zellen": zellen,
         "fdr_benjamini_hochberg": {"alpha": FDR_ALPHA, "ergebnis": fdr},
         "komposition": komposition(cases),
+        "verlustbild": {
+            "neutral_gesamt": neutral_verlustbild(cases),
+            "neutral_ende_w4": neutral_verlustbild(strata["Ende W4"]),
+            "neutral_ende_w2": neutral_verlustbild(strata["Ende W2"]),
+            "zielzonen_treffer_unter_einstieg": ziel_treffer_unter_einstieg(cases),
+            "gesamt_verlustbild": gesamt_verlustbild(cases),
+            "gap_messung": gap_messung(cases),
+            "stopp_baseline": stopp_baseline(bench_gesamt),
+        },
         "seed": seed,
         "warnung": KOMPOSITIONS_WARNUNG,
     }
@@ -347,7 +542,10 @@ def _pct(x: Optional[float]) -> str:
     return "—" if x is None else f"{x * 100:.1f} %"
 
 
-def render_text(res: Dict, primaer_trefferquote: Optional[float]) -> str:
+def render_text(res: Dict, primaer_trefferquote: Optional[float],
+                primaer_n: Optional[int],
+                heute_target_hit_quote: Optional[float],
+                heute_n: int) -> str:
     z: List[str] = []
     z.append(res["kopfzeile"])
     z.append("=" * len(res["kopfzeile"]))
@@ -355,8 +553,12 @@ def render_text(res: Dict, primaer_trefferquote: Optional[float]) -> str:
     z.append(f"Seed: {res['seed']}")
     z.append(res["zaehlwerk"]["hinweis"])
     z.append("")
-    z.append("Primärzahl zum Vergleich (UNVERÄNDERT, aus der offiziellen "
-             f"Auswertung): Trefferquote {_pct(primaer_trefferquote)}")
+    z.append(f"Primärzahl (eingefrorene Auswertung vom 06.09.2026): "
+             f"{_pct(primaer_trefferquote)} bei n={primaer_n}.")
+    z.append(f"Explorativ, zum Vergleich daneben — ANDERE FALLBASIS, KEIN "
+             f"VERGLEICH, KEIN VERDIKT: heutige Trefferquote nach "
+             f"Primärregel (target_hit) {_pct(heute_target_hit_quote)} "
+             f"bei n={heute_n}.")
     z.append("")
     for name in ("gesamt", "Ende W4", "Ende W2"):
         zelle = res["zellen"][name]
@@ -387,6 +589,70 @@ def render_text(res: Dict, primaer_trefferquote: Optional[float]) -> str:
             f"(reiner Zeitablauf).")
     z.append("")
     z.append(f"WARNUNG: {res['warnung']}")
+    z.append("")
+
+    v = res["verlustbild"]
+    z.append("=== VERLUSTBILD (Easy-Entscheid Variante A, 11.10.2026) ===")
+    z.append("")
+
+    gv = v["gesamt_verlustbild"]
+    z.append(f"Gesamt-Verlustbild: {gv['anzahl']} von {gv['n']} "
+            f"({_pct(gv['anteil'])}) sind invalidiert ODER gereift-neutral "
+            f"im Minus am Tag 10 — invalidiert: {gv['invalidiert']}, "
+            f"neutral-im-Minus: {gv['neutral_im_minus']}. Zum Vergleich "
+            f"direkt daneben: 'nicht invalidiert' (PR #176) = "
+            f"{_pct(res['zellen']['gesamt']['quote'])}.")
+
+    zt = v["zielzonen_treffer_unter_einstieg"]
+    z.append(f"Von den {zt['zielzonen_treffer']} echten "
+            f"Beobachtungszonen-Treffern liegen {zt['unter_einstieg_am_tag_10']} "
+            f"(von {zt['mit_tag10_daten']} mit Tag-10-Daten) am Tag 10 "
+            f"UNTER dem Einstieg — nur ausgewiesen, NICHT in eine Quote "
+            f"gemischt.")
+    z.append("")
+
+    for label, key in (("gesamt", "neutral_gesamt"), ("Ende W4", "neutral_ende_w4"),
+                       ("Ende W2", "neutral_ende_w2")):
+        nv = v[key]
+        z.append(f"--- Neutrale Fälle, {label} (n={nv['faelle']}) ---")
+        if nv.get("mit_messwert", 0) == 0:
+            z.append(f"  {nv.get('hinweis', 'keine Fälle')}")
+            z.append("")
+            continue
+        z.append(f"  im Minus (< 0): {nv['im_minus_strikt']}, "
+                f"genau 0: {nv['genau_null']}, im Plus (> 0): "
+                f"{nv['im_plus_strikt']} — Mittel {nv['mittelwert']:.3f} R, "
+                f"Median {nv['median']:.3f} R")
+        if nv.get("hinweis"):
+            z.append(f"  {nv['hinweis']}")
+        z.append("")
+
+    gm = v["gap_messung"]
+    z.append(f"--- Gap-Messung Invalidierte (n={gm['faelle_gesamt']}, "
+            f"{gm['mit_messwert']} mit Messwert, {gm['ohne_messwert']} "
+            f"ohne) ---")
+    if gm["mit_messwert"]:
+        z.append(f"  Durchrutsch (Close < Marke): {gm['durchrutscht']}, "
+                f"genau auf Marke: {gm['genau_auf_marke']}")
+        z.append(f"  Median {gm['median_prozent']:.2f} %, größter "
+                f"Durchrutsch {gm['maximum_prozent']:.2f} % "
+                f"(Close-basiert, NICHT Intraday)")
+        if gm["median_r"] is not None:
+            z.append(f"  In R (risiko_abstand): Median {gm['median_r']:.3f} "
+                    f"({gm['r_faelle']} Fälle mit gültigem Risiko)")
+    z.append(f"  {gm['hinweis']}")
+    z.append("")
+
+    sb = v["stopp_baseline"]
+    z.append("--- Stopp-gerissen-Quote (Komplement der Baseline oben) ---")
+    if not sb.get("durchfuehrbar"):
+        z.append(f"  Zufalls-Baseline nicht durchführbar: {sb.get('grund')}")
+    else:
+        z.append(f"  Beobachtet {_pct(sb['beobachtete_quote'])}, Zufalls-Mittel "
+                f"{_pct(sb['zufalls_quote_mittel'])} (5.–95. Perzentil "
+                f"{_pct(sb['zufalls_quote_p05'])}–{_pct(sb['zufalls_quote_p95'])}), "
+                f"p={sb['p_wert']:.4f} ({sb['p_wert_hinweis']})")
+
     return "\n".join(z)
 
 
@@ -427,6 +693,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     prices = (prices_payload or {}).get("kurse") if prices_payload else None
 
     primaer_trefferquote = None
+    primaer_n = None
     primaer_pfad = REPO_ROOT / args.primaer
     if primaer_pfad.exists():
         try:
@@ -435,12 +702,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 primaer.get("primaer", {})
                       .get("trefferquote_vs_zufall", {})
                       .get("beobachtete_quote"))
+            primaer_n = primaer.get("zaehlwerk", {}).get("auswertbar")
         except (json.JSONDecodeError, OSError):
             primaer_trefferquote = None
 
+    heute_n = len(cases)
+    heute_target_hit_quote = (sum(c["hit"] for c in cases) / heute_n
+                              if heute_n else None)
+
     res = berechne(cases, prices, seed=args.seed)
     res["auswertbare_population"] = zaehlwerk
-    text = render_text(res, primaer_trefferquote)
+    text = render_text(res, primaer_trefferquote, primaer_n,
+                       heute_target_hit_quote, heute_n)
     print(text)
     if args.out:
         out_aufgeloest.write_text(text, encoding="utf-8")
