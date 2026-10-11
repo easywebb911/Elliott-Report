@@ -195,7 +195,19 @@ def test_determinismus_gleicher_seed_gleiches_ergebnis():
 # (6) Harte Grenzen — wie evaluate_cluster_sensitivity.py
 # ---------------------------------------------------------------------------
 def test_keine_workflow_erwaehnung():
+    """KORREKTUR 11.10.2026 (Easy-Entscheid, Variante A, #178): diese
+    Prüfung verlangte ursprünglich (PR #176), dass KEIN Workflow das
+    Skript je erwähnt — das war zu eng für das, was heute ausdrücklich
+    gewollt ist (Zufalls-Baseline im Runner, manuell per Tap). Die EINE
+    bewusste Ausnahme ist jetzt namentlich erlaubt; jeder ANDERE Workflow
+    bleibt weiterhin verboten. Die eigentliche Absicherung — 'nie
+    automatisch' — prüft der eigene Test
+    `test_eval_nicht_invalidiert_workflow_nur_dispatch_und_nur_contents_read`
+    weiter unten, nicht dieser hier."""
+    erlaubt = {"eval_nicht_invalidiert.yml"}
     for wf in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        if wf.name in erlaubt:
+            continue
         text = wf.read_text(encoding="utf-8")
         assert "evaluate_nicht_invalidiert" not in text, wf.name
 
@@ -482,3 +494,71 @@ def test_echter_lauf_verlustbild_zahlen(capsys):
     ausgabe = capsys.readouterr().out
     assert "VERLUSTBILD" in ausgabe
     assert "andere Fallbasis" in ausgabe.lower() or "ANDERE FALLBASIS" in ausgabe
+
+
+# ===========================================================================
+# WORKFLOW eval_nicht_invalidiert.yml (Easy-Entscheid, Variante A, 11.10.2026,
+# #178) — Zufalls-Baseline im GitHub-Runner, nur Job-Summary, nichts committet.
+# ===========================================================================
+WORKFLOW_PFAD = ROOT / ".github/workflows/eval_nicht_invalidiert.yml"
+WORKFLOW_TEXT = WORKFLOW_PFAD.read_text(encoding="utf-8")
+
+
+def test_eval_nicht_invalidiert_workflow_existiert():
+    assert WORKFLOW_PFAD.exists()
+    assert "--kurse-holen" in WORKFLOW_TEXT
+    assert "evaluate_nicht_invalidiert.py" in WORKFLOW_TEXT
+
+
+def test_eval_nicht_invalidiert_workflow_nur_dispatch_und_nur_contents_read():
+    """Mindest-Test laut Auftrag: NUR workflow_dispatch, NUR contents: read.
+    Mutationsprobe (manuell durchgeführt, s. PR-Text): Trigger um `schedule:`
+    erweitert ODER Recht um `pull-requests: write` erweitert -> beide Asserts
+    unten schlagen fehl."""
+    ohne_kommentare = "\n".join(
+        z for z in WORKFLOW_TEXT.splitlines() if not z.lstrip().startswith("#"))
+    trigger = ohne_kommentare[ohne_kommentare.index("\non:"):
+                             ohne_kommentare.index("\npermissions:")]
+    assert "workflow_dispatch" in trigger
+    for verboten in ("schedule:", "push:", "workflow_run:", "pull_request:"):
+        assert verboten not in trigger, f"feuert automatisch: {verboten}"
+    assert "permissions:\n  contents: read" in ohne_kommentare
+    for verboten in ("write", "contents: write", "pull-requests"):
+        assert verboten not in ohne_kommentare.split("permissions:")[1].split(
+            "concurrency:")[0], f"Recht zu weit: {verboten}"
+
+
+def test_eval_nicht_invalidiert_workflow_committet_und_mergt_nie():
+    """Kommentare ausgeschlossen (Muster aus test_evaluate.py::
+    test_laeuft_nicht_im_tageslauf) — ein Kommentar, der 'KEIN
+    continue-on-error' BENENNT, ist kein Verstoß dagegen."""
+    ohne_kommentare = "\n".join(
+        z for z in WORKFLOW_TEXT.splitlines() if not z.lstrip().startswith("#"))
+    for verboten in ("git commit", "git push", "git add", "gh pr create",
+                    "gh pr merge", "continue-on-error"):
+        assert verboten not in ohne_kommentare, verboten
+
+
+def test_eval_nicht_invalidiert_workflow_kein_schreibender_schritt_ausser_kursdatei():
+    """Beweis-Schritt (`git status --porcelain`) muss im Workflow stehen —
+    die eigentliche Durchsetzung, nicht nur die Behauptung im Kommentar."""
+    assert "git status --porcelain" in WORKFLOW_TEXT
+    assert "::error::" in WORKFLOW_TEXT
+
+
+def test_eval_nicht_invalidiert_wird_von_der_bestehenden_tageslauf_pruefung_erfasst():
+    """Der generische Test in test_evaluate.py::test_laeuft_nicht_im_tageslauf
+    scannt ALLE Workflows, die 'evaluate' erwähnen — dieser hier muss darin
+    automatisch mit erfasst werden, keine zweite, abweichende Prüfung."""
+    assert "evaluate" in WORKFLOW_TEXT
+
+
+def test_keine_workflow_run_kette_reagiert_auf_diesen_workflow():
+    """Kein anderer Workflow darf per `workflow_run` an diesen hier anknüpfen
+    — er soll ein isolierter, manueller Lauf bleiben, keine Kette."""
+    for wf in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        if wf.name == "eval_nicht_invalidiert.yml":
+            continue
+        text = wf.read_text(encoding="utf-8")
+        assert "Zufalls-Baseline für 'nicht invalidiert'" not in text, wf.name
+        assert "eval_nicht_invalidiert" not in text, wf.name
