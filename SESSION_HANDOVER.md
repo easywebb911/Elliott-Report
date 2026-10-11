@@ -1344,6 +1344,33 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Manual-Merge durch Easy → Live-Verify.** **Keine Vorschau-Screenshots zur
   Optik-Freigabe mehr** (Easy-Regel 25.07., s. Abschnitt 8) — Optik am Live-Deploy.
   Reine Doku-/Daten-PRs: kein Guardian; Doku-only darf bei grünem CI self-merge.
+- **11.10.2026 — Easy-Entscheid: Self-Merge-Ausnahme für PRs mit NEUER
+  Workflow-Datei, eng begrenzt.** Bisher galt jede neue Workflow-Datei als
+  MANUAL (Easy mergt selbst). Ab jetzt darf Code einen solchen PR selbst
+  mergen, wenn **alle drei** Bedingungen erfüllt sind: (1) Guardian-Urteil
+  OK (Nits behoben, kein Blocker), (2) CI grün auf dem aktuellen Head,
+  (3) der Workflow hat **ausschließlich** den Auslöser `workflow_dispatch`
+  und **ausschließlich** `permissions: contents: read` — kein Zeitplan,
+  kein Push-Trigger, keine `workflow_run`-Kette —, UND ein Test belegt
+  das (wird sonst rot). **Fehlt dieser Test, gilt die Ausnahme nicht** —
+  dann bleibt es bei MANUAL. Beispiel: PR #178
+  (`.github/workflows/eval_nicht_invalidiert.yml`,
+  `tests/test_evaluate_nicht_invalidiert.py::
+  test_eval_nicht_invalidiert_workflow_nur_dispatch_und_nur_contents_read`).
+  **Weiterhin MANUAL, unverändert:** Zeitplan oder Schreibrechte in einem
+  Workflow, Score-/Filter-/Alarm-Logik, Registry-Regeln, Änderungen an der
+  Primärwertung oder an eingefrorenen Feldern. **Im Zweifel mergt Easy.**
+  **Diese Ausnahme hebt die archivierte Ablehnung „Auto-Merge grüner PRs —
+  die Merge-Policy ist bewusst manuell; das ist keine Wartung, sondern
+  Kontrollabgabe" NICHT auf** (`SESSION_ARCHIVE.md`, Zeile ~300,
+  Abschnitt „Ausdrücklich abgelehnte Selbst-Handlungen"). Jene Ablehnung
+  war allgemein formuliert — **diese Regel hier ist eine einzelne,
+  eng begrenzte, von Easy ausdrücklich und datiert freigegebene Ausnahme
+  davon** (genau drei Bedingungen, nur neue Workflow-Dateien), keine
+  generelle Aufhebung und kein Freifahrtschein für weitere Fälle.
+  `SESSION_ARCHIVE.md` selbst bleibt unangetastet. **Rückweg:** Easy kann
+  diese Ausnahme jederzeit widerrufen — ein einzelner Satz im Handover
+  genügt, kein Code-Revert nötig (die Regel lebt nur hier, nicht im Code).
 - Guardian = **Zweitblick, kein Gatekeeper** (Urteil OK / Nits / Blocker).
 - **QS-Kette:** CI (`test`, required empfohlen) + Guardian + Easy.
 - **Grün ist erst grün, wenn Lauf-ID und Head-SHA genannt sind und der SHA der
