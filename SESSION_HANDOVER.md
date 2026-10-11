@@ -10,22 +10,17 @@ ihren vollständigen Belegketten im Archiv.
 > Mutationsproben, alte Live-Verifikationen). Wer hier nichts findet, findet es
 > dort; umgekehrt gilt: was dort steht, ist abgeschlossen.
 
-**Stand: 29.09.2026**, nach PR **#153** (Proaktiver Wächter: 7. Fehlerklasse
-`handover_luecke`, Merge-Commit `e4fc288`) — auf `main` (dieser Stand-Satz
-zuletzt durch #154 nachgezogen, Handover-Lücke #154/#156/#157/#158/#160/
-#161 per #165 geschlossen). Zahlen gegen
-`main` (`1043575`) geprüft, nicht aus dem Gedächtnis: **1669 Tests**
-(1668 grün, **1 rot** — `test_sammlungs_schutz.py::
-test_der_replay_findet_die_bekannten_faelle`, hartkodierte Liste
-`ERWARTETE_REPLAY_TREFFER` veraltet durch 5 neue reale Stale-Market-
-Replay-Treffer inkl. INTC/US, 29.09.2026 — bereits vom proaktiven Wächter
-als `testdaten_drift`-Musterverdacht gemeldet, s. u.; Fix nicht Teil
-dieses PRs, reiner Doku-Fix) · Sammlung **169 Records** (139 gereift,
-**133 auswertbar**, `scripts/forward_collection.py::eval_counts`) ·
-Marker **65 von 169** tragen mindestens einen (`in_session_creation` 55 ·
+**Stand: 11.10.2026**, nach PR **#180** (Cluster-Sensitivität für die
+sekundäre Erfolgsregel „nicht invalidiert", Merge-Commit `50bf39c`) — auf
+`main` (frühere Handover-Lücke #154/#156/#157/#158/#160/#161 seinerzeit
+durch #165 geschlossen). Zahlen gegen `main` (`50bf39c`) geprüft, nicht
+aus dem Gedächtnis:
+**1770 Tests, alle grün (0 rot)** · Sammlung **194 Records** (163 gereift,
+**157 auswertbar**, `scripts/forward_collection.py::eval_counts`) ·
+Marker **65 von 194** tragen mindestens einen (`in_session_creation` 55 ·
 `episode_split_suspect` 10 · `stale_market_suspect` 4) · Beweis-Datei
-`data/in_session_evidence.json` **17 Einträge** · Universum **353** Ticker
-(US 236 · DE 117, unverändert seit #93/#94).
+`data/in_session_evidence.json` **17 Einträge** (unverändert) · Universum
+**353** Ticker (US 236 · DE 117, unverändert seit #93/#94).
 
 > **Realitätscheck 29.09.2026 (read-only-Diagnose, s. PR mit diesem
 > Update):** dieses Dokument war seit #151 (27.09.2026) nicht mehr auf
@@ -512,11 +507,14 @@ echten Lauf. Wer die Belegketten braucht: Archiv.
 
 ---
 
-## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026)
+## 4. WARTESCHLANGE / ROADMAP (Stand 08.08.2026 — P0-Satz zu #95 korrigiert 11.10.2026)
 
-**P0 — liegt bei Easy, nichts zu bauen:** *leer.* Alle PRs bis #94 sind
-gemergt. **#95** (dieser, episode_id-Kollisionsschutz) liegt Easy zur
-Manual-Merge-Entscheidung vor.
+**P0 — liegt bei Easy, nichts zu bauen:** *leer.* **KORREKTUR 11.10.2026:**
+dieser Satz beschrieb **#95** (episode_id-Kollisionsschutz) fälschlich noch
+als offen zur Manual-Merge-Entscheidung — **#95 ist längst gemergt**
+(Merge-Commit `b2b7615`, Feature-Commit `199e66b`; s. auch Abschnitt 3, wo
+#95 bereits korrekt unter den Erledigten steht). Alle PRs bis **#180** sind
+gemergt, P0 bleibt *leer*.
 
 **P1 — messen, nicht bauen (läuft von allein, braucht nur einen Zuruf):**
 
@@ -1079,7 +1077,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **WIEDERVORLAGE:** Score-Review 07.12.2026 (unverändert).
 
 - **11.10.2026 — Cluster-Sensitivität für die sekundäre Erfolgsregel
-  (Easy-Entscheid, Variante A).** Anlass: Stopp-gerissen-Quote 21,0 %
+  (Easy-Entscheid, Variante A, #180).** Anlass: Stopp-gerissen-Quote 21,0 %
   gegen Zufalls-Mittel 15,2 % (Lauf 38149306463); 24/33 Invalidierungen
   teilen sich einen Kalendertag, 32/33 eine ISO-Woche, 38/103 Tickern
   haben mehrere Kandidaten — die Fälle sind NICHT unabhängig.
@@ -1107,9 +1105,67 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   Bewertungsregel, kein reiner Workflow-Zusatz wie #178) — bewusst KEIN
   Self-Merge, Draft-PR wartet auf Easy.
 
-  **Wächter-Fund (unabhängig von diesem PR, nicht hier behoben):** PR
-  #179 fehlt noch als eigener Eintrag in diesem Abschnitt — Pflegelücke
-  aus einer früheren Session, hier nur gemeldet.
+  **KORREKTUR 11.10.2026 (zur eigenen früheren Meldung hier):** Die
+  vorige Zeile nannte dies eine Pflegelücke — das war ungenau. **#179**
+  ist die Self-Merge-Ausnahme für Workflow-PRs (Easy-Entscheid
+  11.10.2026), inhaltlich belegt im Abschnitt „Merge-Policy & QS-Kette"
+  (dort stand bisher nur das Datum, nicht die Nummer) — hiermit
+  nachgetragen, keine offene Lücke.
+
+  **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review oben).
+
+- **11.10.2026 — Erste echte Zahlen nach #180 + Score-Terzil-Diagnose
+  (NACHTRÄGLICH DEFINIERT, explorativ, kein Verdikt).** Reine
+  Ergebnis-Nachträge, kein Code-/Logik-Eingriff; Zahlen aus den
+  genannten Läufen, nicht aus dem Gedächtnis.
+
+  **a) Zufalls-Baseline (Workflow-Lauf `38149306463`, nach dem Merge von
+  #179, 132 von 132 Tickern mit Kursen):** Stopp-gerissen-Quote
+  beobachtet 21,0 % gegen Zufalls-Mittel 15,2 % (5.–95. Perzentil
+  12,1–18,5 %); „nicht invalidiert" 79,0 % gegen Zufalls-Mittel 84,8 %;
+  Ende W2 80,6 % gegen 88,7 %, Ende W4 76,6 % gegen 79,1 %.
+
+  **b) Cluster-Sensitivität nach #180 (Workflow-Lauf `38160404856`, nach
+  dem Merge von #180, Head-Commit `50bf39c`, ebenfalls 132 von 132
+  Tickern):** Differenz (beobachtete Stopp-gerissen-Quote minus
+  Zufalls-Quote) 5,8 Prozentpunkte. Tag-Blöcke (37 Cluster) und
+  Ticker-Blöcke (103 Cluster), je 5 Seeds: **„Intervall schließt 0 ein:
+  ja" in allen 20 Zeilen** (Tag-Blöcke CI ca. −1,3 bis +13,4
+  Prozentpunkte über die Seeds, Ticker-Blöcke ca. −1,9 bis +13,2
+  Prozentpunkte) — unter der Cluster-Annahme ist die Differenz nicht
+  von Zufall zu unterscheiden. **Kein Verdikt.**
+
+  **c) Verlustbild (unverändert, aus dem #177-Eintrag/Registry
+  übernommen, kein neuer Lauf):** 67 von 157 (42,7 %) invalidiert ODER
+  neutral im Minus am Tag 10; 13 von 61 echten Beobachtungszonen-
+  Treffern liegen am Tag 10 trotzdem unter dem Einstieg; Gap-Messung bei
+  den 33 Invalidierten (Close-basiert) Median −1,77 %, größter
+  Durchrutsch −48,98 %.
+
+  **d) Score-Terzile und Verlustquote (Diagnose 11.10.2026, reine
+  Lesung, kein PR, nichts im Repo gespeichert):** Population n=157
+  (`evaluate.build_population`, Score-Feld `score_heuristic`). Oberstes
+  Terzil gesamt (n=52): Gesamt-Verlustquote 36,5 % gegen unterstes
+  Terzil (n=53) 52,8 %; Trefferquote 44,2 % gegen 28,3 %. Ende W2:
+  22,6 % gegen 53,1 % — **nicht monoton** über die drei Terzile (Sprung
+  erst zwischen Mitte und Oben). Ende W4: alle drei Zellen unter
+  `SECONDARY_MIN_N=30` — nicht interpretiert. Tag-Block-Bootstrap (Seed
+  20260728, 10.000 Ziehungen) der Verlustquoten-Differenz oberstes minus
+  unterstes Terzil (gesamt): CI [−38,6; +3,6] Prozentpunkte — **schließt
+  0 ein**. Filter „nur oberstes Terzil" ließe 52 von 157 Kandidaten
+  übrig. **Korrektur zu einer älteren Zahl (#170, 08.10.2026):** die
+  dort für Terzil 3 berichtete Trefferquote **0,618 (62 %) galt für
+  n=101** (Sept.-Population, Commit `dd79b31`) — mit der heutigen,
+  gewachsenen Population (n=157) sind es für das oberste Terzil **44 %**
+  (Trefferquote, s. Absatz oben). Keine neue Aussage über den Score, nur dieselbe Zahl auf
+  zwei verschiedenen Fallbasen — Verwechslungsgefahr, deshalb hier
+  ausdrücklich gegenübergestellt.
+
+  **e) Einordnung in einem Satz:** über alle vier Blöcke (a–d) ist die
+  Richtung durchgehend konsistent (hoher Score/Kandidat schneidet besser
+  ab), aber unter der jeweils geprüften Cluster-Annahme ist keine der
+  Differenzen von Zufall zu unterscheiden — **kein Verdikt, Easy
+  entscheidet.**
 
   **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review oben).
 
