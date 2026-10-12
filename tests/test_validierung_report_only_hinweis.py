@@ -168,5 +168,57 @@ def test_kein_warnsymbol_im_zwischenstands_text_im_quelltext():
     assert "class=\"err\"" not in HTML[max(0, start - 200):start]
 
 
+# ---------------------------------------------------------------------------
+# Fortschrittsbalken ab Schwelle (12.10.2026, Easy-Fund C): ein voller
+# Balken ("157 von 100") sagt nichts mehr aus — ab `evaluable >= eval_min_n`
+# nur noch eine Textzeile, kein Balken. Unter der Schwelle bleibt der Balken
+# wie bisher (Regression, bereits oben durch
+# test_reportonly_marker_ueberstimmt_nicht_einen_vorhandenen_validation_block
+# mit evaluable=1 von eval_min_n=100 mitabgedeckt).
+# ---------------------------------------------------------------------------
+def test_schwelle_erreicht_zeigt_textzeile_ohne_balken():
+    val = {"collected": 194, "matured": 163, "evaluable": 157, "eval_min_n": 100}
+    head = _lauf(val=val, report_only=False)
+    assert "vsum-bar" not in head
+    assert "Schwelle von 100 auswertbaren Fällen erreicht (157)." in head
+    assert "Ausgewertet wird ab" not in head
+
+
+def test_schwelle_exakt_erreicht_grenzfall_zeigt_ebenfalls_textzeile():
+    """Randfall `evaluable == eval_min_n` (exakt die Schwelle, nicht erst
+    darüber) — muss ebenfalls die Textzeile zeigen, kein Balken bei 100 %."""
+    val = {"collected": 100, "matured": 100, "evaluable": 100, "eval_min_n": 100}
+    head = _lauf(val=val, report_only=False)
+    assert "vsum-bar" not in head
+    assert "Schwelle von 100 auswertbaren Fällen erreicht (100)." in head
+
+
+def test_schwelle_nicht_erreicht_zeigt_weiterhin_den_balken():
+    val = {"collected": 80, "matured": 70, "evaluable": 64, "eval_min_n": 100}
+    head = _lauf(val=val, report_only=False)
+    assert 'class="vsum-bar"' in head
+    assert "Ausgewertet wird ab 100 auswertbaren Fällen —" in head
+    assert "Aktuell: 64 von 100." in head
+    assert "Schwelle von" not in head
+
+
+def test_mutationsprobe_schwellenvergleich_kleiner_statt_groessergleich():
+    """Mutationsprobe (Auftrag Punkt C): eine kaputte Variante, die `<`
+    statt `>=` für den Schwellenvergleich nutzt, würde den Randfall
+    `evaluable == eval_min_n` FÄLSCHLICH noch mit Balken zeigen. Die echte
+    Funktion (`>=`) zeigt dort bereits die Textzeile (s. Test oben) —
+    kaputt und echt müssen sich für genau diesen Randfall unterscheiden."""
+    def kaputt_schwelle_erreicht(evaluable, eval_min_n):
+        return evaluable < eval_min_n  # FALSCH: sollte "erreicht" sein, nicht "offen"
+
+    echt_val = {"collected": 100, "matured": 100, "evaluable": 100, "eval_min_n": 100}
+    head = _lauf(val=echt_val, report_only=False)
+    echt_zeigt_balken = "vsum-bar" in head
+    kaputt_zeigt_balken = not kaputt_schwelle_erreicht(100, 100)  # kaputt: True -> zeigt Balken
+    assert echt_zeigt_balken is False
+    assert kaputt_zeigt_balken is True
+    assert echt_zeigt_balken != kaputt_zeigt_balken
+
+
 def test_alte_ungenaue_lauf_status_verweis_komplett_entfernt():
     assert "Der Stand steht auch im ☰ → Lauf-Status." not in HTML
