@@ -1233,6 +1233,16 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   #107/#123 unverändert; mit echtem Headless-Chromium bei 320/360/390/430 px
   nachgewiesen (`tests/test_verlustbild_viewport.py`), 10 neue Tests.
 
+  **NACHTRAG 12.10.2026 (Easy-Fund, drei Punkte, #184):** "nachträglich"
+  stand doppelt (Chip + Pflichttext) — jetzt genau einmal im Chip,
+  Pflichttext gekürzt; Bucket "Zone/Extension erreicht" → "Ziel-Zone
+  erreicht" umbenannt (zählt nur `target_hit`, nicht `ext_hit` — belegt:
+  `episodeStatus()`s Regel ergäbe auf denselben 157 Fällen 62 statt 61,
+  einziger Unterschied MA/2026-08-19) mit sichtbarer Abweichungs-Zeile zur
+  Status-Verteilung; Fortschrittsbalken zeigt ab `evaluable >= eval_min_n`
+  nur noch Text statt vollem Balken ("Schwelle von 100 … erreicht (157)").
+  10 neue/angepasste Tests.
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER

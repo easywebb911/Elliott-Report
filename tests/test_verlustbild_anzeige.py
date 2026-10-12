@@ -140,8 +140,13 @@ def test_verlust_variable_wird_in_beiden_zweigen_eingebunden():
 
 
 def test_drei_eimer_bezeichnungen_wie_im_auftrag():
+    """ANGEPASST (12.10.2026, Easy-Fund B): Label ehrlich gemacht —
+    "Zone/Extension erreicht" → "Ziel-Zone erreicht", weil der Eimer nur
+    `target_hit` zählt (s. `verlustbildEimer()`), nicht `ext_hit` — die
+    alte Beschriftung suggerierte fälschlich, Extension zähle mit."""
     koerper = _fn("verlustbildHtml")
-    assert "Zone/Extension erreicht" in koerper
+    assert "Ziel-Zone erreicht" in koerper
+    assert "Zone/Extension erreicht" not in koerper
     # Im Quelltext per String-Konkatenation über zwei Zeilen gebrochen
     # (ergibt zur Laufzeit "abgelaufen (weder Ziel noch Stopp)" — geprüft im
     # node-Test unten gegen den tatsächlich gerenderten Text).
@@ -159,22 +164,47 @@ def test_schraffur_ist_reines_css_kein_neues_bild():
 
 def test_kein_erfolgs_gruen_fuer_abgelaufen_nur_fuer_zone():
     """GRENZEN: kein Erfolgs-Grün für 'nicht invalidiert' — nur der echte
-    Zone/Extension-Treffer bleibt grün (st-target), 'abgelaufen' bekommt die
+    Ziel-Zone-Treffer bleibt grün (st-target), 'abgelaufen' bekommt die
     neutrale Farbe (st-neutral), nicht st-target/st-ext."""
     koerper = _fn("verlustbildHtml")
-    zone_zeile = [z for z in koerper.splitlines() if "titel: `Zone/Extension erreicht" in z][0]
+    zone_zeile = [z for z in koerper.splitlines() if "titel: `Ziel-Zone erreicht" in z][0]
     abgelaufen_zeile = [z for z in koerper.splitlines()
                         if "weder Ziel noch Stopp:" in z and "titel" in z][0]
     assert "st-target" in koerper[:koerper.index(zone_zeile) + len(zone_zeile)]
     assert "st-neutral" in abgelaufen_zeile or "'st-neutral'" in koerper
 
 
-def test_pflichttext_vorhanden_wortgetreu():
+def test_abweichungs_hinweis_zur_status_verteilung_vorhanden():
+    """Easy-Fund B: die Status-Verteilung oben trennt Zone/Extension und
+    zählt alle gesammelten Fälle, das Verlustbild nur `target_hit` auf der
+    auswertbaren Population — deshalb weichen Zahlen um einzelne Fälle ab
+    (konkret: MA/2026-08-19, s. test_verlustbildeimer_regression_*). Diese
+    Erklärung muss sichtbar sein, nicht nur im Code-Kommentar."""
     koerper = _fn("verlustbildHtml")
-    assert ("Nachträglich definierte Sicht (nach Kenntnis des\n            "
-           "Primärergebnisses vom 06.09.2026). Ersetzt die Primärwertung "
-           "nicht.\n            Über die Hälfte der abgelaufenen Fälle "
-           "steht am Tag 10 im Minus.") in koerper
+    assert "Zählt nur Ziel-Zone erreicht" in koerper
+    assert "wie im Auswertungsskript" in koerper
+    assert "weichen Zahlen um einzelne Fälle ab" in koerper
+
+
+def test_pflichttext_vorhanden_wortgetreu():
+    """ANGEPASST (12.10.2026, Easy-Fund A): Pflichttext gekürzt — der
+    einleitende Satz "Nachträglich definierte Sicht (nach Kenntnis des
+    Primärergebnisses vom 06.09.2026)." entfällt, weil "nachträglich" dann
+    doppelt stand (Chip UND Pflichttext). Das Datum steht weiterhin in der
+    Primärzeile, die Transparenz bleibt über den Chip gewahrt (s.
+    test_nachtraeglich_kommt_im_verlustbild_block_genau_einmal_vor)."""
+    koerper = _fn("verlustbildHtml")
+    assert ("Ersetzt die Primärwertung nicht.\n            Über die Hälfte "
+           "der abgelaufenen Fälle steht am Tag 10 im Minus.") in koerper
+    assert "Nachträglich definierte Sicht" not in koerper
+
+
+def test_nachtraeglich_kommt_im_verlustbild_block_genau_einmal_vor():
+    """Easy-Fund A: "nachträglich" stand doppelt (Chip + Pflichttext) —
+    jetzt genau einmal, im Chip."""
+    koerper = _fn("verlustbildHtml")
+    assert koerper.lower().count("nachträglich") == 1
+    assert "nachträglich definiert · explorativ · kein Beleg" in koerper
 
 
 def test_min_n_hinweis_nutzt_dieselbe_schwelle_wie_evaluate_nicht_invalidiert():
@@ -378,7 +408,7 @@ def test_gerenderter_balken_zeigt_die_echten_zahlen():
       const records = {json.dumps(_RECORDS)};
       console.log(JSON.stringify(verlustbildHtml(records)));
     """)
-    assert f"Zone/Extension erreicht <b>{zone}</b> <em>{fmt1(zone)} %</em>" in ergebnis
+    assert f"Ziel-Zone erreicht <b>{zone}</b> <em>{fmt1(zone)} %</em>" in ergebnis
     assert f"abgelaufen (weder Ziel noch Stopp) <b>{neutral}</b> <em>{fmt1(neutral)} %</em>" in ergebnis
     assert f"davon im Minus am Tag 10 <b>{minus}</b> <em>{fmt1(minus)} %</em>" in ergebnis
     assert f"invalidiert <b>{inval}</b> <em>{fmt1(inval)} %</em>" in ergebnis

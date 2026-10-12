@@ -1814,7 +1814,7 @@
       // überall sonst im Panel).
       const segs = [
         { cls: 'st-target', w: pct(zone),
-          titel: `Zone/Extension erreicht: ${zone} (${fmtPct1(pct(zone))} %)` },
+          titel: `Ziel-Zone erreicht: ${zone} (${fmtPct1(pct(zone))} %)` },
         { cls: 'st-neutral', w: pct(abgelaufenPlus),
           titel: `abgelaufen, weder Ziel noch Stopp: ${abgelaufenPlus} (${fmtPct1(pct(abgelaufenPlus))} %)` },
         { cls: 'st-neutral', hatch: true, w: pct(abgelaufenMinus),
@@ -1827,7 +1827,7 @@
             ? ';background-image:repeating-linear-gradient(45deg,transparent 0 3px,var(--bg-met) 3px 6px)'
             : ''}" title="${esc(s.titel)}"></i>`
         : '').join('');
-      const rows = `<span><i style="background:${VSDIST_COLOR['st-target']}"></i>Zone/Extension `
+      const rows = `<span><i style="background:${VSDIST_COLOR['st-target']}"></i>Ziel-Zone `
         + `erreicht <b>${zone}</b> <em>${fmtPct1(pct(zone))} %</em></span>`
         + `<span><i style="background:${VSDIST_COLOR['st-neutral']}"></i>abgelaufen (weder Ziel `
         + `noch Stopp) <b>${abgelaufen}</b> <em>${fmtPct1(pct(abgelaufen))} %</em></span>`
@@ -1845,8 +1845,10 @@
           <div class="vbild-bar">${bar}</div>
           <div class="vbild-rows">${rows}</div>
           ${minNote}
-          <p class="vbild-say">Nachträglich definierte Sicht (nach Kenntnis des
-            Primärergebnisses vom 06.09.2026). Ersetzt die Primärwertung nicht.
+          <p class="vbild-note">Zählt nur Ziel-Zone erreicht (wie im Auswertungsskript). Die
+            Status-Verteilung oben trennt Zone und Extension und zählt alle gesammelten Fälle;
+            deshalb weichen Zahlen um einzelne Fälle ab.</p>
+          <p class="vbild-say">Ersetzt die Primärwertung nicht.
             Über die Hälfte der abgelaufenen Fälle steht am Tag 10 im Minus.</p>
         </div>`;
     }
@@ -4789,6 +4791,15 @@
           // „auswertbar" — im Backend über `eval_counts` entschieden.
           const pct = Math.max(0, Math.min(100,
             Math.round(evaluable / eval_min_n * 100)));
+          // Schwelle erreicht (12.10.2026, Easy-Fund): ein voller Balken
+          // sagt nichts mehr aus — ab hier nur noch die Textzeile, kein
+          // Balken. Unter der Schwelle bleibt der Balken wie bisher.
+          const schwelleBlock = evaluable >= eval_min_n
+            ? `<p class="vsum-say">Schwelle von ${eval_min_n} auswertbaren Fällen `
+              + `erreicht (${evaluable}).</p>`
+            : `<div class="vsum-bar"><i style="width:${pct}%"></i></div>
+             <p class="vsum-say">Ausgewertet wird ab ${eval_min_n} auswertbaren Fällen —
+               vorher wären die Zahlen Zufall. Aktuell: ${evaluable} von ${eval_min_n}.</p>`;
           const excl = excluded > 0
             ? `<p class="vsum-note">${excluded} Fälle zählen nicht mit: Der Kurs
                  war schon in der Beobachtungszone, als sie auf die Liste kamen.</p>`
@@ -4804,9 +4815,7 @@
              </div>
              <p class="vsum-say">Jede Empfehlung wird 10 Börsentage lang beobachtet:
                Wurde die Beobachtungszone erreicht, bevor die Zählung ungültig wurde?</p>
-             <div class="vsum-bar"><i style="width:${pct}%"></i></div>
-             <p class="vsum-say">Ausgewertet wird ab ${eval_min_n} auswertbaren Fällen —
-               vorher wären die Zahlen Zufall. Aktuell: ${evaluable} von ${eval_min_n}.</p>
+             ${schwelleBlock}
              ${excl}
              <span class="vsum-stamp">heuristisch · unvalidiert</span>`;
         } else if (_reportOnly) {
