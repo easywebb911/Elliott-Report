@@ -1225,6 +1225,14 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 
   **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review oben).
 
+  **NACHTRAG 12.10.2026 (Easy-Fund, Screenshot, iPhone, #183):**
+  Legenden-Zeilen im Verlustbild liefen bei 360/390 px horizontal über
+  (`.vbild` nutzte `.vsdist-rows`, deren 2-Spalten-Grid + `nowrap` für
+  #107/#123s kürzere Texte passt, für #182s längere nicht) — eigene Klasse
+  `.vbild-rows` (1-Spalte, Umbruch erlaubt) ergänzt, `.vsdist-rows` für
+  #107/#123 unverändert; mit echtem Headless-Chromium bei 320/360/390/430 px
+  nachgewiesen (`tests/test_verlustbild_viewport.py`), 10 neue Tests.
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
