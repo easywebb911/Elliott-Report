@@ -1744,11 +1744,13 @@
     // Easys Sicht: NUR "invalidiert" ist ein Verlust — Zone/Extension
     // erreicht UND gereift-neutral zählen für ihn positiv. NACHTRÄGLICH
     // definiert (nach Kenntnis des Primärergebnisses vom 06.09.2026),
-    // erklärend, KEIN Beleg. Dieselbe Population wie
+    // erklärend, KEIN Beleg. Dieselbe POPULATION wie
     // `evaluate.build_population`/`scripts/evaluate_nicht_invalidiert.py`
     // (gereift, nicht per PRU-Guard ausgeschlossen, Score UND target_hit
-    // vorhanden) — EINE Zähl-Quelle (`episodeStatus()`) wie überall sonst in
-    // diesem Panel, keine zweite, abweichende Klassifikation.
+    // vorhanden) — die EIMER-KLASSIFIKATION ist bewusst NICHT
+    // `episodeStatus()`, s. Begründung direkt bei `verlustbildEimer()`
+    // unten (Guardian-Nit 12.10.2026: der Kommentar hier behauptete zuvor
+    // fälschlich das Gegenteil).
     const VERLUSTBILD_MIN_N = 30;   // = SECONDARY_MIN_N aus evaluate_nicht_invalidiert.py
     function verlustbildPopulation(records) {
       return records.filter(r => r && r.matured && !_recExcluded(r)
