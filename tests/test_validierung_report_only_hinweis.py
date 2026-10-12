@@ -58,10 +58,12 @@ KERN = _extrahiere_openvalidierung_kern()
 
 # Reine Marker-Rückgaben statt echter Sammlung — die Wert-Tests hier prüfen
 # die VERZWEIGUNG (welcher Text erscheint), nicht die Status-Verteilung/
-# R-Werte selbst (dafür: test_status_verteilung.py / test_r_werte_anzeige.py).
+# R-Werte/das Verlustbild selbst (dafür: test_status_verteilung.py /
+# test_r_werte_anzeige.py / test_verlustbild_anzeige.py).
 _STUBS = """
     function statusDistributionHtml(records) { return '<STATUSDIST>'; }
     function rWerteHtml(records) { return '<RWERTE>'; }
+    function verlustbildHtml(records) { return '<VERLUSTBILD>'; }
     async function loadCollection() { throw new Error('sollte hier nicht noetig sein'); }
 """
 
@@ -98,9 +100,12 @@ def test_report_only_report_zeigt_zwischenstand_kein_fehlertext():
     assert "konnten nicht geladen werden" not in head
     assert "Lauf-Status" not in head
     # #107/#123 bleiben sichtbar — sie hängen an der Sammlung, nicht an
-    # report.validation (Diagnose 11.09.2026, Auftrag Punkt 5).
+    # report.validation (Diagnose 11.09.2026, Auftrag Punkt 5). Dasselbe gilt
+    # fürs Verlustbild (12.10.2026, Easy-Entscheid A) — auch das hängt nur an
+    # der Sammlung.
     assert "<STATUSDIST>" in head
     assert "<RWERTE>" in head
+    assert "<VERLUSTBILD>" in head
     # GRENZEN: kein Warnsymbol/Fehler-Framing, keine Suggestion eines
     # bereits vorliegenden Ergebnisses.
     assert "⚠" not in head
@@ -130,6 +135,7 @@ def test_normaler_report_mit_validation_unveraendert():
     assert "<b>106</b>" in head
     assert "<STATUSDIST>" in head
     assert "<RWERTE>" in head
+    assert "<VERLUSTBILD>" in head
     assert "Zwischenstand" not in head
     assert "konnten nicht geladen werden" not in head
 
