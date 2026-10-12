@@ -814,21 +814,39 @@
        Schraffur) statt sechs. Farben bewusst dieselben st-*-Variablen wie
        überall sonst — kein neues Erfolgs-Grün für "abgelaufen". */
     .vbild { margin:0 0 14px; padding:10px 12px; border:1px solid var(--brd);
-      border-radius:10px; background:rgba(148,163,184,.05); }
+      border-radius:10px; background:rgba(148,163,184,.05); min-width:0; }
     .vbild-title { display:flex; align-items:center; flex-wrap:wrap; gap:8px;
-      font-size:0.8125rem; font-weight:600; color:var(--txt); margin:0 0 10px; }
+      font-size:0.8125rem; font-weight:600; color:var(--txt); margin:0 0 10px;
+      overflow-wrap:anywhere; min-width:0; }
     .vbild-title .vsum-stamp { margin:0; }
     .vbild-bar { display:flex; height:10px; border-radius:999px;
-      background:var(--bg-met); overflow:hidden; margin:0 0 8px; }
+      background:var(--bg-met); overflow:hidden; margin:0 0 8px; width:100%; }
     .vbild-bar i { display:block; height:100%; }
-    .vbild-note { font-size:0.71875rem; color:var(--txt-dim); margin:0 0 8px; }
-    .vbild-say { font-size:0.71875rem; color:var(--txt-dim); line-height:1.4; margin:8px 0 0; }
+    /* EIGENE Zeilen-Klasse (12.10.2026, Überlauf-Fix) — bewusst NICHT
+       `.vsdist-rows` (das 2-Spalten-Grid + `white-space:nowrap` dort ist für
+       #107/#123 unverändert richtig, deren Beschriftungen kurz sind; die
+       hier längeren Beschriftungen ("abgelaufen (weder Ziel noch Stopp)")
+       haben darin bei 360/390px Breite das `.bt-overlay` horizontal
+       überlaufen lassen, s. PR-Text). Eine Spalte, Umbruch erlaubt. */
+    .vbild-rows { display:flex; flex-direction:column; gap:4px;
+      font-size:0.71875rem; color:var(--txt-sub); margin:0 0 8px; min-width:0; }
+    .vbild-rows span { display:flex; align-items:flex-start; gap:5px;
+      min-width:0; overflow-wrap:anywhere; }
+    .vbild-rows i { width:9px; height:9px; border-radius:3px; flex:none;
+      display:inline-block; margin-top:3px; }
+    .vbild-rows b { color:var(--txt); font-weight:700; font-variant-numeric:tabular-nums; }
+    .vbild-rows em { color:var(--txt-dim); font-style:normal; font-variant-numeric:tabular-nums; }
+    .vbild-note { font-size:0.71875rem; color:var(--txt-dim); margin:0 0 8px;
+      overflow-wrap:anywhere; }
+    .vbild-say { font-size:0.71875rem; color:var(--txt-dim); line-height:1.4; margin:8px 0 0;
+      overflow-wrap:anywhere; }
     /* Primärzeile — eingefrorenes Ergebnis vom 06.09.2026, bewusst GETRENNT
        vom Verlustbild oben (eigener Rahmen, andere Fallbasis, kein
        Vergleich) — s. Diagnose 11./12.10.2026. */
     .vbild-primaer { margin:0 0 14px; padding:10px 12px; border:1px solid var(--brd);
-      border-left:3px solid var(--txt-sub); border-radius:10px; }
-    .vbild-primaer-say { font-size:0.8125rem; line-height:1.5; color:var(--txt-sub); margin:0 0 4px; }
+      border-left:3px solid var(--txt-sub); border-radius:10px; min-width:0; }
+    .vbild-primaer-say { font-size:0.8125rem; line-height:1.5; color:var(--txt-sub); margin:0 0 4px;
+      overflow-wrap:anywhere; }
     .vbild-primaer-say:last-child { margin-bottom:0; color:var(--txt-dim); font-size:0.75rem; }
     /* „Details für Nerds" — dasselbe Muster wie der KI-Kommentar. */
     .nerd-block { border:1px solid var(--brd); border-radius:10px;
@@ -1825,7 +1843,7 @@
           <p class="vbild-title">Easys Sicht: nur „invalidiert" ist ein Verlust (n=${n})
             <span class="vsum-stamp">nachträglich definiert · explorativ · kein Beleg</span></p>
           <div class="vbild-bar">${bar}</div>
-          <div class="vsdist-rows">${rows}</div>
+          <div class="vbild-rows">${rows}</div>
           ${minNote}
           <p class="vbild-say">Nachträglich definierte Sicht (nach Kenntnis des
             Primärergebnisses vom 06.09.2026). Ersetzt die Primärwertung nicht.
