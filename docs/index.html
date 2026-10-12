@@ -807,6 +807,29 @@
       font-size:0.8125rem; font-weight:600; color:var(--txt); margin:0 0 10px; }
     .rwerte-title .vsum-stamp { margin:0; }
     .rwerte-say { font-size:0.71875rem; color:var(--txt-dim); line-height:1.4; margin:8px 0 0; }
+    /* ── Verlustbild (12.10.2026, Easy-Entscheid, Variante A) ──────────────
+       Easys Sicht: NUR "invalidiert" ist ein Verlust — NACHTRÄGLICH
+       definiert, erklärend, kein Beleg. Dieselbe Balken-/Zeilen-Mechanik wie
+       .vsdist oben, nur drei Eimer (vier Bar-Segmente wegen der Minus-
+       Schraffur) statt sechs. Farben bewusst dieselben st-*-Variablen wie
+       überall sonst — kein neues Erfolgs-Grün für "abgelaufen". */
+    .vbild { margin:0 0 14px; padding:10px 12px; border:1px solid var(--brd);
+      border-radius:10px; background:rgba(148,163,184,.05); }
+    .vbild-title { display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+      font-size:0.8125rem; font-weight:600; color:var(--txt); margin:0 0 10px; }
+    .vbild-title .vsum-stamp { margin:0; }
+    .vbild-bar { display:flex; height:10px; border-radius:999px;
+      background:var(--bg-met); overflow:hidden; margin:0 0 8px; }
+    .vbild-bar i { display:block; height:100%; }
+    .vbild-note { font-size:0.71875rem; color:var(--txt-dim); margin:0 0 8px; }
+    .vbild-say { font-size:0.71875rem; color:var(--txt-dim); line-height:1.4; margin:8px 0 0; }
+    /* Primärzeile — eingefrorenes Ergebnis vom 06.09.2026, bewusst GETRENNT
+       vom Verlustbild oben (eigener Rahmen, andere Fallbasis, kein
+       Vergleich) — s. Diagnose 11./12.10.2026. */
+    .vbild-primaer { margin:0 0 14px; padding:10px 12px; border:1px solid var(--brd);
+      border-left:3px solid var(--txt-sub); border-radius:10px; }
+    .vbild-primaer-say { font-size:0.8125rem; line-height:1.5; color:var(--txt-sub); margin:0 0 4px; }
+    .vbild-primaer-say:last-child { margin-bottom:0; color:var(--txt-dim); font-size:0.75rem; }
     /* „Details für Nerds" — dasselbe Muster wie der KI-Kommentar. */
     .nerd-block { border:1px solid var(--brd); border-radius:10px;
       background:rgba(148,163,184,.05); padding:2px 10px; }
@@ -1714,6 +1737,117 @@
             Trefferquote, über ${pop.length} Fälle mit ermittelbarem R.${exclNote} Noch keine
             offizielle Auswertung — Datenbasis wächst laufend. Getrennt von der bereits
             abgeschlossenen Trefferquoten-Auswertung (siehe oben).</p>
+        </div>`;
+    }
+
+    // ── Verlustbild (12.10.2026, Easy-Entscheid, Variante A) ────────────────
+    // Easys Sicht: NUR "invalidiert" ist ein Verlust — Zone/Extension
+    // erreicht UND gereift-neutral zählen für ihn positiv. NACHTRÄGLICH
+    // definiert (nach Kenntnis des Primärergebnisses vom 06.09.2026),
+    // erklärend, KEIN Beleg. Dieselbe POPULATION wie
+    // `evaluate.build_population`/`scripts/evaluate_nicht_invalidiert.py`
+    // (gereift, nicht per PRU-Guard ausgeschlossen, Score UND target_hit
+    // vorhanden) — die EIMER-KLASSIFIKATION ist bewusst NICHT
+    // `episodeStatus()`, s. Begründung direkt bei `verlustbildEimer()`
+    // unten (Guardian-Nit 12.10.2026: der Kommentar hier behauptete zuvor
+    // fälschlich das Gegenteil).
+    const VERLUSTBILD_MIN_N = 30;   // = SECONDARY_MIN_N aus evaluate_nicht_invalidiert.py
+    function verlustbildPopulation(records) {
+      return records.filter(r => r && r.matured && !_recExcluded(r)
+        && Number.isFinite(r.score_heuristic)
+        && (r.target_hit === 0 || r.target_hit === 1));
+    }
+    // BEWUSST NICHT episodeStatus() wiederverwendet (Diagnose 12.10.2026):
+    // episodeStatus() zählt `ext_hit === 1` ODER `target_hit === 1` als
+    // "Zone"/"Extension" — ein realer Fall (MA, 2026-08-19) hat `ext_hit=1`
+    // bei `target_hit=0` (keine Guard-Beteiligung), dadurch würde diese
+    // Funktion einen Fall mehr als "zone" zählen als
+    // `scripts/evaluate_nicht_invalidiert.py` (dessen `hit`-Feld exakt
+    // `target_hit` ist, s. `evaluate.build_population`/`komposition()`).
+    // Easy verlangt ausdrücklich Übereinstimmung mit dem Skript (61/63/33),
+    // deshalb hier `target_hit` ALLEIN — derselbe Fall zählt bewusst als
+    // "abgelaufen", nicht als Inkonsistenz versteckt, sondern hier benannt.
+    // Invalidiert bleibt vorrangig (dieselbe Priorität wie episodeStatus()).
+    function verlustbildEimer(r) {
+      if (r.invalidated === 1) return 'invalidiert';
+      if (r.target_hit === 1) return 'zone';
+      return 'abgelaufen';
+    }
+    function verlustbildHtml(records) {
+      if (!Array.isArray(records) || !records.length) return '';
+      const pop = verlustbildPopulation(records);
+      if (!pop.length) return '';
+      let zone = 0, abgelaufen = 0, abgelaufenMinus = 0, inval = 0;
+      pop.forEach(r => {
+        const eimer = verlustbildEimer(r);
+        if (eimer === 'zone') zone++;
+        else if (eimer === 'invalidiert') inval++;
+        else {
+          abgelaufen++;
+          if (r.r_erreicht_basis != null && r.r_erreicht_basis < 0) abgelaufenMinus++;
+        }
+      });
+      const n = pop.length;
+      const abgelaufenPlus = abgelaufen - abgelaufenMinus;
+      const pct = x => n ? Math.round(x / n * 1000) / 10 : 0;
+      // Vier Bar-Segmente für drei Eimer: der Minus-Anteil im "abgelaufen"-
+      // Eimer bekommt dieselbe Farbe, zusätzlich schraffiert (reines CSS,
+      // kein neues Erfolgs-Grün — nur Zone/Extension bleibt grün, wie
+      // überall sonst im Panel).
+      const segs = [
+        { cls: 'st-target', w: pct(zone),
+          titel: `Zone/Extension erreicht: ${zone} (${fmtPct1(pct(zone))} %)` },
+        { cls: 'st-neutral', w: pct(abgelaufenPlus),
+          titel: `abgelaufen, weder Ziel noch Stopp: ${abgelaufenPlus} (${fmtPct1(pct(abgelaufenPlus))} %)` },
+        { cls: 'st-neutral', hatch: true, w: pct(abgelaufenMinus),
+          titel: `davon im Minus am Tag 10: ${abgelaufenMinus} (${fmtPct1(pct(abgelaufenMinus))} %)` },
+        { cls: 'st-inval', w: pct(inval),
+          titel: `invalidiert: ${inval} (${fmtPct1(pct(inval))} %)` },
+      ];
+      const bar = segs.map(s => s.w > 0
+        ? `<i style="width:${s.w}%;background:${VSDIST_COLOR[s.cls]}${s.hatch
+            ? ';background-image:repeating-linear-gradient(45deg,transparent 0 3px,var(--bg-met) 3px 6px)'
+            : ''}" title="${esc(s.titel)}"></i>`
+        : '').join('');
+      const rows = `<span><i style="background:${VSDIST_COLOR['st-target']}"></i>Zone/Extension `
+        + `erreicht <b>${zone}</b> <em>${fmtPct1(pct(zone))} %</em></span>`
+        + `<span><i style="background:${VSDIST_COLOR['st-neutral']}"></i>abgelaufen (weder Ziel `
+        + `noch Stopp) <b>${abgelaufen}</b> <em>${fmtPct1(pct(abgelaufen))} %</em></span>`
+        + `<span><i style="background:${VSDIST_COLOR['st-neutral']}"></i>davon im Minus am Tag 10 `
+        + `<b>${abgelaufenMinus}</b> <em>${fmtPct1(pct(abgelaufenMinus))} %</em></span>`
+        + `<span><i style="background:${VSDIST_COLOR['st-inval']}"></i>invalidiert `
+        + `<b>${inval}</b> <em>${fmtPct1(pct(inval))} %</em></span>`;
+      const minNote = n < VERLUSTBILD_MIN_N
+        ? `<p class="vbild-note">n=${n} liegt unter ${VERLUSTBILD_MIN_N} — einzelne Anteile hier `
+          + `nicht deuten.</p>`
+        : '';
+      return `<div class="vbild">
+          <p class="vbild-title">Easys Sicht: nur „invalidiert" ist ein Verlust (n=${n})
+            <span class="vsum-stamp">nachträglich definiert · explorativ · kein Beleg</span></p>
+          <div class="vbild-bar">${bar}</div>
+          <div class="vsdist-rows">${rows}</div>
+          ${minNote}
+          <p class="vbild-say">Nachträglich definierte Sicht (nach Kenntnis des
+            Primärergebnisses vom 06.09.2026). Ersetzt die Primärwertung nicht.
+            Über die Hälfte der abgelaufenen Fälle steht am Tag 10 im Minus.</p>
+        </div>`;
+    }
+
+    // Primärzeile — das eingefrorene offizielle Ergebnis vom 06.09.2026,
+    // bewusst GETRENNT vom Verlustbild oben (eigener Rahmen, andere
+    // Fallbasis, kein Vergleich). Statischer Text, keine neue Datei/kein
+    // Fetch (Diagnose 11./12.10.2026, Easy-Entscheid Option A): das
+    // offizielle Ergebnis liegt nur in `data/evaluation/ergebnis.json`, die
+    // das Frontend nicht lädt — hier als feste Zahl aus der eingefrorenen
+    // Auswertung übernommen, ändert sich nie (Auswertung v1 ist eingefroren).
+    // Unabhängig von `records`/`_val` — bleibt auch sichtbar, wenn die
+    // Sammlung nicht lädt.
+    function primaerzeileHtml() {
+      return `<div class="vbild-primaer">
+          <p class="vbild-primaer-say"><b>Offizielle Auswertung vom
+            06.09.2026 (eingefroren):</b> 44,6&nbsp;% bei n=101 — Erfolgs-Kriterien nicht erfüllt.</p>
+          <p class="vbild-primaer-say">Andere Fallbasis als die Zahlen unten,
+            kein Vergleich.</p>
         </div>`;
     }
 
@@ -4628,6 +4762,7 @@
         }
         const dist = records ? statusDistributionHtml(records) : '';
         const rwerte = records ? rWerteHtml(records) : '';
+        const verlust = records ? verlustbildHtml(records) : '';
 
         if (_val) {
           const { collected, matured, evaluable, eval_min_n } = _val;
@@ -4643,6 +4778,7 @@
           head =
             `${dist}
              ${rwerte}
+             ${verlust}
              <div class="vsum-hero">
                <div class="vsum-num"><b>${collected}</b><span>gesammelt</span></div>
                <div class="vsum-num"><b>${matured}</b><span>fertig beobachtet</span></div>
@@ -4665,6 +4801,7 @@
           head =
             `${dist}
              ${rwerte}
+             ${verlust}
              <p class="info-lead">Zwischenstand: Dieser Lauf ist ein
                Mittags-Kurzupdate (nur Score/Ranking neu berechnet) — die
                Sammlungszahlen werden nicht bei jedem Lauf neu ermittelt und
@@ -4721,7 +4858,7 @@
          </details>`;
 
       // Overlay evtl. inzwischen geschlossen? Nur schreiben, wenn noch offen.
-      if (_infoOpen) document.getElementById('info-body').innerHTML = head + nerds;
+      if (_infoOpen) document.getElementById('info-body').innerHTML = primaerzeileHtml() + head + nerds;
     }
 
     // c) Lauf-Status — liest die additive Diag-Zusammenfassung aus report.json.

@@ -1169,6 +1169,62 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 
   **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review oben).
 
+- **12.10.2026 — Verlustbild im Validierung-Panel (Easy-Entscheid, Variante
+  A, #182 — nach #181, reiner Handover-Nachzug).** Easys Sicht im Frontend
+  (`docs/index.html`, `openValidierung()`) sichtbar gemacht: NUR
+  „invalidiert" ist für ihn ein Verlust — Zone/Extension erreicht UND
+  gereift-neutral zählen positiv. NACHTRÄGLICH definiert, erklärend,
+  **kein Beleg**.
+
+  **Diagnose vorab (Mini-Stopp, s. PR-Text #182):** der Auftragssatz „Die
+  Primärzeile bleibt unverändert sichtbar" traf nicht zu — diese Zeile
+  existierte im Frontend bisher **gar nicht** (nur in
+  `data/evaluation/ergebnis.json`, die das Frontend nie lädt). Easy-
+  Entscheid (Option A): `primaerzeileHtml()` neu ergänzt — fester Text
+  „Offizielle Auswertung vom 06.09.2026 (eingefroren): 44,6 % bei n=101 —
+  Erfolgs-Kriterien nicht erfüllt", unabhängig von `records`/`_val` immer
+  angehängt (`primaerzeileHtml() + head + nerds`), **keine neue Datei, kein
+  Fetch**.
+
+  **Bau:** `verlustbildPopulation()` (dieselbe Regel wie
+  `evaluate.build_population`: gereift, nicht per PRU-Guard ausgeschlossen,
+  Score UND `target_hit` vorhanden) + `verlustbildEimer()` + 3-Eimer-Balken
+  (`verlustbildHtml()`) zwischen R-Werten und den drei Kennzahlen-Kacheln.
+  Vierter Fund (Diagnose 12.10.2026, selbst entdeckt, nicht versteckt):
+  `episodeStatus()` zählt `ext_hit===1` ODER `target_hit===1` als Zone —
+  ein realer Fall (MA, 2026-08-19, `ext_hit=1`/`target_hit=0`, keine
+  Guard-Beteiligung) hätte dadurch 62 statt 61 Zone-Treffer ergeben, anders
+  als `scripts/evaluate_nicht_invalidiert.py`s `hit`-Feld (= `target_hit`
+  allein). Easy verlangt Übereinstimmung mit dem Skript — `verlustbildEimer`
+  nutzt deshalb bewusst `target_hit` allein, nicht `episodeStatus()`.
+  Schraffur des Minus-Anteils rein per CSS
+  (`repeating-linear-gradient`), kein neues Bild/Icon. Kein Zufallsvergleich
+  (braucht die Kursdatei, nicht im Repo). `n < 30`-Hinweis
+  (`VERLUSTBILD_MIN_N`, = `SECONDARY_MIN_N` aus `evaluate_nicht_invalidiert.
+  py`) für künftige, kleinere Teilmengen vorgesehen — bei n=157 aktuell ohne
+  Wirkung.
+
+  **Verbotene Wörter:** „Trefferquote"/„Erfolgsquote"/„bestanden"/
+  „signifikant"/„Signifikanz" bleiben in `verlustbildHtml`/
+  `verlustbildEimer`/`verlustbildPopulation` verboten (bestehende Tests aus
+  #107/#123 nicht gelockert). Einzige, von Easy ausdrücklich genannte
+  Ausnahme: „Erfolgs-Kriterien nicht erfüllt" in `primaerzeileHtml()` —
+  Easys eigenes Beispiel, dort bewusst zugelassen.
+
+  **Zahlen (heutiger Stand, n=157):** Zone/Extension 61, abgelaufen 63
+  (davon 34 im Minus am Tag 10), invalidiert 33 — live gegen
+  `scripts/evaluate_nicht_invalidiert.py` (`evaluate.build_population` +
+  `neutrale_faelle`) gegengeprüft, nicht hartkodiert (dieselbe Lehre wie
+  #107: die Sammlung wächst täglich weiter).
+
+  **Tests:** 25 neue (`tests/test_verlustbild_anzeige.py`), davon 2
+  Mutationsproben (invalidiert fälschlich als Zone gezählt — einmal als
+  reiner Vergleich, einmal echt in Node gegen `verlustbildEimer()`
+  ausgeführt). `tests/test_validierung_report_only_hinweis.py`: Stub für
+  `verlustbildHtml` ergänzt (Konsumenten-Fund).
+
+  **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review oben).
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
