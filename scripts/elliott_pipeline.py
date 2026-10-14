@@ -1049,7 +1049,7 @@ def _eval_end_of_w4(prices: Sequence[float], close: float,
     oder None. Extrahiert aus classify_setup — Logik/Rückgabe UNVERÄNDERT
     (außer den additiven Regeln 4+5, 14.10.2026, über ``kinds``).
 
-    ``kinds`` (additiv, optional): Pivot-Kinds, gleiche Länge wie ``prices"";
+    ``kinds`` (additiv, optional): Pivot-Kinds, gleiche Länge wie ``prices``;
     ``None`` -> Regel 4 wird übersprungen (nicht berechenbar, s. rules.py)."""
     if len(prices) < 5:
         return None
@@ -1091,7 +1091,7 @@ def _eval_end_of_w2(prices: Sequence[float], close: float,
     additiven Regeln 4+5, 14.10.2026, über ``kinds``/``check_trend_consistency``
     — EINE Stelle wie bei validate_impulse/validate_partial_to_w4, s. rules.py).
 
-    ``kinds`` (additiv, optional): Pivot-Kinds, gleiche Länge wie ``prices"";
+    ``kinds`` (additiv, optional): Pivot-Kinds, gleiche Länge wie ``prices``;
     ``None`` -> Regel 4 wird übersprungen (nicht berechenbar, s. rules.py)."""
     if len(prices) < 3:
         return None
