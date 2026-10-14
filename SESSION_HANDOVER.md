@@ -1243,6 +1243,44 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   nur noch Text statt vollem Balken ("Schwelle von 100 … erreicht (157)").
   10 neue/angepasste Tests.
 
+- **14.10.2026 — Marker „invertiertes Risiko bei Anlage" (Easy-Entscheid,
+  Variante A, Diagnose-Folgeauftrag vom selben Tag).** Diagnose fand 11 von
+  202 Records mit `entry_close <= invalidation_price` bei Anlage (8 davon in
+  der Auswertungs-Population, 8 von 35 Invalidierten). Neues additives Feld
+  `invertiertes_risiko_bei_anlage` (`scripts/invertiertes_risiko_anlage.py`,
+  Backfill `scripts/mark_invertiertes_risiko_anlage.py --live`, bereits
+  gelaufen auf genau die 11), zusätzliche „ohne markierte Fälle"-Zeile in
+  `scripts/evaluate_nicht_invalidiert.py` (Stopp-Quote, Verlustbild,
+  Cluster-Sensitivität — Kandidaten- und Zufallsseite auf derselben
+  gefilterten Fallmenge). Registry-Eintrag mit Transparenzklausel
+  (`docs/validation_registry.md`, 14.10.2026). Score, Ranking,
+  Kandidaten-Auswahl, Primärwertung, `evaluate.py` (SHA256-Pin) und die
+  Auswertungs-Population UNANGETASTET — additiv, zählungsneutral wie
+  `in_session_creation`.
+
+  **OFFENE PUNKTE aus diesem Auftrag (bewusst NICHT in diesem Schritt
+  gelöst):**
+  1. **Zählregel-Befund (Teil 0a der Diagnose):** eine vom Marker
+     unabhängige Prüfung fand geometrisch unmögliche Zählungen (Pivot-Kind-
+     Reihenfolge verkehrt bzw. W2 retraciert nicht statt die Bewegung
+     fortzusetzen) bei BAC (aktueller Report, Top-5 Platz 1) sowie bei
+     HD/QIA.DE/MNST/BAC (weitere Fälle in der Sammlung). **Reparatur der
+     Zählregel selbst ist NICHT Teil dieses Auftrags** und eine eigene,
+     separate Easy-Entscheidung.
+  2. **Sensitivitätsregel 08.08.2026 gilt NICHT automatisch** für den neuen
+     Marker — `filter_sensitivity_sammlung.MARKERS` ist ein hart codiertes
+     Tupel, bewusst NICHT um diesen Marker ergänzt (hätte Rückwirkung auf
+     die bestehende (b)-Sensitivitätsrechnung ohne eigene Entscheidung
+     dazu). Die neue Zeile in `evaluate_nicht_invalidiert.py` hängt NICHT
+     an diesem Mechanismus.
+  3. **Tageslauf bewusst nicht berührt:** keine laufende Markierung neuer
+     Records (analog `in_session.markiere_neue_records`) — jeder künftige
+     Zuwachs an invertierten Fällen braucht bis auf Weiteres einen
+     erneuten (idempotenten) Backfill-Lauf.
+
+  **WIEDERVORLAGE:** 07.12.2026, zusammen mit dem Score-Review (alle drei
+  Punkte oben).
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
