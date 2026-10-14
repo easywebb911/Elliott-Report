@@ -2682,3 +2682,85 @@ vor n ≥ 100) gilt unverändert.
   markiere_neue_records` in `elliott_pipeline.main()`) ist NICHT gebaut —
   das hätte den Tageslauf-Pfad verändert. Offener Punkt, s.
   SESSION_HANDOVER.md.
+
+- **14.10.2026 — Zwei zusätzliche K.o.-Regeln gegen geometrisch unmögliche
+  Zählungen (Easy-Entscheid, PR 1 von 4, Diagnose-Folgeauftrag).**
+
+  **TRANSPARENZ-KLAUSEL:** diese Regel entstand NACH Kenntnis des
+  Primärverdikts (06.09.2026) und der Läufe vom 11. bis 14.10.2026
+  (Diagnose BAC/FME.DE/PBB.DE, Marker „invertiertes Risiko bei Anlage",
+  Zählregel-Diagnose) — explorativ/korrigierend, keine Präregistrierung.
+
+  **Befund:** BAC (aktueller Report, US Top-5 Platz 1, Score 88,17) sowie
+  4 weitere Fälle der Sammlung zeigten eine geometrisch unmögliche
+  Zählung — `rules.py` prüfte bislang nur, dass `P2 >= P0` (Regel 1),
+  `P3`/`P5` nicht die kürzeste Welle (Regel 2) und `P4 > P1` (Regel 3)
+  gelten; alle drei lassen sich erfüllen, ohne dass `P0` der zur Richtung
+  passende Pivot-Typ ist oder `P2` tatsächlich gegenläufig zu `P1` liegt
+  (die Richtungs-Bestimmung selbst macht `P1 >= P0` nach der Normalisierung
+  tautologisch wahr).
+
+  **Zwei neue K.o.-Regeln** (`scripts/rules.py`, trendrichtung-normalisiert):
+  - **RULE_TREND_ORIGIN_KIND:** `kind(P0)` muss der zur Richtung passende
+    Extrempunkt-Typ sein — 'L' bei Long, 'H' bei Short.
+  - **RULE_W2_COUNTERTREND:** normalisiert muss `P2 < P1` STRENG gelten —
+    W2 muss die Bewegung von W1 umkehren (retracen), nicht fortsetzen.
+
+  Beide Regeln sind an dieselbe Opt-in-Bedingung gekoppelt (`kinds`
+  übergeben) und wirken EINHEITLICH in `validate_impulse`,
+  `validate_partial_to_w4` und dem 3-Punkte-Ende-W2-Pfad
+  (`elliott_pipeline._eval_end_of_w2`, über die neue öffentliche Funktion
+  `rules.check_trend_consistency`) — damit automatisch auch im Tagesgrad
+  (`build_candidate`/`classify_setup`), im Wochen-/Monatsgrad
+  (`_count_from_series`, dieselbe Funktion) und im Ambiguitäts-Ausweis
+  v1/v2 (`ambiguity_fields`/`ambiguity_v2_fields`, über `enumerate_long_
+  counts`, derselbe Pfad). **Bewusst NICHT betroffen:** die Watchlist-
+  Strukturerkennung (`_classify_structure`/`_detect_correction`) — sie ruft
+  `validate_impulse`/`validate_partial_to_w4` ohne `kinds` auf (reine
+  Preis-Information, kein Pivot-Kind-Zugriff) und bleibt dadurch
+  unverändert; ob die neuen Regeln dort ebenfalls gelten sollen, ist eine
+  eigene, hier NICHT getroffene Entscheidung (Diagnose-Mini-Stopp, s.
+  PR-Text).
+
+  **Wirkung auf die Population:** eine zuvor als Top-5-Kandidat gezählte
+  Struktur, die eine der beiden neuen Regeln verletzt, gilt ab dem Stichtag
+  als `no_valid_count` (bestehender Skip-Grund, KEIN neuer Diag-Zähler
+  nötig — `classify_setup` liefert in diesem Fall bereits `None`, exakt wie
+  bei jeder anderen regelwidrigen Struktur) und erscheint nicht mehr in
+  Top-5/Ersatzbank. **Score/Ranking-Formel unverändert** — `score_setup()`,
+  `config.SCORE_WEIGHTS`/`SETUP_BASE_POINTS`, die Ranking-Sortierung und die
+  Kandidaten-Aufnahme (außer der Zählgültigkeit selbst) sind von diesem PR
+  NICHT angefasst. **`scripts/evaluate.py` unverändert** (SHA256-Pin
+  bestätigt unverändert). Bestehende Records in `data/forward_collection.json`
+  werden NICHT verändert oder gelöscht — die neue Regel wirkt ausschließlich
+  auf künftige Zählungen des Tageslaufs, nicht rückwirkend.
+
+  **Stichtag:** der erste Tageslauf NACH dem Merge-Commit dieses PRs.
+  Commit-Hash und Lauf-Zeitstempel werden NACH dem Merge hier nachgetragen
+  (noch offen zum Zeitpunkt dieses Commits — s. `SESSION_HANDOVER.md` für
+  den Platzhalter-Eintrag, der beim ersten Lauf ergänzt wird).
+
+  **Zahlen (echter Gegentest gegen `data/forward_collection.json`, 202
+  Records, `chart_points`+`count_wave_labels`):** genau **5 von 202**
+  Records werden durch die neue Regel verworfen — `HD@2026-07-28`,
+  `QIA.DE@2026-07-28`, `MNST@2026-08-10`, `BAC@2026-09-18`,
+  `BAC@2026-10-06` — **197 bleiben gültig**, davon 0 False Positives auf
+  dem heutigen Bestand geprüft (**fragile Annahme, hier ausdrücklich
+  ausgewiesen:** keine Garantie für künftige, noch nicht beobachtete
+  Pivot-Muster — nur der heutige Bestand ist geprüft).
+
+  **Tests:** `tests/test_rules.py` (12 neue: saubere Long-/Short-Zählungen
+  bleiben gültig, BAC-Muster verworfen, W2-Fortsetzung verworfen,
+  Randfall `P2 == P1`, zwei Mutationsproben), `tests/test_
+  zaehlregel_trend_consistency.py` (12 neue: Wiring in `classify_setup`/
+  `enumerate_long_counts`/`ambiguity_fields`, Wochen-/Monatsgrad-
+  Konsistenz, Watchlist-Unberührtheit, echter Gegentest 5/197,
+  `build_candidate` fällt auf `no_valid_count` zurück). Ein bestehender
+  Test (`tests/test_ambiguity_v1.py::test_short_counts_not_counted`)
+  angepasst — seine synthetische Pivot-Fixture widersprach dem eigenen
+  Kursverlauf (`_piv()`s positionale Kind-Zuordnung passte nicht zum
+  Short-Fall) und wurde durch eine kind-korrekte Pivot-Liste ersetzt,
+  Aussage/Preisverlauf unverändert. Zwei echte Mutationsproben am
+  Quelltext bestätigt (Kind-Prüfung entfernt, `<` auf `<=` gedreht —
+  jeweils die betroffenen Tests rot, Datei danach byte-identisch
+  wiederhergestellt). Volle Suite: 1875 passed.
