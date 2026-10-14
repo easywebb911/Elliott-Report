@@ -2588,3 +2588,97 @@ vor n ≥ 100) gilt unverändert.
   geparkten Stale-Markierungs-Entscheid (HARTE SPERRE, #162,
   `SESSION_HANDOVER.md`) — derselbe Easy-Entscheid klärt auch die Zukunft
   dieses Stichtags. Revert = `git revert`, reine Testdatei-Änderung.
+
+- **14.10.2026 — Marker „invertiertes Risiko bei Anlage" (Easy-Entscheid,
+  Variante A, Diagnose-Folgeauftrag).**
+
+  **TRANSPARENZ-KLAUSEL:** diese Regel entstand NACH Kenntnis des
+  Primärverdikts (06.09.2026) und der Läufe ab 38149306463 (s.
+  Cluster-Sensitivität, `evaluate_nicht_invalidiert.py`) — ANDERS als die
+  Sensitivitätsregel 07./08.08.2026 (dort VOR Sichtbarkeit jeder
+  Ergebniszahl entschieden). Das macht diese Regel explizit explorativ und
+  NACHTRÄGLICH, keine Präregistrierung — genau deswegen hier ausdrücklich
+  benannt, statt es zu verschweigen.
+
+  **Befund (Diagnose 14.10.2026):** 11 von 202 Records hatten bei Anlage
+  `entry_close <= invalidation_price` — identisch zur bereits seit
+  06.09.2026 bestehenden Markierung `r_nicht_ermittelbar_grund =
+  "invertiertes_risiko"` (`forward_collection._r_kennzahlen`, Bedingung
+  `risiko_abstand <= 0`). **Richtigstellung:** der 06.09.2026-Eintrag oben
+  beschreibt die Bedingung in Worten als `entry_close < invalidation_price`
+  — der tatsächliche Code (`risiko_raw > 0` im Positiv-Zweig, sonst der
+  Marker) prüft `<= 0`, also `entry_close <= invalidation_price`. Auf dem
+  aktuellen Bestand ändert das nichts (0 Fälle mit exakter Gleichheit),
+  der neue Marker übernimmt zur Konsistenz trotzdem `<=`.
+
+  **Neues additives Feld** `invertiertes_risiko_bei_anlage` (+
+  `invertiertes_risiko_bei_anlage_marked_utc`), `scripts/
+  invertiertes_risiko_anlage.py` — unabhängig aus `entry_close`/
+  `invalidation_price` berechnet (bewusst NICHT nur aus
+  `r_nicht_ermittelbar_grund` abgeleitet, damit ein künftiges
+  Auseinanderlaufen beider Felder sichtbar würde). Rückwirkend gesetzt via
+  `scripts/mark_invertiertes_risiko_anlage.py --live --marked-utc
+  2026-10-14T00:00:00Z` auf genau 11 Records (Beleg: Dry-Run-Log vor dem
+  `--live`-Lauf, Ticker/Daten identisch zur Diagnose-Liste). Additiv,
+  zählungsneutral — wie `in_session_creation`: `FROZEN_FIELDS`,
+  `evaluate.py` (SHA256-gepinnt), Score, Ranking, Kandidaten-Auswahl,
+  Primärwertung und die Auswertungs-Population bleiben UNANGETASTET.
+
+  **KEINE automatische Geltung der Sensitivitätsregel 08.08.2026 für diesen
+  Marker:** `filter_sensitivity_sammlung.MARKERS` ist ein hart codiertes
+  Tupel (`in_session_creation`, `episode_split_suspect`,
+  `stale_market_suspect`) — ein neuer Marker wird dort NICHT automatisch
+  erfasst, trotz der Formulierung „künftige Marker fallen automatisch
+  unter dieselbe Regel" weiter oben in dieser Datei. Diese Formulierung ist
+  eine Governance-Zusage, keine Lauf-Automatik; sie wirkt erst, wenn der
+  Marker-Name dort eintragen wird. In diesem Auftrag BEWUSST NICHT
+  geschehen (nicht Teil des Auftrags, hätte Rückwirkung auf die
+  bestehende (b)-Sensitivitätsrechnung ohne eigene Easy-Entscheidung dazu)
+  — offener Punkt, s. SESSION_HANDOVER.md.
+
+  **Zufalls-Baseline geprüft (Teil 0c der Diagnose):** `evaluate_nicht_
+  invalidiert.simulate_nicht_invalidiert` ist laut eigener Moduldoku
+  „exakt derselbe Pfad" wie `evaluate.simulate_hit` — das Verhältnis
+  `invalidation_price / entry_close` (hier > 1) wird für ALLE simulierten
+  Starttage AUS DEMSELBEN FALL übernommen (`_outcome_pools`). Bei
+  invertiertem Risiko liegt die Ungültigkeitsschwelle rechnerisch über
+  jedem resampleten Einstiegskurs — die Zufallsseite wird für genau
+  dieselben Fälle ebenso nahezu sicher „invalidiert" wie die beobachtete
+  Seite. Symmetrisch, kein Bias zugunsten einer Seite; diese Fälle sind
+  für den Vergleich praktisch uninformativ. Hinweis: keine Zahlenprobe
+  gegen echte Kurse möglich (kein Netzzugriff in dieser Diagnose,
+  `data/eval_prices.json` liegt nicht im Repo) — Aussage beruht auf
+  Code-Lektüre, nicht auf einem Lauf.
+
+  **Neue, getrennt beschriftete Zeile** in `evaluate_nicht_invalidiert.py`
+  („ohne markierte Fälle"): Stopp-Quote, Stopp-gerissen-Baseline und
+  Verlustbild zusätzlich OHNE die markierten Records — Kandidaten- und
+  Zufallsseite auf derselben gefilterten Fallmenge (dieselbe
+  `_outcome_pools`-Mechanik, kein getrenntes Rezept für beide Seiten).
+  Cluster-Sensitivität (Tag-/Ticker-Block, 5 Seeds) läuft für diese Zeile
+  mit derselben, unveränderten Funktion. Zählung der gerechneten
+  Auswertungen (FDR-Familie) um diese Zelle fortgeschrieben.
+
+  **Zählregel-Befund (Teil 0a der Diagnose) bleibt OFFEN, nicht Teil
+  dieses Auftrags:** eine eigene, vom hier gebauten Marker unabhängige
+  Prüfung fand geometrisch unmögliche Zählungen (Pivot-Kind-Reihenfolge
+  verkehrt bzw. W2 retraciert nicht) bei BAC (aktueller Report, Top-5
+  Platz 1) sowie bei HD/QIA.DE/MNST/BAC (weitere Fälle in der Sammlung,
+  Episoden-Daten s. Diagnose). Eine Reparatur der Zählregel selbst ist
+  eine eigene, hier NICHT getroffene Easy-Entscheidung — s.
+  SESSION_HANDOVER.md, Wiedervorlage 07.12.2026.
+
+  **Tests:** synthetische Fixtures (unter/gleich/über der
+  Invalidierungsmarke), Mutationsproben (Operator `<=`→`<` vertauscht;
+  Marker-Filter aus der neuen Zeile entfernt), Population/Zählungen vor
+  und nach dem Backfill identisch (`eval_counts`), `evaluate.py`-SHA256
+  unverändert, Kreuzprobe gegen `r_nicht_ermittelbar_grund ==
+  "invertiertes_risiko"` (muss auf dem aktuellen Bestand exakt
+  übereinstimmen), Rückweg-Test (`--purge --live` stellt die Datei
+  byte-identisch zum Vor-Backfill-Stand wieder her), volle Suite grün.
+
+  **Tageslauf bewusst NICHT berührt (Mini-Stopp statt Bauen):** eine
+  laufende Markierung neuer Records (analog `in_session.
+  markiere_neue_records` in `elliott_pipeline.main()`) ist NICHT gebaut —
+  das hätte den Tageslauf-Pfad verändert. Offener Punkt, s.
+  SESSION_HANDOVER.md.

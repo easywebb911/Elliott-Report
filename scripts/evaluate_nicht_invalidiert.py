@@ -151,6 +151,22 @@ CLUSTER-SENSITIVITÄT (Easy-Entscheid 11.10.2026, Anlass: Lauf 38149306463 —
   vertauscht und gespiegelt) — KEINE zweite Bootstrap-Rechnung, aus
   demselben Grund wie `stopp_baseline()` oben (dasselbe Ereignis).
 
+ZEILE „OHNE MARKIERTE FÄLLE" (Easy-Entscheid Variante A, 14.10.2026,
+  Diagnose-Folgeauftrag): zusätzlich, GETRENNT beschriftet, dieselbe
+  Stopp-Quote/Stopp-gerissen-Baseline/Verlustbild/Cluster-Sensitivität
+  wie oben, aber ohne die Records mit `invertiertes_risiko_anlage.MARKER`
+  (`scripts/invertiertes_risiko_anlage.py`, docs/validation_registry.md
+  14.10.2026) — Kandidaten- und Zufallsseite auf GENAU DERSELBEN
+  gefilterten Fallmenge (keine zweite, getrennte Definition für beide
+  Seiten: `cases_ohne_marker` wird einmal gebildet und an dieselben
+  bereits bestehenden Funktionen (`benchmark_nicht_invalidiert`,
+  `gap_messung`, `neutral_verlustbild`, `cluster_sensitivitaet_
+  nicht_invalidiert`) übergeben, die auch die ungefilterte Zeile
+  berechnen — keine neue Logik, reine Wiederverwendung mit anderer
+  Eingabemenge). Diese Zeile ist UNABHÄNGIG von `filter_sensitivity_
+  sammlung.py`/dessen `MARKERS`-Tupel (s. Registry-Eintrag 14.10.2026) —
+  sie filtert direkt auf den neuen Marker, nicht über jenen Mechanismus.
+
 VERWENDUNG (nur manuell):
   python scripts/evaluate_nicht_invalidiert.py
       [--sammlung data/forward_collection.json] [--kurse data/eval_prices.json]
@@ -171,6 +187,7 @@ REPO_ROOT = repo_path.REPO_ROOT
 
 import evaluate as ev  # noqa: E402 — NUR LESEND genutzt, s. Moduldoc oben
 import evaluate_cluster_sensitivity as ecs  # noqa: E402 — NUR `_bloecke()`, s. Moduldoc
+import invertiertes_risiko_anlage as ira  # noqa: E402 — NUR das Marker-Feld, s. Moduldoc
 import forward_collection as fc  # noqa: E402
 from numeric import finite  # noqa: E402
 
@@ -655,6 +672,33 @@ def cluster_sensitivitaet_stopp_gerissen(ni_ergebnis: Dict) -> Dict:
 
 
 # ---------------------------------------------------------------------------
+# „Ohne markierte Fälle" (Easy-Entscheid Variante A, 14.10.2026) — s.
+# Moduldoc ZEILE „OHNE MARKIERTE FÄLLE" und docs/validation_registry.md.
+# ---------------------------------------------------------------------------
+def ohne_markierte_faelle(cases: Sequence[Dict]) -> List[Dict]:
+    """Fälle OHNE `invertiertes_risiko_anlage.MARKER` — Kandidaten- UND
+    Zufallsseite laufen unten auf GENAU dieser gefilterten Liste, keine
+    zweite, getrennte Fallmenge für die Zufallsseite."""
+    return [c for c in cases if not c["rec"].get(ira.MARKER)]
+
+
+def _ohne_marker_zelle(cases_om: Sequence[Dict], entfernt: int,
+                       prices: Optional[Dict], draws: int) -> Dict:
+    """Eigene, deterministische Ziehung (fester Seed, unabhängig von der
+    Haupt-RNG-Sequenz der Strata-Schleife) — reine Wiederverwendung von
+    `benchmark_nicht_invalidiert`, keine neue Simulation."""
+    quote = quote_nicht_invalidiert(cases_om)
+    eintrag: Dict = {"faelle": len(cases_om), "entfernt": entfernt, "quote": quote}
+    if len(cases_om) < SECONDARY_MIN_N:
+        eintrag["hinweis"] = "zu wenige Fälle (< SECONDARY_MIN_N)"
+        eintrag["baseline"] = None
+    else:
+        eintrag["baseline"] = benchmark_nicht_invalidiert(
+            cases_om, prices, random.Random(EVAL_SEED), draws)
+    return eintrag
+
+
+# ---------------------------------------------------------------------------
 # Bericht
 # ---------------------------------------------------------------------------
 def berechne(cases: Sequence[Dict], prices: Optional[Dict],
@@ -677,26 +721,40 @@ def berechne(cases: Sequence[Dict], prices: Optional[Dict],
                 gerechnet += 1
                 p_werte[name] = bench["p_wert"]
         zellen[name] = eintrag
+
+    cases_om = ohne_markierte_faelle(cases)
+    entfernt_om = len(cases) - len(cases_om)
+    zelle_om = _ohne_marker_zelle(cases_om, entfernt_om, prices, draws)
+    if zelle_om["baseline"] and zelle_om["baseline"].get("durchfuehrbar"):
+        gerechnet += 1
+        p_werte["ohne markierte Fälle"] = zelle_om["baseline"]["p_wert"]
+
     fdr = benjamini_hochberg(p_werte) if p_werte else {}
 
     bench_gesamt = zellen["gesamt"].get("baseline") or {"durchfuehrbar": False,
                                                         "grund": "keine Fälle"}
+    bench_om = zelle_om.get("baseline") or {"durchfuehrbar": False,
+                                            "grund": "keine Fälle"}
 
     return {
         "kopfzeile": KOPFZEILE,
         "zaehlwerk": {
             "gesamt_faelle": len(cases),
-            "zellen_insgesamt": len(strata),
+            "zellen_insgesamt": len(strata) + 1,
             "gerechnete_auswertungen": gerechnet,
             "hinweis": f"{len(strata)} Zellen betrachtet (gesamt, Ende W4, "
-                      f"Ende W2), davon {gerechnet} mit tatsächlich "
-                      f"berechnetem p-Wert gegen die Zufalls-Baseline — "
-                      f"FDR gilt NUR für diese {gerechnet}. Zusätzlich: "
-                      f"Cluster-Sensitivität (Block-Bootstrap nach Tag und "
-                      f"nach Ticker, {len(CLUSTER_SEEDS)} Seeds) NUR für "
-                      f"Zelle 'gesamt' — s. unten.",
+                      f"Ende W2) plus 1 Zusatz-Zeile 'ohne markierte Fälle' "
+                      f"(Easy-Entscheid 14.10.2026, invertiertes Risiko bei "
+                      f"Anlage, {entfernt_om} von {len(cases)} entfernt), "
+                      f"davon {gerechnet} mit tatsächlich berechnetem "
+                      f"p-Wert gegen die Zufalls-Baseline — FDR gilt NUR "
+                      f"für diese {gerechnet}. Zusätzlich: Cluster-"
+                      f"Sensitivität (Block-Bootstrap nach Tag und nach "
+                      f"Ticker, {len(CLUSTER_SEEDS)} Seeds) für Zelle "
+                      f"'gesamt' UND 'ohne markierte Fälle' — s. unten.",
         },
         "zellen": zellen,
+        "zelle_ohne_markierte_faelle": zelle_om,
         "fdr_benjamini_hochberg": {"alpha": FDR_ALPHA, "ergebnis": fdr},
         "komposition": komposition(cases),
         "verlustbild": {
@@ -707,8 +765,17 @@ def berechne(cases: Sequence[Dict], prices: Optional[Dict],
             "gesamt_verlustbild": gesamt_verlustbild(cases),
             "gap_messung": gap_messung(cases),
             "stopp_baseline": stopp_baseline(bench_gesamt),
+            "ohne_markierte_faelle": {
+                "entfernt": entfernt_om,
+                "faelle": len(cases_om),
+                "neutral": neutral_verlustbild(cases_om),
+                "gap_messung": gap_messung(cases_om),
+                "stopp_baseline": stopp_baseline(bench_om),
+            },
         },
         "cluster_sensitivitaet": _cluster_sensitivitaet_bericht(cases, prices),
+        "cluster_sensitivitaet_ohne_markierte_faelle": _cluster_sensitivitaet_bericht(
+            cases_om, prices),
         "seed": seed,
         "warnung": KOMPOSITIONS_WARNUNG,
     }
@@ -837,6 +904,70 @@ def render_text(res: Dict, primaer_trefferquote: Optional[float],
                 f"p={sb['p_wert']:.4f} ({sb['p_wert_hinweis']})")
     z.append("")
 
+    z.append("=== OHNE MARKIERTE FÄLLE (invertiertes Risiko bei Anlage, "
+             "Easy-Entscheid Variante A, 14.10.2026) ===")
+    om = res["zelle_ohne_markierte_faelle"]
+    z.append(f"n={om['faelle']} (entfernt: {om['entfernt']} markierte Fälle) "
+             f"— Quote 'nicht invalidiert': {_pct(om['quote'])}")
+    if om.get("hinweis"):
+        z.append(f"  {om['hinweis']}")
+    elif om["baseline"] and not om["baseline"].get("durchfuehrbar"):
+        z.append(f"  Zufalls-Baseline nicht durchführbar: {om['baseline']['grund']}")
+    elif om["baseline"]:
+        b = om["baseline"]
+        z.append(f"  Zufalls-Baseline: Mittel {_pct(b['zufalls_quote_mittel'])} "
+                 f"(5.–95. Perzentil {_pct(b['zufalls_quote_p05'])}–"
+                 f"{_pct(b['zufalls_quote_p95'])}), p={b['p_wert']:.4f}, "
+                 f"Differenz {_pct(om['quote'] - b['zufalls_quote_mittel'])}")
+        fdr_om = res["fdr_benjamini_hochberg"]["ergebnis"].get("ohne markierte Fälle")
+        if fdr_om:
+            z.append(f"  FDR (Benjamini-Hochberg, alpha="
+                     f"{res['fdr_benjamini_hochberg']['alpha']}): "
+                     f"Rang {fdr_om['rang']}, signifikant={fdr_om['signifikant']}")
+    z.append("")
+
+    vom = v["ohne_markierte_faelle"]
+    nvom = vom["neutral"]
+    z.append(f"--- Neutrale Fälle, ohne markierte Fälle (n={nvom['faelle']}) ---")
+    if nvom.get("mit_messwert", 0) == 0:
+        z.append(f"  {nvom.get('hinweis', 'keine Fälle')}")
+    else:
+        z.append(f"  im Minus (< 0): {nvom['im_minus_strikt']}, genau 0: "
+                 f"{nvom['genau_null']}, im Plus (> 0): "
+                 f"{nvom['im_plus_strikt']} — Mittel {nvom['mittelwert']:.3f} R, "
+                 f"Median {nvom['median']:.3f} R")
+        if nvom.get("hinweis"):
+            z.append(f"  {nvom['hinweis']}")
+    z.append("")
+
+    gm_om = vom["gap_messung"]
+    z.append(f"--- Gap-Messung Invalidierte, ohne markierte Fälle "
+             f"(n={gm_om['faelle_gesamt']}, {gm_om['mit_messwert']} mit "
+             f"Messwert, {gm_om['ohne_messwert']} ohne) ---")
+    if gm_om["mit_messwert"]:
+        z.append(f"  Durchrutsch (Close < Marke): {gm_om['durchrutscht']}, "
+                 f"genau auf Marke: {gm_om['genau_auf_marke']}")
+        z.append(f"  Median {gm_om['median_prozent']:.2f} %, größter "
+                 f"Durchrutsch {gm_om['maximum_prozent']:.2f} % "
+                 f"(Close-basiert, NICHT Intraday)")
+        if gm_om["median_r"] is not None:
+            z.append(f"  In R (risiko_abstand): Median {gm_om['median_r']:.3f} "
+                     f"({gm_om['r_faelle']} Fälle mit gültigem Risiko)")
+    z.append(f"  {gm_om['hinweis']}")
+    z.append("")
+
+    sb_om = vom["stopp_baseline"]
+    z.append("--- Stopp-gerissen-Quote, ohne markierte Fälle (Komplement) ---")
+    if not sb_om.get("durchfuehrbar"):
+        z.append(f"  Zufalls-Baseline nicht durchführbar: {sb_om.get('grund')}")
+    else:
+        z.append(f"  Beobachtet {_pct(sb_om['beobachtete_quote'])}, "
+                 f"Zufalls-Mittel {_pct(sb_om['zufalls_quote_mittel'])} "
+                 f"(5.–95. Perzentil {_pct(sb_om['zufalls_quote_p05'])}–"
+                 f"{_pct(sb_om['zufalls_quote_p95'])}), p={sb_om['p_wert']:.4f} "
+                 f"({sb_om['p_wert_hinweis']})")
+    z.append("")
+
     cs = res["cluster_sensitivitaet"]
     z.append("=== CLUSTER-SENSITIVITÄT (Easy-Entscheid 11.10.2026) ===")
     z.append("Anlass: Stopp-gerissen 21,0 % gegen Zufalls-Mittel 15,2 % "
@@ -850,6 +981,33 @@ def render_text(res: Dict, primaer_trefferquote: Optional[float],
                        ("Stopp-gerissen (gespiegelt, keine zweite "
                         "Bootstrap-Rechnung)", "stopp_gerissen")):
         eintrag = cs[key]
+        z.append(f"--- {titel} ---")
+        if not eintrag.get("durchfuehrbar"):
+            z.append(f"  nicht durchführbar: {eintrag.get('grund')}")
+            z.append("")
+            continue
+        z.append(f"  Punktschätzung Differenz (beobachtet minus Zufall): "
+                 f"{_pct(eintrag['diff_punkt'])} (beobachtet "
+                 f"{_pct(eintrag['beobachtete_quote'])}, Zufalls-Mittel "
+                 f"{_pct(eintrag['zufalls_mittel'])}, n={eintrag['faelle']}, "
+                 f"{eintrag['ziehungen']} Ziehungen je Seed)")
+        for feld_name, block_eintrag in eintrag["bloecke"].items():
+            z.append(f"  {feld_name} ({block_eintrag['cluster_anzahl']} "
+                     f"Cluster):")
+            for seed, werte in block_eintrag["je_seed"].items():
+                z.append(f"    Seed {seed}: CI "
+                         f"[{_pct(werte['ci_untergrenze'])}, "
+                         f"{_pct(werte['ci_obergrenze'])}] — Intervall "
+                         f"schließt 0 ein: "
+                         f"{'ja' if werte['schliesst_0_ein'] else 'nein'}")
+        z.append("")
+
+    cs_om = res["cluster_sensitivitaet_ohne_markierte_faelle"]
+    z.append("--- dieselbe Cluster-Sensitivität, ohne markierte Fälle "
+             "(invertiertes Risiko bei Anlage) ---")
+    for titel, key in (("'nicht invalidiert'", "nicht_invalidiert"),
+                       ("Stopp-gerissen (gespiegelt)", "stopp_gerissen")):
+        eintrag = cs_om[key]
         z.append(f"--- {titel} ---")
         if not eintrag.get("durchfuehrbar"):
             z.append(f"  nicht durchführbar: {eintrag.get('grund')}")

@@ -775,3 +775,121 @@ def test_cluster_sensitivitaet_erscheint_im_bericht_und_im_text():
     assert "CLUSTER-SENSITIVITÄT" in text
     assert "Intervall schließt 0 ein:" in text
     assert "verdikt" not in text.lower() or "KEIN VERDIKT" in text
+
+
+# ===========================================================================
+# „OHNE MARKIERTE FÄLLE" (Easy-Entscheid Variante A, 14.10.2026,
+# Diagnose-Folgeauftrag) — invertiertes Risiko bei Anlage.
+# ===========================================================================
+import invertiertes_risiko_anlage as ira  # noqa: E402
+
+
+def _markiert(fall: dict) -> dict:
+    """Kopiert einen Fall und setzt den Marker auf dessen `rec` — die
+    Original-Fixture bleibt unverändert (sonst verfälscht das andere Tests,
+    die dieselbe Modul-Konstante weiterverwenden)."""
+    import copy
+    f = copy.deepcopy(fall)
+    f["rec"][ira.MARKER] = True
+    return f
+
+
+def test_ohne_markierte_faelle_filtert_nur_den_marker():
+    faelle = [_A_ZONE, _markiert(_B_NEUTRAL), _C_INVAL, _markiert(_D_NEUTRAL)]
+    gefiltert = eni.ohne_markierte_faelle(faelle)
+    assert [c["ticker"] for c in gefiltert] == ["A", "C"]
+
+
+def test_ohne_markierte_faelle_ohne_marker_aendert_nichts():
+    faelle = [_A_ZONE, _B_NEUTRAL, _C_INVAL]
+    assert eni.ohne_markierte_faelle(faelle) == faelle
+
+
+def test_mutationsprobe_marker_filter_aus_der_neuen_zeile_entfernt():
+    """Mutationsprobe (Auftrag TESTS): eine kaputte Variante, die den
+    Marker-Filter vergisst (`cases` statt `ohne_markierte_faelle(cases)`),
+    würde dieselbe Fallzahl wie die ungefilterte Zeile liefern. Echt und
+    kaputt müssen sich hier unterscheiden."""
+    faelle = [_A_ZONE, _markiert(_B_NEUTRAL), _C_INVAL, _markiert(_D_NEUTRAL)]
+
+    def kaputt_ohne_markierte_faelle(cases):
+        return list(cases)  # FALSCH: filtert nichts
+
+    echt = eni.ohne_markierte_faelle(faelle)
+    kaputt = kaputt_ohne_markierte_faelle(faelle)
+    assert len(echt) != len(kaputt)
+    assert len(echt) == 2 and len(kaputt) == 4
+
+
+def test_berechne_enthaelt_ohne_markierte_faelle_block():
+    faelle = list(_VERSTREUT)
+    faelle[0] = _markiert(faelle[0])
+    faelle[1] = _markiert(faelle[1])
+    res = eni.berechne(faelle, _VERSTREUT_PREISE, draws=200)
+
+    zelle = res["zelle_ohne_markierte_faelle"]
+    assert zelle["entfernt"] == 2
+    assert zelle["faelle"] == len(faelle) - 2
+
+    v = res["verlustbild"]["ohne_markierte_faelle"]
+    assert v["entfernt"] == 2
+    assert v["faelle"] == len(faelle) - 2
+
+    assert "cluster_sensitivitaet_ohne_markierte_faelle" in res
+    assert set(res["cluster_sensitivitaet_ohne_markierte_faelle"]) == \
+           {"nicht_invalidiert", "stopp_gerissen"}
+
+
+def test_berechne_kandidaten_und_zufallsseite_auf_derselben_fallmenge():
+    """EXZELLENZ-Anforderung: Stopp-Quote-Zähler (Kandidatenseite) und die
+    `_outcome_pools`-Eingabe (Zufallsseite) der neuen Zeile laufen auf
+    EXAKT derselben gefilterten Fallliste — kein getrenntes Rezept je
+    Seite."""
+    faelle = list(_VERSTREUT)
+    faelle[3] = _markiert(faelle[3])
+    gefiltert = eni.ohne_markierte_faelle(faelle)
+
+    res = eni.berechne(faelle, _VERSTREUT_PREISE, draws=200)
+    zelle = res["zelle_ohne_markierte_faelle"]
+    assert zelle["faelle"] == len(gefiltert)
+    if zelle["baseline"] and zelle["baseline"].get("durchfuehrbar"):
+        assert zelle["baseline"]["faelle"] == len(gefiltert)
+
+
+def test_render_text_zeigt_den_abschnitt_ohne_markierte_faelle():
+    faelle = list(_VERSTREUT)
+    faelle[0] = _markiert(faelle[0])
+    res = eni.berechne(faelle, _VERSTREUT_PREISE, draws=200)
+    text = eni.render_text(res, None, None, None, 0)
+    assert "OHNE MARKIERTE FÄLLE" in text
+    assert "entfernt: 1 markierte Fälle" in text
+    assert "dieselbe Cluster-Sensitivität, ohne markierte Fälle" in text
+
+
+def test_zaehlwerk_schreibt_die_zusatz_zeile_fort():
+    """'Kopfzeile NACHTRÄGLICH DEFINIERT bleibt, Zählung gerechneter
+    Auswertungen fortschreiben' (Auftrag TEIL 1.3) — die Zusatz-Zeile zählt
+    in `zellen_insgesamt` mit."""
+    res = eni.berechne(list(_VERSTREUT), _VERSTREUT_PREISE, draws=200)
+    assert res["zaehlwerk"]["zellen_insgesamt"] == len(res["zellen"]) + 1
+    assert res["kopfzeile"] == eni.KOPFZEILE
+
+
+def test_echter_lauf_zeigt_ohne_markierte_faelle_block(capsys):
+    """Echter Lauf gegen die reale Sammlung — Beleg statt Behauptung: der
+    Backfill vom 14.10.2026 hat tatsächlich Records markiert, die neue Zeile
+    entfernt also > 0 Fälle (bewusst NICHT exakt gepinnt — die Population
+    wächst täglich per Cron, s. Begründung bei `test_bestehende_marker_sind_
+    unberuehrt` in test_invertiertes_risiko_anlage.py)."""
+    rc = eni.main([])
+    assert rc == 0
+    ausgabe = capsys.readouterr().out
+    assert "OHNE MARKIERTE FÄLLE" in ausgabe
+    treffer = re.search(r"entfernt: (\d+) markierte Fälle", ausgabe)
+    assert treffer and int(treffer.group(1)) > 0
+
+
+def test_ohne_markierte_faelle_ist_unabhaengig_von_filter_sensitivity_sammlung():
+    """0d der Diagnose: diese Zeile hängt NICHT an
+    `filter_sensitivity_sammlung.py` — sie liest `ira.MARKER` direkt."""
+    assert "filter_sensitivity_sammlung" not in SRC
