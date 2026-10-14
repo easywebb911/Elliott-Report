@@ -50,7 +50,13 @@ def test_primary_byte_identical_to_classify_setup():
 
 def test_short_counts_not_counted():
     # Abwärts-Struktur: die Zählung ist SHORT (direction<0) -> zählt NICHT mit.
-    P = _piv([130, 100, 118])          # p0=130 > p1=100 -> Abwärts-W1 -> short
+    # ANGEPASST (14.10.2026, neue Regel 4 RULE_TREND_ORIGIN_KIND, s. rules.py):
+    # `_piv()`s positionale H/L-Zuordnung (L,H,L nach Index-Parität) widersprach
+    # hier dem Kursverlauf (P0=130 als "L" statt "H" — der Startpunkt eines
+    # Abwärts-Impulses ist ein Hoch). Eigene, kind-korrekte Pivot-Liste NUR für
+    # diesen Short-Fall statt des generischen Helpers; der Preisverlauf und die
+    # geprüfte Aussage (Short zählt nicht in Long-only-Ambiguität) sind unverändert.
+    P = [Pivot(0, 130, "H"), Pivot(5, 100, "L"), Pivot(10, 118, "H")]
     prim = pipe.classify_setup(P, 110.0)
     assert prim is not None and prim["direction"] < 0
     total, alt = pipe.ambiguity_fields(P, 110.0)

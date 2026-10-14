@@ -1281,6 +1281,52 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **WIEDERVORLAGE:** 07.12.2026, zusammen mit dem Score-Review (alle drei
   Punkte oben).
 
+- **14.10.2026 — Zählregel: zwei neue K.o.-Regeln gegen geometrisch
+  unmögliche Zählungen (Easy-Entscheid, PR 1 von 4, Diagnose-Folgeauftrag).**
+  `scripts/rules.py`: `RULE_TREND_ORIGIN_KIND` (`kind(P0)` muss zur Richtung
+  passen) + `RULE_W2_COUNTERTREND` (`P2 < P1` streng, normalisiert) — EINE
+  Stelle (`_trend_consistency_violations`/`check_trend_consistency`),
+  einheitlich in `validate_impulse`, `validate_partial_to_w4` und dem
+  3-Punkte-Ende-W2-Pfad (`elliott_pipeline._eval_end_of_w2`). Wirkt dadurch
+  automatisch auch im Wochen-/Monatsgrad (`_count_from_series`, dieselbe
+  Funktion) und im Ambiguitäts-Ausweis v1/v2 — bewusst NICHT in der
+  Watchlist-Strukturerkennung (`_classify_structure`/`_detect_correction`,
+  kein Pivot-Kind-Zugriff, s. unten). Kein neuer Skip-Grund nötig:
+  `classify_setup` liefert bei Verletzung bereits `None`, fällt auf den
+  bestehenden `no_valid_count` zurück. Score/Ranking/`evaluate.py`
+  (SHA256-Pin)/Auswertungs-Population UNANGETASTET. Registry-Eintrag mit
+  Transparenzklausel (`docs/validation_registry.md`, 14.10.2026).
+
+  **Befund/Zahlen:** BAC (Top-5 Platz 1) + 4 weitere Fälle der Sammlung —
+  genau **5 von 202** Records verworfen (`HD@2026-07-28`,
+  `QIA.DE@2026-07-28`, `MNST@2026-08-10`, `BAC@2026-09-18`,
+  `BAC@2026-10-06`), **197 gültig**, 0 False Positives auf dem heutigen
+  Bestand (fragile Annahme, ausgewiesen: keine Garantie für künftige,
+  noch nicht beobachtete Muster).
+
+  **Mini-Stopp-Befund (gemeldet, nicht gebaut):** die Watchlist-
+  Strukturerkennung bleibt bewusst unverändert — ob die neue Regel dort
+  auch greifen soll, ist eine eigene Entscheidung. Beide neuen Regeln
+  hängen deshalb an derselben Opt-in-Bedingung (`kinds` übergeben), nicht
+  nur die kind-abhängige.
+
+  **STICHTAG — NACHTRAG AUSSTEHEND:** erster Tageslauf nach dem Merge-
+  Commit dieses PRs. **Commit-Hash und Lauf-Zeitstempel hier eintragen,
+  sobald der erste Lauf nach dem Merge durch ist** (Platzhalter, s. auch
+  `docs/validation_registry.md`-Eintrag vom selben Tag).
+
+  **Was Easy abends ansehen kann:** BAC sollte nach dem ersten Lauf nach
+  diesem Merge NICHT mehr in den US-Top-5 stehen (vorher Platz 1, Score
+  88,17) — stattdessen rückt der nächste reguläre Kandidat nach.
+
+  **Folge-PRs (Sequenz-Regel, eigene Aufträge):** PR 2 — Filter
+  `close <= invalidation_price` vor Aufnahme; PR 3 — Schatten-Score
+  (additives Feld, nicht im Ranking); PR 4 — Sensitivitäts-/Stichtag-Skript
+  für die Auswertung am 07.12.
+
+  **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review und den
+  beiden offenen Punkten oben).
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER

@@ -41,7 +41,8 @@ import config  # noqa: E402
 import forward_collection as fc  # noqa: E402
 import notify  # noqa: E402 — Score-Alert-Push (fail-soft, no-op ohne NTFY_TOPIC)
 from numeric import finite  # noqa: E402 — EIN Finit-Prädikat für alle Guards
-from rules import validate_impulse, validate_partial_to_w4  # noqa: E402
+from rules import (validate_impulse, validate_partial_to_w4,  # noqa: E402
+                   check_trend_consistency)
 from volatility import atr14  # noqa: E402 — EINE ATR(14)-Berechnung für alle Aufrufer
 from zigzag import Pivot, zigzag  # noqa: E402
 
@@ -1042,13 +1043,19 @@ def _target_zone(base: float, direction: int, w1_len: float, ext: Sequence[float
     return {"low": round(min(a, b), 4), "high": round(max(a, b), 4)}
 
 
-def _eval_end_of_w4(prices: Sequence[float], close: float) -> Optional[Dict]:
+def _eval_end_of_w4(prices: Sequence[float], close: float,
+                    kinds: Optional[Sequence[str]] = None) -> Optional[Dict]:
     """Bewertet die letzten 5 Pivots als Teil-Impuls P0..P4 (end_of_w4). Setup-Dict
-    oder None. Extrahiert aus classify_setup — Logik/Rückgabe UNVERÄNDERT."""
+    oder None. Extrahiert aus classify_setup — Logik/Rückgabe UNVERÄNDERT
+    (außer den additiven Regeln 4+5, 14.10.2026, über ``kinds``).
+
+    ``kinds`` (additiv, optional): Pivot-Kinds, gleiche Länge wie ``prices``;
+    ``None`` -> Regel 4 wird übersprungen (nicht berechenbar, s. rules.py)."""
     if len(prices) < 5:
         return None
     pts = prices[-5:]
-    res = validate_partial_to_w4(pts)
+    pivot_kinds = kinds[-5:] if kinds is not None else None
+    res = validate_partial_to_w4(pts, pivot_kinds)
     if not res.is_valid:
         return None
     p0, p1, p2, p3, p4 = pts
@@ -1077,9 +1084,15 @@ def _eval_end_of_w4(prices: Sequence[float], close: float) -> Optional[Dict]:
     }
 
 
-def _eval_end_of_w2(prices: Sequence[float], close: float) -> Optional[Dict]:
+def _eval_end_of_w2(prices: Sequence[float], close: float,
+                    kinds: Optional[Sequence[str]] = None) -> Optional[Dict]:
     """Bewertet die letzten 3 Pivots P0..P2 (end_of_w2). Setup-Dict oder None.
-    Extrahiert aus classify_setup — Logik/Rückgabe UNVERÄNDERT."""
+    Extrahiert aus classify_setup — Logik/Rückgabe UNVERÄNDERT (außer den
+    additiven Regeln 4+5, 14.10.2026, über ``kinds``/``check_trend_consistency``
+    — EINE Stelle wie bei validate_impulse/validate_partial_to_w4, s. rules.py).
+
+    ``kinds`` (additiv, optional): Pivot-Kinds, gleiche Länge wie ``prices``;
+    ``None`` -> Regel 4 wird übersprungen (nicht berechenbar, s. rules.py)."""
     if len(prices) < 3:
         return None
     p0, p1, p2 = prices[-3:]
@@ -1087,6 +1100,9 @@ def _eval_end_of_w2(prices: Sequence[float], close: float) -> Optional[Dict]:
     # Regel 1 (W2 <= 100 %): normalisiert P2 nicht jenseits von P0.
     norm_p0, norm_p2 = direction * p0, direction * p2
     if norm_p2 < norm_p0:
+        return None
+    pivot_kinds = kinds[-3:] if kinds is not None else None
+    if check_trend_consistency(prices[-3:], pivot_kinds):
         return None
     w1_len = abs(p1 - p0)
     retrace_w2 = abs(p2 - p1) / w1_len if w1_len else 0.0
@@ -1117,10 +1133,13 @@ def classify_setup(pivots: List[Pivot], close: float) -> Optional[Dict]:
     Priorität: end_of_w4 (mehr bestätigte Struktur) vor end_of_w2 — **first-fit**
     über genau diese zwei festen End-Fenster (letzte 5 / letzte 3 Pivots). Gibt
     None zurück, wenn kein sauberes, regelkonformes Setup vorliegt. Verhalten
-    byte-identisch zu vorher (nur in zwei Helfer ausgelagert; die Ambiguitäts-
-    Enumeration zählt dieselben zwei Fenster, ändert die PRIMÄR-Wahl NICHT)."""
+    sonst byte-identisch zu vorher (nur in zwei Helfer ausgelagert; die
+    Ambiguitäts-Enumeration zählt dieselben zwei Fenster, ändert die PRIMÄR-
+    Wahl NICHT) — zusätzlich zu den Preisen jetzt auch die Pivot-Kinds für die
+    Regeln 4+5 (14.10.2026, s. rules.py)."""
     prices = [p.price for p in pivots]
-    return _eval_end_of_w4(prices, close) or _eval_end_of_w2(prices, close)
+    kinds = [p.kind for p in pivots]
+    return _eval_end_of_w4(prices, close, kinds) or _eval_end_of_w2(prices, close, kinds)
 
 
 def score_setup(setup: Dict) -> float:
@@ -1148,10 +1167,13 @@ def score_setup(setup: Dict) -> float:
 def enumerate_long_counts(pivots: List[Pivot], close: float) -> List[Dict]:
     """Alle validen LONG-Counts im definierten Suchraum (die zwei End-Fenster von
     classify_setup), in Prioritätsreihenfolge [Ende-W4, Ende-W2]. Short-Counts
-    zählen NICHT mit (Long-only). Deterministisch (gleiche Pivots → gleiche Liste)."""
+    zählen NICHT mit (Long-only). Deterministisch (gleiche Pivots → gleiche
+    Liste). Dieselben Pivot-Kinds wie ``classify_setup`` — Regeln 4+5 gelten
+    hier identisch (14.10.2026, s. rules.py), sonst unverändert."""
     prices = [p.price for p in pivots]
+    kinds = [p.kind for p in pivots]
     out: List[Dict] = []
-    for setup in (_eval_end_of_w4(prices, close), _eval_end_of_w2(prices, close)):
+    for setup in (_eval_end_of_w4(prices, close, kinds), _eval_end_of_w2(prices, close, kinds)):
         if setup is not None and setup["direction"] > 0:
             out.append(setup)
     return out
