@@ -2736,9 +2736,34 @@ vor n ≥ 100) gilt unverändert.
   auf künftige Zählungen des Tageslaufs, nicht rückwirkend.
 
   **Stichtag:** der erste Tageslauf NACH dem Merge-Commit dieses PRs.
-  Commit-Hash und Lauf-Zeitstempel werden NACH dem Merge hier nachgetragen
-  (noch offen zum Zeitpunkt dieses Commits — s. `SESSION_HANDOVER.md` für
-  den Platzhalter-Eintrag, der beim ersten Lauf ergänzt wird).
+
+  **NACHTRAG 17.10.2026 (belegt, s. auch `SESSION_HANDOVER.md`):**
+  Merge-Commit `59b6a6e340a675737e3ed6394649212f0df362de`
+  (2026-10-14T21:04:18+02:00 = 19:04:18 UTC, "Merge pull request #186").
+  Erster `daily.yml`-Lauf danach: **Run #153** (`id 38662394291`,
+  `event: schedule`, `conclusion: success`), gestartet 2026-10-15T00:51:26Z,
+  erzeugte Commit `70b4412` (`chore(data): täglicher Elliott-Report +
+  Sammlung`, 2026-10-15T00:53:58Z, `run_timestamp_utc`
+  `2026-10-15T00:51:53Z`). **Das ist der Stichtag.**
+
+  **BAC-Befund:** in allen 5 committeten Reports seit dem Stichtag
+  (`70b4412`/15.10. 00:53Z, `a71d53b`/15.10. 16:13Z, `ab1fc2e`/16.10.
+  00:45Z, `adc71fb`/16.10. 15:59Z, `0e26b38`/17.10. 00:46Z — geprüft per
+  `git show <sha>:data/report.json`) steht **BAC NICHT mehr** in den
+  US-Top-5/Ersatzbank (vorher, Lauf `785e817`/14.10. 01:23Z: BAC vorhanden,
+  Platz 1). US-Besetzung Lauf `70b4412`: DELL(1)/LLY(2)/A(3)/DHR(4)/IT(5)/
+  AMGN(6)/HPQ(7)/BLK(8) — alle 8 Plätze weiterhin besetzt (`HEALTH_MIN_
+  CANDIDATES = 3` nicht unterschritten). `no_valid_count` stieg von 139
+  (vor dem Merge, `785e817`) auf 163 (`70b4412`) — reine Kontext-Zahl, KEIN
+  Alleinstellungsbeweis für die neue Regel (Kurse/Universum ändern sich
+  täglich mit).
+
+  **Läufe seit dem Merge unauffällig:** alle 3 geplanten `daily.yml`-Läufe
+  seit dem Merge (`#153`/`#154`/`#155`) liefen `conclusion: success`, keine
+  Warnungen, Kandidatenzahl je Markt konstant bei 8 (kein Unterschreiten von
+  `HEALTH_MIN_CANDIDATES`). Zwei `failure`-Läufe (`#151`/`#152`) liegen VOR
+  dem Merge (14.10. 04:48/04:49 UTC, manuelle `workflow_dispatch`-Läufe auf
+  dem alten Stand `29f1e79`) und sind nicht Teil dieses Stichtags.
 
   **Zahlen (echter Gegentest gegen `data/forward_collection.json`, 202
   Records, `chart_points`+`count_wave_labels`):** genau **5 von 202**
