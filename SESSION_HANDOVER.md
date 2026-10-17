@@ -1278,6 +1278,21 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
      Zuwachs an invertierten Fällen braucht bis auf Weiteres einen
      erneuten (idempotenten) Backfill-Lauf.
 
+  **NACHTRAG 17.10.2026 (CI-Diagnose-Folgeauftrag, #188-Grün-Machen):**
+  Punkt 3 ist eingetreten — zwei neue Treffer, `FME.DE@2026-10-15` und
+  `JUN3.DE@2026-10-16`, sind seither im Tageslauf entstanden (beide DE,
+  `entry_close <= invalidation_price` bei Anlage) und blieben bis heute
+  unmarkiert. Zweiter Backfill gelaufen
+  (`scripts/mark_invertiertes_risiko_anlage.py --live --marked-utc
+  2026-10-17T00:00:00Z`, eigener Stempel, die 11 ursprünglichen NICHT
+  umdatiert): **13 von 215** Records markiert. Population/`eval_counts`
+  vor und nach dem Backfill **byte-identisch** (215/174/168) — belegt per
+  `evaluate.build_population`-Diff. **Punkt 3 oben bleibt unverändert
+  offen:** der Tageslauf markiert weiterhin nicht laufend — PR 2 der
+  Zählregel-Sequenz (Filter `close <= invalidation_price` VOR der
+  Aufnahme) wird die Zufuhr stoppen; bis dahin braucht jeder weitere
+  Zuwachs einen erneuten, idempotenten Backfill-Lauf wie diesen.
+
   **WIEDERVORLAGE:** 07.12.2026, zusammen mit dem Score-Review (alle drei
   Punkte oben).
 
@@ -1310,14 +1325,21 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   hängen deshalb an derselben Opt-in-Bedingung (`kinds` übergeben), nicht
   nur die kind-abhängige.
 
-  **STICHTAG — NACHTRAG AUSSTEHEND:** erster Tageslauf nach dem Merge-
-  Commit dieses PRs. **Commit-Hash und Lauf-Zeitstempel hier eintragen,
-  sobald der erste Lauf nach dem Merge durch ist** (Platzhalter, s. auch
-  `docs/validation_registry.md`-Eintrag vom selben Tag).
+  **STICHTAG — NACHTRAG 17.10.2026 (belegt):** Merge-Commit
+  `59b6a6e340a675737e3ed6394649212f0df362de` (2026-10-14, 21:04:18+02:00 =
+  19:04:18 UTC). Erster `daily.yml`-Lauf danach: **Run #153**
+  (`id 38662394291`, `event: schedule`, `conclusion: success`), gestartet
+  2026-10-15T00:51:26Z, erzeugte Commit `70b4412` (2026-10-15T00:53:58Z,
+  `run_timestamp_utc 2026-10-15T00:51:53Z`) — das ist der Stichtag (voller
+  Beleg inkl. BAC-Befund über 5 Reports: `docs/validation_registry.md`,
+  14.10.2026-Eintrag, Nachtrag 17.10.).
 
-  **Was Easy abends ansehen kann:** BAC sollte nach dem ersten Lauf nach
-  diesem Merge NICHT mehr in den US-Top-5 stehen (vorher Platz 1, Score
-  88,17) — stattdessen rückt der nächste reguläre Kandidat nach.
+  **BAC-Befund (belegt, nicht angenommen):** BAC steht seit `70b4412` in
+  KEINEM der 5 geprüften Reports mehr in den US-Top-5/Ersatzbank (vorher,
+  Lauf `29f1e79`, `run_timestamp_utc` 2026-10-14T01:23:21Z, noch
+  vorhanden auf Platz 1, Score 88,17). Alle 3 geplanten
+  `daily.yml`-Läufe seit dem Merge (`#153`/`#154`/`#155`) liefen grün,
+  keine Warnungen, Kandidatenzahl je Markt konstant bei 8.
 
   **Folge-PRs (Sequenz-Regel, eigene Aufträge):** PR 2 — Filter
   `close <= invalidation_price` vor Aufnahme; PR 3 — Schatten-Score
