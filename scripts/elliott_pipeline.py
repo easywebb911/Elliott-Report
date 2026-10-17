@@ -81,10 +81,38 @@ TARGET_EXCEEDED = "target_exceeded"
 # bleibt, WELCHE der beiden Schwellen ausschlaggebend war — kein Umbau von
 # target_exceeded, additiv daneben.
 TARGET_EXT_EXCEEDED = "target_ext_exceeded"
+# Easy-Entscheidung (17.10.2026, PR 2 von 4, Diagnose-Folgeauftrag): ein Setup,
+# dessen Lauf-Schlusskurs bereits bei Anlage auf oder unter der eigenen
+# invalidation_price liegt (close <= invalidation_price), ist nie handelbar
+# gewesen — "1R" war für ein solches Setup nie definiert (identischer Operator
+# wie im additiven Marker `invertiertes_risiko_bei_anlage`, PR #185: dort
+# nachträglich auf bereits ANGELEGTE Records markiert; hier VOR der Anlage
+# selbst gefiltert, damit solche Setups gar nicht erst als Top-5-Kandidat oder
+# Record entstehen). Long-only: dieselbe Richtungsannahme wie überall sonst in
+# dieser Datei. NUR Markt-Pipeline (exclude_invalidated_at_creation, Default
+# True); die Watchlist ruft mit False auf und zeigt das Setup weiter.
+INVALIDATED_AT_CREATION = "invalidated_at_creation"
 SKIP_REASONS = (
     FETCH_ERROR, EMPTY_DATA, TOO_FEW_PIVOTS, NO_VALID_COUNT, SHORT_SETUP_EXCLUDED,
-    TARGET_EXCEEDED, TARGET_EXT_EXCEEDED,
+    TARGET_EXCEEDED, TARGET_EXT_EXCEEDED, INVALIDATED_AT_CREATION,
 )
+
+
+def _invalidiert_bei_anlage(close: float, invalidation_price) -> Optional[bool]:
+    """DAS FILTER-KRITERIUM: ``close <= invalidation_price`` bei Anlage.
+
+    ``None`` = NICHT BERECHENBAR (fehlender/nicht-endlicher Wert) — der
+    Aufrufer wendet den Filter dann NICHT an (Fail-soft, der Kandidat bleibt
+    wie bisher); dasselbe Fail-soft-Prinzip wie beim additiven Marker aus
+    PR #185 (eigenes Modul, hier bewusst NICHT referenziert/importiert — der
+    Tageslauf-Pfad bleibt dadurch unangetastet, s. Mini-Stopp dort). Über
+    den aktuellen ``classify_setup``-Pfad ist ``invalidation_price`` immer ein
+    endlicher, gerundeter Pivot-Preis (nie ``None``/NaN) — dieser Zweig ist
+    hier rein defensiv (gleiche Vorsicht wie überall sonst in dieser Datei via
+    ``numeric.finite``), nicht aus einem beobachteten realen Fall."""
+    if not finite(close) or not finite(invalidation_price):
+        return None
+    return close <= invalidation_price
 
 
 def _zone_bereits_erreicht_grund(
@@ -1656,6 +1684,7 @@ def _volume_profile(wave_pivots, setup_name: str,
 def build_candidate(
     ticker: str, dates: List[str], closes: List[float],
     exclude_target_reached: bool = True,
+    exclude_invalidated_at_creation: bool = True,
     volumes: Optional[Sequence[float]] = None,
     atr_14: Optional[float] = None,
 ) -> Tuple[Optional[Dict], Optional[str], str]:
@@ -1673,6 +1702,12 @@ def build_candidate(
     target_exceeded bzw. target_ext_exceeded, s. _zone_bereits_erreicht_grund).
     Die Watchlist ruft mit False auf — dort bleibt das Setup sichtbar (Badge aus
     #28 markiert den Zustand).
+
+    exclude_invalidated_at_creation: Markt-Pipeline (Default True) verwirft
+    Setups, deren Lauf-Schlusskurs bereits bei Anlage auf/unter der eigenen
+    invalidation_price liegt (close <= invalidation_price, Skip
+    INVALIDATED_AT_CREATION, s. Kommentar oben). Die Watchlist ruft mit False
+    auf — dort bleibt das Setup sichtbar.
     """
     pivots = zigzag(closes, config.ZIGZAG_WINDOW, dates)
     if len(pivots) < 3:
@@ -1724,6 +1759,30 @@ def build_candidate(
                 f"{setup['setup']} close={round(close, 4)} >= "
                 f"target_zone_extended.low={elow} "
                 f"(Extension-Zone erreicht, nicht mehr handelbar)",
+            )
+
+    # Bei Anlage bereits invalidiert = nie handelbar gewesen -> VOR dem Ranking
+    # verwerfen (Rang 6+ rückt nach). NUR Markt-Pipeline
+    # (exclude_invalidated_at_creation=True); die Watchlist ruft mit False auf
+    # und zeigt das Setup weiter. Fail-soft: fehlt close/invalidation_price
+    # oder ist nicht endlich, wird NICHT gefiltert (Kandidat bleibt wie
+    # bisher) — nur geloggt, s. _invalidiert_bei_anlage oben.
+    if exclude_invalidated_at_creation:
+        urteil = _invalidiert_bei_anlage(close, setup["invalidation_price"])
+        if urteil is None:
+            _log(
+                f"[elliott][diag] {ticker}: close/invalidation_price nicht "
+                f"endlich bei der {INVALIDATED_AT_CREATION}-Prüfung — "
+                f"Kandidat bleibt wie bisher (Fail-soft, s. Doku)."
+            )
+        elif urteil:
+            ip = setup["invalidation_price"]
+            return (
+                None,
+                INVALIDATED_AT_CREATION,
+                f"{setup['setup']} close={round(close, 4)} <= "
+                f"invalidation_price={ip} (bei Anlage bereits invalidiert, "
+                f"nie handelbar)",
             )
 
     chart_points = [p.as_dict() for p in pivots[-12:]]
@@ -2032,7 +2091,8 @@ def build_market(
         f"no_valid_count={reason_counts[NO_VALID_COUNT]}, "
         f"short_setup_excluded={reason_counts[SHORT_SETUP_EXCLUDED]}, "
         f"target_exceeded={reason_counts[TARGET_EXCEEDED]}, "
-        f"target_ext_exceeded={reason_counts[TARGET_EXT_EXCEEDED]}"
+        f"target_ext_exceeded={reason_counts[TARGET_EXT_EXCEEDED]}, "
+        f"invalidated_at_creation={reason_counts[INVALIDATED_AT_CREATION]}"
     )
     _log(f"[elliott][diag] {market_key} großer Grad: "
          f"{higher_count}/{len(top)} Top-Kandidaten mit Wochen-Count")
@@ -2293,10 +2353,12 @@ def build_watchlist_entry(
         "month": month_struct,
     }
 
-    # Watchlist zeigt ALLES — auch Setups mit erreichter Zielzone (Badge markiert
-    # sie); daher target_exceeded-Filter hier AUS (nur die Markt-Top-5 filtern).
+    # Watchlist zeigt ALLES — auch Setups mit erreichter Zielzone und bei
+    # Anlage invalidierte Setups (Badges markieren sie); daher beide Filter
+    # hier AUS (nur die Markt-Top-5 filtern).
     entry, reason, detail = build_candidate(ticker, dates, closes,
                                             exclude_target_reached=False,
+                                            exclude_invalidated_at_creation=False,
                                             volumes=volumes, atr_14=atr_14)
     if entry is not None:
         # Long-Setup vorhanden -> volle Karte inkl. großem Grad (Wochen).

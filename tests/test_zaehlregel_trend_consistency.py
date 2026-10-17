@@ -132,12 +132,22 @@ def test_kein_neuer_skip_grund_noetig():
     q = (ROOT / "scripts" / "elliott_pipeline.py").read_text(encoding="utf-8")
     assert "RULE_TREND_ORIGIN_KIND" not in q
     assert "RULE_W2_COUNTERTREND" not in q
-    # SKIP_REASONS bleibt bei den sieben bestehenden Gründen.
+    # SKIP_REASONS bleibt bei den sieben Gründen DIESES PRs (Stand 14.10.2026).
+    # Angepasst am 17.10.2026 (PR 2 von 4, invalidated_at_creation): die
+    # Zahl pinnt wörtlich den Quelltext dieses PRs, nicht alle künftigen —
+    # ein später additiv eingeführter achter Grund ist kein Widerspruch zu
+    # DIESEM Test (Punkt 2 des #186-Auftrags, "kein neuer Skip-Grund nötig
+    # für die Trendrichtungs-Regeln"), sondern eine spätere, unabhängige
+    # Entscheidung. Auf 8 nachgezogen statt entfernt, weil die Aussage für
+    # #186 selbst weiterhin stimmt (keiner der 7 ursprünglichen Gründe kam
+    # aus #186) und das Pinnen einer Zahl hier bewusst bleibt (Regressions-
+    # Netz gegen unbeabsichtigte künftige Skip-Gründe aus #186-ähnlichen PRs).
     import re
     m = re.search(r"SKIP_REASONS = \(([^)]*)\)", q, re.S)
     assert m
     gruende = [g.strip() for g in m.group(1).replace("\n", "").split(",") if g.strip()]
-    assert len(gruende) == 7
+    assert len(gruende) == 8
+    assert "INVALIDATED_AT_CREATION" in gruende
 
 
 # ===========================================================================
