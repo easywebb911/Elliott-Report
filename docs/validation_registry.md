@@ -2750,11 +2750,14 @@ vor n ≥ 100) gilt unverändert.
   (`70b4412`/15.10. 00:53Z, `a71d53b`/15.10. 16:13Z, `ab1fc2e`/16.10.
   00:45Z, `adc71fb`/16.10. 15:59Z, `0e26b38`/17.10. 00:46Z — geprüft per
   `git show <sha>:data/report.json`) steht **BAC NICHT mehr** in den
-  US-Top-5/Ersatzbank (vorher, Lauf `785e817`/14.10. 01:23Z: BAC vorhanden,
-  Platz 1). US-Besetzung Lauf `70b4412`: DELL(1)/LLY(2)/A(3)/DHR(4)/IT(5)/
-  AMGN(6)/HPQ(7)/BLK(8) — alle 8 Plätze weiterhin besetzt (`HEALTH_MIN_
-  CANDIDATES = 3` nicht unterschritten). `no_valid_count` stieg von 139
-  (vor dem Merge, `785e817`) auf 163 (`70b4412`) — reine Kontext-Zahl, KEIN
+  US-Top-5/Ersatzbank (vorher, Lauf `29f1e79`, `run_timestamp_utc`
+  2026-10-14T01:23:21Z: BAC vorhanden, Platz 1, Score 88,17 — NICHT
+  `785e817`/13.10. 18:50Z, dessen Zeitstempel beim ersten Entwurf dieses
+  Nachtrags fälschlich dem 14.10. 01:23Z zugeordnet wurde, Korrektur hier).
+  US-Besetzung Lauf `70b4412`: DELL(1)/LLY(2)/A(3)/DHR(4)/IT(5)/AMGN(6)/
+  HPQ(7)/BLK(8) — alle 8 Plätze weiterhin besetzt (`HEALTH_MIN_CANDIDATES
+  = 3` nicht unterschritten). `no_valid_count` stieg von 140 (vor dem
+  Merge, `29f1e79`) auf 163 (`70b4412`) — reine Kontext-Zahl, KEIN
   Alleinstellungsbeweis für die neue Regel (Kurse/Universum ändern sich
   täglich mit).
 

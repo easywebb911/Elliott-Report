@@ -1321,7 +1321,8 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
 
   **BAC-Befund (belegt, nicht angenommen):** BAC steht seit `70b4412` in
   KEINEM der 5 geprüften Reports mehr in den US-Top-5/Ersatzbank (vorher,
-  Lauf `785e817`/14.10., noch vorhanden auf Platz 1). Alle 3 geplanten
+  Lauf `29f1e79`, `run_timestamp_utc` 2026-10-14T01:23:21Z, noch
+  vorhanden auf Platz 1, Score 88,17). Alle 3 geplanten
   `daily.yml`-Läufe seit dem Merge (`#153`/`#154`/`#155`) liefen grün,
   keine Warnungen, Kandidatenzahl je Markt konstant bei 8.
 
