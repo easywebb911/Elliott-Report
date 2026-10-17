@@ -1278,6 +1278,21 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
      Zuwachs an invertierten Fällen braucht bis auf Weiteres einen
      erneuten (idempotenten) Backfill-Lauf.
 
+  **NACHTRAG 17.10.2026 (CI-Diagnose-Folgeauftrag, #188-Grün-Machen):**
+  Punkt 3 ist eingetreten — zwei neue Treffer, `FME.DE@2026-10-15` und
+  `JUN3.DE@2026-10-16`, sind seither im Tageslauf entstanden (beide DE,
+  `entry_close <= invalidation_price` bei Anlage) und blieben bis heute
+  unmarkiert. Zweiter Backfill gelaufen
+  (`scripts/mark_invertiertes_risiko_anlage.py --live --marked-utc
+  2026-10-17T00:00:00Z`, eigener Stempel, die 11 ursprünglichen NICHT
+  umdatiert): **13 von 215** Records markiert. Population/`eval_counts`
+  vor und nach dem Backfill **byte-identisch** (215/174/168) — belegt per
+  `evaluate.build_population`-Diff. **Punkt 3 oben bleibt unverändert
+  offen:** der Tageslauf markiert weiterhin nicht laufend — PR 2 der
+  Zählregel-Sequenz (Filter `close <= invalidation_price` VOR der
+  Aufnahme) wird die Zufuhr stoppen; bis dahin braucht jeder weitere
+  Zuwachs einen erneuten, idempotenten Backfill-Lauf wie diesen.
+
   **WIEDERVORLAGE:** 07.12.2026, zusammen mit dem Score-Review (alle drei
   Punkte oben).
 

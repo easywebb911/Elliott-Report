@@ -135,16 +135,33 @@ BACKFILL_11 = [
 ]
 BACKFILL_MARKED_UTC = "2026-10-14T00:00:00Z"
 
+# ZWEITER Backfill (17.10.2026, CI-Diagnose-Folgeauftrag): Tageslauf markiert
+# weiterhin NICHT laufend (s. Moduldoc Mini-Stopp #185/#188) — zwei neue
+# Treffer seit dem ersten Backfill, eigener Stempel (Ereignis, kein
+# Umdatieren der 11 ursprünglichen). Beleg: Dry-Run-Log vor dem --live-Lauf.
+BACKFILL_2 = [
+    ("FME.DE", "2026-10-15T00:51:53Z"), ("JUN3.DE", "2026-10-16T00:45:15Z"),
+]
+BACKFILL_2_MARKED_UTC = "2026-10-17T00:00:00Z"
 
-def test_die_ausgelieferte_sammlung_traegt_genau_diese_11_marker():
+
+def test_die_ausgelieferte_sammlung_traegt_genau_diese_13_marker():
     markiert = [(r["ticker"], r["created_utc"]) for r in _coll()["records"]
                 if r.get(ira.MARKER) is True]
-    assert sorted(markiert) == sorted(BACKFILL_11)
+    assert sorted(markiert) == sorted(BACKFILL_11 + BACKFILL_2)
 
 
-def test_alle_gesetzten_marker_tragen_denselben_backfill_stempel():
-    alle = [r for r in _coll()["records"] if r.get(ira.MARKER)]
-    assert all(r.get(ira.MARKER_UTC) == BACKFILL_MARKED_UTC for r in alle)
+def test_alle_gesetzten_marker_tragen_einen_der_beiden_backfill_stempel():
+    """Jeder Backfill ist ein EINMALIGES Ereignis mit seinem EIGENEN Stempel
+    (Teil B-Lehre aus `in_session_creation`) — kein nachträgliches
+    Umdatieren der 11 ursprünglichen auf den zweiten Lauf."""
+    zweite_keys = {tuple(x) for x in BACKFILL_2}
+    for r in _coll()["records"]:
+        if not r.get(ira.MARKER):
+            continue
+        schluessel = ira.record_key(r)
+        erwartet = BACKFILL_2_MARKED_UTC if schluessel in zweite_keys else BACKFILL_MARKED_UTC
+        assert r.get(ira.MARKER_UTC) == erwartet, schluessel
 
 
 def test_alle_gesetzten_marker_stimmen_mit_dem_kriterium_ueberein():
