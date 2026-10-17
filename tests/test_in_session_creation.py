@@ -669,16 +669,29 @@ def test_der_marker_gatet_nichts():
 # ===========================================================================
 # 6 · DIE BRÜCKE — belegt, nicht angenommen
 # ===========================================================================
+def _tage_differenz(a: str, b: str) -> int:
+    """Kalendertage zwischen zwei ISO-Datumsstrings (a - b)."""
+    return (_dt.date.fromisoformat(a) - _dt.date.fromisoformat(b)).days
+
+
 @braucht_historie
 def test_bruecke_stimmt_wo_beide_angaben_existieren():
-    """`first_seen_date` == `diag.last_bar_date` des Markts im anlegenden Lauf.
-
-    Darauf steht sowohl das Kriterium als auch die Vergleichs-Suche für Läufe
-    vor #63. Geprüft über die echte Historie; ein Gegenbeispiel kippt den Test.
+    """`first_seen_date` == `diag.last_bar_date` des Markts im anlegenden Lauf —
+    ODER der dokumentierte „Ein-Tage-Versatz" (``ab_lag=1``, s. `in_session.py`-
+    Moduldoc/Registry 30.07.2026): bei per-Ticker-Staleness kann EIN Kandidat
+    noch die Bar von T-1 einfrieren, während `diag.last_bar_date` (markt-weit)
+    schon T zeigt. ANGEPASST (17.10.2026, CI-Diagnose): META@2026-10-14,
+    angelegt im Lauf vom 16.10. (`diag.last_bar_date` = 2026-10-15) — exakt
+    dieses Muster, kein Datenfehler (belegt: `AMGN@2026-10-15` im SELBEN Lauf
+    hat korrekt KEINEN Versatz). Die ursprüngliche Gleichheits-Annahme war vom
+    bisher kleinen, zufällig versatz-freien Bestand überholt (Muster #94/#188)
+    — NICHT gelockert: ein Versatz von 2+ Tagen oder in die falsche Richtung
+    (first_seen_date NACH last_bar_date) bleibt ein kippender Fund.
     """
     coll = _coll()
     historie = {h["ts"]: h for h in ev.report_historie(ROOT)}
     geprueft = 0
+    versatz_1 = 0
     for rec in coll["records"]:
         h = historie.get(rec["created_utc"])
         if not h:
@@ -686,9 +699,15 @@ def test_bruecke_stimmt_wo_beide_angaben_existieren():
         m = h["markets"].get(rec["market"]) or {}
         if m.get("last_bar_date") is None:
             continue
-        assert m["last_bar_date"] == rec["first_seen_date"], rec["ticker"]
+        lag = _tage_differenz(m["last_bar_date"], rec["first_seen_date"])
+        assert lag in (0, 1), (rec["ticker"], rec["created_utc"],
+                               m["last_bar_date"], rec["first_seen_date"])
+        if lag == 1:
+            versatz_1 += 1
         geprueft += 1
     assert geprueft >= 29
+    # Beleg, dass der Versatz real vorkommt (nicht nur die Toleranz tot liegt):
+    assert versatz_1 >= 1
 
 
 def test_bruecke_ist_bei_mehrdeutigkeit_none_statt_raten():
@@ -700,9 +719,30 @@ def test_bruecke_ist_bei_mehrdeutigkeit_none_statt_raten():
 
 
 @braucht_historie
-def test_bruecke_ist_im_bestand_nirgends_mehrdeutig():
-    for schl, wert in ev.bar_datum_bruecke(_coll()).items():
-        assert wert is not None, schl
+def test_bruecke_mehrdeutigkeit_im_bestand_ist_immer_der_dokumentierte_versatz():
+    """ANGEPASST (17.10.2026, CI-Diagnose): „nirgends mehrdeutig" war eine vom
+    Tageslauf-Zuwachs überholte Annahme (Muster #94/#188) — der erste echte
+    Fall (`('2026-10-16T00:45:15Z', 'US')`: `META@2026-10-14` neben
+    `AMGN@2026-10-15` im selben Lauf) ist der oben belegte Ein-Tage-Versatz,
+    kein Datenfehler. NICHT gelockert: jede Mehrdeutigkeit im Bestand muss
+    sich auf GENAU diesen Versatz zurückführen lassen — eine Streuung über
+    mehr als 2 Kalendertage oder mit mehr als 2 unterschiedlichen Datumswerten
+    je Schlüssel bleibt ein kippender Fund."""
+    coll = _coll()
+    je_schluessel: dict = {}
+    for rec in coll["records"]:
+        schl = (rec.get("created_utc"), rec.get("market"))
+        je_schluessel.setdefault(schl, set()).add(rec.get("first_seen_date"))
+
+    mehrdeutige_schluessel = 0
+    for schl, wert in ev.bar_datum_bruecke(coll).items():
+        if wert is not None:
+            continue
+        mehrdeutige_schluessel += 1
+        daten = sorted(d for d in je_schluessel[schl] if d is not None)
+        assert len(daten) == 2, (schl, daten)
+        assert _tage_differenz(daten[1], daten[0]) == 1, (schl, daten)
+    assert mehrdeutige_schluessel >= 1
 
 
 @braucht_historie

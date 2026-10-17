@@ -222,6 +222,13 @@ def _bewerte_record(rec):
 
 
 def test_echter_gegentest_genau_fuenf_records_verworfen():
+    """KEINE gepinnte Gesamtzahl (Lehre aus `in_session_creation`/#94, s.
+    SESSION_HANDOVER.md): die Sammlung wächst täglich per Cron — am
+    14.10.2026 waren es 202 Records (197 gültig), seit dem Merge von #186
+    legitim mehr. Die 5 VERWORFENEN sind ein abgeschlossener historischer
+    Fakt (die Zählregel läuft seit dem Stichtag im Tageslauf selbst und
+    verhindert NEUE Treffer dieser Art) — NUR diese Menge wird exakt
+    gepinnt. Die Zahl der gültigen Fälle ist eine wachsende Untergrenze."""
     coll = json.loads(COLL.read_text(encoding="utf-8"))
     recs = coll["records"]
     verworfen = set()
@@ -236,8 +243,9 @@ def test_echter_gegentest_genau_fuenf_records_verworfen():
             verworfen.add((r["ticker"], r.get("first_seen_date")))
     assert verworfen == ERWARTETE_VERWORFENE
     assert len(verworfen) == 5
-    assert gueltig == 197
-    assert gueltig + len(verworfen) == 202
+    assert gueltig >= 197, "der Bestand vom 14.10.2026 darf nie unterschritten werden"
+    assert gueltig + len(verworfen) == len(
+        [r for r in recs if r.get("chart_points") and r.get("count_wave_labels")])
 
 
 def test_echter_gegentest_ueber_die_tatsaechliche_pipeline_funktion():
