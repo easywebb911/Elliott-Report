@@ -2792,3 +2792,80 @@ vor n ≥ 100) gilt unverändert.
   Quelltext bestätigt (Kind-Prüfung entfernt, `<` auf `<=` gedreht —
   jeweils die betroffenen Tests rot, Datei danach byte-identisch
   wiederhergestellt). Volle Suite: 1875 passed.
+
+- **17.10.2026 — Filter `invalidated_at_creation` aktiv (Easy-Entscheid, PR 2
+  von 4, Diagnose-Folgeauftrag, Populations-Änderung).**
+
+  **TRANSPARENZ-KLAUSEL:** diese Regel entstand NACH Kenntnis des
+  Primärverdikts (06.09.2026), des Markers „invertiertes Risiko bei Anlage"
+  (14.10.2026, PR #185) und seines ersten Backfill-Nachzugs (17.10.2026,
+  PR #189) — explorativ/korrigierend, keine Präregistrierung.
+
+  **Befund (Grundlage der Entscheidung):** 28 Erscheinungen von 4 Titeln in
+  den letzten 10 Reports bis 14.10.2026 (BAC, FME.DE, PBB.DE, JUN3.DE)
+  standen bei Anlage bereits auf/unter ihrer eigenen `invalidation_price` —
+  "1R" war für sie nie definiert. Seitdem sind FME.DE (Lauf 15.10.) und
+  JUN3.DE (Lauf 16.10.) als zwei WEITERE Records genau mit diesem Muster
+  entstanden. Der additive Marker `invertiertes_risiko_bei_anlage` (PR #185,
+  Backfill-Nachzug PR #189) kennzeichnet inzwischen **13** Records mit
+  exakt diesem Befund — als nachträgliche Kennzeichnung auf bereits
+  angelegten Records, nicht als Verhinderung der Anlage selbst.
+
+  **Regel (wörtlich):** ein Setup, dessen Lauf-Schlusskurs bei Anlage
+  bereits auf oder unter der eigenen `invalidation_price` liegt
+  (`close <= invalidation_price`, derselbe Operator wie beim Marker aus
+  PR #185), wird **VOR dem Ranking** aus den **Markt-Top-5/Ersatzbank**
+  verworfen (neuer Skip-Grund `invalidated_at_creation`, eigener
+  Diag-Zähler, `scripts/elliott_pipeline.py::build_candidate`); Rang 6+
+  rückt automatisch nach. Fail-soft: fehlt `close`/`invalidation_price`
+  oder ist nicht endlich, bleibt der Kandidat wie bisher (kein Skip) —
+  über den tatsächlichen `classify_setup`-Pfad ist dieser Fall nach
+  Code-Lektüre nicht erreichbar (kein beobachteter realer Fall).
+
+  **Wirkung auf die Population:** ab dem Stichtag entstehen forward-
+  Episoden NUR NOCH für Setups, die bei Anlage NICHT bereits invalidiert
+  sind — die Grundgesamtheit verengt sich bewusst, analog zum
+  `target_exceeded`-Filter (23.07.2026). Die **Watchlist** ist ausgenommen
+  (zeigt weiter alles, `exclude_invalidated_at_creation=False`) und war
+  ohnehin nie Teil der Population. **Bestehende Records in
+  `data/forward_collection.json` bleiben UNVERÄNDERT** — die neue Regel
+  wirkt ausschließlich auf künftige Zählungen des Tageslaufs, nicht
+  rückwirkend; die 13 bereits markierten Records reifen unverändert weiter.
+
+  **Score/Ranking-Formel unverändert:** `score_setup()`,
+  `config.SCORE_WEIGHTS`/`SETUP_BASE_POINTS`, die Ranking-Sortierung und die
+  Kandidaten-Aufnahme (außer der Filter-Entscheidung selbst) sind von
+  diesem PR NICHT angefasst — belegt per Test
+  (`test_score_of_valid_candidate_unaffected_by_filter`, Score identisch
+  mit/ohne aktivem Filter für einen handelbaren Kandidaten). **`scripts/
+  evaluate.py` unverändert** (SHA256-Pin bestätigt unverändert, volle
+  Suite grün).
+
+  **Gegentest über den bestehenden Bestand:** die 13 bereits markierten
+  `invertiertes_risiko_bei_anlage`-Records erfüllen alle, einzeln geprüft
+  mit derselben Entscheidungsfunktion (`elliott_pipeline.
+  _invalidiert_bei_anlage`), exakt das neue Filterkriterium — sie sind
+  GENAU die Fälle, die dieser Filter, hätte er zur jeweiligen Anlagezeit
+  schon gegolten, nie als Record hätte entstehen lassen (Test
+  `test_gegentest_bestehende_invertiertes_risiko_marker_erfuellen_das_
+  kriterium`, `tests/test_invalidated_at_creation.py`).
+
+  **Fragile Annahme (hier ausdrücklich ausgewiesen):** wer bei einem
+  künftigen Tageslauf auf Rang 6+ nachrückt, ist aus den gespeicherten
+  Daten NICHT ableitbar — Rang 9+ wird nicht persistiert. Das zeigt erst
+  der nächste echte Lauf nach dem Merge.
+
+  **Stichtag:** der erste Tageslauf NACH dem Merge-Commit dieses PRs
+  (getrennt vom Stichtag der Zählregel, PR #186, oben) — Platzhalter, wie
+  bei #186 nach dem ersten Lauf belegt nachzutragen.
+
+  **Tests:** synthetische Fixtures (close über/gleich/unter
+  `invalidation_price`), Operator-Mutationsprobe (`<=` vs. `<` an der
+  Gleichstandsgrenze), Fail-soft-Proben (fehlend/NaN/Inf), Watchlist-
+  Unberührtheit, Nachrücker-Logik + Diag-Zähler (`_scan_market`), Filter
+  verhindert Neuanlage in der Forward-Sammlung, Ranking-Determinismus,
+  Score-Unberührtheit, Gegentest über den bestehenden Bestand (s. oben).
+  `tests/test_zaehlregel_trend_consistency.py::
+  test_kein_neuer_skip_grund_noetig` an die jetzt acht `SKIP_REASONS`
+  angepasst (zählte zuvor wörtlich sieben; die Aussage für PR #186 selbst
+  bleibt richtig, s. Kommentar im Test). Volle Suite: 1890 passed.

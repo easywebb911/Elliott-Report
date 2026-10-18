@@ -1349,6 +1349,54 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review und den
   beiden offenen Punkten oben).
 
+- **17.10.2026 — Filter `invalidated_at_creation` aktiv (Easy-Entscheid,
+  PR 2 von 4, Diagnose-Folgeauftrag).** `scripts/elliott_pipeline.py::
+  build_candidate`: neuer Skip-Grund `invalidated_at_creation` (Bedingung
+  `close <= invalidation_price`, derselbe Operator wie der Marker aus PR
+  #185) direkt nach dem `target_exceeded`/`target_ext_exceeded`-Block, NUR
+  Markt-Pipeline (`exclude_invalidated_at_creation`, Default Markt an,
+  Watchlist aus — dieselbe Parameter-Mechanik wie `exclude_target_reached`).
+  Rang 6+/Ersatzbank rücken automatisch nach (kein Extra-Code nötig, die
+  Sortierung läuft über dieselbe `candidates`-Liste). Fail-soft bei
+  fehlendem/nicht-endlichem `close`/`invalidation_price` (Kandidat bleibt
+  wie bisher) — über den echten `classify_setup`-Pfad nach Code-Lektüre
+  nicht erreichbar, kein Mini-Stopp nötig. `docs/index.html`-RLABEL um
+  `invalidated_at_creation: 'Invalidierung erreicht'` ergänzt (Lauf-Status-
+  Chips sind generisch über `Object.keys(RLABEL)`, keine weitere Stelle
+  nötig). Registry-Eintrag mit Transparenzklausel
+  (`docs/validation_registry.md`, 17.10.2026) — Stichtag als Platzhalter,
+  nach dem ersten Lauf NACH dem Merge belegt nachzutragen (getrennt vom
+  Zählregel-Stichtag/#186).
+
+  **Was Easy nach dem ersten Lauf in der App sieht:** die Lauf-Status-
+  Ansicht zeigt einen neuen Chip „Invalidierung erreicht: N" je Markt
+  (N=0 im Normalfall, solange kein frisch gescanntes Setup bereits
+  invalidiert ankommt); Top-5/Ersatzbank können sich gegenüber dem
+  Vorlauf verschieben, wenn ein zuvor gezählter Platz-6+-Kandidat jetzt
+  herausfällt.
+
+  **Score, Ranking, `SETUP_BASE_POINTS`, Zählregel (#186), Auswertung,
+  `scripts/evaluate.py` (SHA256-Pin), eingefrorene Felder, Sammlung
+  UNANGETASTET** — belegt per Test
+  (`test_score_of_valid_candidate_unaffected_by_filter`) und voller Suite
+  (1890 passed). Bestehende Records in `data/forward_collection.json`
+  bleiben unverändert; die 13 bereits markierten
+  `invertiertes_risiko_bei_anlage`-Records (PR #185/#189) erfüllen,
+  einzeln geprüft, exakt das neue Kriterium (Gegentest, s. Registry).
+
+  **Fragile Annahme (im PR-Text ausgewiesen):** wer bei einem künftigen
+  Tageslauf auf Rang 6+ nachrückt, ist aus den gespeicherten Daten NICHT
+  ableitbar (Rang 9+ wird nicht persistiert) — zeigt erst der nächste
+  echte Lauf.
+
+  **Offene Punkte (unverändert, NICHT Teil dieses PRs):** PR 3 — Schatten-
+  Score (additives Feld, EINE Variante: Kappe des Invalidierungs-Bonus von
+  10 % auf 20 %, NICHT im Ranking); PR 4 — Sensitivitäts-/Stichtag-Skript
+  für die Auswertung am 07.12.
+
+  **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review und den
+  übrigen offenen Punkten oben).
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
