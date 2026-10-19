@@ -1434,6 +1434,8 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   geschützt. Score, Ranking, `scripts/evaluate.py` (SHA256-Pin), die
   Sammlung: unangetastet (dieser PR ändert nur `scripts/proactive_
   watcher.py`, `scripts/handover_sync.py`, Tests und dieses Handover).
+  **Rückweg:** rein additiv und isoliert — ein kompletter PR-Revert genügt,
+  keine Datenmigration nötig.
 
   **WIEDERVORLAGE:** 07.12.2026 — prüfen, ob 3 Tage Karenz in der Praxis
   reichen (zu kurz: weiterhin störende Bot-PRs; zu lang: echte Lücken
