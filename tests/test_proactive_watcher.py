@@ -10,8 +10,10 @@ einem eigenen Test ohne Assertions gegen Zahlen abgedeckt.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -411,18 +413,39 @@ def test_scan_repo_uebersteht_fehlendes_oder_kaputtes_report_json(tmp_path):
 # Bot-Datencommit OHNE PR-Bezug und einer echten Lücke — der Wächter muss
 # GENAU die Lücke finden, den Bot-Commit nicht fälschlich meden.
 # ---------------------------------------------------------------------------
-def _git_repo_mit_commits(repo_pfad, commit_subjects):
+def _git_repo_mit_commits(repo_pfad, commit_subjects, tage_zurueck=None):
     """Baut ein Mini-Git-Repo mit leeren Commits — nur die Subject-Zeile
-    zählt für den Detektor (der liest ausschließlich `git log --format=%s`),
-    echte Dateiänderungen sind für diesen Test irrelevant."""
+    zählt für den Detektor (der liest `git log --format=%ct<TAB>%s`), echte
+    Dateiänderungen sind für diesen Test irrelevant.
+
+    `tage_zurueck` (optional): setzt ALLE Commits auf dieses Alter
+    (`GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`) statt der echten Erstellzeit —
+    für Tests, die eine Karenzzeit (`pw.KARENZ_TAGE`) ohne injizierte
+    `jetzt`-Zeit überschreiten müssen (z. B. über `scan_repo`, das kein
+    `jetzt` durchreicht). Default `None` = unverändertes Verhalten
+    (echte Erstellzeit, wie vor der Karenzzeit)."""
     subprocess.run(["git", "init", "-q"], cwd=repo_pfad, check=True)
     subprocess.run(["git", "config", "user.email", "test@example.invalid"],
                     cwd=repo_pfad, check=True)
     subprocess.run(["git", "config", "user.name", "Test"],
                     cwd=repo_pfad, check=True)
+    env = None
+    if tage_zurueck is not None:
+        datum = (datetime.now(timezone.utc) - timedelta(days=tage_zurueck))
+        iso = datum.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        env = {**os.environ, "GIT_AUTHOR_DATE": iso, "GIT_COMMITTER_DATE": iso}
     for subject in commit_subjects:
         subprocess.run(["git", "commit", "--allow-empty", "-q", "-m", subject],
-                        cwd=repo_pfad, check=True)
+                        cwd=repo_pfad, check=True, env=env)
+
+
+def _jenseits_der_karenz(repo_pfad) -> datetime:
+    """`jetzt` so weit nach dem JÜNGSTEN main-PR-Commit im Repo, dass die
+    Karenzzeit (`pw.KARENZ_TAGE`) für ALLE sicher überschritten ist —
+    injizierte Zeit statt echter Uhr, für deterministische Tests."""
+    commits = pw._main_pr_commits(repo_pfad)
+    juengster = max((dt for _subj, dt in commits.values()), default=datetime.now(timezone.utc))
+    return juengster + timedelta(days=pw.KARENZ_TAGE + 1)
 
 
 _SYNTHETISCHE_HISTORIE = (
@@ -447,7 +470,11 @@ def test_erkennt_fehlende_pr_ueber_beide_commit_formate(tmp_path):
         "Stand nach PR #10 — im PR-Index erwähnt.\n",
         encoding="utf-8",
     )
-    funde = pw.erkenne_handover_luecke(tmp_path)
+    # Karenzzeit (19.10.2026): `jetzt` injiziert, weit genug nach dem
+    # jüngsten Commit, damit die Lücke nicht durch die Karenzzeit
+    # verdeckt wird — reale Tests würden sonst mit frischen Commits immer
+    # „zu jung" sein (s. KARENZ_TAGE).
+    funde = pw.erkenne_handover_luecke(tmp_path, jetzt=_jenseits_der_karenz(tmp_path))
     assert len(funde) == 1
     assert funde[0].klasse == pw.KLASSE_HANDOVER_LUECKE
     assert "#11" in funde[0].beschreibung
@@ -557,7 +584,7 @@ def test_handover_sync_bot_pr_braucht_squash_sonst_fehlalarm(tmp_path):
         "<!-- AUTO-PR-INDEX-ANFANG -->\n<!-- AUTO-PR-INDEX-ENDE -->\n",
         encoding="utf-8",
     )
-    funde = pw.erkenne_handover_luecke(tmp_path)
+    funde = pw.erkenne_handover_luecke(tmp_path, jetzt=_jenseits_der_karenz(tmp_path))
     assert len(funde) == 1
     assert "#175" in funde[0].beschreibung
 
@@ -589,8 +616,12 @@ def test_handover_luecke_ist_keine_rote_linie():
 
 def test_scan_repo_bindet_klasse_7_ein(tmp_path):
     """Integrations-Test: scan_repo() muss den Fund über den Orchestrator
-    finden, nicht nur bei direktem Funktionsaufruf."""
-    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE)
+    finden, nicht nur bei direktem Funktionsaufruf. `scan_repo` reicht kein
+    `jetzt` durch (Produktionscode läuft immer gegen die echte Uhr) —
+    deshalb hier die Commits backdatiert statt `jetzt` zu injizieren, damit
+    die Karenzzeit (`pw.KARENZ_TAGE`) sicher überschritten ist."""
+    _git_repo_mit_commits(tmp_path, _SYNTHETISCHE_HISTORIE,
+                           tage_zurueck=pw.KARENZ_TAGE + 1)
     (tmp_path / "SESSION_HANDOVER.md").write_text(
         "Stand nach PR #10 und #11.\n", encoding="utf-8",
     )

@@ -35,8 +35,9 @@ import re
 import subprocess
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 # ---------------------------------------------------------------------------
 # Rote Linie — Klassifikation von Diffs (dieselbe Prüfung wie Guardian für
@@ -561,6 +562,17 @@ _MERGE_COMMIT_PR_NUMMER = re.compile(r"^Merge pull request #(\d+)")
 _SQUASH_SUFFIX_PR_NUMMER = re.compile(r"\(#(\d+)\)\s*$")
 _HANDOVER_PR_ERWAEHNUNG = re.compile(r"#(\d+)")
 
+# Karenzzeit (Easy-Entscheid 19.10.2026, Folgeauftrag): ein PR kann seine
+# eigene Nummer erst NACH dem Anlegen im Handover nennen (nachgetragen im
+# selben PR) — ohne Karenz meldet sich deshalb fast jeder frisch gemergte
+# PR selbst als Lücke und löst einen Bot-PR aus, den Easy wegklicken muss
+# (Muster #187, #190). Eine PR-Nummer gilt daher nur als Lücke, wenn ihr
+# Merge-Commit ÄLTER als KARENZ_TAGE ist (strikt, Grenzfall selbst = noch
+# geschützt, s. Tests) — genug Zeit für den normalen Nachtrag, aber kein
+# Dauer-Freifahrtschein für echt vergessene Einträge. s. SESSION_HANDOVER.md,
+# 19.10.2026.
+KARENZ_TAGE = 3
+
 # Handover-Sync-Bot (Weg B, Easy-Entscheid 09./10.10.2026, scripts/
 # handover_sync.py): legt PRs mit genau diesem Titelpräfix an, die
 # AUSSCHLIESSLICH den markierten AUTO-PR-INDEX-Block in SESSION_HANDOVER.md
@@ -571,52 +583,98 @@ _HANDOVER_PR_ERWAEHNUNG = re.compile(r"#(\d+)")
 _BOT_HANDOVER_SYNC_PRAEFIX = "chore(handover-sync):"
 
 
-def _main_pr_titel(repo_root: Path) -> Dict[int, str]:
-    """Extrahiert {PR-Nummer: Commit-Subject} für alle auf main gemergten
-    PRs (`git log --first-parent`, beide Commit-Formate: Merge-Commit und
-    Squash-Suffix) — schließt Handover-Sync-Bot-PRs aus (s.
-    `_BOT_HANDOVER_SYNC_PRAEFIX`). Fail-soft: kein Git-Zugriff liefert `{}`,
-    kein Absturz. Gemeinsame Quelle für `erkenne_handover_luecke` (Klasse 7)
-    und `scripts/handover_sync.py` — eine Extraktion, nicht zwei."""
+def _main_pr_commits(repo_root: Path) -> Dict[int, Tuple[str, datetime]]:
+    """Extrahiert {PR-Nummer: (Commit-Subject, Commit-Datum UTC)} für alle
+    auf main gemergten PRs (`git log --first-parent`, beide Commit-Formate:
+    Merge-Commit und Squash-Suffix) — schließt Handover-Sync-Bot-PRs aus
+    (s. `_BOT_HANDOVER_SYNC_PRAEFIX`). Fail-soft: kein Git-Zugriff oder eine
+    unlesbare Datumsangabe liefert `{}` bzw. überspringt nur die eine Zeile,
+    kein Absturz. EINE Extraktion (Committer-Datum per `%ct` zusätzlich zum
+    bestehenden Subject, ein einziger `git log`-Aufruf) — gemeinsame Quelle
+    für `_main_pr_titel`, `_main_pr_luecken` (Klasse 7) und
+    `scripts/handover_sync.py`, nicht mehrere parallele."""
     try:
         ausgabe = subprocess.run(
             ["git", "-C", str(repo_root), "log", "--first-parent",
-             "--format=%s", "HEAD"],
+             "--format=%ct%x09%s", "HEAD"],
             capture_output=True, text=True, timeout=30, check=True,
         ).stdout
     except (subprocess.SubprocessError, OSError):
         return {}
 
-    ergebnis: Dict[int, str] = {}
+    ergebnis: Dict[int, Tuple[str, datetime]] = {}
     for zeile in ausgabe.splitlines():
-        if zeile.startswith(_BOT_HANDOVER_SYNC_PRAEFIX):
+        epoch_str, _sep, subject = zeile.partition("\t")
+        if not _sep:
+            continue  # Zeile ohne Tab-Trenner -> nicht auswertbar, überspringen
+        if subject.startswith(_BOT_HANDOVER_SYNC_PRAEFIX):
             continue
-        treffer = _MERGE_COMMIT_PR_NUMMER.match(zeile)
+        treffer = _MERGE_COMMIT_PR_NUMMER.match(subject)
         if not treffer:
-            treffer = _SQUASH_SUFFIX_PR_NUMMER.search(zeile)
-        if treffer:
-            ergebnis[int(treffer.group(1))] = zeile
+            treffer = _SQUASH_SUFFIX_PR_NUMMER.search(subject)
+        if not treffer:
+            continue
+        try:
+            commit_dt = datetime.fromtimestamp(int(epoch_str), tz=timezone.utc)
+        except (ValueError, OSError, OverflowError):
+            continue  # unlesbares Datum -> Zeile überspringen, kein Absturz
+        ergebnis[int(treffer.group(1))] = (subject, commit_dt)
     return ergebnis
 
 
-def erkenne_handover_luecke(repo_root: Path) -> List[Fund]:
-    """Vergleicht die auf main gemergten PR-Nummern (`_main_pr_titel`) gegen
-    die in SESSION_HANDOVER.md erwähnten PR-Nummern. Reine Beobachtungs-
-    Meldung, kein Block. Fail-soft: kein Handover oder kein Git-Zugriff
-    liefern keine Funde, kein Absturz. Eine leere PR-Extraktion (z. B.
-    Shallow-Checkout) kann laut Mutationsprobe nur zu übersehenen, nie zu
-    erfundenen Funden führen (siehe Modul-Kommentar zu Klasse 7) — kein
-    Sonderfall nötig. Deterministisch: reine Funktion des aktuellen
-    main-Stands."""
+def _main_pr_titel(repo_root: Path) -> Dict[int, str]:
+    """Bestehende Schnittstelle (nur Commit-Subject, OHNE Datum) — dünner
+    Wrapper um `_main_pr_commits`, damit `scripts/handover_sync.py` (braucht
+    nur den Subject-Text für die Index-Zeile) unverändert bleibt."""
+    return {n: subjekt for n, (subjekt, _dt) in _main_pr_commits(repo_root).items()}
+
+
+def _main_pr_luecken(repo_root: Path, jetzt: Optional[datetime] = None) -> List[int]:
+    """Main-PR-Nummern, die WEDER im Handover erwähnt sind NOCH durch die
+    Karenzzeit (`KARENZ_TAGE`) geschützt sind — EINE gemeinsame Funktion für
+    `erkenne_handover_luecke` (Wächter) UND
+    `scripts.handover_sync.fehlende_pr_zeilen` (Bot), damit beide exakt
+    dieselbe Lücken-Menge sehen (Easy-Entscheid 19.10.2026).
+
+    `jetzt`: injizierbare UTC-Zeit für deterministische Tests (Default: die
+    echte aktuelle UTC-Zeit). Produktionscode ruft ohne `jetzt` auf.
+
+    Grenzfall: GENAU `KARENZ_TAGE` alt ist noch NICHT „älter als" ->
+    weiterhin geschützt (strikter Vergleich, s. Tests)."""
     handover_pfad = repo_root / "SESSION_HANDOVER.md"
     if not handover_pfad.is_file():
         return []
-    main_prs = set(_main_pr_titel(repo_root))
+    commits = _main_pr_commits(repo_root)
+    if not commits:
+        return []
 
     handover_text = handover_pfad.read_text(encoding="utf-8")
     erwaehnte_prs = {int(n) for n in _HANDOVER_PR_ERWAEHNUNG.findall(handover_text)}
+    jetzt_eff = jetzt if jetzt is not None else datetime.now(timezone.utc)
+    karenz = timedelta(days=KARENZ_TAGE)
 
-    fehlende = sorted(main_prs - erwaehnte_prs)
+    fehlende: List[int] = []
+    for nummer, (_subjekt, commit_dt) in commits.items():
+        if nummer in erwaehnte_prs:
+            continue
+        if (jetzt_eff - commit_dt) <= karenz:
+            continue  # noch innerhalb der Karenzzeit -> (noch) keine Lücke
+        fehlende.append(nummer)
+    return sorted(fehlende)
+
+
+def erkenne_handover_luecke(repo_root: Path,
+                             jetzt: Optional[datetime] = None) -> List[Fund]:
+    """Meldet main-PR-Nummern, die laut `_main_pr_luecken` weder im Handover
+    erwähnt noch durch die Karenzzeit (`KARENZ_TAGE`) geschützt sind. Reine
+    Beobachtungs-Meldung, kein Block. Fail-soft: kein Handover oder kein
+    Git-Zugriff liefern keine Funde, kein Absturz. Eine leere PR-Extraktion
+    (z. B. Shallow-Checkout) kann laut Mutationsprobe nur zu übersehenen,
+    nie zu erfundenen Funden führen (siehe Modul-Kommentar zu Klasse 7) —
+    kein Sonderfall nötig. Deterministisch über `jetzt` (Default: echte
+    UTC-Zeit) — reine Funktion des aktuellen main-Stands UND der injizierten
+    Zeit, sonst unverändert reine Funktion des main-Stands."""
+    fehlende = _main_pr_luecken(repo_root, jetzt=jetzt)
     if not fehlende:
         return []
     liste = ", ".join(f"#{n}" for n in fehlende)
@@ -626,7 +684,8 @@ def erkenne_handover_luecke(repo_root: Path) -> List[Fund]:
             f"{len(fehlende)} auf main gemergte PR(s) fehlen in "
             f"SESSION_HANDOVER.md: {liste} — Pflegeregel (\"wird bei JEDEM "
             f"Merge im selben PR aktualisiert\") nicht eingehalten (Muster "
-            f"wie #149/#152)."
+            f"wie #149/#152), und älter als die Karenzzeit "
+            f"(KARENZ_TAGE={KARENZ_TAGE})."
         ),
         betroffene_dateien=["SESSION_HANDOVER.md"],
     )]

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -15,6 +16,16 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import handover_sync as hs  # noqa: E402
+import proactive_watcher as pw  # noqa: E402
+
+
+def _jenseits_der_karenz(repo_pfad) -> datetime:
+    """s. `tests/test_proactive_watcher.py::_jenseits_der_karenz` — dieselbe
+    Logik, hier dupliziert statt importiert, da beide Testdateien
+    unabhängig lauffähig bleiben sollen (kein Test-zu-Test-Import)."""
+    commits = pw._main_pr_commits(repo_pfad)
+    juengster = max((dt for _subj, dt in commits.values()), default=datetime.now(timezone.utc))
+    return juengster + timedelta(days=pw.KARENZ_TAGE + 1)
 
 
 def _git_repo_mit_commits(repo_pfad, commit_subjects):
@@ -209,7 +220,7 @@ def test_fehlende_pr_zeilen_nutzt_main_pr_titel(tmp_path):
     (tmp_path / "SESSION_HANDOVER.md").write_text(
         "Stand nach PR #10 — im PR-Index erwähnt.\n", encoding="utf-8",
     )
-    zeilen = hs.fehlende_pr_zeilen(tmp_path)
+    zeilen = hs.fehlende_pr_zeilen(tmp_path, jetzt=_jenseits_der_karenz(tmp_path))
     assert zeilen == ["- #11 — feat(x): irgendein Fix (#11)"]
 
 
