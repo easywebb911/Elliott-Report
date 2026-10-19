@@ -32,6 +32,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -65,19 +66,17 @@ def pruefe_marker(text: str) -> None:
         raise MarkerFehler("ANFANG-Marker liegt nicht vor dem ENDE-Marker.")
 
 
-def fehlende_pr_zeilen(repo_root: Path) -> List[str]:
+def fehlende_pr_zeilen(repo_root: Path, jetzt: Optional[datetime] = None) -> List[str]:
     """Fertige Index-Zeilen ('- #N — <Commit-Subject>') für alle main-PRs,
-    die in SESSION_HANDOVER.md fehlen — identische Quelle wie
-    `erkenne_handover_luecke` (Klasse 7), keine eigene Extraktion."""
-    handover_pfad = repo_root / "SESSION_HANDOVER.md"
-    if not handover_pfad.is_file():
-        return []
+    die in SESSION_HANDOVER.md fehlen UND die Karenzzeit (`pw.KARENZ_TAGE`)
+    bereits überschritten haben — identische Quelle wie
+    `erkenne_handover_luecke` (Klasse 7): `pw._main_pr_luecken`, keine
+    eigene Extraktion/Zweitrechnung (Easy-Entscheid 19.10.2026).
+
+    `jetzt`: injizierbare UTC-Zeit, nur für deterministische Tests —
+    Produktionslauf (`fuehre_sync_aus`) ruft ohne `jetzt` auf."""
     main_prs = pw._main_pr_titel(repo_root)
-    if not main_prs:
-        return []
-    handover_text = handover_pfad.read_text(encoding="utf-8")
-    erwaehnte = {int(n) for n in pw._HANDOVER_PR_ERWAEHNUNG.findall(handover_text)}
-    fehlende = sorted(set(main_prs) - erwaehnte)
+    fehlende = pw._main_pr_luecken(repo_root, jetzt=jetzt)
     return [f"- #{n} — {main_prs[n]}" for n in fehlende]
 
 

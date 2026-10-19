@@ -1397,6 +1397,48 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **WIEDERVORLAGE:** 07.12.2026 (zusammen mit dem Score-Review und den
   übrigen offenen Punkten oben).
 
+- **19.10.2026 — Karenzzeit für den Handover-Wächter/-Bot (Easy-Entscheid,
+  Folgeauftrag zu #187/#190, PR-Nummer: NACH DEM ANLEGEN NACHZUTRAGEN).** `scripts/proactive_watcher.py`: neue Konstante
+  `KARENZ_TAGE = 3` + geteilte Funktion `_main_pr_luecken` (injizierbares
+  `jetzt`, Default echte UTC-Zeit) — eine main-PR-Nummer gilt nur als
+  Lücke, wenn ihr Merge-Commit **älter als** `KARENZ_TAGE` ist (strikter
+  Vergleich, Grenzfall GENAU 3 Tage bleibt geschützt). `erkenne_handover_
+  luecke` (Wächter) UND `scripts/handover_sync.py::fehlende_pr_zeilen`
+  (Bot) rufen jetzt DIESELBE Funktion auf (vorher zwei parallele Inline-
+  Berechnungen über dieselbe `_main_pr_titel`-Quelle) — EXZELLENZ-
+  Anforderung, dass beide exakt dieselbe Lücken-Menge sehen.
+
+  **Begründung (Zusammenspiel mit der Arbeitsregel):** ein PR kann seine
+  eigene Nummer erst NACH dem Anlegen im Handover nennen (nachgetragen im
+  selben PR, wie hier) — ohne Karenz meldet sich dadurch praktisch jeder
+  frisch gemergte PR selbst als Lücke und löst einen Bot-PR aus, den Easy
+  wegklicken muss (Muster #187, #190). Die Karenzzeit gibt genug Zeit für
+  den normalen Nachtrag, ist aber KEIN Dauer-Freifahrtschein: ein nach 3
+  Tagen immer noch nicht erwähnter PR wird weiterhin gemeldet.
+
+  **Bot-Workflow/Rechte UNANGETASTET** (keine `.yml`-Datei geändern, laut
+  Auftrag) — `handover_sync.yml` ruft weiterhin nur `python scripts/
+  handover_sync.py`. **Widerspruch gemeldet, NICHT behoben:** die engere
+  Testauswahl in `handover_sync.yml` (`pytest tests/test_handover_sync.py
+  tests/test_proactive_watcher.py`) nennt die neue Testdatei `tests/
+  test_handover_karenzzeit.py` nicht namentlich — sie läuft aber in der
+  vollen Suite (`ci.yml`/`maintenance.yml`, `pytest -q`) ohnehin mit; keine
+  Lücke in der Abdeckung, nur keine explizite Nennung in diesem einen
+  Workflow. Nicht behoben, da jede `.yml`-Änderung laut Auftrag außerhalb
+  der Grenzen liegt.
+
+  **Zahlen (echter Wächter-Lauf gegen `origin/main`, Stand 19.10.2026,
+  ~19 Stunden nach Merge von #190):** vorher (ohne Karenz) meldet die
+  Lücken-Erkennung `#190` als fehlend; nachher (mit Karenz) **kein Fund**
+  — `#190` ist mit ca. 1 Tag 7 Std. Alter innerhalb der 3-Tage-Karenz
+  geschützt. Score, Ranking, `scripts/evaluate.py` (SHA256-Pin), die
+  Sammlung: unangetastet (dieser PR ändert nur `scripts/proactive_
+  watcher.py`, `scripts/handover_sync.py`, Tests und dieses Handover).
+
+  **WIEDERVORLAGE:** 07.12.2026 — prüfen, ob 3 Tage Karenz in der Praxis
+  reichen (zu kurz: weiterhin störende Bot-PRs; zu lang: echte Lücken
+  bleiben zu lange unbemerkt).
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
