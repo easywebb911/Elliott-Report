@@ -1398,7 +1398,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   übrigen offenen Punkten oben).
 
 - **19.10.2026 — Karenzzeit für den Handover-Wächter/-Bot (Easy-Entscheid,
-  Folgeauftrag zu #187/#190, PR-Nummer: NACH DEM ANLEGEN NACHZUTRAGEN).** `scripts/proactive_watcher.py`: neue Konstante
+  Folgeauftrag zu #187/#190, PR #191).** `scripts/proactive_watcher.py`: neue Konstante
   `KARENZ_TAGE = 3` + geteilte Funktion `_main_pr_luecken` (injizierbares
   `jetzt`, Default echte UTC-Zeit) — eine main-PR-Nummer gilt nur als
   Lücke, wenn ihr Merge-Commit **älter als** `KARENZ_TAGE` ist (strikter
