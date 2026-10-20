@@ -1997,6 +1997,16 @@ Beleg = Abschnitt 3.)
   Ampelfeld sehen dabei aus wie „Checks laufen noch", heißen aber „es gibt keine".
   Ein grüner Lauf gegen einen **überholten** SHA ist derselbe Trugschluss in der
   zweiten Form. Die Regel greift, **ohne** dass man die Ursache kennen muss.
+- **Handover-Eintrag nennt die eigene PR-Nummer (Easy-Regel 19.10.2026,
+  stehend, s. PR #191):** ein PR kann seine eigene Nummer erst NACH dem
+  Anlegen kennen — der Handover-Eintrag nennt sie trotzdem, als Platzhalter
+  beim Anlegen (z. B. „NACH DEM ANLEGEN NACHZUTRAGEN"), **nachgetragen im
+  selben PR** per Zusatz-Commit, sobald GitHub die Nummer vergeben hat.
+  **Grund:** der Handover-Wächter/-Bot (`erkenne_handover_luecke`/
+  `handover_sync.py`, Klasse 7) erkennt einen PR nur über seine Nummer im
+  Handover-Text als abgedeckt — eine Karenzzeit (`KARENZ_TAGE = 3`, PR
+  #191) schützt zusätzlich vor dem Zeitfenster zwischen Merge und
+  Nachtrag, ersetzt den Nachtrag selbst aber NICHT.
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
 
