@@ -2856,8 +2856,50 @@ vor n ≥ 100) gilt unverändert.
   der nächste echte Lauf nach dem Merge.
 
   **Stichtag:** der erste Tageslauf NACH dem Merge-Commit dieses PRs
-  (getrennt vom Stichtag der Zählregel, PR #186, oben) — Platzhalter, wie
-  bei #186 nach dem ersten Lauf belegt nachzutragen.
+  (getrennt vom Stichtag der Zählregel, PR #186, oben).
+
+  **NACHTRAG 20.10.2026 (belegt, PR #190/#193):** Merge-Commit
+  `b5f13cf38660d5879edff2fd79eb0ae1ec8f0a49` (2026-10-18T15:29:50+02:00 =
+  13:29:50 UTC, "Merge pull request #190"). Erster `daily.yml`-Lauf
+  danach: **Run #156** (`id 39352453044`, `event: schedule`,
+  `conclusion: success`), gestartet 2026-10-20T01:15:49Z, erzeugte Commit
+  `2a0f1a8` (`chore(data): täglicher Elliott-Report + Sammlung`,
+  2026-10-20T01:18:52Z, `run_timestamp_utc` `2026-10-20T01:16:14Z`). **Das
+  ist der Stichtag.** (Kein Lauf zwischen #190s Merge (Sa 18.10.) und
+  diesem — `daily.yml` läuft nur an Handelstagen; So 18.10./Mo 19.10. NY
+  hatten keinen Lauf, der nächste planmäßige Lauf nach Montags-Schluss
+  landete erst Di 20.10. 01:15 UTC. Die "Mittags-Report-Aktualisierung"
+  dazwischen (`d663013`, 19.10. 18:18 UTC) ist ein ANDERER Workflow
+  (`midday_report_refresh.yml`, Report-Only, kein `daily.yml`-Lauf).)
+
+  **Filter-Befund (geprüft per `git show 2a0f1a8:data/report.json`):**
+  `reason_counts.invalidated_at_creation` = **US 0, DE 2**. Kandidatenzahl
+  je Markt: US 8, DE 8 (beide ≥ `min_candidates=3`). `health.status`:
+  `warn` (Kursverzug 1 Handelstag beide Märkte, `bar_freshness` —
+  unabhängig vom Filter, kein `crit`); Workflow-Lauf selbst
+  `conclusion: success`.
+
+  **Top-5/Ersatzbank:** US unverändert in der Mitgliedschaft gegenüber dem
+  Vorlauf (`adc71fb`, Run #155, 17.10.): META/DHR/IT/A/AMGN/HCA/PH/SLB —
+  ISRG fiel heraus, HCA kam nach (0 `invalidated_at_creation`-Treffer in
+  US, also NICHT durch diesen Filter verursacht, außerhalb dieses
+  Auftrags). **DE: `JUN3.DE` (Vorlauf Platz 8, Score 58,46) ist NICHT mehr
+  in der Ersatzbank — ersetzt durch `SIE.DE` (Score 55,33).** Das ist der
+  direkte Nachrücker-Beleg für einen der 2 DE-Treffer. Der zweite
+  DE-Treffer betrifft einen Kandidaten außerhalb der gespeicherten Top-8
+  (vorher wie nachher nicht sichtbar — aus `report.json` allein nicht
+  namentlich identifizierbar, s. fragile Annahme oben). `FME.DE`/`PBB.DE`
+  stehen in KEINEM der beiden Läufe (#155/#156) in Top-5/Ersatzbank
+  irgendeines Marktes.
+
+  **Neue Records seit dem Stichtag:** genau **1** (`IT@US`,
+  `entry_close=205.35 > invalidation_price=169.69` — korrekt NICHT
+  invalidiert). **Keine** neue Erscheinung mit `entry_close <=
+  invalidation_price` (geprüft: 0 von 1). Der Marker
+  `invertiertes_risiko_bei_anlage` steht unverändert bei **13** (PR
+  #185/#189) — kein neuer Fall seit dem Stichtag, wie erwartet. Population
+  `data/forward_collection.json`: 215 → **216** Records (+1, der neue
+  `IT`-Record).
 
   **Tests:** synthetische Fixtures (close über/gleich/unter
   `invalidation_price`), Operator-Mutationsprobe (`<=` vs. `<` an der
