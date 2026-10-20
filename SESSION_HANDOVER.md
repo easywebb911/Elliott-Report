@@ -1364,9 +1364,24 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   `invalidated_at_creation: 'Invalidierung erreicht'` ergänzt (Lauf-Status-
   Chips sind generisch über `Object.keys(RLABEL)`, keine weitere Stelle
   nötig). Registry-Eintrag mit Transparenzklausel
-  (`docs/validation_registry.md`, 17.10.2026) — Stichtag als Platzhalter,
-  nach dem ersten Lauf NACH dem Merge belegt nachzutragen (getrennt vom
+  (`docs/validation_registry.md`, 17.10.2026, getrennt vom
   Zählregel-Stichtag/#186).
+
+  **NACHTRAG 20.10.2026 (belegt, PR #190/#193, s. auch
+  `docs/validation_registry.md`):** Merge-Commit `b5f13cf`
+  (2026-10-18T15:29:50+02:00 = 13:29:50 UTC). Erster `daily.yml`-Lauf
+  danach: **Run #156** (`id 39352453044`, `conclusion: success`),
+  gestartet 2026-10-20T01:15:49Z, Commit `2a0f1a8`, `run_timestamp_utc`
+  `2026-10-20T01:16:14Z`. **Das ist der Stichtag.** Kein Lauf zwischen
+  #190s Merge (Sa) und diesem Di — `daily.yml` läuft nur an Handelstagen.
+  Befund: `invalidated_at_creation` US **0**, DE **2**; DE-Ersatzbank
+  Platz 8 `JUN3.DE` (58,46) durch `SIE.DE` (55,33) ersetzt — direkter
+  Nachrücker-Beleg; `FME.DE`/`PBB.DE` in keinem der Läufe #155/#156 in
+  Top-5/Ersatzbank. Beide Märkte 8/8 Kandidaten (≥ `min_candidates=3`),
+  `health.status: warn` (Kursverzug, unabhängig vom Filter), Lauf grün.
+  Genau 1 neuer Record seit dem Stichtag (`IT@US`, nicht invalidiert) —
+  **keine** neue `entry_close <= invalidation_price`-Erscheinung;
+  Marker-Stand unverändert bei 13.
 
   **Was Easy nach dem ersten Lauf in der App sieht:** die Lauf-Status-
   Ansicht zeigt einen neuen Chip „Invalidierung erreicht: N" je Markt
