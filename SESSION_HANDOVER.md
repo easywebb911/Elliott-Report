@@ -1457,8 +1457,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   bleiben zu lange unbemerkt).
 
 - **23.10.2026 — Schatten-Score `score_shadow_inval_cap20` (Easy-Entscheid,
-  PR 3 von 4, Diagnose-Folgeauftrag, PR-Nummer: NACH DEM ANLEGEN
-  NACHZUTRAGEN).** Neues additives Feld auf künftigen Forward-Sammlung-
+  PR 3 von 4, Diagnose-Folgeauftrag, PR #194).** Neues additives Feld auf künftigen Forward-Sammlung-
   Records (`scripts/forward_collection.py::_new_record`): derselbe
   Invalidierungs-Bonus-Deckel-Mechanismus wie der Live-Score, nur 10 % ->
   20 % Abstand verdoppelt, GLEICHE STEIGUNG (Höchstbonus 15 -> 30,
