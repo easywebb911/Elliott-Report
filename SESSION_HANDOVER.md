@@ -1487,6 +1487,11 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   **WIEDERVORLAGE:** 07.12.2026 (Auswertung Live vs. Schatten, zusammen mit
   dem Score-Review und den übrigen offenen Punkten oben).
 
+  **NACHTRAG (derselbe PR):** `#192` war die PR, die die Arbeitsregel
+  „eigene PR-Nummer nachtragen" (Abschnitt 8) selbst eingeführt hat — hier
+  jetzt genannt, damit der Handover-Wächter sie nicht mehr als Lücke
+  meldet.
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
