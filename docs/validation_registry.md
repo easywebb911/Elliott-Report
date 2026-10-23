@@ -2911,3 +2911,90 @@ vor n ≥ 100) gilt unverändert.
   test_kein_neuer_skip_grund_noetig` an die jetzt acht `SKIP_REASONS`
   angepasst (zählte zuvor wörtlich sieben; die Aussage für PR #186 selbst
   bleibt richtig, s. Kommentar im Test). Volle Suite: 1890 passed.
+
+- **23.10.2026 — Schatten-Score `score_shadow_inval_cap20` (Easy-Entscheid,
+  PR 3 von 4, Diagnose-Folgeauftrag, KEINE Populations-Änderung).**
+
+  **TRANSPARENZ-KLAUSEL:** diese Variante und die Verdikt-Regel unten
+  entstanden NACH dem Primärverdikt (06.09.2026) und nach Einsicht in die
+  Bestandsdaten (Befund: ~47 % aller Records liegen bereits am 10-%-Deckel
+  des Invalidierungs-Bonus und sind für den Score ununterscheidbar) —
+  explorativ, keine Präregistrierung. Der Vorwärtsvergleich (Stichtag bis
+  07.12.2026) ist die eigentliche Prüfung.
+
+  **Zweck:** der Invalidierungs-Bonus des Live-Scores ist bei 10 % Kurs-
+  Abstand zur Invalidierung gedeckelt (`config.INVALIDATION_DISTANCE_CAP`,
+  `_MAX_BONUS = 15`). Die Schatten-Variante prüft, ob ein weiterer Deckel
+  (20 %) den Score trennschärfer macht.
+
+  **Variante (wörtlich, GENAU EINE, später KEINE weitere ohne neuen
+  Registry-Eintrag):** derselbe linear-bis-Deckel-Mechanismus, Deckel von
+  10 % auf **20 %** Abstand verdoppelt, bei **gleicher Steigung**
+  (`config.INVALIDATION_DISTANCE_SHADOW_CAP = 20`,
+  `_SHADOW_MAX_BONUS = 30` — Steigung 15/10 = 30/20 = 1,5 Punkte je %
+  Abstand bleibt identisch). Fälle unter 10 % Abstand behalten dadurch
+  exakt ihre Live-Punkte; der Höchstbonus verdoppelt sich. Berechnet als
+  reine Differenzrechnung in `scripts/forward_collection.py::
+  score_shadow_inval_cap20` (Live- minus Schatten-Bonus-Anteil auf
+  `score_heuristic` addiert) — KEIN Zugriff auf
+  `scripts/elliott_pipeline.py`, das von diesem PR NICHT geändert wird.
+
+  **Wirkung auf die Population: KEINE.** Neues, additives Feld
+  `score_shadow_inval_cap20` NUR auf künftigen, ab dem Stichtag NEU
+  angelegten Records, bei Anlage **eingefroren** (nie bei der Reifung
+  geändert, wie `r_multiple`-Geometrie). KEIN Backfill, KEIN `--live`-Lauf.
+  Bestehende Records bleiben byte-identisch (223 Records, SHA256 der
+  Sammlung unverändert — belegt per Test
+  `test_bestehende_echte_records_byte_identisch`).
+
+  **Live-Score/Ranking unverändert:** `score_setup()`,
+  `_invalidation_bonus()`, `config.SCORE_WEIGHTS`/`SETUP_BASE_POINTS`/
+  `INVALIDATION_DISTANCE_CAP`/`_MAX_BONUS`, die Ranking-Sortierung und die
+  Kandidaten-Aufnahme sind von diesem PR NICHT angefasst —
+  `scripts/elliott_pipeline.py` hat KEINEN Diff. **`scripts/evaluate.py`
+  unverändert** (SHA256 `bc697df9…b513fc`, identisch zum Beleg bei PR #190
+  — belegt per Test `test_evaluate_py_sha256_unveraendert`). Das neue Feld
+  ist NICHT in `evaluate.FROZEN_FIELDS` — `evaluate.py` liest es nie.
+
+  **Zahlen (echter Gegentest gegen den Bestand, 223 Records):** genau
+  **100 von 223** Records (≈ 45 %) hätten rechnerisch einen anderen
+  Schatten- als Live-Score — NUR gezählt, NICHTS gespeichert (Test
+  `test_verteilung_bestandsrecords_mit_anderem_schatten_als_live_score`).
+  `fc.eval_counts`/`evaluate.build_population` byte-identisch vor und nach
+  diesem PR: (223, 186, 180).
+
+  **Stichtag:** der erste Tageslauf NACH dem Merge-Commit dieses PRs —
+  Platzhalter, nach dem ersten Lauf belegt nachzutragen (wie bei PR
+  #186/#190).
+
+  **VORAB-FESTLEGUNG der Auswertung (07.12.2026, NUR auf Anfrage, NIE
+  automatisch — PR 4 liefert das Auswertungsskript):**
+  - **Population:** Records mit gesetztem Schatten-Feld
+    (`score_shadow_inval_cap20 is not None`).
+  - **Vergleich:** AUC Live-Score gegen AUC Schatten-Score gegen
+    DASSELBE Zielereignis wie die Primärauswertung
+    (`score_trennschaerfe`).
+  - **Differenz-Test:** Block-Bootstrap (Tag/Ticker-Cluster), Muster der
+    Cluster-Sensitivität #166/#167/#180.
+  - **Verdikt-Regel (vorab festgelegt):** „Schatten besser" **NUR** wenn
+    die Differenz > 0 **UND** das Intervall 0 ausschließt; **sonst
+    „nicht entscheidbar"**. Ein Wechsel des Live-Scores erfolgt **nur**
+    nach Easys eigener Entscheidung — nie automatisch.
+  - **Ehrlich ausgewiesen:** erwartet ca. 110–130 neue Records bis zum
+    07.12.2026 (Teststärke begrenzt); „nicht entscheidbar" ist ein
+    **zulässiges** Ergebnis, keine Ausweichformulierung.
+
+  **Fragile Annahmen (ausdrücklich ausgewiesen):** die Differenzrechnung
+  nutzt das bereits auf 2 Nachkommastellen gerundete `score_heuristic`
+  statt der nie gespeicherten, unrundeten Summe — Abweichung ≤ 0,005
+  Punkte, für eine AUC-Auswertung bei n≈110–130 irrelevant. Keine
+  Kalibrierung an Bestandsdaten (die 100/223-Zahl oben ist Diagnose, nicht
+  Grundlage der Deckel-Wahl 20 %).
+
+  **Tests:** `tests/test_score_shadow_inval_cap20.py` (17 neue: die fünf
+  geforderten Abstände 5/10/15/20/30 %, Fail-soft NaN/None/Inf, zwei
+  Mutationsproben — Deckel-Rückdrehung auf 10 % widerlegt, Live-Konstanten-
+  Änderung wirkt sich nicht auf den Schatten-Wert aus —, Einfrier-Probe
+  über eine echte Reifung, SHA256-Belege für Sammlung und `evaluate.py`,
+  `build_population`/`eval_counts`-Gleichheit, Verteilungszahl 100/223).
+  Volle Suite: 1916 passed.

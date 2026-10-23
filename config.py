@@ -199,6 +199,17 @@ FIB_PROXIMITY_TOLERANCE = 0.15      # Retracement-Toleranz (±) für den Bonus
 INVALIDATION_DISTANCE_MAX_BONUS = 15.0
 INVALIDATION_DISTANCE_CAP = 10.0    # % Abstand, ab dem der Bonus maximal ist
 
+# SCHATTEN-Variante (Easy-Entscheid 23.10.2026, PR 3 von 4, Diagnose-
+# Folgeauftrag) — NUR mitgeschrieben (forward_collection._new_record,
+# Feld `score_shadow_inval_cap20`), NICHT im Live-Score/Ranking. Genau EINE
+# Variante: derselbe Deckel-Mechanismus, nur auf 20 % Abstand verdoppelt,
+# bei GLEICHER STEIGUNG (MAX_BONUS/CAP = 15/10 = 30/20 = 1,5 Punkte je %
+# Abstand) — Fälle unter 10 % Abstand behalten dadurch exakt ihre
+# Live-Punkte, der Höchstbonus verdoppelt sich. s. docs/validation_registry.md,
+# 23.10.2026. Live INVALIDATION_DISTANCE_CAP/_MAX_BONUS oben UNVERÄNDERT.
+INVALIDATION_DISTANCE_SHADOW_MAX_BONUS = 30.0
+INVALIDATION_DISTANCE_SHADOW_CAP = 20.0
+
 # Fibonacci-Extensions für Zielzonen (auf W1-Länge bezogen).
 TARGET_EXTENSIONS = {
     "w3": [1.0, 1.618],   # Zielzone W3 = P2 + [1.0 .. 1.618] * len(W1)

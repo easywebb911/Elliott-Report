@@ -782,6 +782,59 @@ def _r_erreicht_paar(target_hit: Optional[int], ext_hit: Optional[int],
     return basis, ext
 
 
+def _invalidierungs_bonus_mit_deckel(close: float, invalidation: float,
+                                     cap: float, max_bonus: float) -> float:
+    """Dieselbe Formel wie ``elliott_pipeline._invalidation_bonus`` — bewusst
+    hier dupliziert statt importiert: ``forward_collection.py`` importiert
+    ``elliott_pipeline.py`` NICHT (umgekehrt schon, ``elliott_pipeline``
+    importiert ``forward_collection`` als ``fc``); ein Rückimport wäre ein
+    Zirkelimport (``elliott_pipeline`` wäre beim Import von
+    ``forward_collection`` noch nicht fertig initialisiert). Nicht-finit-
+    Härtung identisch zum Original."""
+    if not finite(close) or not finite(invalidation) or close <= 0:
+        return 0.0
+    dist_pct = abs(close - invalidation) / close * 100.0
+    frac = min(dist_pct / cap, 1.0)
+    return frac * max_bonus
+
+
+def score_shadow_inval_cap20(entry_close: float, invalidation_price: float,
+                             score_heuristic: float) -> Optional[float]:
+    """Schatten-Score (Easy-Entscheid 23.10.2026, PR 3 von 4, Diagnose-
+    Folgeauftrag) — GENAU EINE Variante, NICHT im Ranking: derselbe
+    Invalidierungs-Bonus-Deckel-Mechanismus wie der Live-Score, nur von 10 %
+    auf ``config.INVALIDATION_DISTANCE_SHADOW_CAP`` (20 %) Abstand verdoppelt,
+    bei GLEICHER STEIGUNG (``config.INVALIDATION_DISTANCE_SHADOW_MAX_BONUS``
+    = 30, also weiterhin 1,5 Punkte je % Abstand) — Fälle unter 10 % Abstand
+    behalten dadurch exakt ihre Live-Punkte, der Höchstbonus verdoppelt sich.
+
+    EXAKTE Differenzrechnung statt Neuaufbau aus den setup-internen
+    Bestandteilen (``base_points``/``fib_bonus`` liegen auf dem Record NICHT
+    vor — NUR das bereits gerundete ``score_heuristic``): Live- und
+    Schatten-Bonus unterscheiden sich AUSSCHLIESSLICH im Invalidierungs-
+    Anteil, der Rest (Basis + Fibonacci-Nähe) hebt sich in der Differenz
+    rechnerisch exakt weg. Einzige Ungenauigkeit: ``score_heuristic`` ist
+    bereits auf 2 Nachkommastellen gerundet — dieselbe Rundung, die der
+    Live-Score schon immer hatte (die unrundete Summe wird nirgends
+    gespeichert); kein zusätzlicher Genauigkeitsverlust.
+
+    Fail-soft: ``None`` bei fehlendem/nicht-endlichem ``entry_close``/
+    ``invalidation_price``/``score_heuristic`` — der Record wird trotzdem
+    angelegt, der Live-Score bleibt unberührt."""
+    if (not finite(entry_close) or not finite(invalidation_price)
+            or not finite(score_heuristic)):
+        return None
+    w = config.SCORE_WEIGHTS["invalidation_distance"]
+    live_bonus = _invalidierungs_bonus_mit_deckel(
+        entry_close, invalidation_price,
+        config.INVALIDATION_DISTANCE_CAP, config.INVALIDATION_DISTANCE_MAX_BONUS)
+    shadow_bonus = _invalidierungs_bonus_mit_deckel(
+        entry_close, invalidation_price,
+        config.INVALIDATION_DISTANCE_SHADOW_CAP,
+        config.INVALIDATION_DISTANCE_SHADOW_MAX_BONUS)
+    return round(score_heuristic + (shadow_bonus - live_bonus) * w, 2)
+
+
 def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
                 run_date: str, now_iso: str,
                 episode_id: Optional[str] = None) -> Dict:
@@ -850,6 +903,17 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
                        entry["target_zone"], entry["target_zone_extended"]),
         "r_erreicht_basis": None,
         "r_erreicht_extension": None,
+        # Schatten-Score (Easy-Entscheid 23.10.2026, PR 3 von 4): EINE
+        # Variante des Invalidierungs-Bonus-Deckels (10 % -> 20 %, gleiche
+        # Steigung), NUR mitgeschrieben, NICHT im Ranking. Bei Anlage aus den
+        # bereits oben eingefrorenen Feldern berechnet + EINGEFROREN (wie
+        # r_multiple-Geometrie oben) — nie nachträglich geändert. Fail-soft
+        # None bei nicht berechenbaren Eingaben (s. score_shadow_inval_
+        # cap20()). KEIN Einfluss auf score_heuristic/Ranking/evaluate.py
+        # (nicht in FROZEN_FIELDS). Siehe docs/validation_registry.md.
+        "score_shadow_inval_cap20": score_shadow_inval_cap20(
+            entry["close"], entry["invalidation_price"],
+            entry["score_heuristic"]),
         # W5->A-Nachprüfung (nur end_of_w4 + target_hit, s. observe_a_correction).
         # None = keine Messung / Fenster offen; True/False = Korrektur (nicht)
         # beobachtet. Rein additiv, kein Score/Ranking/Reifung.
