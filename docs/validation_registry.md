@@ -2986,8 +2986,10 @@ vor n ≥ 100) gilt unverändert.
 
   **Fragile Annahmen (ausdrücklich ausgewiesen):** die Differenzrechnung
   nutzt das bereits auf 2 Nachkommastellen gerundete `score_heuristic`
-  statt der nie gespeicherten, unrundeten Summe — Abweichung ≤ 0,005
-  Punkte, für eine AUC-Auswertung bei n≈110–130 irrelevant. Keine
+  statt der nie gespeicherten, unrundeten Summe und rundet danach selbst
+  noch einmal — **Doppel-Rundung, Abweichung ≤ 0,01 Punkte** (zwei
+  unabhängige ±0,005-Rundungsfehler, nicht nur einer; Guardian-Nit,
+  korrigiert), für eine AUC-Auswertung bei n≈110–130 irrelevant. Keine
   Kalibrierung an Bestandsdaten (die 100/223-Zahl oben ist Diagnose, nicht
   Grundlage der Deckel-Wahl 20 %).
 
