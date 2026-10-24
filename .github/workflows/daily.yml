@@ -282,6 +282,9 @@ jobs:
           # sonst ist jeder Lauf eine neue Flanke -> Push-Wiederholung bei
           # unverändertem Zustand (genau das, was die Flanken-Logik verhindert).
           [ -f data/health_state.json ] && git add data/health_state.json || true
+          # Daten-Abdeckungs-Wächter (24.10.2026, Auftrag 1 von 6): Ringpuffer
+          # je Quelle/Lauf, additiv, s. scripts/source_coverage.py.
+          [ -f data/source_coverage.json ] && git add data/source_coverage.json || true
           if git diff --cached --quiet; then
             echo "Keine Änderungen — nichts zu committen."
           else

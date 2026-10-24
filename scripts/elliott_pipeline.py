@@ -2663,6 +2663,7 @@ def main() -> int:
     # Kosten-Entscheidung (ein zusätzlicher LLM-Aufruf pro Tag), KEINE
     # versehentliche Funktionslücke: der Mittagslauf braucht nur frischere
     # Score-/Ranking-/Wellenzählungs-Zahlen, keinen zweiten KI-Kommentar.
+    _ac_diag: Optional[Dict] = None
     if REPORT_ONLY:
         _log("[elliott] Agent-Kommentar übersprungen (Report-Only-Modus, "
              "bewusste Kosten-Entscheidung, kein Fehler).")
@@ -2670,10 +2671,43 @@ def main() -> int:
         try:
             import agent_comment as ac  # noqa: WPS433 — lazy, hält Tests/Offline leicht
 
-            ac.annotate_agent_comments(report, os.environ.get("ANTHROPIC_API_KEY", ""), ts)
+            _ac_diag = ac.annotate_agent_comments(
+                report, os.environ.get("ANTHROPIC_API_KEY", ""), ts)
         except Exception as exc:  # noqa: BLE001
             _log(f"[elliott] Agent-Kommentar übersprungen (fail-soft): "
                  f"{type(exc).__name__}: {exc}")
+
+    # Daten-Abdeckungs-Wächter (24.10.2026, Auftrag 1 von 6, Easy-Entscheid):
+    # je Quelle erwartet/beantwortet/mit_daten NACH dem Datenabruf persistieren
+    # (additiv, eigene Datei, keine Score-/Ranking-/Sammlungs-Wirkung). Kurse
+    # aus dem bereits gebauten `report["markets"][mk]["diag"]`; KI-Kommentare
+    # aus dem (im Report-Only-Modus fehlenden) `_ac_diag` oben — dann bewusst
+    # ohne `ki_kommentare`-Eintrag für diesen Lauf, statt falscher Nullen.
+    try:
+        import source_coverage as scov  # noqa: WPS433 — lazy wie health_check
+
+        _cov_workflow = "midday" if REPORT_ONLY else "daily"
+        _cov_run_date = ts[:10]
+        _cov_run_hour = int(ts[11:13])
+        _cov_sources: Dict[str, Tuple[int, int, int]] = {}
+        for _mk in ("US", "DE"):
+            _m = report["markets"].get(_mk) or {}
+            _rc = (_m.get("diag") or {}).get("reason_counts") or {}
+            _erw = int(_m.get("universe_size") or 0)
+            _beant = _erw - int(_rc.get(FETCH_ERROR, 0) or 0)
+            _mit = _beant - int(_rc.get(EMPTY_DATA, 0) or 0)
+            _cov_sources[f"kurse_{_mk.lower()}"] = (_erw, _beant, _mit)
+        if _ac_diag is not None:
+            _k = int(_ac_diag.get("kandidaten", 0) or 0)
+            _kom = int(_ac_diag.get("kommentare", 0) or 0)
+            _cov_sources["ki_kommentare"] = (_k, _k, _kom)
+        _cov_state = scov.upsert_entry(
+            scov.load_coverage(), _cov_run_date, _cov_run_hour, _cov_workflow,
+            ts, _cov_sources)
+        scov.write_coverage(_cov_state)
+    except Exception as exc:  # noqa: BLE001 — Selbstüberwachung bricht nie den Lauf
+        _log(f"[elliott] Daten-Abdeckung übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
 
     # Health-Check Stufe 2, Teil 1 von 3 — NICHT-FINIT-PRÜFUNG des Reports.
     # MUSS hier stehen: nach dem Report-Bau, aber VOR der Serialisierung. Sonst

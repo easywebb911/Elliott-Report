@@ -77,6 +77,11 @@ def test_pipeline_ordnet_die_zahlen_zur_laufzeit_richtig_zu(tmp_path, monkeypatc
     # Datei im Repo geschrieben (aufgefallen an einem dreckigen Arbeitsbaum,
     # nicht am Test selbst) — ein Test darf niemals Repo-Daten verändern.
     monkeypatch.setattr(hc, "REPO_ROOT", tmp_path)
+    # Daten-Abdeckungs-Wächter (24.10.2026): eigenes Blatt-Modul, eigenes
+    # REPO_ROOT — ohne diese Zeile schriebe `pipe.main()` die ECHTE
+    # `data/source_coverage.json` im Repo (derselbe Fehler wie oben bei hc).
+    import source_coverage as scov
+    monkeypatch.setattr(scov, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(pipe.config, "MARKETS", {
         "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
         "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},

@@ -282,6 +282,18 @@ WATCHLIST_MAX = 30              # harte Obergrenze (Schutz gegen Fetch-Flut)
 TICKER_META_PATH = "data/ticker_meta.json"
 
 # ---------------------------------------------------------------------------
+# DATEN-ABDECKUNGS-WÄCHTER (24.10.2026, Auftrag 1 von 6, Easy-Entscheid)
+# ---------------------------------------------------------------------------
+# Je Lauf/Quelle persistierte Zahlen (data/source_coverage.json, Ringpuffer).
+# Siehe scripts/source_coverage.py für die volle Begründung.
+SOURCE_COVERAGE_RING_MAX = 500
+# Fenster je Quelle — Kurse liefern an jedem Handelstag praktisch IMMER,
+# ein Ausfall soll binnen 24 h auffallen. KI-Kommentare hängen vom Secret/
+# Tagesbudget ab, ein leerer Tag ist dort normaler -> 7-Tage-Fenster.
+SOURCE_COVERAGE_WINDOW_HOURS = {"kurse_us": 24, "kurse_de": 24}
+SOURCE_COVERAGE_WINDOW_DAYS = {"ki_kommentare": 7}
+
+# ---------------------------------------------------------------------------
 # STALENESS
 # ---------------------------------------------------------------------------
 # Alters-Untergrenze für den sichtbaren Frontend-Staleness-Hinweis. Die

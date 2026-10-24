@@ -45,6 +45,7 @@ def test_pipeline_lauf_mit_journal_datei_aendert_nichts(tmp_path, monkeypatch):
     dieselbe Sammlung wie einer ohne. Byte-für-Byte."""
     import elliott_pipeline as pipe
     import health_check as hc
+    import source_coverage as scov
 
     def lauf(mit_journal: bool):
         wd = tmp_path / ("mit" if mit_journal else "ohne")
@@ -70,6 +71,7 @@ def test_pipeline_lauf_mit_journal_datei_aendert_nichts(tmp_path, monkeypatch):
         monkeypatch.setattr(pipe, "REPO_ROOT", wd)
         monkeypatch.setattr(fc, "REPO_ROOT", wd)
         monkeypatch.setattr(hc, "REPO_ROOT", wd)
+        monkeypatch.setattr(scov, "REPO_ROOT", wd)
         monkeypatch.setattr(pipe.config, "MARKETS", {
             "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
             "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},
