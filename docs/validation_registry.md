@@ -3000,3 +3000,95 @@ vor n ≥ 100) gilt unverändert.
   über eine echte Reifung, SHA256-Belege für Sammlung und `evaluate.py`,
   `build_population`/`eval_counts`-Gleichheit, Verteilungszahl 100/223).
   Volle Suite: 1916 passed.
+
+---
+
+### 24.10.2026 — Auswertungsskript für den 07.12.2026 (Easy-Entscheid, PR 4 von 4, Diagnose-Folgeauftrag, PR #NACH DEM ANLEGEN NACHZUTRAGEN)
+
+Liefert das in der VORAB-FESTLEGUNG zu PR #194 (oben) angekündigte
+Auswertungsskript. **Wirkung auf die Population: keine** — Score, Ranking,
+Filter, Zählregel, Schatten-Berechnung und `scripts/evaluate.py`
+(SHA256-Pin `bc697df91235732c6c386abe38c79a98248488b9f30a239d9c26c3cbb3b513fc`)
+bleiben unangetastet; das neue `scripts/auswertung_stichtage.py` importiert
+nur (keine Kopie) aus `evaluate.py`, `evaluate_cluster_sensitivity.py`
+(#166/#167/#180 — Seeds `(20260728, 1, 42, 7, 999)`, `BOOTSTRAP_DRAWS=
+10_000`, `CI_NIVEAU=0.975`) und `forward_collection.py`.
+
+**Wörtlich übernommene Regeln (Quelle: diese Datei, Einträge oben):**
+Zielereignis `target_hit` (Basis-Beobachtungszone vor Invalidierung
+erreicht, binär, Reifung 10 Handelstage forward-only); Verdikt-Regel aus
+der VORAB-FESTLEGUNG zu #194: „Schatten besser" **NUR** wenn die Differenz
+> 0 **UND** das Intervall 0 ausschließt, **sonst „nicht entscheidbar"** —
+kein dritter Stempel. „Nur auf Anfrage, nie automatisch" (Muster
+`evaluate_cluster_sensitivity.py`/`filter_sensitivity_sammlung.py`):
+keine Referenz in `.github/workflows/`, `elliott_pipeline.py`,
+`health_check.py` oder `notify.py` (per Test abgesichert).
+
+**Kohorten (acht, je benannte Konstante mit Quellenverweis):**
+- **ALLE** — alle reifen Records der Primärpopulation (kein Stichtag).
+- **ab Zählregel-Stichtag (#186)** — `created_utc >= "2026-10-15T00:51:53Z"`
+  (Lauf #153, Merge-Commit `59b6a6e340a675737e3ed6394649212f0df362de`,
+  Commit `70b4412`).
+- **ab Filter-Stichtag (#190)** — `created_utc >= "2026-10-20T01:16:14Z"`
+  (Lauf #156, Merge-Commit `b5f13cf38660d5879edff2fd79eb0ae1ec8f0a49`,
+  Commit `2a0f1a8`).
+- **ab Schatten (#194)** — über das Feld bestimmt
+  (`score_shadow_inval_cap20 is not None`), NICHT über einen Zeitstempel;
+  der Schatten-Stichtag selbst ist **weiterhin nicht belegt** (kein
+  `daily.yml`-Lauf seit dem Merge von #194) — Konstante bleibt `None`
+  mit Kommentar „wird mit dem Stichtag-Nachtrag gesetzt", **kein Datum
+  erfunden**; `--zaehlung` zeigt dafür „Schatten-Stichtag: noch nicht
+  belegt".
+- Jede der vier Kohorten zusätzlich **„ohne markierte Fälle"**
+  (`invertiertes_risiko_bei_anlage` NICHT True, Marker aus #185; eigener,
+  trivialer Filter in `auswertung_stichtage.py` — `filter_sensitivity_
+  sammlung.MARKERS` bewusst NICHT angefasst, da dieser Marker dort laut
+  Easy-Entscheid NICHT automatisch erfasst wird).
+
+**Grenze am Stichtag (belegt, nicht angenommen):** `created_utc >=
+run_timestamp_utc` des Stichtag-Laufs — der Stichtag-Lauf selbst gehört
+zur Kohorte. Verifiziert auf echten Daten für Lauf #153 (#186) und Lauf
+#156 (#190): `created_utc` der dort jeweils neu angelegten Records ist
+exakt gleich dem `run_timestamp_utc` dieses Laufs, nie davor, nie danach —
+`>=` schließt den Stichtag-Lauf korrekt ein.
+
+**Schatten-Vergleich (nur Schatten-Kohorten):** AUC Live-Score gegen AUC
+Schatten-Score auf derselben Population/demselben Zielereignis; Differenz
+(Schatten minus Live) mit **gepaartem** Block-Bootstrap (beide Scores auf
+denselben Bootstrap-Ziehungen je Durchlauf — neue Funktion
+`differenz_mit_gepaartem_bootstrap`, da die bestehende `bootstrap_ci` aus
+#166/#167/#180 ungepaart ist und für diese Differenzrechnung nicht
+geeignet wäre). Zusätzlich ausgewiesen: Anzahl Records mit Schatten !=
+Live, Hinweis „Teststärke begrenzt, 'nicht entscheidbar' ist ein
+zulässiges Ergebnis; ein Wechsel des Live-Scores nur nach Easys
+Entscheidung".
+
+**Schutz vor vorzeitigem Blick:**
+- `--zaehlung` — NUR Fallzahlen je Kohorte (n gesamt, n reif, Schatten
+  gesetzt); KEINE Trefferquote, KEINE AUC, KEIN Verdikt.
+- `--auswerten` — volle Rechnung; verweigert (Exit-Code 1), wenn das
+  heutige Datum (Europe/Berlin, per `--jetzt` injizierbar) vor
+  **2026-12-07** liegt, AUSSER mit zusätzlichem `--vorzeitig`: dann trägt
+  **jede** Ausgabezeile den Zusatz „EXPLORATIV, nicht präregistriert".
+- Schreibt **nie** ins Repo: nur stdout, optional `--out <Pfad>`
+  AUSSERHALB von `data/` und `docs/` (jeder Pfad mit erstem
+  Pfad-Bestandteil `data` oder `docs`, relativ zum Repo-Root, wird
+  abgelehnt, Exit-Code 2). Kein Netzzugriff, nichts automatisch, kein
+  Workflow, kein Agent, keine bestehende Schutz-Sperre berührt.
+- Deterministisch: feste Seeds/Wiederholungszahl (importiert, keine
+  eigene neue Wahl), sortierte Ausgabe.
+
+**Probelauf auf echten Daten:** NUR mit `--zaehlung` durchgeführt;
+Fallzahlen im PR-Text genannt, **keine Trefferquote/AUC/Verdikt auf
+echten Daten** veröffentlicht (Easy-Regel).
+
+**Tests:** `tests/test_auswertung_stichtage.py` (30 neue, synthetische
+Sammlungen mit bekannter AUC — perfekt trennender Score, Zufallsscore,
+Kohorten-Schnitt exakt am Stichtag-Zeitstempel/eine Sekunde davor/danach,
+Schatten null, unreife Records, alle drei Verdikt-Fälle inkl. AUC
+undefiniert, Modus-Schutz inkl. Exakt-Datum 07.12.2026, Schreibschutz
+`data/`/`docs/`, fünf Mutationsproben — Schatten/Live vertauscht,
+Stichtag-Vergleich `>=`→`>`, Verdikt ohne Intervall-Prüfung, Kohorte nach
+`first_seen_date` statt `created_utc`, Bootstrap ungepaart statt gepaart
+—, SHA256-Beleg `evaluate.py`, Workflow-/Produktionscode-Referenzfreiheit,
+Determinismus). Volle Suite: 2001 passed.
