@@ -5064,7 +5064,11 @@
       let health = '';
       if (H && typeof H === 'object') {
         const st = (H.status === 'crit' || H.status === 'warn') ? H.status : 'ok';
-        const SEV = { crit: 'kritisch', warn: 'Warnung' };
+        // 'info' bewusst NEUTRAL (kein eigenes CSS-Overlay — die Basis-Klasse
+        // .health-sev trägt schon einen neutralen Stil): sonst erschiene ein
+        // reiner Hinweis (z. B. eine fällige Wiedervorlage) optisch wie eine
+        // Warnung (Guardian-Nit aus PR #196).
+        const SEV = { crit: 'kritisch', warn: 'Warnung', info: 'Hinweis' };
         const LABEL = {
           ok: 'Plausibilitäts-Prüfung ohne Befund',
           warn: 'Plausibilitäts-Prüfung: Warnung',
@@ -5072,8 +5076,8 @@
         };
         const list = Array.isArray(H.findings) ? H.findings : [];
         const items = list.map(f => {
-          const sev = (f && (f.severity === 'crit' || f.severity === 'warn'))
-            ? f.severity : 'warn';
+          const sev = (f && (f.severity === 'crit' || f.severity === 'warn'
+                      || f.severity === 'info')) ? f.severity : 'warn';
           return `<li><span class="health-sev ${sev}">${SEV[sev]}</span>
                     <span>${esc(String((f && f.message) || ''))}</span></li>`;
         }).join('');

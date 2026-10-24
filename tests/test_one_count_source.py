@@ -82,6 +82,8 @@ def test_pipeline_ordnet_die_zahlen_zur_laufzeit_richtig_zu(tmp_path, monkeypatc
     # `data/source_coverage.json` im Repo (derselbe Fehler wie oben bei hc).
     import source_coverage as scov
     monkeypatch.setattr(scov, "REPO_ROOT", tmp_path)
+    import wiedervorlagen as wv
+    monkeypatch.setattr(wv, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(pipe.config, "MARKETS", {
         "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
         "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},

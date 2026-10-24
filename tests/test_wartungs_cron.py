@@ -29,6 +29,7 @@ import maintenance_check as mc  # noqa: E402
 import market_calendar as cal  # noqa: E402
 import notify  # noqa: E402
 import source_coverage as scov  # noqa: E402
+import wiedervorlagen as wv  # noqa: E402
 
 import conftest  # noqa: E402 — geteilte Sandbox-Helfer
 
@@ -46,6 +47,7 @@ def _sandbox(tmp_path, monkeypatch):
     # Daten-Abdeckungs-Wächter (24.10.2026): eigenes Blatt-Modul, eigenes
     # REPO_ROOT (Guardian-Fund, PR #196).
     monkeypatch.setattr(scov, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(wv, "REPO_ROOT", tmp_path)
     return tmp_path
 
 

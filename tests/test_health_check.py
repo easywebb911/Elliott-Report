@@ -620,6 +620,7 @@ def test_real_collection_update_is_finite(monkeypatch):
 # durchgetestet. Hier nur die INTEGRATION in health_check: Severity INFO,
 # overall_status, collect_findings(now=...), und der Herzschlag-Fix.
 import source_coverage as sc  # noqa: E402 — geteilter Import für diese Sektion
+import wiedervorlagen as wv  # noqa: E402 — Wiedervorlagen im Digest (25.10.2026)
 
 
 def test_check_source_coverage_ohne_now_ist_uebersprungen(tmp_path, monkeypatch):
@@ -630,6 +631,7 @@ def test_check_source_coverage_ohne_now_ist_uebersprungen(tmp_path, monkeypatch)
 def test_check_source_coverage_meldet_stille_quelle(tmp_path, monkeypatch):
     _sandbox(tmp_path, monkeypatch)
     monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(wv, "REPO_ROOT", tmp_path)
     state = sc.upsert_entry(sc._leer(), "2026-07-26", 22, "daily", NOW_ISO,
                             {"kurse_us": (10, 10, 0)})
     sc.write_coverage(state)
@@ -640,6 +642,7 @@ def test_check_source_coverage_meldet_stille_quelle(tmp_path, monkeypatch):
 def test_check_source_coverage_ist_fail_soft_bei_kaputter_datei(tmp_path, monkeypatch):
     _sandbox(tmp_path, monkeypatch)
     monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(wv, "REPO_ROOT", tmp_path)
     (tmp_path / "data" / "source_coverage.json").write_text("{kaputt",
                                                              encoding="utf-8")
     assert hc.check_source_coverage(now=MON) == []
@@ -657,6 +660,7 @@ def test_info_befund_bleibt_im_report_sichtbar_aber_status_ok(tmp_path,
     _sandbox(tmp_path, monkeypatch)
     sent = _capture(monkeypatch)
     monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(wv, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(sc, "KNOWN_DEAD_SOURCES", ("kurse_de",))
     state = sc.upsert_entry(sc._leer(), "2026-07-26", 22, "daily", NOW_ISO,
                             {"kurse_de": (10, 10, 0)})
@@ -677,6 +681,7 @@ def test_reiner_info_befund_unterdrueckt_herzschlag_nicht(tmp_path,
     _sandbox(tmp_path, monkeypatch)
     sent = _capture(monkeypatch)
     monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(wv, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(sc, "KNOWN_DEAD_SOURCES", ("kurse_de",))
     monkeypatch.setattr(hc, "heartbeat_due", lambda now: True)
     monkeypatch.setattr(hc, "is_main_run", lambda: True)
