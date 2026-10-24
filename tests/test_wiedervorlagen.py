@@ -274,3 +274,30 @@ def test_frontend_kennt_info_severity_und_haengt_kein_eigenes_farb_overlay_an():
     assert ".health-sev.info" not in html, (
         "info darf KEIN eigenes Farb-Overlay bekommen — soll optisch neutral "
         "bleiben, nicht wie crit/warn gefärbt sein")
+
+
+# ── End-to-End: Push-Drosselung über mehrere Läufe (Guardian-Nit) ─────────
+def test_ueberfaelliger_termin_pusht_nicht_jeden_lauf():
+    """Direkter Beleg über `health_check.evaluate_edges` (nicht nur über den
+    stabilen `rule`-Schlüssel allein): ein Wiedervorlagen-WARN, das über
+    mehrere Läufe hinweg unverändert bleibt (derselbe Termin, wachsendes
+    'X Tage'), wird durch die bestehende Flanken-Logik genauso gedrosselt
+    wie jeder andere WARN-Befund — Tag 1 (neu) pusht, Tag 2 und 3 bleiben
+    still, erst Tag 4 (nach WARN_REPEAT_RUNS=3) pusht wieder. KEIN täglicher
+    Push, obwohl der Nachrichtentext jeden Tag einen anderen Zahlenwert
+    trägt."""
+    import health_check as hc
+
+    text = _block("- faellig_am: 2026-11-01 | status: offen | titel: X | ref: #1")
+    state = None
+    gepusht_je_tag = []
+    for tag_offset in range(1, 5):
+        jetzt = _utc(f"2026-11-{tag_offset + 1:02d}T10:00:00")
+        befunde = wv.faelligkeits_findings(text, jetzt)
+        assert len(befunde) == 1 and befunde[0]["severity"] == "warn"
+        to_push, state = hc.evaluate_edges(befunde, state, f"2026-11-{tag_offset + 1:02d}")
+        gepusht_je_tag.append(bool(to_push))
+    # Tag1=neu->push, Tag2/3 still, Tag4 (4. Vorkommen, runs_since_push
+    # erreicht WARN_REPEAT_RUNS=3) wieder push.
+    assert gepusht_je_tag == [True, False, False, True], (
+        f"Drosselung falsch, Push-Muster war: {gepusht_je_tag}")
