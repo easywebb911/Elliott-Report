@@ -354,6 +354,24 @@ Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
   eingefrorenen Git-Snapshot oder mit Untergrenze/Teilmenge arbeiten (Muster
   wie hier und bei #185/#189).
 
+- **OFFEN, WIEDERVORLAGE 06.11.2026 — Daten-Abdeckungs-Wächter: Fenster-Schwellen
+  nach ~10 Handelstagen Baseline feinjustieren (NACH DEM ANLEGEN NACHZUTRAGEN:
+  PR-Nummer).** `scripts/source_coverage.py`/`config.SOURCE_COVERAGE_WINDOW_*`
+  (Easy-Entscheid 24.10.2026, Auftrag 1 von 6): 24 h für `kurse_us`/`kurse_de`,
+  7 Tage für `ki_kommentare` sind **geschätzte** Default-Werte, noch ohne echte
+  Baseline aus `data/source_coverage.json`. Prüfen: Ist in den ersten ~10
+  Handelstagen (ab 26.10., Mo–Fr, landet auf **Fr. 06.11.2026**) je eine
+  Falschmeldung (zu empfindlich) oder ein verpasster Ausfall (zu großzügig)
+  aufgetreten? Falls ja: Konstanten anpassen. Falls nein: Zeitraum verlängern
+  und erneut vorlegen. Nicht Teil dieses PRs — bewusst spätere Entscheidung.
+  **Zusätzlich offen aus demselben Auftrag:** `ki_kommentare`-Zahlen setzen
+  `beantwortet == erwartet` (keine eigene „beantwortet, aber leer"-Unterscheidung
+  für die KI-Stufe — `agent_comment.annotate_agent_comments` kennt diesen
+  Zustand heute nicht, Exception und echte Leere kollabieren beide auf
+  `comment=None`); eine zweite Fallback-Quelle für reine Anzeigedaten (Schritt
+  1.4 des Auftrags) ist bewusst nur VORSCHLAG, nicht gebaut — nie für Daten,
+  die in Score/Ranking/Tests/Sammlung einfließen.
+
 Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 was hier steht, braucht einen echten Lauf oder Easys Gerät.
 
