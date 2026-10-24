@@ -335,9 +335,8 @@ Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
 
 ## 3. OFFENE PUNKTE (nicht schönreden — bleiben OFFEN bis belegt)
 
-- **ERLEDIGT, WIEDERVORLAGE-HINWEIS (25.10.2026, PR NACH DEM ANLEGEN
-  NACHZUTRAGEN) — Beweis-Tests pinnen keine Gesamtzahlen der wachsenden
-  Sammlung mehr.** Anlass: `tests/test_score_shadow_inval_cap20.py` pinnte
+- **ERLEDIGT, WIEDERVORLAGE-HINWEIS (25.10.2026, PR #197) — Beweis-Tests
+  pinnen keine Gesamtzahlen der wachsenden Sammlung mehr.** Anlass: `tests/test_score_shadow_inval_cap20.py` pinnte
   `fc.eval_counts(fc.load_collection())` gegen `(223, 186, 180)` bzw.
   `len(coll["records"]) == 223` — gegen die LIVE-Datei, die täglich per Cron
   wächst (223 -> 226 am 24.10.2026, dadurch CI auf PR #196 fälschlich rot,
