@@ -3003,7 +3003,7 @@ vor n ≥ 100) gilt unverändert.
 
 ---
 
-### 24.10.2026 — Auswertungsskript für den 07.12.2026 (Easy-Entscheid, PR 4 von 4, Diagnose-Folgeauftrag, PR #NACH DEM ANLEGEN NACHZUTRAGEN)
+### 24.10.2026 — Auswertungsskript für den 07.12.2026 (Easy-Entscheid, PR 4 von 4, Diagnose-Folgeauftrag, PR #199)
 
 Liefert das in der VORAB-FESTLEGUNG zu PR #194 (oben) angekündigte
 Auswertungsskript. **Wirkung auf die Population: keine** — Score, Ranking,
