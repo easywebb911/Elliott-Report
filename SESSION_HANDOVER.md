@@ -355,8 +355,8 @@ Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
   wie hier und bei #185/#189).
 
 - **OFFEN, WIEDERVORLAGE 06.11.2026 — Daten-Abdeckungs-Wächter: Fenster-Schwellen
-  nach ~10 Handelstagen Baseline feinjustieren (NACH DEM ANLEGEN NACHZUTRAGEN:
-  PR-Nummer).** `scripts/source_coverage.py`/`config.SOURCE_COVERAGE_WINDOW_*`
+  nach ~10 Handelstagen Baseline feinjustieren (PR #196).**
+  `scripts/source_coverage.py`/`config.SOURCE_COVERAGE_WINDOW_*`
   (Easy-Entscheid 24.10.2026, Auftrag 1 von 6): 24 h für `kurse_us`/`kurse_de`,
   7 Tage für `ki_kommentare` sind **geschätzte** Default-Werte, noch ohne echte
   Baseline aus `data/source_coverage.json`. Prüfen: Ist in den ersten ~10
@@ -371,6 +371,13 @@ Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
   `comment=None`); eine zweite Fallback-Quelle für reine Anzeigedaten (Schritt
   1.4 des Auftrags) ist bewusst nur VORSCHLAG, nicht gebaut — nie für Daten,
   die in Score/Ranking/Tests/Sammlung einfließen.
+  **Guardian-Nit (PR #196):** `docs/index.html` (~Zeile 5075) kennt nur die
+  Severities `crit`/`warn` und mappt jede andere (also auch `info`) optisch
+  auf "Warnung" — aktuell folgenlos, weil `KNOWN_DEAD_SOURCES` leer ist (kein
+  `info`-Befund kann heute entstehen), aber sichtbar falsch, sobald die erste
+  Quelle dort eintragen wird. Bewusst NICHT in diesem PR angefasst (kein
+  Zwang, solange `info` nirgends erzeugt wird) — beim Eintragen der ersten
+  bekannt toten Quelle mitbeheben.
 
 Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 was hier steht, braucht einen echten Lauf oder Easys Gerät.

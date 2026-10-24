@@ -315,6 +315,10 @@ def test_der_lauf_meldet_den_ausfall_ZUERST(tmp_path, monkeypatch):
     """
     (tmp_path / "data").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(hc, "REPO_ROOT", tmp_path)
+    # Daten-Abdeckungs-Wächter (24.10.2026): eigenes Blatt-Modul, eigenes
+    # REPO_ROOT (Guardian-Fund, PR #196).
+    import source_coverage as scov
+    monkeypatch.setattr(scov, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(hc, "_IMPORT_FEHLER", {"config": "Testfall: kaputt"})
     monkeypatch.setattr(notify, "_post",
                         lambda url, data, headers, timeout: None)

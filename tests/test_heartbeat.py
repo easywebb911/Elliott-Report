@@ -37,6 +37,11 @@ def _capture(monkeypatch):
 def _sandbox(tmp_path, monkeypatch, *, on_main=True):
     (tmp_path / "data").mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(hc, "REPO_ROOT", tmp_path)
+    # Daten-Abdeckungs-Wächter (24.10.2026): eigenes Blatt-Modul, eigenes
+    # REPO_ROOT — sonst läse `check_source_coverage` die ECHTE
+    # `data/source_coverage.json` im Repo (Guardian-Fund, PR #196).
+    import source_coverage as scov
+    monkeypatch.setattr(scov, "REPO_ROOT", tmp_path)
     # Lebenszeichen des Wartungs-Crons — siehe tests/conftest.py.
     conftest.schreibe_wartungs_state(tmp_path)
     monkeypatch.setenv("GITHUB_REF", "refs/heads/main" if on_main
