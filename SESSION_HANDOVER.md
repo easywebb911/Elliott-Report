@@ -335,7 +335,7 @@ Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
 
 ## 3. OFFENE PUNKTE (nicht schönreden — bleiben OFFEN bis belegt)
 
-### WIEDERVORLAGEN (maschinenlesbar, Easy-Entscheid 25.10.2026, Auftrag 2 von 6, PR NACH DEM ANLEGEN NACHZUTRAGEN)
+### WIEDERVORLAGEN (maschinenlesbar, Easy-Entscheid 25.10.2026, Auftrag 2 von 6, PR #198)
 
 Eigener, markierter Block — **getrennt** vom AUTO-PR-INDEX-Block (eigene
 Marker, keine Kollision). Einziger Konsument: `health_check.check_
