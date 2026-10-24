@@ -335,6 +335,26 @@ Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
 
 ## 3. OFFENE PUNKTE (nicht schönreden — bleiben OFFEN bis belegt)
 
+- **ERLEDIGT, WIEDERVORLAGE-HINWEIS (25.10.2026, PR NACH DEM ANLEGEN
+  NACHZUTRAGEN) — Beweis-Tests pinnen keine Gesamtzahlen der wachsenden
+  Sammlung mehr.** Anlass: `tests/test_score_shadow_inval_cap20.py` pinnte
+  `fc.eval_counts(fc.load_collection())` gegen `(223, 186, 180)` bzw.
+  `len(coll["records"]) == 223` — gegen die LIVE-Datei, die täglich per Cron
+  wächst (223 -> 226 am 24.10.2026, dadurch CI auf PR #196 fälschlich rot,
+  obwohl #196 die Sammlung nicht berührt). Reparatur: beide Tests lesen jetzt
+  einen UNVERÄNDERLICHEN Git-Snapshot (`git show
+  0c6c229bcb9ea248cc292a565ecbf03c2cc6c59d:data/forward_collection.json` —
+  der Branch-Basis-Commit von PR #194, 23.10.2026, an dem die damals belegten
+  Zahlen tatsächlich entstanden sind) statt der Live-Datei, zusätzlich
+  Mengen-/Teilmengenvergleich und Untergrenze gegen die Live-Sammlung (nichts
+  aus dem Bestand verschwunden, sie wächst nur). Backfill-Erkennung bleibt
+  erhalten und ist jetzt per eigenem Mutationsprobe-Test
+  (`test_mutationsprobe_erkennt_backfill_an_bestandsrecord`) belegt. **Regel
+  für künftige Beweis-Tests dieser Art:** niemals eine exakte Zahl gegen
+  `fc.load_collection()` (die Live-Datei) pinnen — stattdessen gegen einen
+  eingefrorenen Git-Snapshot oder mit Untergrenze/Teilmenge arbeiten (Muster
+  wie hier und bei #185/#189).
+
 Aus der Sandbox **nicht** verifizierbar (kein Yahoo/EDGAR/externer Host, CORS):
 was hier steht, braucht einen echten Lauf oder Easys Gerät.
 

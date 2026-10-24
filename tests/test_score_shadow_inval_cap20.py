@@ -11,7 +11,9 @@ in `scripts/elliott_pipeline.py`).
 from __future__ import annotations
 
 import hashlib
+import json
 import math
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,6 +26,41 @@ import evaluate as ev  # noqa: E402
 import forward_collection as fc  # noqa: E402
 
 LIVE_SCORE = 70.0  # beliebige, realistische Basis — der Deckel betrifft nur den Bonus-Anteil
+
+# ---------------------------------------------------------------------------
+# Eingefrorener Bestand (Easy-Entscheid 25.10.2026, Reparatur der Pin-Tests)
+# ---------------------------------------------------------------------------
+# `data/forward_collection.json` wächst TÄGLICH durch die Cron-Läufe (daily.yml/
+# midday_report_refresh.yml) — ein Test, der `fc.load_collection()` (die LIVE-
+# Datei) gegen eine FESTE Zahl prüft, bricht beim nächsten neuen Record (so
+# geschehen am 24.10.2026: 223 -> 226, CI auf PR #196 wurde rot, obwohl #196
+# die Sammlung nicht berührt). Reparatur: die Aussage "PR #194 ändert nichts
+# an eval_counts/build_population" wird gegen einen UNVERÄNDERLICHEN Git-
+# Snapshot geprüft statt gegen die weiterwachsende Live-Datei.
+#
+# Referenz-Commit: `0c6c229bcb9ea248cc292a565ecbf03c2cc6c59d` (23.10.2026,
+# "chore(data): Mittags-Report-Aktualisierung") — der Branch-Basis-Commit von
+# PR #194, an dem die im damaligen PR-Text belegten Zahlen (223, 186, 180)
+# tatsächlich entstanden sind (NICHT der spätere Merge-Commit `a52f3ad9f85…`
+# vom 24.10.2026, 11:03 Uhr — main wuchs zwischen Branch-Erstellung und Merge
+# durch zwei weitere Cron-Läufe auf 226 Records; an `a52f3ad` selbst liefert
+# `eval_counts` bereits (226, 191, 185), nicht mehr (223, 186, 180)). Ein
+# Git-Blob an einem Commit-Hash ändert sich nie — dieser Test bleibt daher
+# für immer nachrechenbar, unabhängig vom weiteren Wachstum der Live-Datei.
+BESTAND_COMMIT_PR194 = "0c6c229bcb9ea248cc292a565ecbf03c2cc6c59d"
+BESTAND_DATUM_PR194 = "2026-10-23"
+
+
+def _bestand_snapshot_pr194() -> dict:
+    """Unveränderlicher Stand von ``data/forward_collection.json`` am
+    Branch-Basis-Commit von PR #194 (s. ``BESTAND_COMMIT_PR194`` oben) — per
+    ``git show`` gelesen, nie über die weiterwachsende Live-Datei."""
+    blob = subprocess.run(
+        ["git", "-C", str(ROOT), "show",
+         f"{BESTAND_COMMIT_PR194}:data/forward_collection.json"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return json.loads(blob)
 
 
 def _dist_to_inval(close: float, dist_pct: float) -> float:
@@ -182,22 +219,39 @@ def test_evaluate_py_sha256_unveraendert():
 
 
 def test_build_population_und_eval_counts_unveraendert():
-    """Echter Bestand: `score_shadow_inval_cap20` ist NICHT in `FROZEN_FIELDS`
-    -> `evaluate.build_population` liest es nie, das Ergebnis ist exakt wie
-    vor diesem PR (keine neuen Records, kein Backfill)."""
-    coll = fc.load_collection()
+    """Eingefrorener Bestand zum PR-#194-Branch-Basis-Commit (s.
+    ``BESTAND_COMMIT_PR194`` oben) — NICHT die weiterwachsende Live-Datei,
+    sonst bricht dieser Test an jedem Cron-Tag, an dem ein neuer Record
+    entsteht (beobachtet am 24.10.2026: 223 -> 226, CI auf PR #196 rot).
+    `score_shadow_inval_cap20` ist NICHT in `FROZEN_FIELDS` ->
+    `evaluate.build_population` liest es nie, das Ergebnis ist exakt wie vor
+    diesem PR (keine neuen Records, kein Backfill) — UND bleibt es, weil der
+    Snapshot selbst nie wieder wächst (unveränderlicher Git-Blob)."""
+    coll = _bestand_snapshot_pr194()
     assert fc.eval_counts(coll) == (223, 186, 180)
     cases, counts = ev.build_population(coll)
     assert len(cases) == 180
     assert counts["gesammelt"] == 223 and counts["gereift"] == 186
     assert counts["in_der_rechnung"] == 180
 
+    # Untergrenze/Teilmenge gegen die LIVE-Sammlung: aus dem eingefrorenen
+    # Bestand ist nichts verschwunden, die Live-Datei wächst nur (>=), nie
+    # schrumpft sie — und jeder Bestands-Record ist in ihr wiederzufinden
+    # (episode_id ist der Kollisions-geschützte Schlüssel, s. PR #95).
+    live = fc.load_collection()
+    bestand_ids = {r["episode_id"] for r in coll["records"]}
+    live_ids = {r["episode_id"] for r in live["records"]}
+    assert bestand_ids <= live_ids, "ein Bestandsrecord ist aus der Live-Sammlung verschwunden"
+    assert len(live["records"]) >= len(coll["records"])
+
 
 def test_verteilung_bestandsrecords_mit_anderem_schatten_als_live_score():
     """Reine ZÄHLUNG per Rechnung — NICHTS wird gespeichert (kein Backfill).
     Belegt die im PR-Text genannte Zahl (100 von 223, ~45 %), konsistent mit
-    dem HINTERGRUND-Befund (~47 % am Deckel)."""
-    coll = fc.load_collection()
+    dem HINTERGRUND-Befund (~47 % am Deckel) — am eingefrorenen Bestand (s.
+    ``BESTAND_COMMIT_PR194``), NICHT an der weiterwachsenden Live-Datei
+    (dieselbe Begründung wie im vorigen Test)."""
+    coll = _bestand_snapshot_pr194()
     unterschiedlich = 0
     for r in coll["records"]:
         s = fc.score_shadow_inval_cap20(
@@ -207,8 +261,44 @@ def test_verteilung_bestandsrecords_mit_anderem_schatten_als_live_score():
             unterschiedlich += 1
     assert unterschiedlich == 100
     assert len(coll["records"]) == 223
-    # Dieser Record selbst trägt das neue Feld NICHT (kein Backfill):
+    # Dieser eingefrorene Bestand selbst trägt das neue Feld NICHT (kein
+    # Backfill) — das ist am unveränderlichen Snapshot selbstverständlich.
     assert all("score_shadow_inval_cap20" not in r for r in coll["records"])
+
+    # Die eigentliche Backfill-Probe gehört auf die LIVE-Sammlung: KEIN
+    # Bestandsrecord darf dort nachträglich das neue Feld bekommen haben
+    # (Mutationsprobe: ein echtes Backfill an einem Bestandsrecord würde
+    # genau hier auffallen, s. test_mutationsprobe_erkennt_backfill_an_bestandsrecord).
+    live_by_id = {r["episode_id"]: r for r in fc.load_collection()["records"]}
+    for episode_id in (r["episode_id"] for r in coll["records"]):
+        assert "score_shadow_inval_cap20" not in live_by_id[episode_id], (
+            f"Backfill erkannt: Bestandsrecord {episode_id} trägt das neue "
+            f"Feld in der LIVE-Sammlung — das darf nie passieren")
+
+
+def test_mutationsprobe_erkennt_backfill_an_bestandsrecord():
+    """Beweist, dass die Backfill-Probe oben wirklich greift: wird ein
+    Bestandsrecord in einer (hier simulierten) Live-Sammlung nachträglich mit
+    dem neuen Feld versehen, MUSS die Prüfung rot werden. Ohne diesen Test
+    könnte die Backfill-Probe oben durch ein `continue`/`pass` entkernt
+    werden, ohne dass eine grüne Suite das merkt."""
+    bestand = _bestand_snapshot_pr194()
+    irgendein_episode_id = bestand["records"][0]["episode_id"]
+
+    def _live_mit_backfill():
+        live = {"schema_version": 1, "records": [dict(r) for r in bestand["records"]]}
+        for r in live["records"]:
+            if r["episode_id"] == irgendein_episode_id:
+                r["score_shadow_inval_cap20"] = 42.0   # simuliertes Backfill
+        return live
+
+    live_by_id = {r["episode_id"]: r for r in _live_mit_backfill()["records"]}
+    verletzungen = [
+        eid for eid in (r["episode_id"] for r in bestand["records"])
+        if "score_shadow_inval_cap20" in live_by_id[eid]
+    ]
+    assert verletzungen == [irgendein_episode_id], (
+        "die Backfill-Probe hat das simulierte Backfill NICHT erkannt")
 
 
 def test_score_heuristic_aller_bestehenden_records_unveraendert_nach_differenzrechnung():
