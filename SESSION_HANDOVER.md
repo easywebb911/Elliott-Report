@@ -281,6 +281,7 @@ anderen PRs.
 
 <!-- AUTO-PR-INDEX-ANFANG -->
 - #174 — Merge pull request #174 from easywebb911/claude/elliott-report-gate-diagnosis-sjs33w
+- #192 — Merge pull request #192 from easywebb911/claude/elliott-report-handover-arbeitsregel
 <!-- AUTO-PR-INDEX-ENDE -->
 
 ---
