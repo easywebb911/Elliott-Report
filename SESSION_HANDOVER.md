@@ -1456,6 +1456,42 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   reichen (zu kurz: weiterhin störende Bot-PRs; zu lang: echte Lücken
   bleiben zu lange unbemerkt).
 
+- **23.10.2026 — Schatten-Score `score_shadow_inval_cap20` (Easy-Entscheid,
+  PR 3 von 4, Diagnose-Folgeauftrag, PR #194).** Neues additives Feld auf künftigen Forward-Sammlung-
+  Records (`scripts/forward_collection.py::_new_record`): derselbe
+  Invalidierungs-Bonus-Deckel-Mechanismus wie der Live-Score, nur 10 % ->
+  20 % Abstand verdoppelt, GLEICHE STEIGUNG (Höchstbonus 15 -> 30,
+  `config.INVALIDATION_DISTANCE_SHADOW_CAP`/`_MAX_BONUS`). GENAU EINE
+  Variante, NICHT im Ranking. Berechnet als reine Differenzrechnung
+  (`score_heuristic` + Differenz des Invalidierungs-Bonus-Anteils) —
+  `scripts/elliott_pipeline.py` hat KEINEN Diff, Live-Score/Ranking/
+  `SETUP_BASE_POINTS`/Gewichte UNANGETASTET. Bei Anlage EINGEFROREN (wie
+  `r_multiple`), kein Backfill, bestehende 223 Records byte-identisch.
+  `scripts/evaluate.py` unverändert (SHA256 identisch zum Beleg bei #190).
+  Registry-Eintrag mit Transparenzklausel + VORAB-FESTLEGUNG der
+  Auswertung (`docs/validation_registry.md`, 23.10.2026) — Stichtag als
+  Platzhalter, nach dem ersten Lauf NACH dem Merge belegt nachzutragen.
+
+  **Was Easy nach dem ersten Lauf in der App sieht:** nichts Neues — das
+  Feld ist rein intern auf der Sammlung, kein Chip, kein Frontend-Element,
+  kein Pflichtfeld in `report.json`.
+
+  **Zahlen:** 100 von 223 Bestandsrecords hätten rechnerisch einen anderen
+  Schatten- als Live-Score (reine Zählung, nichts gespeichert) — konsistent
+  mit dem Befund „~47 % am Deckel" aus dem Auftrag.
+
+  **Offene Punkte (unverändert, NICHT Teil dieses PRs):** PR 4 —
+  Sensitivitäts-/Auswertungsskript, wertet Live- UND Schatten-Score aus
+  (AUC-Vergleich, Block-Bootstrap, Verdikt-Regel s. Registry).
+
+  **WIEDERVORLAGE:** 07.12.2026 (Auswertung Live vs. Schatten, zusammen mit
+  dem Score-Review und den übrigen offenen Punkten oben).
+
+  **NACHTRAG (derselbe PR):** `#192` war die PR, die die Arbeitsregel
+  „eigene PR-Nummer nachtragen" (Abschnitt 8) selbst eingeführt hat — hier
+  jetzt genannt, damit der Handover-Wächter sie nicht mehr als Lücke
+  meldet.
+
 ---
 
 ## 5. ARCHITEKTUR-ANKER
