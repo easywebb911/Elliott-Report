@@ -335,6 +335,36 @@ Volle Belegketten: PR-Text auf GitHub (Nummer siehe Tabelle oben) bzw.
 
 ## 3. OFFENE PUNKTE (nicht schönreden — bleiben OFFEN bis belegt)
 
+### WIEDERVORLAGEN (maschinenlesbar, Easy-Entscheid 25.10.2026, Auftrag 2 von 6, PR #198)
+
+Eigener, markierter Block — **getrennt** vom AUTO-PR-INDEX-Block (eigene
+Marker, keine Kollision). Einziger Konsument: `health_check.check_
+wiedervorlagen` (`scripts/wiedervorlagen.py`), meldet im Digest
+(`report["health"]["findings"]`) heute fällige (📅, INFO) bzw. überfällige
+(⏰, WARN) Termine. **Jede neue Wiedervorlage im Fließtext wird im selben PR
+hier eingetragen** (Arbeitsregel, s. Abschnitt 8); erledigte bekommen
+`status: erledigt` und das Erledigungsdatum. Format: eine Zeile je Termin,
+`faellig_am` als ISO-Datum (`YYYY-MM-DD`), Felder durch ` | ` getrennt.
+
+**24.11.2026 — Gesamtdurchgang aller Wiedervorlagen** (Easy-Entscheid
+25.10.2026, Nachschärfung zu PR #198): ein bewusster Termin, um die
+GEPARKT-Liste, den Hygiene-Backlog (Abschnitt 4) und alle offenen
+Entscheidungen in einem Zug durchzugehen — kein Einzelpunkt, sondern ein
+Sammel-Check, zwischen dem 06.11.- und dem 07.12.-Termin platziert.
+
+<!-- WIEDERVORLAGEN-START -->
+- faellig_am: 2026-11-06 | status: offen | titel: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren | ref: #196
+- faellig_am: 2026-11-24 | status: offen | titel: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen) | ref: #198
+- faellig_am: 2026-12-07 | status: offen | titel: Score-Review (Schatten-Score-Auswertung, Regime-/Economic-Edge-Analysen, Stale-Markierungs-Entscheid u. a. GEPARKT-Punkte) | ref: #194, #190, #158, #160, #162
+<!-- WIEDERVORLAGEN-ENDE -->
+
+**Bewusst NICHT eingetragen:** die alte, vage Wiedervorlage „Selbstwartung
+Stufe 3" (Fälligkeit „nach dem 21.08.2026", seit 09.08.2026 GEPARKT, s. #92 /
+Abschnitt 4) — kein ISO-Tag ableitbar, und der Termin ist längst verstrichen;
+ein Eintrag würde ab sofort dauerhaft „überfällig seit ~65 Tagen" zeigen,
+obwohl Easy ihn bewusst zurückgestellt hat. Erst mit einem neuen, echten
+Datum nachtragen, falls Easy Stufe 3 reaktiviert.
+
 - **ERLEDIGT, WIEDERVORLAGE-HINWEIS (25.10.2026, PR #197) — Beweis-Tests
   pinnen keine Gesamtzahlen der wachsenden Sammlung mehr.** Anlass: `tests/test_score_shadow_inval_cap20.py` pinnte
   `fc.eval_counts(fc.load_collection())` gegen `(223, 186, 180)` bzw.
@@ -2102,6 +2132,16 @@ Beleg = Abschnitt 3.)
   Handover-Text als abgedeckt — eine Karenzzeit (`KARENZ_TAGE = 3`, PR
   #191) schützt zusätzlich vor dem Zeitfenster zwischen Merge und
   Nachtrag, ersetzt den Nachtrag selbst aber NICHT.
+- **Wiedervorlagen im Block nachtragen (Easy-Regel 25.10.2026, stehend,
+  Auftrag 2 von 6):** jede neue Wiedervorlage, die im Fließtext entsteht
+  (ein Datum, zu dem Easy etwas wieder vorlegen will), wird **im selben
+  PR** auch in den maschinenlesbaren Block `<!-- WIEDERVORLAGEN-START -->`
+  … `<!-- WIEDERVORLAGEN-ENDE -->` (Abschnitt 3) eingetragen — sonst sieht
+  `health_check.check_wiedervorlagen` sie nie. Erledigte Termine bekommen
+  `status: erledigt` **plus Erledigungsdatum**, werden aber nicht gelöscht
+  (Nachvollziehbarkeit). **Grund:** der Block ist die einzige Quelle, die
+  der Digest tatsächlich liest — ein Termin nur im Fließtext bleibt für
+  immer unsichtbar für die Automatisierung.
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
 

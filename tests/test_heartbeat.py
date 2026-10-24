@@ -42,6 +42,10 @@ def _sandbox(tmp_path, monkeypatch, *, on_main=True):
     # `data/source_coverage.json` im Repo (Guardian-Fund, PR #196).
     import source_coverage as scov
     monkeypatch.setattr(scov, "REPO_ROOT", tmp_path)
+    # Wiedervorlagen im Digest (25.10.2026): dieselbe Begründung —
+    # check_wiedervorlagen liest sonst das ECHTE SESSION_HANDOVER.md.
+    import wiedervorlagen as wv
+    monkeypatch.setattr(wv, "REPO_ROOT", tmp_path)
     # Lebenszeichen des Wartungs-Crons — siehe tests/conftest.py.
     conftest.schreibe_wartungs_state(tmp_path)
     monkeypatch.setenv("GITHUB_REF", "refs/heads/main" if on_main

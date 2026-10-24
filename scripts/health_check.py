@@ -67,6 +67,7 @@ except Exception as exc:  # pragma: no cover — config immer vorhanden, defensi
 import market_calendar as cal  # noqa: E402
 import notify  # noqa: E402  — geteilte ntfy-Schicht (fail-soft, ASCII-Title)
 import source_coverage as sc  # noqa: E402 — Daten-Abdeckungs-Wächter (24.10.2026)
+import wiedervorlagen as wv  # noqa: E402 — Wiedervorlagen im Digest (25.10.2026)
 
 # ── Schwellen (Betriebs-Parameter, KEINE Auswertungs-Definitionen) ──────────
 # Sie steuern, wann sich die Selbstüberwachung MELDET — sie definieren nichts,
@@ -471,6 +472,29 @@ def check_source_coverage(now: Optional[_dt.datetime] = None) -> List[Dict]:
 
 
 # ---------------------------------------------------------------------------
+# 5c) WIEDERVORLAGEN IM DIGEST (25.10.2026, Auftrag 2 von 6, Easy-Entscheid)
+# ---------------------------------------------------------------------------
+def check_wiedervorlagen(now: Optional[_dt.datetime] = None) -> List[Dict]:
+    """Liest den Wiedervorlagen-Block in ``SESSION_HANDOVER.md`` und meldet
+    heute fällige (INFO) bzw. überfällige (WARN) Termine — s.
+    ``scripts/wiedervorlagen.py``.
+
+    ``now=None`` (Default) -> **Regel übersprungen, kein Befund** — dieselbe
+    Begründung wie bei ``check_source_coverage``. Fail-soft: jeder Fehler
+    (fehlende/kaputte Datei, kaputter Block) liefert ``[]`` oder ein
+    informatives Finding, nie einen Absturz."""
+    if now is None:
+        return []
+    try:
+        text = wv.load_handover_text()
+        return wv.faelligkeits_findings(text, now)
+    except Exception as exc:  # noqa: BLE001 — Selbstüberwachung bricht nie
+        _log(f"Wiedervorlagen-Prüfung übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
+        return []
+
+
+# ---------------------------------------------------------------------------
 # 6) PUSH-DISZIPLIN — Flanke, gebündelt, kalender-gegated
 # ---------------------------------------------------------------------------
 def _key(f: Dict) -> str:
@@ -843,6 +867,7 @@ def collect_findings(report: Dict, prev_report: Optional[Dict],
     findings.extend(check_agent_comments(report, has_agent_key))
     findings.extend(check_maintenance(report))
     findings.extend(check_source_coverage(now))
+    findings.extend(check_wiedervorlagen(now))
     # Stabile Reihenfolge: crit zuerst, dann Regel, dann Markt — der Push-Text
     # und der Report-Block sind damit deterministisch.
     findings.sort(key=lambda f: (-_SEV_RANK.get(f["severity"], 0),

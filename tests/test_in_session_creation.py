@@ -584,6 +584,7 @@ def _voll_lauf(tmp_path, monkeypatch, stempel: str, bar_ende: str):
     import forward_collection as fc
     import health_check as hc
     import source_coverage as scov
+    import wiedervorlagen as wv
 
     (tmp_path / "data").mkdir(exist_ok=True)
     (tmp_path / "docs/data").mkdir(parents=True, exist_ok=True)
@@ -603,7 +604,7 @@ def _voll_lauf(tmp_path, monkeypatch, stempel: str, bar_ende: str):
     monkeypatch.setenv("ELLIOTT_OFFLINE", "1")
     monkeypatch.setattr(pipe, "datetime", _FesteUhr)
     monkeypatch.setattr(pipe, "_synthetic_dates", _reihe)
-    for modul in (pipe, fc, hc, scov):
+    for modul in (pipe, fc, hc, scov, wv):
         monkeypatch.setattr(modul, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(pipe.config, "MARKETS", {
         "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
