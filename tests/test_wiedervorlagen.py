@@ -73,12 +73,15 @@ def test_unlesbares_datum_ist_auch_unlesbare_zeile():
     assert "unlesbar" in befunde[0]["rule"]
 
 
-def test_fehlender_block_ein_info_finding():
+def test_fehlender_block_ein_warn_finding():
+    """WARN, nicht INFO (Easy-Entscheid 25.10.2026, Nachschärfung): fehlt der
+    Block in einem lesbaren Dokument, melden sich ALLE Termine nicht mehr —
+    und INFO pusht nie, ein Totalausfall wäre also unsichtbar."""
     text = "Vorspann ohne jeden Marker.\n"
     befunde = wv.faelligkeits_findings(text, _utc("2026-11-06T10:00:00"))
     assert len(befunde) == 1
     assert befunde[0]["rule"] == "wiedervorlagen_block_fehlt"
-    assert befunde[0]["severity"] == "info"
+    assert befunde[0]["severity"] == "warn"
 
 
 def test_doppelter_block_ein_info_finding_kein_absturz():
@@ -202,6 +205,18 @@ def test_mutation_erledigt_wird_ignoriert_waere_falsch():
     assert mutiert_meldet is True, "die Mutation muesste hier faelschlich melden"
 
 
+def test_mutation_block_fehlt_zurueck_auf_info_waere_falsch():
+    """Produktionscode meldet 'Block fehlt' als WARN (Easy-Entscheid
+    25.10.2026, Nachschärfung) — eine Rückdrehung auf INFO würde NIE pushen
+    (INFO ist von evaluate_edges ausgeschlossen), ein Totalausfall (kein
+    Termin meldet sich mehr) bliebe also unsichtbar."""
+    text = "Vorspann ohne jeden Marker.\n"
+    befund = wv.faelligkeits_findings(text, _utc("2026-11-06T10:00:00"))[0]
+    assert befund["severity"] == "warn"
+    mutiert_auf_info = "info"
+    assert mutiert_auf_info != befund["severity"]
+
+
 def test_mutation_x_um_einen_tag_verschoben():
     """`(heute - faellig_am).days` liefert 1 am Folgetag. Eine um einen Tag
     verschobene Rechnung (z. B. ohne `-1` oder mit ihr) muss sich von der
@@ -257,6 +272,7 @@ def test_health_check_datei_da_aber_block_fehlt_ist_ein_befund(tmp_path,
     befunde = hc.check_wiedervorlagen(now=now)
     assert len(befunde) == 1
     assert befunde[0]["rule"] == "wiedervorlagen_block_fehlt"
+    assert befunde[0]["severity"] == "warn"
 
 
 # ── Frontend (docs/index.html): 'info' bleibt optisch neutral ─────────────
@@ -299,5 +315,28 @@ def test_ueberfaelliger_termin_pusht_nicht_jeden_lauf():
         gepusht_je_tag.append(bool(to_push))
     # Tag1=neu->push, Tag2/3 still, Tag4 (4. Vorkommen, runs_since_push
     # erreicht WARN_REPEAT_RUNS=3) wieder push.
+    assert gepusht_je_tag == [True, False, False, True], (
+        f"Drosselung falsch, Push-Muster war: {gepusht_je_tag}")
+
+
+def test_block_fehlt_warn_durchlaeuft_push_pfad_wie_jedes_andere_warn():
+    """Das neue WARN 'wiedervorlagen_block_fehlt' (Easy-Entscheid 25.10.2026,
+    Nachschärfung) ist KEIN Sonderfall — derselbe `_key`-Mechanismus
+    (rule+market, kein Nachrichtentext) greift, und `WARN_REPEAT_RUNS`
+    drosselt genauso wie beim überfälligen Termin oben: Tag 1 pusht, Tag 2/3
+    still, Tag 4 pusht wieder. KEIN täglicher Push bei fehlendem Block."""
+    import health_check as hc
+
+    text = "Vorspann ohne jeden Marker — der Block fehlt dauerhaft.\n"
+    state = None
+    gepusht_je_tag = []
+    for tag_offset in range(1, 5):
+        jetzt = _utc(f"2026-11-{tag_offset + 1:02d}T10:00:00")
+        befunde = wv.faelligkeits_findings(text, jetzt)
+        assert len(befunde) == 1
+        assert befunde[0]["rule"] == "wiedervorlagen_block_fehlt"
+        assert befunde[0]["severity"] == "warn"
+        to_push, state = hc.evaluate_edges(befunde, state, f"2026-11-{tag_offset + 1:02d}")
+        gepusht_je_tag.append(bool(to_push))
     assert gepusht_je_tag == [True, False, False, True], (
         f"Drosselung falsch, Push-Muster war: {gepusht_je_tag}")

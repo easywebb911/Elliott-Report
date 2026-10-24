@@ -87,11 +87,16 @@ def parse_block(text: str) -> Tuple[List[Dict[str, str]], List[Dict]]:
     start_n = sum(1 for z in zeilen_liste if z.strip() == MARKER_START)
     ende_n = sum(1 for z in zeilen_liste if z.strip() == MARKER_ENDE)
     if start_n == 0 and ende_n == 0:
+        # WARN, nicht INFO (Easy-Entscheid 25.10.2026, Nachschärfung): fehlt
+        # der Block in einem LESBAREN Dokument, melden sich ALLE Termine
+        # nicht mehr — und INFO pusht nie (s. health_check.py), ein stiller
+        # Totalausfall wäre also unsichtbar. "Datei fehlt ganz" (Test-Sandbox,
+        # s. faelligkeits_findings) bleibt bewusst OHNE Befund.
         return [], [{
-            "rule": "wiedervorlagen_block_fehlt", "severity": "info",
+            "rule": "wiedervorlagen_block_fehlt", "severity": "warn",
             "market": None,
-            "message": ("ℹ️ Kein Wiedervorlagen-Block in SESSION_HANDOVER.md "
-                       "gefunden — keine Termine können geprüft werden."),
+            "message": ("⚠️ Wiedervorlagen-Block fehlt im Handover: "
+                       "Erinnerungen sind blind."),
             "detail": {},
         }]
     if start_n != 1 or ende_n != 1:

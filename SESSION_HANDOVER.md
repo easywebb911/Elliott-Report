@@ -346,8 +346,15 @@ hier eingetragen** (Arbeitsregel, s. Abschnitt 8); erledigte bekommen
 `status: erledigt` und das Erledigungsdatum. Format: eine Zeile je Termin,
 `faellig_am` als ISO-Datum (`YYYY-MM-DD`), Felder durch ` | ` getrennt.
 
+**24.11.2026 — Gesamtdurchgang aller Wiedervorlagen** (Easy-Entscheid
+25.10.2026, Nachschärfung zu PR #198): ein bewusster Termin, um die
+GEPARKT-Liste, den Hygiene-Backlog (Abschnitt 4) und alle offenen
+Entscheidungen in einem Zug durchzugehen — kein Einzelpunkt, sondern ein
+Sammel-Check, zwischen dem 06.11.- und dem 07.12.-Termin platziert.
+
 <!-- WIEDERVORLAGEN-START -->
 - faellig_am: 2026-11-06 | status: offen | titel: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren | ref: #196
+- faellig_am: 2026-11-24 | status: offen | titel: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen) | ref: #198
 - faellig_am: 2026-12-07 | status: offen | titel: Score-Review (Schatten-Score-Auswertung, Regime-/Economic-Edge-Analysen, Stale-Markierungs-Entscheid u. a. GEPARKT-Punkte) | ref: #194, #190, #158, #160, #162
 <!-- WIEDERVORLAGEN-ENDE -->
 
