@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import elliott_pipeline as pipe  # noqa: E402
 import forward_collection as fc  # noqa: E402
 import health_check as hc  # noqa: E402
+import source_coverage as scov  # noqa: E402
 
 SRC = (ROOT / "scripts/elliott_pipeline.py").read_text(encoding="utf-8")
 
@@ -47,6 +48,10 @@ def _sandbox(tmp_path, monkeypatch, sammlung_records=None):
     monkeypatch.setattr(pipe, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(fc, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(hc, "REPO_ROOT", tmp_path)
+    # Daten-Abdeckungs-Wächter (24.10.2026): eigenes Blatt-Modul, eigenes
+    # REPO_ROOT — sonst schriebe `pipe.main()` die ECHTE
+    # `data/source_coverage.json` im Repo.
+    monkeypatch.setattr(scov, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(pipe.config, "MARKETS", {
         "US": {"label": "USA", "universe": ["AAPL", "MSFT"]},
         "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},

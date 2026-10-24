@@ -613,3 +613,86 @@ def test_real_collection_update_is_finite(monkeypatch):
                                  RUN_DATE, NOW_ISO)
     assert hc.non_finite_paths(coll) == []
     assert len(coll["records"]) == 4
+
+
+# ══ DATEN-ABDECKUNGS-WÄCHTER (24.10.2026, Auftrag 1 von 6) ═════════════════
+# Reine Funktion `silent_source_findings` ist in tests/test_source_coverage.py
+# durchgetestet. Hier nur die INTEGRATION in health_check: Severity INFO,
+# overall_status, collect_findings(now=...), und der Herzschlag-Fix.
+import source_coverage as sc  # noqa: E402 — geteilter Import für diese Sektion
+
+
+def test_check_source_coverage_ohne_now_ist_uebersprungen(tmp_path, monkeypatch):
+    _sandbox(tmp_path, monkeypatch)
+    assert hc.check_source_coverage(now=None) == []
+
+
+def test_check_source_coverage_meldet_stille_quelle(tmp_path, monkeypatch):
+    _sandbox(tmp_path, monkeypatch)
+    monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    state = sc.upsert_entry(sc._leer(), "2026-07-26", 22, "daily", NOW_ISO,
+                            {"kurse_us": (10, 10, 0)})
+    sc.write_coverage(state)
+    befunde = hc.check_source_coverage(now=MON)
+    assert len(befunde) == 1 and befunde[0]["severity"] == hc.WARN
+
+
+def test_check_source_coverage_ist_fail_soft_bei_kaputter_datei(tmp_path, monkeypatch):
+    _sandbox(tmp_path, monkeypatch)
+    monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    (tmp_path / "data" / "source_coverage.json").write_text("{kaputt",
+                                                             encoding="utf-8")
+    assert hc.check_source_coverage(now=MON) == []
+
+
+def test_overall_status_ignoriert_reine_info_befunde():
+    info = hc._finding("source_coverage_silent", hc.INFO, "bekannt tot",
+                       market=None)
+    assert hc.overall_status([info]) == "ok"
+    assert hc.overall_status([info, _f(sev=hc.WARN)]) == hc.WARN
+
+
+def test_info_befund_bleibt_im_report_sichtbar_aber_status_ok(tmp_path,
+                                                               monkeypatch):
+    _sandbox(tmp_path, monkeypatch)
+    sent = _capture(monkeypatch)
+    monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sc, "KNOWN_DEAD_SOURCES", ("kurse_de",))
+    state = sc.upsert_entry(sc._leer(), "2026-07-26", 22, "daily", NOW_ISO,
+                            {"kurse_de": (10, 10, 0)})
+    sc.write_coverage(state)
+    rep = _with_comments(_report(us=5, de=5), 10)
+    health = hc.run(rep, _report(dead=0), [], None, None, has_agent_key=True,
+                    topic=TOPIC, run_date=RUN_DATE, now_iso=NOW_ISO, now=MON)
+    assert health["status"] == "ok", "INFO allein darf Status nicht heben"
+    assert any(f["rule"] == "source_coverage_silent"
+              for f in health["findings"]), "INFO bleibt digest-sichtbar"
+    assert sent == [], "INFO allein darf NICHT pushen"
+
+
+def test_reiner_info_befund_unterdrueckt_herzschlag_nicht(tmp_path,
+                                                           monkeypatch):
+    """Die Flanken-/Herzschlag-Logik prüft auf `eskalierbar`, nicht auf die
+    volle Befundliste — sonst bliebe an einem solchen Tag JEDER Push aus."""
+    _sandbox(tmp_path, monkeypatch)
+    sent = _capture(monkeypatch)
+    monkeypatch.setattr(sc, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sc, "KNOWN_DEAD_SOURCES", ("kurse_de",))
+    monkeypatch.setattr(hc, "heartbeat_due", lambda now: True)
+    monkeypatch.setattr(hc, "is_main_run", lambda: True)
+    state = sc.upsert_entry(sc._leer(), "2026-07-26", 22, "daily", NOW_ISO,
+                            {"kurse_de": (10, 10, 0)})
+    sc.write_coverage(state)
+    rep = _with_comments(_report(us=5, de=5), 10)
+    health = hc.run(rep, _report(dead=0), [], None, None, has_agent_key=True,
+                    topic=TOPIC, run_date=RUN_DATE, now_iso=NOW_ISO, now=MON)
+    assert health["heartbeat"] is True
+    assert len(sent) == 1 and sent[0]["prio"] == "low"
+
+
+def test_collect_findings_ohne_now_bleibt_rueckwaertskompatibel():
+    """Bestehende Aufrufer ohne `now`-Argument (dieselbe Datei, mehrere
+    Stellen) duerfen durch die neue Regel NICHT betroffen werden."""
+    rep = _report(us=0, found_us=0)
+    findings = hc.collect_findings(rep, None, [], None, None, False)
+    assert all(f["rule"] != "source_coverage_silent" for f in findings)

@@ -66,6 +66,7 @@ except Exception as exc:  # pragma: no cover — config immer vorhanden, defensi
 
 import market_calendar as cal  # noqa: E402
 import notify  # noqa: E402  — geteilte ntfy-Schicht (fail-soft, ASCII-Title)
+import source_coverage as sc  # noqa: E402 — Daten-Abdeckungs-Wächter (24.10.2026)
 
 # ── Schwellen (Betriebs-Parameter, KEINE Auswertungs-Definitionen) ──────────
 # Sie steuern, wann sich die Selbstüberwachung MELDET — sie definieren nichts,
@@ -101,6 +102,13 @@ MAINTENANCE_MAX_AGE_DAYS = getattr(config, "HEALTH_MAINTENANCE_MAX_AGE_DAYS", 10
 
 CRIT = "crit"
 WARN = "warn"
+# Dritte, NICHT-eskalierende Stufe (24.10.2026, Daten-Abdeckungs-Wächter):
+# für "bekannt tot, bewusst nicht reparierte Quelle" — sichtbar im
+# report.json-health-Block (Digest), aber NIE gepusht/eskaliert (s. `run()`,
+# wo info-Befunde vor `evaluate_edges` herausgefiltert werden) und NIE
+# Teil von `overall_status` (s. dort). Bestehende CRIT/WARN-Logik bleibt
+# davon unberührt — additiv, nicht umgebaut.
+INFO = "info"
 _SEV_RANK = {WARN: 1, CRIT: 2}
 
 # Wie viele Fundstellen je Regel maximal in den Report/Push wandern. Ein
@@ -435,6 +443,34 @@ def check_agent_comments(report: Dict, has_key: bool,
 
 
 # ---------------------------------------------------------------------------
+# 5b) DATEN-ABDECKUNG (24.10.2026, Auftrag 1 von 6, Easy-Entscheid)
+# ---------------------------------------------------------------------------
+def check_source_coverage(now: Optional[_dt.datetime] = None) -> List[Dict]:
+    """Liest ``data/source_coverage.json`` und meldet Quellen, die
+    INNERHALB ihres Fensters (24 h bzw. 7 Tage, s. ``source_coverage.py``)
+    in JEDEM erfassten Lauf 0 Daten lieferten — die stillste Ausfallklasse
+    (Antwort ohne Fehler, aber leer).
+
+    ``now=None`` (Default) -> **Regel übersprungen, kein Befund**. Bewusst
+    so: alle bestehenden Aufrufer von ``collect_findings``/``run()`` (Tests
+    wie Produktionscode) kennen diesen Parameter nicht und würden sonst
+    unwissentlich gegen die ECHTE Uhr und die ECHTE Datei im Repo prüfen —
+    ein Seiteneffekt, den niemand angefordert hat. Nur wer ``now`` explizit
+    übergibt (der echte Lauf über ``run()``, oder ein Test mit injizierter
+    Zeit) bekommt die Prüfung. Fail-soft: jeder Fehler (fehlende/kaputte
+    Datei) liefert ``[]``, nie einen Absturz."""
+    if now is None:
+        return []
+    try:
+        state = sc.load_coverage()
+        return sc.silent_source_findings(state, now)
+    except Exception as exc:  # noqa: BLE001 — Selbstüberwachung bricht nie
+        _log(f"Daten-Abdeckungs-Prüfung übersprungen (fail-soft): "
+             f"{type(exc).__name__}: {exc}")
+        return []
+
+
+# ---------------------------------------------------------------------------
 # 6) PUSH-DISZIPLIN — Flanke, gebündelt, kalender-gegated
 # ---------------------------------------------------------------------------
 def _key(f: Dict) -> str:
@@ -444,7 +480,10 @@ def _key(f: Dict) -> str:
 def overall_status(findings: Sequence[Dict]) -> str:
     if any(f["severity"] == CRIT for f in findings):
         return CRIT
-    if findings:
+    # INFO-Befunde zählen bewusst NICHT als "es gibt etwas zu melden" — sonst
+    # würde eine dauerhaft akzeptierte, bekannt tote Quelle den Status für
+    # immer auf "warn" halten (24.10.2026, Daten-Abdeckungs-Wächter).
+    if any(f["severity"] != INFO for f in findings):
         return WARN
     return "ok"
 
@@ -786,9 +825,15 @@ def collect_findings(report: Dict, prev_report: Optional[Dict],
                      finite_findings: Sequence[Dict],
                      sig_before: Optional[Dict], sig_after: Optional[Dict],
                      has_agent_key: bool,
-                     same_day_rerun: bool = False) -> List[Dict]:
+                     same_day_rerun: bool = False,
+                     now: Optional[_dt.datetime] = None) -> List[Dict]:
     """Alle Regeln zusammenführen. ``finite_findings`` kommen von außen, weil
-    Regel 1 VOR den beiden Serialisierungen laufen muss (Report + Sammlung)."""
+    Regel 1 VOR den beiden Serialisierungen laufen muss (Report + Sammlung).
+
+    ``now`` (neu, 24.10.2026, Default ``None``): nur bei explizitem ``now``
+    läuft ``check_source_coverage`` mit — bestehende Aufrufer (Tests wie
+    Produktionscode), die den Parameter nicht kennen, bleiben unverändert
+    unberührt (s. ``check_source_coverage``-Docstring)."""
     findings: List[Dict] = list(finite_findings)
     findings.extend(check_completeness(report))
     findings.extend(check_bar_freshness(report))
@@ -797,6 +842,7 @@ def collect_findings(report: Dict, prev_report: Optional[Dict],
                                               same_day_rerun))
     findings.extend(check_agent_comments(report, has_agent_key))
     findings.extend(check_maintenance(report))
+    findings.extend(check_source_coverage(now))
     # Stabile Reihenfolge: crit zuerst, dann Regel, dann Markt — der Push-Text
     # und der Report-Block sind damit deterministisch.
     findings.sort(key=lambda f: (-_SEV_RANK.get(f["severity"], 0),
@@ -827,7 +873,12 @@ def run(report: Dict, prev_report: Optional[Dict],
     warne_bei_import_fehler()
     findings = collect_findings(report, prev_report, finite_findings,
                                 sig_before, sig_after, has_agent_key,
-                                same_day_rerun)
+                                same_day_rerun, now=now)
+    # INFO-Befunde (bekannt tote Quelle) sind Digest-sichtbar (s.
+    # `attach_to_report` unten, das die VOLLE `findings`-Liste bekommt),
+    # aber NIE eskalierbar — sie laufen bewusst NICHT durch die Flanken-/
+    # Push-Logik (24.10.2026, Daten-Abdeckungs-Wächter).
+    eskalierbar = [f for f in findings if f["severity"] != INFO]
     gated = push_gated(now)
     pushed = False
     heartbeat = False
@@ -836,7 +887,7 @@ def run(report: Dict, prev_report: Optional[Dict],
              f"State unverändert.")
     else:
         state = load_state()
-        to_push, new_state = evaluate_edges(findings, state, run_date)
+        to_push, new_state = evaluate_edges(eskalierbar, state, run_date)
         pushed = send_findings(topic, to_push)
         # Herzschlag NUR wenn es gar nichts zu melden gab. Sonst hätte Easy
         # zwei Pushes für denselben Lauf — und der stille Puls verlöre seine
@@ -850,10 +901,14 @@ def run(report: Dict, prev_report: Optional[Dict],
         # den ersten echten Herzschlag des Tages.
         already_today = hb_prev.get("last_run_date") == run_date
         milestone = None
-        if not findings and heartbeat_due(now) and is_main_run() and not already_today:
+        # `eskalierbar`, nicht `findings`: ein reiner INFO-Befund (bekannt
+        # tote Quelle) soll den Herzschlag NICHT unterdrücken — sonst bliebe
+        # an einem solchen Tag JEDER Push aus (24.10.2026, Daten-Abdeckungs-
+        # Wächter; dieselbe Überlegung wie bei `overall_status`).
+        if not eskalierbar and heartbeat_due(now) and is_main_run() and not already_today:
             milestone = milestone_note(counts, hb_prev.get("counts"))
             heartbeat = send_heartbeat(topic, report, counts, milestone)
-        elif not findings:
+        elif not eskalierbar:
             _log("Status ok, aber kein Herzschlag "
                  f"(faellig={heartbeat_due(now)}, main={is_main_run()}, "
                  f"heute_schon={already_today}).")

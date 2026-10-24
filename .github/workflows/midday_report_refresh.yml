@@ -179,6 +179,11 @@ jobs:
           # geändert hat; hier wird zusätzlich sichergestellt, dass sie erst
           # gar nicht ins Staging kommen, selbst wenn doch.
           git add data/report.json docs/data/report.json
+          # Daten-Abdeckungs-Wächter (24.10.2026, Auftrag 1 von 6): Ringpuffer
+          # je Quelle/Lauf, additiv, s. scripts/source_coverage.py. Kein
+          # Widerspruch zur Guard-Prüfung unten: die greift nur auf
+          # "forward_collection.json", nicht auf eine Allowlist.
+          [ -f data/source_coverage.json ] && git add data/source_coverage.json || true
           if git diff --cached --name-only | grep -q "forward_collection.json"; then
             echo "::error::forward_collection.json ist im Staging-Bereich gelandet — Commit abgebrochen."
             git reset
