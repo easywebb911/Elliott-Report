@@ -185,6 +185,63 @@ def test_config_top_n_geaendert_rot(repo):
     assert any("TOP_N" in t.grund for t in treffer if t.datei == "config.py")
 
 
+def test_config_subscript_mutation_rot(repo):
+    """Guardian-Fund (Zweitblick vor Ready, Auftrag 3 von 6): eine
+    geschützte Konstante über einen Subscript statt eine direkte
+    ``NAME = ...``-Neuzuweisung zu ändern, muss GENAUSO rot sein."""
+    base = _base_head(repo)
+    neu = _BASIS_CONFIG + '\nSCORE_WEIGHTS["fib_bonus"] = 999\n'
+    _write(repo, "config.py", neu)
+    head = _commit(repo, "SCORE_WEIGHTS per Subscript geändert")
+    treffer = ss.pruefe(base, head, repo_root=repo)
+    assert any("SCORE_WEIGHTS" in t.grund for t in treffer
+              if t.datei == "config.py"), treffer
+
+
+def test_config_methodenaufruf_mutation_rot(repo):
+    """Guardian-Fund: ``SCORE_WEIGHTS.update(...)`` ändert den Inhalt ohne
+    eine ``NAME = ...``-Zeile."""
+    base = _base_head(repo)
+    neu = _BASIS_CONFIG + '\nSCORE_WEIGHTS.update({"fib_bonus": 999})\n'
+    _write(repo, "config.py", neu)
+    head = _commit(repo, "SCORE_WEIGHTS per update() geändert")
+    treffer = ss.pruefe(base, head, repo_root=repo)
+    assert any("SCORE_WEIGHTS" in t.grund for t in treffer
+              if t.datei == "config.py"), treffer
+
+
+def test_config_augmented_assign_rot(repo):
+    """Guardian-Fund: ``TOP_N += 1`` ist kein ``ast.Assign`` mit
+    ``Name``-Target im alten Sinn, sondern ein ``ast.AugAssign`` — muss
+    trotzdem rot sein."""
+    base = _base_head(repo)
+    neu = _BASIS_CONFIG + "\nTOP_N += 3\n"
+    _write(repo, "config.py", neu)
+    head = _commit(repo, "TOP_N augmentiert")
+    treffer = ss.pruefe(base, head, repo_root=repo)
+    assert any("TOP_N" in t.grund for t in treffer if t.datei == "config.py")
+
+
+def test_config_reexport_beim_auslagern_rot(repo):
+    """Guardian-Fund: eine geschützte Konstante aus config.py per Import
+    zu ersetzen (Auslagerung in eine neue, nicht gelistete Datei) ist der
+    PR, der die ``SCORE_WEIGHTS = {...}``-Zeile ENTFERNT — das muss rot
+    bleiben (Löschen der Zuweisung zählt bereits als Treffer), UND die
+    neue ``from ... import SCORE_WEIGHTS``-Zeile selbst muss erkannt
+    werden (Import-Alias-Prüfung in ``_konstanten_zeilen``)."""
+    base = _base_head(repo)
+    neu = _BASIS_CONFIG.replace(
+        'SCORE_WEIGHTS = {\n    "fib_bonus": 20.0,\n'
+        '    "invalidation_bonus": 15.0,\n}\n',
+        "from scripts.config_extra import SCORE_WEIGHTS\n")
+    assert neu != _BASIS_CONFIG
+    _write(repo, "config.py", neu)
+    head = _commit(repo, "SCORE_WEIGHTS ausgelagert")
+    treffer = ss.pruefe(base, head, repo_root=repo)
+    assert any("SCORE_WEIGHTS" in t.grund for t in treffer
+              if t.datei == "config.py"), treffer
+
+
 def test_config_geloescht_rot_unabhaengig_von_konstanten(repo):
     base = _base_head(repo)
     (repo / "config.py").unlink()

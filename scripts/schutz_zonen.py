@@ -21,6 +21,22 @@ sperrt — gröber, aber nicht falsch, keine Änderung dort). `schutz_sperre.py`
 prüft `config.py` stattdessen auf Zeilen-/Symbol-Ebene gegen
 `GESCHUETZTE_CONFIG_KONSTANTEN` (siehe Moduldoc dort) — eine FEINERE,
 zusätzliche Prüfung, kein Widerspruch zur gröberen Datei-Sperre anderswo.
+
+BEKANNTE GRENZE (Guardian-Fund, Zweitblick vor Ready, Auftrag 3 von 6):
+jeder dateinamen-basierte Zonen-Schutz — auch dieser hier — kann eine
+geschützte Konstante nur dort erkennen, wo sie TATSÄCHLICH steht. Wird eine
+geschützte Konstante aus config.py dauerhaft in eine NEUE, noch nicht
+gelistete Datei ausgelagert, ist GENAU DER PR, der das tut, weiterhin rot
+(die alte `NAME = ...`-Zeile verschwindet, die neue `from ... import
+NAME`-Zeile wird ebenfalls erkannt, s. `_konstanten_zeilen`) — aber jeder
+SPÄTERE PR, der nur noch die neue Datei ändert, wäre es nicht, WENN diese
+neue Datei nicht nachträglich in `GESCHUETZTE_DATEIEN` aufgenommen wird.
+Das ist keine Lücke nur dieses Mechanismus, sondern eine grundsätzliche
+Eigenschaft jeder Allowlist über Dateipfade: Code, der in eine bislang
+unbekannte Datei verschoben wird, kann nur geschützt werden, wenn diese
+Datei der Liste hinzugefügt wird — im selben PR, der die Auslagerung
+einführt (dieser PR ist, wie oben beschrieben, bereits rot, also der
+richtige Moment für Easy, das zu verlangen).
 """
 from __future__ import annotations
 

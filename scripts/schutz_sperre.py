@@ -155,24 +155,42 @@ def _geaenderte_zeilen(base_sha: str, head_sha: str, pfad: str,
 
 
 def _konstanten_zeilen(quelltext: str,
-                       namen: frozenset) -> Dict[str, Tuple[int, int]]:
-    """Zeilen-Spannen (start, end, inklusiv) der Top-Level-Zuweisungen in
-    ``namen`` innerhalb von ``quelltext`` — per AST, nicht per Text-Muster
-    (ein mehrzeiliges Dict-Literal wiederholt den Konstanten-Namen nicht in
-    jeder geänderten Zeile; ein Textmuster würde solche Treffer verfehlen)."""
+                       namen: frozenset) -> Dict[str, List[Tuple[int, int]]]:
+    """Zeilen-Spannen (start, end, inklusiv) JEDER Top-Level-Anweisung, die
+    einen Namen aus ``namen`` IRGENDWIE referenziert — per AST, nicht per
+    Text-Muster (ein mehrzeiliges Dict-Literal wiederholt den Konstanten-
+    Namen nicht in jeder geänderten Zeile; ein Textmuster würde solche
+    Treffer verfehlen).
+
+    BEWUSST NICHT auf ``NAME = ...``-Zuweisungen beschränkt (Guardian-Fund,
+    Auftrag 3 von 6, Zweitblick vor Ready): ``SCORE_WEIGHTS["a"] = 999``,
+    ``SCORE_WEIGHTS.update(...)``, ``TOP_N += 1`` oder auch nur ein Lesen
+    (``x = SCORE_WEIGHTS["a"]``) laufen alle über einen ``ast.Name``-Knoten
+    irgendwo im Teilbaum der Top-Level-Anweisung — ``ast.walk`` findet das,
+    eine reine Ziel-Prüfung (``Assign.targets``) nicht. Ein bloßes Lesen als
+    Treffer zu werten ist großzügiger als nötig, aber bewusst so: „bei
+    Unklarheit: ja" (wie an anderer Stelle im Projekt), und Lesen vs.
+    Schreiben zuverlässig zu trennen wäre an dieser Stelle selbst wieder
+    umgehbar. ``import``/``from … import``-Anweisungen werden zusätzlich
+    separat geprüft (``ast.alias.name``/``asname`` stehen nicht als
+    ``ast.Name``, sondern als Strings im Baum)."""
     baum = ast.parse(quelltext)
-    spannen: Dict[str, Tuple[int, int]] = {}
+    spannen: Dict[str, List[Tuple[int, int]]] = {}
     for knoten in ast.iter_child_nodes(baum):
-        ziele = []
-        if isinstance(knoten, ast.Assign):
-            ziele = [t for t in knoten.targets if isinstance(t, ast.Name)]
-        elif isinstance(knoten, ast.AnnAssign) and isinstance(knoten.target,
-                                                              ast.Name):
-            ziele = [knoten.target]
-        for ziel in ziele:
-            if ziel.id in namen:
-                ende = getattr(knoten, "end_lineno", knoten.lineno)
-                spannen[ziel.id] = (knoten.lineno, ende)
+        gefunden: Set[str] = {
+            n.id for n in ast.walk(knoten)
+            if isinstance(n, ast.Name) and n.id in namen
+        }
+        if isinstance(knoten, (ast.Import, ast.ImportFrom)):
+            for alias in knoten.names:
+                bezeichner = alias.asname or alias.name
+                if bezeichner in namen:
+                    gefunden.add(bezeichner)
+        if not gefunden:
+            continue
+        ende = getattr(knoten, "end_lineno", knoten.lineno)
+        for name in gefunden:
+            spannen.setdefault(name, []).append((knoten.lineno, ende))
     return spannen
 
 
@@ -206,8 +224,9 @@ def config_konstanten_treffer(base_sha: str, head_sha: str,
         except (subprocess.CalledProcessError, SyntaxError):
             treffer.update(zonen.GESCHUETZTE_CONFIG_KONSTANTEN)
             return
-        for name, (start, ende) in spannen.items():
-            if any(start <= z <= ende for z in geaenderte):
+        for name, bereiche in spannen.items():
+            if any(start <= z <= ende for (start, ende) in bereiche
+                  for z in geaenderte):
                 treffer.add(name)
 
     _pruefe(base_sha, alter_pfad, alte_zeilen)
