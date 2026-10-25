@@ -2183,6 +2183,25 @@ Beleg = Abschnitt 3.)
   immer unsichtbar für die Automatisierung.
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
+- **Technische Schutz-Sperre (Auftrag 3 von 6, Easy-Entscheid 24./25.10.2026,
+  PR #NACH DEM ANLEGEN NACHZUTRAGEN), OPTION 4 — OHNE Freigabe-Label:**
+  Zonen-PRs (Zonen-Liste: `scripts/schutz_zonen.py`) sind **immer rot**,
+  unabhängig von Titel oder Label — es gibt technisch KEINEN Weg zur
+  Grünfärbung (`.github/workflows/schutz_sperre.yml`,
+  `scripts/schutz_sperre.py`). **Agenten mergen nie bei roter Prüfung —
+  Easy mergt Zonen-PRs selbst, trotz roter Sperre, wenn die Änderung
+  gewollt ist.** Grund für OPTION 4 statt Freigabe-Label: Easy und Code/ein
+  Agent sind für GitHub **dasselbe Konto** (belegt an PR #199:
+  `ready_for_review`/`merged` durch Easy und die PR-Erstellung durch Code
+  zeigen denselben `actor.login`, beide `performed_via_github_app: null`)
+  — ein Label, das „nur Easy" setzen soll, wäre technisch nicht von einem
+  Agenten-Label zu unterscheiden. **Die Sperre schützt vor dem FEHLER
+  eines Agenten (versehentliche Änderung einer geschützten Zone), NICHT
+  vor einem ABSICHTLICHEN Regelbruch über dasselbe Konto** — das ist eine
+  bewusst akzeptierte, dokumentierte Grenze. Ruleset "Main" auf main muss
+  Easy selbst aktivieren (NICHT automatisch eingestellt) — Pflichtprüfung
+  dort ist weiterhin NUR `test` (ci.yml), NICHT `schutz-sperre`, sonst
+  könnte Easy einen Zonen-PR gar nicht mehr selbst mergen.
 
 ---
 

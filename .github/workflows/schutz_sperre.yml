@@ -1,0 +1,52 @@
+# Technische Schutz-Sperre (Auftrag 3 von 6, Easy-Entscheid 24./25.10.2026).
+#
+# Berührt ein PR eine geschützte Zone (scripts/schutz_zonen.py), ist dieser
+# Check ROT — IMMER, ohne Ausnahme. Kein Label, kein Titel macht ihn grün
+# (OPTION 4, s. scripts/schutz_sperre.py Moduldoc: Easy und ein Agent sind
+# für GitHub dasselbe Konto, eine Freigabe-Markierung wäre nicht überprüfbar).
+#
+# NUR lesend: contents: read genügt. Der PR-Titel kommt aus dem
+# Event-Payload (github.event.pull_request.title), NICHT aus einem API-Call
+# — deshalb ist pull-requests: read NICHT nötig. Kein Merge, kein Kommentar,
+# nur die Job-Zusammenfassung (GITHUB_STEP_SUMMARY).
+#
+# WICHTIG: diese Pflichtprüfung heißt "schutz-sperre" — Easy trägt im
+# Ruleset "Main" NUR "test" (ci.yml) als Pflichtprüfung ein, NICHT diese
+# hier (sonst kann Easy einen Zonen-PR, den sie selbst trotz roter Sperre
+# mergen will, am iPhone nicht mehr mergen). S. PR-Text für den genauen Weg.
+name: "Schutz-Sperre"
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: schutz-sperre-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  schutz-sperre:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout (volle Historie für die Merge-Basis)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Zonen-Prüfung (abhängigkeitsfrei, nur stdlib)
+        env:
+          PR_TITEL: ${{ github.event.pull_request.title }}
+        run: |
+          python scripts/schutz_sperre.py \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --titel "$PR_TITEL" \
+            --summary-datei "$GITHUB_STEP_SUMMARY"

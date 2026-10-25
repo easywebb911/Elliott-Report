@@ -649,7 +649,8 @@ def test_rote_linie_bei_evaluate():
 
 def test_rote_linie_bei_qualitaets_marker():
     for name in ("mark_episode_splits.py", "mark_in_session_creation.py",
-                 "mark_stale_market_records.py"):
+                 "mark_stale_market_records.py",
+                 "mark_invertiertes_risiko_anlage.py"):
         assert pw.beruehrt_rote_linie([f"scripts/{name}"]) is True, name
 
 
@@ -661,9 +662,19 @@ def test_keine_rote_linie_bei_reinem_test():
     assert pw.beruehrt_rote_linie(["tests/test_irgendwas.py"]) is False
 
 
+def test_rote_linie_bei_validation_registry_seit_schutz_sperre():
+    """Widerspruch behoben (Auftrag 3 von 6, Schritt 0b/Easy-Entscheid
+    25.10.2026): docs/validation_registry.md ist jetzt explizit in
+    ROTE_LINIE_PFADE (über die gemeinsame Zonen-Liste schutz_zonen.py) und
+    greift VOR der generischen .md-Sicherheit — anders als zuvor."""
+    assert pw.beruehrt_rote_linie(["docs/validation_registry.md"]) is True
+
+
 def test_keine_rote_linie_bei_markdown_doku():
-    assert pw.beruehrt_rote_linie(["docs/validation_registry.md"]) is False
+    """Andere .md-Dateien bleiben unverändert sicher (README, Handover) —
+    nur docs/validation_registry.md ist jetzt explizit ausgenommen."""
     assert pw.beruehrt_rote_linie(["README.md"]) is False
+    assert pw.beruehrt_rote_linie(["SESSION_HANDOVER.md"]) is False
 
 
 def test_keine_rote_linie_bei_guardian_agent_doku():

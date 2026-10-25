@@ -3092,3 +3092,17 @@ Stichtag-Vergleich `>=`→`>`, Verdikt ohne Intervall-Prüfung, Kohorte nach
 `first_seen_date` statt `created_utc`, Bootstrap ungepaart statt gepaart
 —, SHA256-Beleg `evaluate.py`, Workflow-/Produktionscode-Referenzfreiheit,
 Determinismus). Volle Suite: 2001 passed.
+
+---
+
+### 25.10.2026 — Technische Schutz-Sperre (Auftrag 3 von 6, Easy-Entscheid, PR #NACH DEM ANLEGEN NACHZUTRAGEN)
+
+Dieses Dokument (`docs/validation_registry.md`) sowie `scripts/evaluate.py`,
+alle `evaluate_*.py`, `scripts/auswertung_stichtage.py`,
+`scripts/filter_sensitivity_sammlung.py` sind ab diesem PR **geschützte
+Zone** (`scripts/schutz_zonen.py`): jeder PR, der sie ändert, ist über
+`.github/workflows/schutz_sperre.yml` **immer rot** — unabhängig von Titel
+oder Label (OPTION 4, kein Freigabe-Label, s. SESSION_HANDOVER.md Abschnitt
+8 für die Begründung). Wirkung auf die Population/Auswertung: **keine** —
+reine Prozess-/Infrastruktur-Änderung, Score/Ranking/Filter/Zählregel/
+Schatten-Berechnung/`evaluate.py` (SHA256-Pin) unangetastet.
