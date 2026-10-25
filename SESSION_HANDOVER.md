@@ -2184,7 +2184,7 @@ Beleg = Abschnitt 3.)
 - **Absolute Vorsicht, kein Risiko:** additiv, fail-soft, `report.json`/Score/
   Ranking/Population unberührt, Revert-Weg im PR-Text.
 - **Technische Schutz-Sperre (Auftrag 3 von 6, Easy-Entscheid 24./25.10.2026,
-  PR #NACH DEM ANLEGEN NACHZUTRAGEN), OPTION 4 — OHNE Freigabe-Label:**
+  PR #200), OPTION 4 — OHNE Freigabe-Label:**
   Zonen-PRs (Zonen-Liste: `scripts/schutz_zonen.py`) sind **immer rot**,
   unabhängig von Titel oder Label — es gibt technisch KEINEN Weg zur
   Grünfärbung (`.github/workflows/schutz_sperre.yml`,

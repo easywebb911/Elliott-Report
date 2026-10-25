@@ -3095,7 +3095,7 @@ Determinismus). Volle Suite: 2001 passed.
 
 ---
 
-### 25.10.2026 — Technische Schutz-Sperre (Auftrag 3 von 6, Easy-Entscheid, PR #NACH DEM ANLEGEN NACHZUTRAGEN)
+### 25.10.2026 — Technische Schutz-Sperre (Auftrag 3 von 6, Easy-Entscheid, PR #200)
 
 Dieses Dokument (`docs/validation_registry.md`) sowie `scripts/evaluate.py`,
 alle `evaluate_*.py`, `scripts/auswertung_stichtage.py`,
