@@ -355,7 +355,7 @@ Sammel-Check, zwischen dem 06.11.- und dem 07.12.-Termin platziert.
 <!-- WIEDERVORLAGEN-START -->
 - faellig_am: 2026-11-06 | status: offen | titel: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren | ref: #196
 - faellig_am: 2026-11-24 | status: offen | titel: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen) | ref: #198
-- faellig_am: 2026-12-07 | status: offen | titel: Score-Review (Schatten-Score-Auswertung, Regime-/Economic-Edge-Analysen, Stale-Markierungs-Entscheid u. a. GEPARKT-Punkte) | ref: #194, #190, #158, #160, #162
+- faellig_am: 2026-12-07 | status: offen | titel: Score-Review (Schatten-Score-Auswertung per scripts/auswertung_stichtage.py --zaehlung bzw. --auswerten, Regime-/Economic-Edge-Analysen, Stale-Markierungs-Entscheid u. a. GEPARKT-Punkte) | ref: #194, #190, #158, #160, #162, #199
 <!-- WIEDERVORLAGEN-ENDE -->
 
 **Bewusst NICHT eingetragen:** die alte, vage Wiedervorlage „Selbstwartung
@@ -1565,6 +1565,45 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   „eigene PR-Nummer nachtragen" (Abschnitt 8) selbst eingeführt hat — hier
   jetzt genannt, damit der Handover-Wächter sie nicht mehr als Lücke
   meldet.
+
+- **24.10.2026 — Auswertungsskript für den 07.12.2026 (Easy-Entscheid, PR 4
+  von 4, Diagnose-Folgeauftrag, PR #199).** Neues
+  Skript `scripts/auswertung_stichtage.py` (reine Leseoperation, importiert
+  `evaluate.py`/`evaluate_cluster_sensitivity.py`/`forward_collection.py`,
+  KEINE Änderung an diesen Dateien — `evaluate.py`-SHA256 identisch zum
+  Beleg bei #190/#194). Acht benannte Kohorten (ALLE, ab Zählregel-Stichtag
+  #186, ab Filter-Stichtag #190, ab Schatten #194 — je mit/ohne die
+  `invertiertes_risiko_bei_anlage`-Markierung). **Grenze (belegt, nicht
+  angenommen):** Stichtag-Kohorte = `created_utc >= run_timestamp_utc` des
+  Stichtag-Laufs (Lauf selbst gehört dazu) — auf echten Daten geprüft für
+  Lauf #153 (#186, Commit `70b4412`) und Lauf #156 (#190, Commit
+  `2a0f1a8`): `created_utc` der dort neu angelegten Records ist in beiden
+  Fällen exakt gleich dem `run_timestamp_utc`, nie davor. Schatten-Kohorte
+  über das Feld (`score_shadow_inval_cap20 is not None`), NICHT über einen
+  Zeitstempel — der Schatten-Stichtag selbst ist weiterhin NICHT belegt
+  (kein `daily.yml`-Lauf seit dem Merge von #194), Konstante bleibt `None`.
+  Schatten-Vergleich (nur Schatten-Kohorte): AUC Live gegen AUC Schatten,
+  gepaarter Block-Bootstrap (dieselben Ziehungen für beide Scores),
+  Verdikt WÖRTLICH nach der Registry-Regel (#194) — „Schatten besser" NUR
+  bei Differenz > 0 UND Intervall schließt 0 aus, sonst „nicht
+  entscheidbar", nie ein dritter Stempel. **Schutz vor vorzeitigem Blick:**
+  zwei Modi `--zaehlung` (nur Fallzahlen) und `--auswerten` (volle
+  Rechnung, vor 2026-12-07 Europe/Berlin verweigert, außer mit
+  `--vorzeitig` + Zusatz „EXPLORATIV, nicht präregistriert" auf jeder
+  Zeile); schreibt nie nach `data/`/`docs/` (nur stdout, optional `--out`
+  außerhalb davon), kein Netzzugriff, läuft in keinem Workflow, keinem
+  Agenten, keiner Schutz-Sperre. 30 neue Tests (synthetische Sammlungen,
+  Mutationsproben), bestehende 2001 Tests weiterhin grün. **Wirkung auf
+  die Population: keine** — Score/Ranking/Filter/Zählregel/Schatten-
+  Berechnung UNANGETASTET.
+
+  **Probelauf auf echten Daten:** NUR mit `--zaehlung` (reine Fallzahlen,
+  keine Trefferquote/AUC/Verdikt — Easy-Regel, s. PR-Text).
+
+  **WIEDERVORLAGE:** 07.12.2026 — Aufruf `python scripts/
+  auswertung_stichtage.py --zaehlung` bzw. `--auswerten`. **Arbeitsregel:**
+  Ergebnis erst am 07.12.2026, danach Entscheidung durch Easy (kein
+  automatischer Score-Wechsel).
 
 ---
 
