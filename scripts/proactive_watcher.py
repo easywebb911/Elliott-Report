@@ -39,6 +39,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+import schutz_zonen as zonen
+
 # ---------------------------------------------------------------------------
 # Rote Linie — Klassifikation von Diffs (dieselbe Prüfung wie Guardian für
 # Manual-Merge-Fälle: Score/Sammlungs-Gate/evaluate.py/Marker/Auswertungsregel)
@@ -50,18 +52,26 @@ from typing import Dict, List, Optional, Sequence, Tuple
 # würde Fehlklassifikation riskieren, wenn ein Kommentar direkt neben
 # Score-Logik steht und das Tool die Grenze falsch zieht. Konservativ nach
 # Auftrag ("bei Unklarheit: ja").
-ROTE_LINIE_PFADE = frozenset({
-    "scripts/elliott_pipeline.py",   # Score/Pipeline/Sammlungs-Gate-Aufruf
-    "scripts/forward_collection.py",  # Sammlungs-Gate + Auswertungsregel
-    "scripts/evaluate.py",
-    "scripts/rules.py",              # die drei harten Elliott-Regeln (K.o.)
-    "scripts/zigzag.py",             # Pivot-Engine, Basis der Score-Zählung
-    "scripts/mark_episode_splits.py",
-    "scripts/mark_in_session_creation.py",
-    "scripts/mark_stale_market_records.py",
-    "scripts/in_session.py",
-    "config.py",                     # Schwellen/Parameter für alles Obige
-})
+#
+# EINE QUELLE mit der technischen Schutz-Sperre (Auftrag 3 von 6, Easy-
+# Entscheid 24./25.10.2026, `scripts/schutz_sperre.py`/`scripts/
+# schutz_zonen.py`): `zonen.GESCHUETZTE_DATEIEN` ist dieselbe Liste, die
+# auch der PR-Check liest. Das behebt einen in Schritt 0 dieses Auftrags
+# gefundenen Widerspruch: vorher fiel `docs/validation_registry.md` unter
+# `SICHERE_DATEIEN_SUFFIXE = (".md",)` (,,nie rote Linie``), obwohl die
+# Registry inhaltlich zur Auswertung gehört — die explizite Listung HIER
+# greift in `beruehrt_rote_linie` VOR der Suffix-Prüfung und ist jetzt der
+# tatsächlich wirksame Fall; andere `.md`-Dateien (README, SESSION_*)
+# bleiben über `SICHERE_DATEIEN_SUFFIXE` unverändert sicher. Zusätzlich
+# behoben: `mark_invertiertes_risiko_anlage.py` fehlte in der alten,
+# lokalen Liste (ohne Auswirkung auf das Verhalten, da der Default-Fall
+# unten jeden nicht gelisteten `scripts/*.py`-Pfad ohnehin als rote Linie
+# behandelt hat — jetzt explizit statt implizit).
+#
+# `config.py` bleibt HIER zusätzlich als ganze Datei gelistet (gröber als
+# die Symbol-Ebene, die NUR die Schutz-Sperre prüft) — unverändert
+# gegenüber dem bisherigen Verhalten dieses Moduls.
+ROTE_LINIE_PFADE = zonen.GESCHUETZTE_DATEIEN | {"config.py"}
 
 # Pfade/Präfixe, die NIE rote Linie sind — reine Tests, Doku, Kosmetik.
 # Bewusst eng gefasst (Allowlist, nicht Blockliste): alles außerhalb dieser
