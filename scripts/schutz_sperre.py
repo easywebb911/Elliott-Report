@@ -173,7 +173,25 @@ def _konstanten_zeilen(quelltext: str,
     Schreiben zuverlässig zu trennen wäre an dieser Stelle selbst wieder
     umgehbar. ``import``/``from … import``-Anweisungen werden zusätzlich
     separat geprüft (``ast.alias.name``/``asname`` stehen nicht als
-    ``ast.Name``, sondern als Strings im Baum)."""
+    ``ast.Name``, sondern als Strings im Baum).
+
+    BEKANNTE NEBENWIRKUNG (zweiter Guardian-Zweitblick, Auftrag 3 von 6):
+    bei einer Top-Level-``FunctionDef``/``ClassDef`` ist ihr GESAMTER
+    Teilbaum die Zeilen-Spanne — ein reiner Docstring- oder
+    Kommentar-Tippfehler innerhalb einer Funktion, die irgendwo eine
+    geschützte Konstante referenziert (z. B. ``score_max()`` liest
+    ``SETUP_BASE_POINTS``/``FIB_PROXIMITY_MAX_BONUS``/
+    ``INVALIDATION_DISTANCE_MAX_BONUS``), löst die Sperre also auch dann
+    aus, wenn NUR Text geändert wurde. Bewusst akzeptiert („eher zu oft
+    rot als zu selten" — Easy entscheidet dann, trotzdem zu mergen; es
+    gibt ohnehin keinen Weg, grünzufärben), nicht als Fehler behandelt.
+
+    NICHT ERFASST (ebenfalls zweiter Zweitblick, exotisch genug, dass ein
+    normales Review es auffangen sollte): dynamische/String-basierte
+    Zuweisungen wie ``globals()["SCORE_WEIGHTS"] = …``,
+    ``setattr(sys.modules[__name__], "SCORE_WEIGHTS", …)`` oder
+    ``exec(...)`` — ``ast.walk`` findet nur echte ``ast.Name``-Referenzen,
+    keine zur Laufzeit zusammengesetzten Namen."""
     baum = ast.parse(quelltext)
     spannen: Dict[str, List[Tuple[int, int]]] = {}
     for knoten in ast.iter_child_nodes(baum):
