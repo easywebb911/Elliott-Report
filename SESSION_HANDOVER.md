@@ -2221,7 +2221,7 @@ Beleg = Abschnitt 3.)
   prüfen die exakten historischen Listen jetzt gegen einen unveränderlichen
   Git-Snapshot (`43b4376`) statt die weiterwachsende Live-Sammlung, plus
   Teilmengen-Prüfung gegen die Live-Datei (nichts darf verschwinden).
-- **26.10.2026 — Chromium/dbus-Flake behoben (PR #<NACHTRAGEN>), Ursache
+- **26.10.2026 — Chromium/dbus-Flake behoben (PR #203), Ursache
   und Gegenmittel für den obigen Eintrag:** vier belegte CI-Läufe
   (39326459878 19.10., 40115695470 24.10., 40330424836 26.10. [Wartung,
   s. oben], 40378253593 26.10.) mit identischem Muster — `_miss_overflow()`
