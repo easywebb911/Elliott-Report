@@ -792,6 +792,13 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   sind (Diagnose 26.09.2026, Wächter-Klasse `fremde_datenquelle`, #151).
   **WIEDERVORLAGE:** sobald der Wächter `fremde_datenquelle` erstmals
   anschlägt, spätestens Score-Review 07.12.2026.
+  **26.10.2026 — Auslöser erfüllt seit 22.10.2026** (`fremde_datenquelle`
+  hat seitdem mehrfach angeschlagen); gleichzeitig legt PR
+  #202 das Provenienz-Feld `data_source` in neuen
+  `forward_collection`-Records an (s. `docs/validation_registry.md`,
+  26.10.2026) — die hier GEPARKTE Konsistenzprüfung kann die Auswertung
+  damit künftig Fallback-sourced von yfinance-Records trennen, sobald sie
+  gebaut wird. Bleibt GEPARKT bis zum Score-Review.
 - **03.10.2026 — Kein Backfill für `mfe_high_10d`/`mae_low_10d`** (Feature
   #150, dieser GEPARKT-Eintrag #160) — **GEPARKT**. Bewusst nicht gebaut, jederzeit nachholbar, weil das
   2-Jahres-Datenfenster die Tages-High/Low weiterhin liefert.

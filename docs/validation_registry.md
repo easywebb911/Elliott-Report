@@ -3106,3 +3106,51 @@ oder Label (OPTION 4, kein Freigabe-Label, s. SESSION_HANDOVER.md Abschnitt
 8 für die Begründung). Wirkung auf die Population/Auswertung: **keine** —
 reine Prozess-/Infrastruktur-Änderung, Score/Ranking/Filter/Zählregel/
 Schatten-Berechnung/`evaluate.py` (SHA256-Pin) unangetastet.
+
+---
+
+### 26.10.2026 — Provenienz-Feld `data_source` (Easy-Entscheid, PR #202)
+
+Anlass: WBD kam per Twelve-Data-Fallback auf Platz 7 in `report.json`
+(entry["data_source"] = "twelvedata_fallback", seit PR #138/#139) — käme
+so ein Kandidat künftig in die Top-5, würde der zugehörige
+`forward_collection`-Record ohne Spur der Kursquelle eingefroren. Nicht
+nachholbar, da `_new_record()` nur beim ERSTEN Lauf einer Episode
+schreibt.
+
+**Zweck:** `forward_collection._new_record()` übernimmt `data_source` 1:1
+aus dem Kandidaten (`entry.get("data_source")`, z. B. `"yfinance"`,
+`"twelvedata_fallback"`, `"alphavantage_fallback"`) und friert es bei
+Anlage ein — wie `atr_14`/`score_shadow_inval_cap20`, NIE nachträglich
+geändert. Fehlt der Wert am Kandidaten (z. B. synthetische/ältere Tests):
+Feld `null`, Record entsteht trotzdem (fail-soft). NUR neue Records, KEIN
+Backfill — bestehende Bestandsrecords tragen den Key weiterhin nicht (s.
+`tests/test_forward_collection.py::test_bestandsrecords_kein_data_source_
+backfill_in_live_datei`, Bestandsvergleich wie #197 gegen den
+unveränderlichen Git-Snapshot `6f3dfa127225b8ae38a593c9b7fae488a9bbd66e`).
+
+**Wirkung auf die Population:** **keine** — additiv, NICHT in
+`evaluate.py`s `FROZEN_FIELDS`, `evaluate.py` liest das Feld nie (SHA256
+unverändert). Score/Ranking/Kandidaten-Auswahl/Filter/Schatten-Feld
+unangetastet.
+
+**Stichtag:** erster `daily.yml`-Lauf nach dem Merge dieses PRs
+(Platzhalter — konkretes Datum/Uhrzeit nach dem ersten Lauf nachtragen).
+
+**Konsumenten geprüft:** `scripts/evaluate.py` (liest es nicht, nicht in
+FROZEN_FIELDS), `scripts/auswertung_stichtage.py` (kein Treffer),
+Frontend (kein Treffer), `tests/test_schema.py` (REPORT_SCHEMA validiert
+nur `report.json`, keine `additionalProperties: false` auf
+Kandidaten-Items, kein Konflikt), `scripts/proactive_watcher.py`s
+`erkenne_nicht_yfinance_datenquelle()` (liest `data_source` bereits
+unabhängig von `report.json`-Kandidaten, PR #138, unberührt von dieser
+Änderung an `forward_collection.json`).
+
+**Tests:** `tests/test_forward_collection.py`, 9 neue (yfinance/
+twelvedata_fallback/alphavantage_fallback je 1:1 übernommen, fehlender
+Wert -> `null` + Record entsteht trotzdem, Reifung ändert das Feld nicht,
+kein Einfluss auf `score_heuristic`, Mutationsprobe „Feld nicht
+geschrieben" -> KeyError, Bestandsvergleich gegen Git-Snapshot ohne
+Backfill, Mutationsprobe Backfill-Erkennung). Volle Suite: 2070 passed.
+SHA256 `evaluate.py` unverändert:
+`bc697df91235732c6c386abe38c79a98248488b9f30a239d9c26c3cbb3b513fc`.

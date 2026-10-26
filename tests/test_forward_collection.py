@@ -6,8 +6,14 @@ Episoden-Mechanik (Dedup bei konsekutiven Top-5-Tagen, neue Episode nach
 Verschwinden), Survivorship-Freiheit, Regime und Fail-soft.
 """
 import json
+import subprocess
+from pathlib import Path
+
+import pytest
 
 import forward_collection as fc
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
 NOW = "2026-07-22T00:00:00Z"
@@ -902,3 +908,132 @@ def test_guard_boundary_entry_equals_low_is_pre_reached():
     assert rec["pre_reached_target"] is True   # entry == low zählt als schon erreicht
     assert rec["target_hit"] == 0              # gesperrt
     assert rec["invalidated"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Provenienz-Feld data_source (Easy-Entscheid 26.10.2026, Anlass: WBD/
+# Twelve-Data-Fallback auf Platz 7 — käme so ein Kandidat in die Top-5, würde
+# der Record ohne Spur der Quelle eingefroren und das wäre nicht nachholbar).
+# ---------------------------------------------------------------------------
+def test_data_source_yfinance_wird_1_zu_1_uebernommen():
+    entry = _entry("AAPL")
+    entry["data_source"] = "yfinance"
+    rec = fc._new_record(entry, "US", "s", "risk_on", "2026-07-22", NOW)
+    assert rec["data_source"] == "yfinance"
+
+
+def test_data_source_twelvedata_fallback_wird_1_zu_1_uebernommen():
+    entry = _entry("WBD")
+    entry["data_source"] = "twelvedata_fallback"
+    rec = fc._new_record(entry, "US", "s", "risk_on", "2026-07-22", NOW)
+    assert rec["data_source"] == "twelvedata_fallback"
+
+
+def test_data_source_alphavantage_fallback_wird_1_zu_1_uebernommen():
+    entry = _entry("KCO.DE")
+    entry["data_source"] = "alphavantage_fallback"
+    rec = fc._new_record(entry, "DE", "s", "risk_on", "2026-07-22", NOW)
+    assert rec["data_source"] == "alphavantage_fallback"
+
+
+def test_data_source_fehlt_im_kandidaten_wird_null_record_entsteht_trotzdem():
+    """Fail-soft (Auftrags-Vorgabe): `_entry()` trägt bewusst KEIN
+    `data_source` (wie ein synthetischer/älterer Kandidat ohne das Feld) —
+    der Record entsteht trotzdem, das Feld wird `None`, kein Absturz."""
+    rec = fc._new_record(_entry("AAPL"), "US", "s", "risk_on", "2026-07-22", NOW)
+    assert rec["data_source"] is None
+    assert rec["ticker"] == "AAPL"   # Record ist vollständig, kein Abbruch
+
+
+def test_data_source_eingefroren_reifung_aendert_es_nicht():
+    """Point-in-time eingefroren wie atr_14/vol_profile: ein Reifungslauf
+    darf data_source nie nachträglich ändern."""
+    entry = _entry("AAPL")
+    entry["data_source"] = "twelvedata_fallback"
+    rec = fc._new_record(entry, "US", "s", "risk_on", "2026-07-22", NOW)
+    dates, closes = _series("s", [102, 105, 108, 112, 116, 121, 123, 124, 125, 125])
+    fc.mature_record(rec, dates, closes, NOW)
+    assert rec["data_source"] == "twelvedata_fallback"
+
+
+def test_data_source_kein_einfluss_auf_score_heuristic():
+    """Score bleibt unverändert, egal welche Quelle — reines Provenienz-Feld,
+    keine Rechnung."""
+    e_yf = _entry("AAPL", score=73.2)
+    e_yf["data_source"] = "yfinance"
+    e_td = _entry("AAPL", score=73.2)
+    e_td["data_source"] = "twelvedata_fallback"
+    rec_yf = fc._new_record(e_yf, "US", "s", "risk_on", "2026-07-22", NOW)
+    rec_td = fc._new_record(e_td, "US", "s", "risk_on", "2026-07-22", NOW)
+    assert rec_yf["score_heuristic"] == rec_td["score_heuristic"] == 73.2
+
+
+def test_mutationsprobe_data_source_nicht_geschrieben_waere_rot():
+    """Mutationsprobe (Auftrags-Vorgabe): simuliert das ALTE Verhalten (Feld
+    fehlt im Record komplett, nicht nur None) — die obigen Tests, die auf
+    `rec["data_source"]` zugreifen, würden dann mit KeyError statt mit einem
+    Wertevergleich scheitern. Hier direkt belegt, ohne Produktionscode zu
+    verändern."""
+    entry = _entry("AAPL")
+    entry["data_source"] = "yfinance"
+    rec = fc._new_record(entry, "US", "s", "risk_on", "2026-07-22", NOW)
+    rec_ohne_feld = dict(rec)
+    del rec_ohne_feld["data_source"]
+    with pytest.raises(KeyError):
+        _ = rec_ohne_feld["data_source"]
+
+
+# ---------------------------------------------------------------------------
+# Bestandsvergleich (wie #197, nicht über Gesamtzahl): `data/forward_collection
+# .json` wächst TÄGLICH durch die Cron-Läufe — ein Test gegen die weiterwachsende
+# Live-Datei bricht beim nächsten neuen Record. Reparatur: Prüfung gegen einen
+# UNVERÄNDERLICHEN Git-Snapshot statt gegen die Gesamtzahl der Live-Datei.
+# ---------------------------------------------------------------------------
+BESTAND_COMMIT_DATA_SOURCE = "6f3dfa127225b8ae38a593c9b7fae488a9bbd66e"
+BESTAND_DATUM_DATA_SOURCE = "2026-10-26"
+
+
+def _bestand_snapshot_data_source() -> dict:
+    """Unveränderlicher Stand von ``data/forward_collection.json`` am
+    Branch-Basis-Commit dieses PRs (s. ``BESTAND_COMMIT_DATA_SOURCE`` oben) —
+    per ``git show`` gelesen, nie über die weiterwachsende Live-Datei."""
+    blob = subprocess.run(
+        ["git", "-C", str(ROOT), "show",
+         f"{BESTAND_COMMIT_DATA_SOURCE}:data/forward_collection.json"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return json.loads(blob)
+
+
+def test_bestandsrecords_kein_data_source_backfill_in_live_datei():
+    """Records, die VOR diesem Feld entstanden sind (Bestand ohne `data_source`-
+    Key), dürfen durch die Code-Änderung an `_new_record` nicht nachträglich
+    bekommen — `_new_record` ist die EINZIGE Schreibstelle und wird für eine
+    bestehende Episode nie erneut aufgerufen (nur `last_seen_top5_date` bzw.
+    Reifungsfelder ändern sich legitim weiter, s. `update_forward_collection`-
+    Docstring "EINFRIER-INVARIANTE"). Deshalb hier NICHT auf vollständige Byte-
+    Identität des gesamten Records geprüft (die bräche an jeder legitimen
+    Verlängerung/Reifung) — Bestandsvergleich wie #197 (ID-Fortbestand), hier
+    zusätzlich gezielt auf das neue Feld: kein Bestandsrecord darf es tragen."""
+    bestand = _bestand_snapshot_data_source()
+    live = fc.load_collection()
+    live_by_id = {r["episode_id"]: r for r in live["records"]}
+    bestand_ids = {r["episode_id"] for r in bestand["records"]}
+    live_ids = set(live_by_id)
+    assert bestand_ids <= live_ids, "ein Bestandsrecord ist aus der Live-Sammlung verschwunden"
+    for rec in bestand["records"]:
+        assert "data_source" not in rec, "Bestands-Snapshot sollte das Feld noch nicht kennen"
+        live_rec = live_by_id[rec["episode_id"]]
+        assert "data_source" not in live_rec, (
+            f"Bestandsrecord {rec['episode_id']} hat data_source nachträglich bekommen (Backfill)"
+        )
+
+
+def test_mutationsprobe_bestandsvergleich_erkennt_backfill():
+    """Mutationsprobe: ein nachträglich auf einen Bestandsrecord geschriebenes
+    `data_source` (simulierter Backfill) muss die Prüfung oben zum Scheitern
+    bringen."""
+    bestand = _bestand_snapshot_data_source()
+    irgendein_record = dict(bestand["records"][0])
+    irgendein_record["data_source"] = "yfinance"
+    assert "data_source" in irgendein_record
