@@ -324,7 +324,9 @@ def test_zehn_faelle_bleiben_teilmenge_der_wachsenden_live_historie(
 def test_mutationsprobe_teilmengen_pruefung_erkennt_verschwundenen_fall():
     """Mutationsprobe: entfernt man EINEN der zehn historischen Fälle aus
     der (kopierten) Fund-Menge, muss die Teilmengen-Logik das erkennen —
-    belegt, dass der Test oben nicht vakuos grün ist."""
+    belegt die Teilmengen-IDEE, nicht die Fehlerfreiheit der konkreten
+    Assertion-Verdrahtung im Test oben (die nutzt dieselbe Mengendifferenz
+    direkt, Guardian-Nit)."""
     gefunden_live = set(ERWARTETE_FAELLE)
     mutiert = gefunden_live - {ERWARTETE_FAELLE[0]}
     fehlend = set(ERWARTETE_FAELLE) - mutiert

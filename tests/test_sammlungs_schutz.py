@@ -792,7 +792,9 @@ def test_vier_marker_bleiben_teilmenge_der_live_sammlung():
 def test_mutationsprobe_teilmengen_pruefung_erkennt_verschwundenen_marker():
     """Mutationsprobe: entfernt man EINEN der vier historischen Marker aus
     einer (kopierten) Sammlung, muss die Teilmengen-Logik das erkennen —
-    belegt, dass der Test oben nicht vakuos grün ist."""
+    belegt die Teilmengen-IDEE, nicht die Fehlerfreiheit der konkreten
+    Assertion-Verdrahtung im Test oben (die nutzt dieselbe Mengendifferenz
+    direkt, Guardian-Nit)."""
     live = json.loads((ROOT / "data/forward_collection.json").read_text("utf-8"))
     live_markiert = {(r["ticker"], r["market"], r[msr.MARKER]["run_utc"],
                       r[msr.MARKER]["lag_trading_days"])
