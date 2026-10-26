@@ -2202,6 +2202,18 @@ Beleg = Abschnitt 3.)
   Easy selbst aktivieren (NICHT automatisch eingestellt) — Pflichtprüfung
   dort ist weiterhin NUR `test` (ci.yml), NICHT `schutz-sperre`, sonst
   könnte Easy einen Zonen-PR gar nicht mehr selbst mergen.
+- **Wartung 26.10.2026 rot = bekannter Chromium/dbus-Flake, kein Defekt
+  (Lauf https://github.com/easywebb911/Elliott-Report/actions/runs/40330424836):**
+  `test_verlustbild_viewport.py::test_kein_horizontales_ueberlaufen_bei_360_und_390px`
+  (Timeout, dbus-Verbindung) — derselbe `ci.yml`-Lauf auf demselben Commit
+  (`ac5690d`) war grün, Runner weiterhin Ubuntu 24.04 (kein Wechsel auf 26).
+  „Struktur-Pruefungen liefen nicht mehr" war Folge, nicht Ursache: der
+  Schritt danach hat kein `if: always()` und wird bei JEDEM Testfehler
+  übersprungen. Zusätzlich behoben (Testdaten-Drift, Muster #197):
+  `tests/test_episoden_split_marker.py`/`tests/test_sammlungs_schutz.py`
+  prüfen die exakten historischen Listen jetzt gegen einen unveränderlichen
+  Git-Snapshot (`43b4376`) statt die weiterwachsende Live-Sammlung, plus
+  Teilmengen-Prüfung gegen die Live-Datei (nichts darf verschwinden).
 
 ---
 

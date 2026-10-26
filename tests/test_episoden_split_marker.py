@@ -216,6 +216,59 @@ def echte_staende():
     return staende
 
 
+# ---------------------------------------------------------------------------
+# Reparatur Testdaten-Drift (Easy-Entscheid 26.10.2026, Muster #197):
+# ``mes.committete_staende`` scannt ``git log`` UNBEGRENZT bis HEAD — das
+# wächst mit jedem Cron-Commit. Die exakte Listen-Prüfung unten
+# (``gefunden == ERWARTETE_FAELLE``) bräche an jedem künftigen Fund, der dem
+# Muster ähnelt, auch wenn er mit den zehn historischen Fällen nichts zu tun
+# hat (Wächter-Klasse testdaten_drift, Lauf https://github.com/easywebb911/
+# Elliott-Report/actions/runs/40048239101, 24.10.2026). Reparatur: der Replay
+# für die EXAKTE Listen-Prüfung wird auf einen UNVERÄNDERLICHEN Commit
+# begrenzt (nicht auf HEAD) — ``committete_staende`` selbst bleibt
+# unverändert (Produktionscode, nicht Teil dieses Auftrags); die Begrenzung
+# passiert hier, rein im Test, über ein zusätzliches ``git log <commit>``.
+#
+# Referenz-Commit: `43b4376db6bcd8bb09b6347dfad2cdd496410b65` (26.10.2026,
+# "chore(data): Mittags-Report-Aktualisierung") — an diesem Commit liefert
+# der Replay nachweislich (per Diagnose) exakt die zehn ERWARTETE_FAELLE,
+# in derselben Reihenfolge. Ein Git-Blob an einem Commit-Hash ändert sich
+# nie — dieser Test bleibt daher für immer nachrechenbar.
+BESTAND_COMMIT_SPLITS = "43b4376db6bcd8bb09b6347dfad2cdd496410b65"
+BESTAND_DATUM_SPLITS = "2026-10-26"
+
+
+@pytest.fixture(scope="module")
+def staende_bis_pin():
+    """Wie ``mes.committete_staende(ROOT)``, aber ``git log`` auf
+    ``BESTAND_COMMIT_SPLITS`` begrenzt statt auf HEAD — bewusst hier
+    dupliziert (nicht die Produktionsfunktion erweitert, s. Kommentar
+    oben): eine spätere, unbegrenzte Erweiterung der Historie darf diesen
+    Test nie wieder erreichen."""
+    shas = subprocess.run(
+        ["git", "log", "--format=%H", BESTAND_COMMIT_SPLITS, "--",
+         "data/forward_collection.json"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout.split()
+    je_lauf: dict = {}
+    for sha in shas:
+        roh = subprocess.run(
+            ["git", "show", f"{sha}:data/forward_collection.json"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+        try:
+            st = json.loads(roh)
+        except json.JSONDecodeError:  # pragma: no cover — defensiv
+            continue
+        if isinstance(st, dict) and st.get("updated_utc"):
+            je_lauf[st["updated_utc"]] = st
+    staende = [je_lauf[u] for u in sorted(je_lauf)]
+    assert len(staende) >= 44, (
+        f"nur {len(staende)} committete Stände bis zum Pin gefunden — "
+        f"der Replay wäre stumm")
+    return staende
+
+
 def treffer_aus_erwartung() -> list:
     """Die zehn Fälle OHNE Git — aus ``ERWARTETE_FAELLE`` und den Record-Keys
     des ausgelieferten Bestands.
@@ -243,11 +296,41 @@ def treffer_aus_erwartung() -> list:
 
 
 @braucht_historie
-def test_der_replay_findet_die_zehn_echten_faelle(echte_staende):
-    treffer = mes.finde_splits(echte_staende)
+def test_der_replay_findet_die_zehn_echten_faelle(staende_bis_pin):
+    """Eingefrorener Replay bis BESTAND_COMMIT_SPLITS (s. oben) — nicht die
+    weiterwachsende Live-Historie (Reparatur Testdaten-Drift 26.10.2026)."""
+    treffer = mes.finde_splits(staende_bis_pin)
     gefunden = [(t["ticker"], t["run_date"], t["neue_episode"],
                  t["would_have_extended"]) for t in treffer]
     assert gefunden == ERWARTETE_FAELLE
+
+
+@braucht_historie
+def test_zehn_faelle_bleiben_teilmenge_der_wachsenden_live_historie(
+        echte_staende):
+    """Aussage NICHT geschwächt (Teilmengen-Prüfung wie bei PR #197): die
+    zehn historischen Fälle müssen im Replay über die GESAMTE, wachsende
+    Historie weiterhin auftauchen — ein zusätzlicher, neuer Fund (ein
+    künftiger Mehrfach-Lauf-Tag) ist erlaubt, ein VERSCHWUNDENER historischer
+    Fall wäre ein echter Rückfall."""
+    treffer = mes.finde_splits(echte_staende)
+    gefunden_live = {(t["ticker"], t["run_date"], t["neue_episode"],
+                      t["would_have_extended"]) for t in treffer}
+    fehlend = set(ERWARTETE_FAELLE) - gefunden_live
+    assert not fehlend, (
+        f"historische Fälle aus dem Replay verschwunden: {fehlend}")
+
+
+def test_mutationsprobe_teilmengen_pruefung_erkennt_verschwundenen_fall():
+    """Mutationsprobe: entfernt man EINEN der zehn historischen Fälle aus
+    der (kopierten) Fund-Menge, muss die Teilmengen-Logik das erkennen —
+    belegt die Teilmengen-IDEE, nicht die Fehlerfreiheit der konkreten
+    Assertion-Verdrahtung im Test oben (die nutzt dieselbe Mengendifferenz
+    direkt, Guardian-Nit)."""
+    gefunden_live = set(ERWARTETE_FAELLE)
+    mutiert = gefunden_live - {ERWARTETE_FAELLE[0]}
+    fehlend = set(ERWARTETE_FAELLE) - mutiert
+    assert fehlend == {ERWARTETE_FAELLE[0]}
 
 
 @braucht_historie

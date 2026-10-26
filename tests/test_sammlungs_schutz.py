@@ -463,6 +463,36 @@ ERWARTETE_MARKIERUNGEN = [
     ("KKR", "US", "2026-08-04T04:46:23Z", 2),
 ]
 
+# ---------------------------------------------------------------------------
+# Reparatur Testdaten-Drift (Easy-Entscheid 26.10.2026, Muster #197): die
+# exakte Prüfung "genau diese vier Marker, nicht mehr" wird gegen einen
+# UNVERÄNDERLICHEN Git-Snapshot geprüft statt gegen die weiterwachsende
+# Live-Datei (Wächter-Klasse testdaten_drift, Lauf https://github.com/
+# easywebb911/Elliott-Report/actions/runs/40048239101, 24.10.2026) — genau
+# dasselbe Risiko wie bei PR #194/#197: ein neuer `--live`-Lauf (oder ein
+# neuer Record, der zufällig denselben Marker bekäme) würde diese Zeile sonst
+# bei jedem Cron-Tag erneut rot färben können.
+#
+# Referenz-Commit: `43b4376db6bcd8bb09b6347dfad2cdd496410b65` (26.10.2026,
+# "chore(data): Mittags-Report-Aktualisierung") — Branch-Basis-Commit dieser
+# Reparatur, an dem die vier Marker nachweislich (per Diagnose) exakt
+# ERWARTETE_MARKIERUNGEN entsprechen. Ein Git-Blob an einem Commit-Hash
+# ändert sich nie — dieser Test bleibt daher für immer nachrechenbar.
+BESTAND_COMMIT_MARKIERUNGEN = "43b4376db6bcd8bb09b6347dfad2cdd496410b65"
+BESTAND_DATUM_MARKIERUNGEN = "2026-10-26"
+
+
+def _bestand_snapshot_markierungen() -> dict:
+    """Unveränderlicher Stand von ``data/forward_collection.json`` am
+    Referenz-Commit oben — per ``git show`` gelesen, nie über die
+    weiterwachsende Live-Datei."""
+    blob = subprocess.run(
+        ["git", "-C", str(ROOT), "show",
+         f"{BESTAND_COMMIT_MARKIERUNGEN}:data/forward_collection.json"],
+        capture_output=True, text=True, check=True,
+    ).stdout
+    return json.loads(blob)
+
 ERWARTETE_REPLAY_TREFFER = ERWARTETE_MARKIERUNGEN + [
     ("AOF.DE", "DE", "2026-09-22T01:09:47Z", 2),
     ("NEM", "US", "2026-09-23T00:55:39Z", 2),
@@ -726,13 +756,52 @@ def test_finde_stale_records_leere_eingabe_liefert_leere_liste():
 
 
 def test_der_ausgelieferte_bestand_traegt_die_vier_marker():
-    coll = json.loads((ROOT / "data/forward_collection.json").read_text("utf-8"))
+    """Eingefrorener Snapshot (s. BESTAND_COMMIT_MARKIERUNGEN oben) statt der
+    weiterwachsenden Live-Datei — Reparatur Testdaten-Drift (26.10.2026,
+    Muster #197, s. Kommentarblock bei ERWARTETE_MARKIERUNGEN)."""
+    coll = _bestand_snapshot_markierungen()
     markiert = [(r["ticker"], r["market"], r[msr.MARKER]["run_utc"],
                  r[msr.MARKER]["lag_trading_days"])
                 for r in coll["records"] if msr.MARKER in r]
     assert sorted(markiert) == sorted(ERWARTETE_MARKIERUNGEN)
+
+
+def test_spiegel_bleibt_byte_identisch_zur_sammlung():
+    """Reiner Spiegel-Vergleich (kein Zahlenwert, kein Drift-Risiko) —
+    bewusst weiterhin gegen die LIVE-Datei, nicht gegen den Snapshot: der
+    Spiegel muss IMMER zum aktuellen Stand passen, nicht zu einem alten."""
     spiegel = (ROOT / "docs/data/forward_collection.json").read_bytes()
     assert spiegel == (ROOT / "data/forward_collection.json").read_bytes()
+
+
+def test_vier_marker_bleiben_teilmenge_der_live_sammlung():
+    """Aussage NICHT geschwächt (Teilmengen-Prüfung wie bei PR #197): die
+    vier historisch markierten Records dürfen in der wachsenden
+    Live-Sammlung NIE verschwinden oder ihren Marker verlieren — ein
+    zusätzlicher, neuer Marker durch einen künftigen `--live`-Lauf ist
+    dagegen erlaubt und kein Fehler."""
+    live = json.loads((ROOT / "data/forward_collection.json").read_text("utf-8"))
+    live_markiert = {(r["ticker"], r["market"], r[msr.MARKER]["run_utc"],
+                      r[msr.MARKER]["lag_trading_days"])
+                     for r in live["records"] if msr.MARKER in r}
+    fehlend = set(ERWARTETE_MARKIERUNGEN) - live_markiert
+    assert not fehlend, (
+        f"historische Marker aus der Live-Sammlung verschwunden: {fehlend}")
+
+
+def test_mutationsprobe_teilmengen_pruefung_erkennt_verschwundenen_marker():
+    """Mutationsprobe: entfernt man EINEN der vier historischen Marker aus
+    einer (kopierten) Sammlung, muss die Teilmengen-Logik das erkennen —
+    belegt die Teilmengen-IDEE, nicht die Fehlerfreiheit der konkreten
+    Assertion-Verdrahtung im Test oben (die nutzt dieselbe Mengendifferenz
+    direkt, Guardian-Nit)."""
+    live = json.loads((ROOT / "data/forward_collection.json").read_text("utf-8"))
+    live_markiert = {(r["ticker"], r["market"], r[msr.MARKER]["run_utc"],
+                      r[msr.MARKER]["lag_trading_days"])
+                     for r in live["records"] if msr.MARKER in r}
+    mutiert = set(live_markiert) - {ERWARTETE_MARKIERUNGEN[0]}
+    fehlend = set(ERWARTETE_MARKIERUNGEN) - mutiert
+    assert fehlend == {ERWARTETE_MARKIERUNGEN[0]}
 
 
 def test_drei_records_tragen_BEIDE_marker():
