@@ -934,6 +934,15 @@ def _new_record(entry: Dict, market: str, first_seen: str, regime: str,
         # haben das Feld nicht -> None, Anzeige bleibt fail-soft die
         # ungepolsterte Zone.
         "atr_14": entry.get("atr_14"),
+        # Provenienz-Feld (Easy-Entscheid 26.10.2026, Anlass: WBD/Twelve-Data-
+        # Fallback auf Platz 7, s. docs/validation_registry.md): die Kursquelle
+        # des Kandidaten 1:1 aus `entry["data_source"]` übernommen und bei
+        # Anlage EINGEFROREN (wie atr_14/vol_profile oben — nie nachträglich
+        # geändert). Fail-soft `None`, wenn der Kandidat das Feld nicht trägt
+        # (z. B. synthetische Tests) — der Record entsteht trotzdem. KEIN
+        # Einfluss auf Score/Ranking/Reifung, NICHT in FROZEN_FIELDS,
+        # `evaluate.py` liest es nie.
+        "data_source": entry.get("data_source"),
         # (B) Alternation W2<->W4 (NUR end_of_w4) aus den eingefrorenen Pivots —
         # Rohwerte + Flag; end_of_w2 -> alle null.
         **_alternation_fields(entry.get("chart_points"), entry.get("count_wave_labels")),
