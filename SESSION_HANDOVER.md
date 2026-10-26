@@ -794,7 +794,7 @@ bewusst **weg** (Rauschen); erst wieder aufgreifen, wenn Easy es ausdrücklich w
   anschlägt, spätestens Score-Review 07.12.2026.
   **26.10.2026 — Auslöser erfüllt seit 22.10.2026** (`fremde_datenquelle`
   hat seitdem mehrfach angeschlagen); gleichzeitig legt PR
-  #<NACHTRAGEN> das Provenienz-Feld `data_source` in neuen
+  #202 das Provenienz-Feld `data_source` in neuen
   `forward_collection`-Records an (s. `docs/validation_registry.md`,
   26.10.2026) — die hier GEPARKTE Konsistenzprüfung kann die Auswertung
   damit künftig Fallback-sourced von yfinance-Records trennen, sobald sie

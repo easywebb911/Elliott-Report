@@ -3109,7 +3109,7 @@ Schatten-Berechnung/`evaluate.py` (SHA256-Pin) unangetastet.
 
 ---
 
-### 26.10.2026 — Provenienz-Feld `data_source` (Easy-Entscheid, PR #<NACHTRAGEN>)
+### 26.10.2026 — Provenienz-Feld `data_source` (Easy-Entscheid, PR #202)
 
 Anlass: WBD kam per Twelve-Data-Fallback auf Platz 7 in `report.json`
 (entry["data_source"] = "twelvedata_fallback", seit PR #138/#139) — käme
