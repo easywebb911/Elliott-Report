@@ -195,6 +195,59 @@ pytestmark_browser = pytest.mark.skipif(
     reason="kein Headless-Chromium gefunden — die statischen Tests oben decken dieselben Fälle")
 
 
+# ---------------------------------------------------------------------------
+# Chromium-Infrastruktur-Stabilisierung (Easy-Auftrag 26.10.2026).
+#
+# BEFUND (vier belegte CI-Läufe, identisches Muster — s. PR-Text):
+# `subprocess.run([...chromium..., "--dump-dom", ...], timeout=30)` liefert
+# NIE auch nur ein Byte stdout und wird nach GENAU 30 s per SIGKILL beendet
+# (returncode -9); stderr trägt in jedem Fall exakt eine Zeile:
+# "dbus/bus.cc: Failed to connect to the bus: Could not parse server
+# address …". Der GitHub-`ubuntu-latest`-Runner hat keine laufende D-Bus-
+# Session; ohne `DBUS_SESSION_BUS_ADDRESS` versucht Chromiums GLib-Schicht
+# einen Autolaunch, der hier erst nach dem vollen Timeout aufgibt — kein
+# kurzer Warnhinweis, sondern der GANZE Hänger. `DBUS_SESSION_BUS_ADDRESS=
+# /dev/null` lässt den Parse-Versuch sofort (ohne Autolaunch-Wartezeit)
+# fehlschlagen, Chromium läuft dann ohne D-Bus-Anbindung normal weiter.
+#
+# Zusätzlich (Punkt 2 des Auftrags): ein begrenzter Wiederholversuch NUR für
+# Infrastruktur-Fehler (Timeout/Start fehlgeschlagen) — eine ECHTE Mess-
+# Abweichung (scrollWidth > clientWidth, in den Tests unten geprüft, NICHT
+# hier) wird davon nie berührt, weil sie erst NACH einem erfolgreichen
+# `_miss_overflow()`-Aufruf ausgewertet wird.
+# ---------------------------------------------------------------------------
+_CHROMIUM_ENV = {**os.environ, "DBUS_SESSION_BUS_ADDRESS": "/dev/null"}
+
+
+class ChromiumInfraFehler(RuntimeError):
+    """Chromium-Start-/Infrastruktur-Fehler (Timeout, Prozess nicht gestartet,
+    DOM-Dump nicht lesbar) — ausdrücklich NICHT die zu prüfende Layout-
+    Eigenschaft. NUR diese Fehlerklasse wird wiederholt."""
+
+
+def _chromium_mit_retry(fn, *args, max_versuche: int = 3, **kwargs):
+    """Ruft `fn(*args, **kwargs)` auf; wiederholt AUSSCHLIESSLICH bei
+    `ChromiumInfraFehler`, höchstens `max_versuche - 1` Mal (Default: 2
+    Wiederholungen = 3 Versuche gesamt, jede im Log sichtbar). Jede andere
+    Exception (insbesondere eine echte Layout-Abweichung, die der Aufrufer
+    als AssertionError feststellt) wird SOFORT weitergereicht, ohne
+    Wiederholung — Auftrags-Vorgabe Punkt 2. Scheitert auch der letzte
+    Versuch an Infrastruktur, bleibt der Test rot mit klarer Meldung
+    (Punkt 3: KEIN skip, KEIN xfail)."""
+    letzter_fehler: ChromiumInfraFehler | None = None
+    for versuch in range(1, max_versuche + 1):
+        try:
+            return fn(*args, **kwargs)
+        except ChromiumInfraFehler as exc:
+            letzter_fehler = exc
+            print(f"[chromium-retry] Versuch {versuch}/{max_versuche} "
+                  f"Chromium-Infrastruktur, nicht Layout: {exc}")
+    raise ChromiumInfraFehler(
+        f"Chromium-Infrastruktur, nicht Layout — nach {max_versuche} Versuchen "
+        f"weiterhin rot: {letzter_fehler}"
+    ) from letzter_fehler
+
+
 def _extrahiere_style() -> str:
     start = HTML.index("<style>")
     end = HTML.index("</style>") + len("</style>")
@@ -250,16 +303,119 @@ def _miss_overflow(markup: str, breite: int) -> dict:
         f.write(html)
         pfad = f.name
     try:
-        r = subprocess.run(
-            [_CHROMIUM, "--headless=new", "--disable-gpu", "--no-sandbox",
-             "--virtual-time-budget=2000", "--dump-dom", f"file://{pfad}"],
-            capture_output=True, text=True, timeout=30)
+        try:
+            r = subprocess.run(
+                [_CHROMIUM, "--headless=new", "--disable-gpu", "--no-sandbox",
+                 "--virtual-time-budget=2000", "--dump-dom", f"file://{pfad}"],
+                capture_output=True, text=True, timeout=30, env=_CHROMIUM_ENV)
+        except subprocess.TimeoutExpired as exc:
+            raise ChromiumInfraFehler(f"Chromium-Start timed out: {exc}") from exc
     finally:
         Path(pfad).unlink(missing_ok=True)
-    assert r.returncode == 0, r.stderr
+    if r.returncode != 0:
+        raise ChromiumInfraFehler(f"Chromium-Start fehlgeschlagen (rc={r.returncode}): {r.stderr}")
     treffer = re.search(r'\{"scrollWidth":\d+,"clientWidth":\d+\}', r.stdout)
-    assert treffer, f"Messwert nicht im DOM-Dump gefunden:\n{r.stdout[-500:]}"
+    if not treffer:
+        raise ChromiumInfraFehler(
+            f"Messwert nicht im DOM-Dump gefunden (Chromium-Ausgabe unvollständig):\n{r.stdout[-500:]}")
     return json.loads(treffer.group(0))
+
+
+def _miss_overflow_mit_retry(markup: str, breite: int) -> dict:
+    """`_miss_overflow()` mit begrenztem Wiederholversuch NUR für
+    Infrastruktur-Fehler (s. `_chromium_mit_retry` oben). Die eigentliche
+    Layout-Bewertung (scrollWidth vs. clientWidth) findet ERST beim Aufrufer
+    statt, NACH einem erfolgreichen Rückgabewert hier — eine echte Abweichung
+    wird dadurch nie wiederholt."""
+    return _chromium_mit_retry(_miss_overflow, markup, breite)
+
+
+# ---------------------------------------------------------------------------
+# Tests für den Retry-Helfer selbst — braucht KEIN Chromium (simulierte
+# Infrastruktur-Fehler), läuft deshalb IMMER, auch ohne `pytestmark_browser`.
+# ---------------------------------------------------------------------------
+def test_retry_helfer_erfolg_nach_1_simuliertem_timeout():
+    aufrufe = []
+
+    def fn():
+        aufrufe.append(1)
+        if len(aufrufe) < 2:
+            raise ChromiumInfraFehler("Timeout simuliert (1x)")
+        return "ok"
+
+    assert _chromium_mit_retry(fn) == "ok"
+    assert len(aufrufe) == 2  # 1 Fehlschlag + 1 Erfolg
+
+
+def test_retry_helfer_erfolg_nach_2_simulierten_timeouts():
+    aufrufe = []
+
+    def fn():
+        aufrufe.append(1)
+        if len(aufrufe) < 3:
+            raise ChromiumInfraFehler("Timeout simuliert (2x)")
+        return "ok"
+
+    assert _chromium_mit_retry(fn) == "ok"
+    assert len(aufrufe) == 3  # 2 Fehlschläge + 1 Erfolg
+
+
+def test_retry_helfer_rot_nach_3_simulierten_timeouts():
+    """Höchstens 2 Wiederholungen (Auftrags-Vorgabe) — ein dritter
+    Infrastruktur-Fehlschlag in Folge bleibt rot, KEIN skip/xfail."""
+    aufrufe = []
+
+    def fn():
+        aufrufe.append(1)
+        raise ChromiumInfraFehler("Timeout simuliert (3x in Folge)")
+
+    with pytest.raises(ChromiumInfraFehler, match="nicht Layout"):
+        _chromium_mit_retry(fn)
+    assert len(aufrufe) == 3  # genau 3 Versuche, nicht mehr
+
+
+def test_echte_layout_abweichung_sofort_rot_ohne_wiederholung():
+    """Auftrags-Vorgabe wörtlich: eine echte Prüf-Abweichung wird NIE
+    wiederholt. `_miss_overflow_mit_retry()`/`_chromium_mit_retry()` fangen
+    NUR `ChromiumInfraFehler` — eine `AssertionError` (hier stellvertretend
+    für den scrollWidth>clientWidth-Befund, der im Aufrufer selbst als
+    AssertionError auftritt) geht beim ERSTEN Versuch durch."""
+    aufrufe = []
+
+    def fn():
+        aufrufe.append(1)
+        raise AssertionError("Überlauf gemessen — echte Layout-Abweichung")
+
+    with pytest.raises(AssertionError):
+        _chromium_mit_retry(fn)
+    assert len(aufrufe) == 1  # KEINE Wiederholung
+
+
+def test_mutationsprobe_wiederholung_auch_bei_layout_fehler_waere_rot():
+    """ECHTE Mutationsprobe (ohne Produktionscode zu verändern): eine ZU
+    WEITE Fangklausel (`except Exception` statt `except ChromiumInfraFehler`)
+    würde auch eine Layout-Abweichung wiederholen. Hier direkt simuliert und
+    dem belegten Verhalten oben (1 Aufruf, keine Wiederholung) gegenüber-
+    gestellt — der Unterschied zeigt, dass die echte Implementierung NICHT
+    diese zu weite Fangklausel verwendet."""
+    aufrufe = []
+
+    def fn():
+        aufrufe.append(1)
+        raise AssertionError("Überlauf gemessen — echte Layout-Abweichung")
+
+    def mutierter_retry_mit_zu_weiter_fangklausel(fn, max_versuche=3):
+        letzter = None
+        for _ in range(max_versuche):
+            try:
+                return fn()
+            except Exception as exc:  # Mutation: faengt ALLES, nicht nur Infra
+                letzter = exc
+        raise letzter
+
+    with pytest.raises(AssertionError):
+        mutierter_retry_mit_zu_weiter_fangklausel(fn)
+    assert len(aufrufe) == 3  # die Mutation HÄTTE wiederholt — Gegenbeweis zu oben
 
 
 @pytestmark_browser
@@ -269,7 +425,7 @@ def test_kein_horizontales_ueberlaufen_bei_360_und_390px():
     (live gegen die aktuelle Sammlung, kein eingefrorener Schnappschuss)."""
     markup = _node_markup()
     for breite in (360, 390):
-        ergebnis = _miss_overflow(markup, breite)
+        ergebnis = _miss_overflow_mit_retry(markup, breite)
         assert ergebnis["scrollWidth"] <= ergebnis["clientWidth"], (
             f"Überlauf bei {breite}px: scrollWidth={ergebnis['scrollWidth']} "
             f"> clientWidth={ergebnis['clientWidth']}")
@@ -283,7 +439,7 @@ def test_mutationsprobe_browser_alte_klasse_laesst_wirklich_ueberlaufen():
     markup = _node_markup()
     kaputtes_markup = markup.replace('class="vbild-rows"', 'class="vsdist-rows"')
     assert kaputtes_markup != markup, "Mutation griff nicht — Klassenname nicht gefunden"
-    ergebnis = _miss_overflow(kaputtes_markup, 360)
+    ergebnis = _miss_overflow_mit_retry(kaputtes_markup, 360)
     assert ergebnis["scrollWidth"] > ergebnis["clientWidth"], (
         "Mutationsprobe zeigt KEINEN Überlauf — entweder ist der Fix nicht "
         "wirksam oder die Probe greift nicht mehr (beides zu prüfen)")

@@ -2221,6 +2221,19 @@ Beleg = Abschnitt 3.)
   prüfen die exakten historischen Listen jetzt gegen einen unveränderlichen
   Git-Snapshot (`43b4376`) statt die weiterwachsende Live-Sammlung, plus
   Teilmengen-Prüfung gegen die Live-Datei (nichts darf verschwinden).
+- **26.10.2026 — Chromium/dbus-Flake behoben (PR #<NACHTRAGEN>), Ursache
+  und Gegenmittel für den obigen Eintrag:** vier belegte CI-Läufe
+  (39326459878 19.10., 40115695470 24.10., 40330424836 26.10. [Wartung,
+  s. oben], 40378253593 26.10.) mit identischem Muster — `_miss_overflow()`
+  in `tests/test_verlustbild_viewport.py` liefert NIE stdout und wird nach
+  GENAU 30 s per SIGKILL beendet (returncode -9), stderr jedes Mal exakt
+  eine Zeile `dbus/bus.cc: Failed to connect to the bus`. `ubuntu-latest`
+  hat keine D-Bus-Session; Chromiums GLib-Autolaunch wartet dort bis zum
+  vollen Timeout. Fix: `DBUS_SESSION_BUS_ADDRESS=/dev/null` im Testprozess
+  (Parse schlägt sofort fehl, kein Autolaunch-Warten) + begrenzter
+  Wiederholversuch (höchstens 2, NUR für `ChromiumInfraFehler`, eine echte
+  Layout-Abweichung wird nie wiederholt, kein skip/xfail). Nur Testcode
+  geändert. 20x lokal hintereinander grün (kein Retry nötig, ~1,6 s/Lauf).
 
 ---
 
