@@ -2234,6 +2234,31 @@ Beleg = Abschnitt 3.)
   Wiederholversuch (höchstens 2, NUR für `ChromiumInfraFehler`, eine echte
   Layout-Abweichung wird nie wiederholt, kein skip/xfail). Nur Testcode
   geändert. 20x lokal hintereinander grün (kein Retry nötig, ~1,6 s/Lauf).
+- **30.10.2026 — JS/Python-Rundungs-Diskrepanz behoben (PR #206), blockierte
+  #203/#204/#205:** `tests/test_status_verteilung.py`/`tests/
+  test_verlustbild_anzeige.py` rechneten Prozentwerte mit Pythons `round()`
+  (Bankers-Rundung) nach, die App rundet mit `Math.round()` (immer halb
+  nach oben). Bei einem exakten `.5`-Promille-Grenzfall mit GERADEM
+  unterem Nachbarn (realer Auslöser: 51/240*1000 = 212,5 exakt) rundet
+  `round()` ab (212 -> 21,2 %), `Math.round()` auf (213 -> 21,3 %) — zwei
+  verschiedene Regeln für denselben Rechenweg. **Erster Lösungsversuch
+  vom Guardian widerlegt:** `_pct_wie_js()` rundete zunächst auf dem
+  EXAKTEN Dezimalbruch (`Decimal`/`ROUND_HALF_UP`) — das ist NICHT
+  allgemeingültig äquivalent zu `Math.round`, weil JS `n/total*1000` als
+  IEEE754-Double berechnet, BEVOR gerundet wird, und dieser Double bei
+  Nennern wie 400/800/1200/2000 knapp UNTER dem exakten `.5` liegt
+  (`201/400*1000` = `502,49999999999994` in JS UND Python-`float`,
+  bitidentisch — `Math.round` rundet dort ab, eine Decimal-exakte Rundung
+  hätte fälschlich aufgerundet, per echtem `node`-Lauf verifiziert).
+  Endgültiger Fix: `n/total*1000` als Python-`float` (bitidentisch zu JS),
+  danach `math.floor(x + 0.5)` — `Math.round`s eigener Algorithmus auf
+  demselben Float-Wert. NUR Testcode geändert, App (`Math.round`)
+  unangetastet. 21 Tests (6 synthetische Randfälle + 4 Guardian-
+  Gegenbeispiele bei Nennern 400/2000 je Datei + 3 Mutationsproben, die
+  sowohl `round()` als auch die verworfene Decimal-Fassung als rot
+  belegen). Gegrept, keine weiteren gleichartigen Fälle gefunden (`tests/
+  test_schema.py` rundet nur gegen Pythons eigenen Produktionscode, kein
+  JS-Vergleich).
 
 ---
 
