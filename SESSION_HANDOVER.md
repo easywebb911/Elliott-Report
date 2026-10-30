@@ -2281,6 +2281,7 @@ Beleg = Abschnitt 3.)
   JS-Vergleich).
 - **30.10.2026 — #204 = Bot-PR (handover-sync), am 30.10.2026 per
   Merge-Commit statt Squash gemergt; harmlos, Nummer hier genannt.**
+  (Dieser Nachtrag: PR #207.)
 
 ---
 
