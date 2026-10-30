@@ -43,8 +43,10 @@ KOHORTEN (Quellenverweise)
   - AB_SCHATTEN (#194, docs/validation_registry.md "VORAB-FESTLEGUNG"):
     `score_shadow_inval_cap20 is not None` — **kein** Zeitstempel-Schnitt,
     die Kohorte ist über das Feld selbst definiert (Feld existiert nur auf
-    Records, die NACH dem #194-Merge angelegt wurden — der Stichtag-
-    Zeitstempel selbst ist noch nicht belegt, s. `SCHATTEN_STICHTAG_UTC`).
+    Records, die NACH dem #194-Merge angelegt wurden). Der Stichtag-
+    Zeitstempel (`SCHATTEN_STICHTAG_UTC`, NACHTRAG 30.10.2026, s.
+    docs/validation_registry.md) ist jetzt belegt — dient hier NUR der
+    Berichts-Anzeige, nicht als Filter (die Kohorte bleibt feld-definiert).
   Jede der vier zusätzlich OHNE markierte Fälle
   (`invertiertes_risiko_bei_anlage is not True`) — eigener, einfacher
   Filter (der Marker steht NICHT in `filter_sensitivity_sammlung.MARKERS`,
@@ -58,6 +60,12 @@ zur Kohorte. Belegt auf echten Daten für #186 (Lauf #153, Commit
 `created_utc` der NEU angelegten Records exakt gleich dem
 `run_timestamp_utc` dieses Laufs (nie davor, nie danach) — `>=` schließt
 den Stichtag-Lauf also korrekt ein, `>` hätte ihn fälschlich ausgeschlossen.
+Ebenso für #194/#202 (NACHTRAG 30.10.2026, Lauf #161 `daily.yml`, Commit
+`b87d512`, `run_timestamp_utc` `2026-10-27T01:37:06Z`): die vier an diesem
+Lauf neu angelegten Records tragen `created_utc` exakt gleich diesem
+Zeitstempel, alle vier mit gesetztem `score_shadow_inval_cap20` UND
+`data_source` — kein Bestandsrecord (223 aus dem #194-Basis-Snapshot
+`0c6c229`) davor trägt eines der beiden Felder.
 
 MODUS-SCHUTZ (zwei Modi, s. `main`)
   --zaehlung   : NUR Fallzahlen (n gesamt, n reif, Schatten gesetzt) je
@@ -113,11 +121,11 @@ AUSWERTUNG_FREIGABE_DATUM = _dt.date(2026, 12, 7)
 # Stichtage — belegt aus docs/validation_registry.md (s. Moduldoc).
 ZAEHLREGEL_STICHTAG_UTC = "2026-10-15T00:51:53Z"   # #186, Lauf #153
 FILTER_STICHTAG_UTC = "2026-10-20T01:16:14Z"       # #190, Lauf #156
-# #194: NOCH NICHT BELEGT — wird mit dem Stichtag-Nachtrag gesetzt (wie bei
-# #186/#190, s. docs/validation_registry.md "VORAB-FESTLEGUNG"). Die
-# Schatten-Kohorte selbst braucht diesen Zeitstempel NICHT (s. Moduldoc) —
-# er stünde hier nur zur Vollständigkeit/späteren Doku-Verwendung.
-SCHATTEN_STICHTAG_UTC: Optional[str] = None
+# #194/#202 (NACHTRAG 30.10.2026, s. Moduldoc "GRENZE AM STICHTAG"): erster
+# daily.yml-Lauf nach BEIDEN Merges (Lauf #161, Commit `b87d512`). Die
+# Schatten-Kohorte selbst braucht diesen Zeitstempel NICHT (feld-definiert,
+# s. Moduldoc) — er dient hier NUR der Berichts-Anzeige/Dokumentation.
+SCHATTEN_STICHTAG_UTC: Optional[str] = "2026-10-27T01:37:06Z"
 
 # Verbotene Ausgabe-Ziele: JEDER Pfad unter data/ oder docs/ (breiter als
 # die Einzel-Datei-Liste in evaluate_cluster_sensitivity.py — hier
