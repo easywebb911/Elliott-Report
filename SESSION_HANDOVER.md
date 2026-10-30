@@ -2279,6 +2279,9 @@ Beleg = Abschnitt 3.)
   belegen). Gegrept, keine weiteren gleichartigen Fälle gefunden (`tests/
   test_schema.py` rundet nur gegen Pythons eigenen Produktionscode, kein
   JS-Vergleich).
+- **30.10.2026 — #204 = Bot-PR (handover-sync), am 30.10.2026 per
+  Merge-Commit statt Squash gemergt; harmlos, Nummer hier genannt.**
+  (Dieser Nachtrag: PR #207.)
 
 ---
 
