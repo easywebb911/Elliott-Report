@@ -2241,12 +2241,22 @@ Beleg = Abschnitt 3.)
   nach oben). Bei einem exakten `.5`-Promille-Grenzfall mit GERADEM
   unterem Nachbarn (realer Auslöser: 51/240*1000 = 212,5 exakt) rundet
   `round()` ab (212 -> 21,2 %), `Math.round()` auf (213 -> 21,3 %) — zwei
-  verschiedene Regeln für denselben Rechenweg. Fix: neuer Helfer
-  `_pct_wie_js()` in beiden Dateien, rechnet mit `Decimal`/`ROUND_HALF_UP`
-  auf dem exakten Bruch statt Pythons Binärfloat-`round()`. NUR Testcode
-  geändert, App (`Math.round`) unangetastet. 13 neue Tests (6 synthetische
-  Randfälle je Datei + 2 Mutationsproben, die `round()` als rot belegen).
-  Gegrept, keine weiteren gleichartigen Fälle gefunden (`tests/
+  verschiedene Regeln für denselben Rechenweg. **Erster Lösungsversuch
+  vom Guardian widerlegt:** `_pct_wie_js()` rundete zunächst auf dem
+  EXAKTEN Dezimalbruch (`Decimal`/`ROUND_HALF_UP`) — das ist NICHT
+  allgemeingültig äquivalent zu `Math.round`, weil JS `n/total*1000` als
+  IEEE754-Double berechnet, BEVOR gerundet wird, und dieser Double bei
+  Nennern wie 400/800/1200/2000 knapp UNTER dem exakten `.5` liegt
+  (`201/400*1000` = `502,49999999999994` in JS UND Python-`float`,
+  bitidentisch — `Math.round` rundet dort ab, eine Decimal-exakte Rundung
+  hätte fälschlich aufgerundet, per echtem `node`-Lauf verifiziert).
+  Endgültiger Fix: `n/total*1000` als Python-`float` (bitidentisch zu JS),
+  danach `math.floor(x + 0.5)` — `Math.round`s eigener Algorithmus auf
+  demselben Float-Wert. NUR Testcode geändert, App (`Math.round`)
+  unangetastet. 21 Tests (6 synthetische Randfälle + 4 Guardian-
+  Gegenbeispiele bei Nennern 400/2000 je Datei + 3 Mutationsproben, die
+  sowohl `round()` als auch die verworfene Decimal-Fassung als rot
+  belegen). Gegrept, keine weiteren gleichartigen Fälle gefunden (`tests/
   test_schema.py` rundet nur gegen Pythons eigenen Produktionscode, kein
   JS-Vergleich).
 

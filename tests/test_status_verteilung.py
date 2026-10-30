@@ -48,9 +48,9 @@ dauerhaft grün, ohne die Aussagekraft des Wert-Tests zu verlieren.
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import subprocess
-from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 import pytest
@@ -61,21 +61,31 @@ HTML = (ROOT / "docs/index.html").read_text(encoding="utf-8")
 
 def _pct_wie_js(n: int, total: int) -> float:
     """Rundung wie `Math.round(n/total*1000)/10` in `statusDistribution()`
-    (docs/index.html) — kaufmännisch halb nach oben (ROUND_HALF_UP), NICHT
-    Pythons `round()` (= round-half-to-even/Bankers-Rundung). Rechnet mit
-    `Decimal` auf dem EXAKTEN Dezimalbruch statt Binärfloat, damit ein
-    .x5-Grenzfall (z. B. 51/240*1000 = 212,5 exakt) nicht durch
-    Gleitkomma-Darstellung driftet, bevor überhaupt gerundet wird.
+    (docs/index.html) — kaufmännisch halb nach oben, NICHT Pythons `round()`
+    (= round-half-to-even/Bankers-Rundung).
 
     BEFUND (30.10.2026, blockierte #203/#204/#205): `round(212.5)` liefert
     in Python 212 (Nachbarn 212 gerade/213 ungerade -> Bankers-Rundung
     rundet zur geraden Zahl), `Math.round(212.5)` liefert in JS 213
     (rundet jeden .5-Fall nach oben) — exakt derselbe Rechenweg, zwei
-    unterschiedliche Rundungsregeln. Fix NUR hier (Testcode) — die App
-    (`Math.round`) ändert sich nicht, s. Auftrag."""
-    exakt = Decimal(n) / Decimal(total) * 1000
-    gerundet = exakt.to_integral_value(rounding=ROUND_HALF_UP)
-    return float(gerundet) / 10
+    unterschiedliche Rundungsregeln.
+
+    GUARDIAN-FUND (30.10.2026, erster Lösungsversuch widerlegt): eine
+    erste Fassung rundete auf dem EXAKTEN Dezimalbruch (`Decimal`) — das
+    ist NICHT allgemeingültig äquivalent zu `Math.round`, weil JS
+    `n/total*1000` als IEEE754-Double berechnet, BEVOR gerundet wird, und
+    dieser Double bei manchen Nennern (z. B. 400/800/1200/2000) knapp
+    UNTER dem exakten `.5` liegt (`201/400*1000` = `502.49999999999994`
+    in JS UND in Python-`float`, beide IEEE754-Double, bitidentisch) —
+    `Math.round` rundet dort ab, eine Decimal-exakte Rundung hätte
+    aufgerundet. Fix: `n/total*1000` als PYTHON-FLOAT (bitidentisch zu
+    JS) berechnen, danach `math.floor(x + 0.5)` — das ist `Math.round`s
+    eigener Algorithmus für positive Zahlen, auf demselben Float-Wert.
+    Fix NUR hier (Testcode) — die App (`Math.round`) ändert sich nicht."""
+    if not total:
+        return 0.0
+    x = n / total * 1000  # dieselbe IEEE754-Double-Rechnung wie JS
+    return math.floor(x + 0.5) / 10
 
 
 def _fn(name: str, tiefe: str = "    ") -> str:
@@ -386,3 +396,51 @@ def test_mutationsprobe_pythons_round_waere_bei_51_von_240_rot():
     falsch_mit_round = round(exakt_promille) / 10
     assert falsch_mit_round == 21.2
     assert falsch_mit_round != _pct_wie_js(n, total)
+
+
+# ---------------------------------------------------------------------------
+# Guardian-Fund (30.10.2026): die ERSTE Fassung von `_pct_wie_js` rundete auf
+# dem exakten Dezimalbruch (`Decimal`/`ROUND_HALF_UP`) — das weicht bei
+# Nennern wie 400/800/1200/2000 von `Math.round` ab, weil `n/total*1000` dort
+# als IEEE754-Double knapp UNTER dem exakten `.5` liegt (`201/400*1000` =
+# `502.49999999999994`, bitidentisch in JS und Python-`float`). Per echtem
+# `node`-Lauf verifiziert: `Math.round(201/400*1000)` = 502, NICHT 503.
+# Diese vier Fälle sind GENAU die Gegenbeispiele, an denen eine Decimal-
+# exakte Rundung falsch läge — belegt per Mutationsprobe unten.
+# ---------------------------------------------------------------------------
+def test_pct_wie_js_201_von_400_guardian_gegenbeispiel():
+    """node: Math.round(201/400*1000)/10 == 50.2 (NICHT 50.3 — der Wert liegt
+    als Double knapp UNTER .5, nicht exakt darauf)."""
+    assert 201 / 400 * 1000 == 502.49999999999994  # bitidentisch zu JS
+    assert _pct_wie_js(201, 400) == 50.2
+
+
+def test_pct_wie_js_203_von_400_guardian_gegenbeispiel():
+    """node: Math.round(203/400*1000)/10 == 50.7."""
+    assert _pct_wie_js(203, 400) == 50.7
+
+
+def test_pct_wie_js_1009_von_2000_guardian_gegenbeispiel():
+    """node: Math.round(1009/2000*1000)/10 == 50.4."""
+    assert _pct_wie_js(1009, 2000) == 50.4
+
+
+def test_pct_wie_js_1021_von_2000_guardian_gegenbeispiel():
+    """node: Math.round(1021/2000*1000)/10 == 51.0."""
+    assert _pct_wie_js(1021, 2000) == 51.0
+
+
+def test_mutationsprobe_decimal_exakte_rundung_waere_bei_201_von_400_rot():
+    """Mutationsprobe (ohne Produktionscode zu verändern): eine Decimal-
+    exakte ROUND_HALF_UP-Rundung auf dem mathematisch exakten Bruch (statt
+    auf demselben Float64-Wert wie JS) rundet 201/400 FALSCH auf 50,3 —
+    genau der Guardian-Fund, der die erste Fassung dieses Fixes widerlegt
+    hat."""
+    from decimal import ROUND_HALF_UP, Decimal
+    n, total = 201, 400
+    exakt_dezimal = Decimal(n) / Decimal(total) * 1000
+    assert exakt_dezimal == Decimal("502.5")  # exakter Bruch IST genau .5
+    falsch_mit_decimal = float(
+        exakt_dezimal.to_integral_value(rounding=ROUND_HALF_UP)) / 10
+    assert falsch_mit_decimal == 50.3
+    assert falsch_mit_decimal != _pct_wie_js(n, total)
