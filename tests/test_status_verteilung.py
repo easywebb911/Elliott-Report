@@ -50,12 +50,32 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 HTML = (ROOT / "docs/index.html").read_text(encoding="utf-8")
+
+
+def _pct_wie_js(n: int, total: int) -> float:
+    """Rundung wie `Math.round(n/total*1000)/10` in `statusDistribution()`
+    (docs/index.html) — kaufmännisch halb nach oben (ROUND_HALF_UP), NICHT
+    Pythons `round()` (= round-half-to-even/Bankers-Rundung). Rechnet mit
+    `Decimal` auf dem EXAKTEN Dezimalbruch statt Binärfloat, damit ein
+    .x5-Grenzfall (z. B. 51/240*1000 = 212,5 exakt) nicht durch
+    Gleitkomma-Darstellung driftet, bevor überhaupt gerundet wird.
+
+    BEFUND (30.10.2026, blockierte #203/#204/#205): `round(212.5)` liefert
+    in Python 212 (Nachbarn 212 gerade/213 ungerade -> Bankers-Rundung
+    rundet zur geraden Zahl), `Math.round(212.5)` liefert in JS 213
+    (rundet jeden .5-Fall nach oben) — exakt derselbe Rechenweg, zwei
+    unterschiedliche Rundungsregeln. Fix NUR hier (Testcode) — die App
+    (`Math.round`) ändert sich nicht, s. Auftrag."""
+    exakt = Decimal(n) / Decimal(total) * 1000
+    gerundet = exakt.to_integral_value(rounding=ROUND_HALF_UP)
+    return float(gerundet) / 10
 
 
 def _fn(name: str, tiefe: str = "    ") -> str:
@@ -262,7 +282,7 @@ def _soll_verteilung():
     for r in _RECORDS:
         counts[_status(r)] += 1
     total = len(_RECORDS)
-    pct = {cls: round(n / total * 1000) / 10 for cls, n in counts.items()}
+    pct = {cls: _pct_wie_js(n, total) for cls, n in counts.items()}
     return counts, pct, total
 
 
@@ -321,3 +341,48 @@ def test_leere_sammlung_ergibt_leeren_block_kein_kaputtes_html():
       console.log(JSON.stringify(statusDistributionHtml([])));
     """)
     assert ergebnis == ""
+
+
+# ---------------------------------------------------------------------------
+# Rundung wie Math.round (30.10.2026, Easy-Auftrag, blockierte #203/#204/
+# #205): `_pct_wie_js` muss GENAU den .x5-Grenzfall treffen, den `round()`
+# (Bankers-Rundung) falsch rundet. Der reale Auslöser war 51/240 (=212,5
+# Promille exakt) — hier zusätzlich die vom Auftrag benannten synthetischen
+# Randfälle .05/.15/.35/.45/.75 (Promille-Ties 0,5/1,5/3,5/4,5/7,5).
+# ---------------------------------------------------------------------------
+def test_pct_wie_js_51_von_240_der_reale_ausloeser():
+    """51/240*1000 = 212,5 exakt — round() (212, gerade) != Math.round (213)."""
+    assert _pct_wie_js(51, 240) == 21.3
+
+
+def test_pct_wie_js_randfall_05():
+    assert _pct_wie_js(1, 2000) == 0.1
+
+
+def test_pct_wie_js_randfall_15():
+    assert _pct_wie_js(3, 2000) == 0.2
+
+
+def test_pct_wie_js_randfall_35():
+    assert _pct_wie_js(7, 2000) == 0.4
+
+
+def test_pct_wie_js_randfall_45():
+    assert _pct_wie_js(9, 2000) == 0.5
+
+
+def test_pct_wie_js_randfall_75():
+    assert _pct_wie_js(15, 2000) == 0.8
+
+
+def test_mutationsprobe_pythons_round_waere_bei_51_von_240_rot():
+    """Mutationsprobe (ohne Produktionscode zu verändern): Pythons `round()`
+    auf demselben exakten Promille-Wert liefert nachweislich den FALSCHEN
+    (nicht zu Math.round passenden) Wert — exakt der Fehler, der #203/#204/
+    #205 blockiert hat."""
+    n, total = 51, 240
+    exakt_promille = n / total * 1000
+    assert exakt_promille == 212.5
+    falsch_mit_round = round(exakt_promille) / 10
+    assert falsch_mit_round == 21.2
+    assert falsch_mit_round != _pct_wie_js(n, total)

@@ -33,12 +33,26 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 HTML = (ROOT / "docs/index.html").read_text(encoding="utf-8")
+
+
+def _pct_wie_js(x: int, n: int) -> float:
+    """Rundung wie `Math.round(x/n*1000)/10` in `verlustbildHtml()`s `pct`-
+    Helfer (docs/index.html, Zeile ~1810) — kaufmännisch halb nach oben
+    (ROUND_HALF_UP) statt Pythons `round()` (Bankers-Rundung), s. dieselbe
+    Begründung/denselben Befund in tests/test_status_verteilung.py
+    (`_pct_wie_js`, 30.10.2026, blockierte #203/#204/#205)."""
+    if not n:
+        return 0.0
+    exakt = Decimal(x) / Decimal(n) * 1000
+    gerundet = exakt.to_integral_value(rounding=ROUND_HALF_UP)
+    return float(gerundet) / 10
 
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -401,7 +415,7 @@ def test_gerenderter_balken_zeigt_die_echten_zahlen():
     n, zone, neutral, inval, minus = _soll_verlustbild()
 
     def fmt1(x):
-        pct = round(x / n * 1000) / 10 if n else 0
+        pct = _pct_wie_js(x, n)
         return f"{pct:.1f}".replace(".", ",")
 
     ergebnis = _js(f"""
@@ -458,3 +472,47 @@ def test_mutationsprobe_node_invalidiert_als_zone_gezaehlt_aendert_das_ergebnis(
     assert ergebnis["echt"] == "invalidiert"
     assert ergebnis["kaputt"] == "zone"
     assert ergebnis["echt"] != ergebnis["kaputt"]
+
+
+# ---------------------------------------------------------------------------
+# Rundung wie Math.round (30.10.2026, Easy-Auftrag, blockierte #203/#204/
+# #205) — dieselbe Formel/derselbe Befund wie in test_status_verteilung.py.
+# ---------------------------------------------------------------------------
+def test_pct_wie_js_51_von_240_der_reale_ausloeser():
+    assert _pct_wie_js(51, 240) == 21.3
+
+
+def test_pct_wie_js_randfall_05():
+    assert _pct_wie_js(1, 2000) == 0.1
+
+
+def test_pct_wie_js_randfall_15():
+    assert _pct_wie_js(3, 2000) == 0.2
+
+
+def test_pct_wie_js_randfall_35():
+    assert _pct_wie_js(7, 2000) == 0.4
+
+
+def test_pct_wie_js_randfall_45():
+    assert _pct_wie_js(9, 2000) == 0.5
+
+
+def test_pct_wie_js_randfall_75():
+    assert _pct_wie_js(15, 2000) == 0.8
+
+
+def test_pct_wie_js_n_null_ist_failsoft_null():
+    assert _pct_wie_js(0, 0) == 0.0
+
+
+def test_mutationsprobe_pythons_round_waere_bei_51_von_240_rot():
+    """Mutationsprobe (ohne Produktionscode zu verändern): Pythons `round()`
+    auf demselben exakten Promille-Wert liefert nachweislich den FALSCHEN
+    (nicht zu Math.round passenden) Wert."""
+    x, n = 51, 240
+    exakt_promille = x / n * 1000
+    assert exakt_promille == 212.5
+    falsch_mit_round = round(exakt_promille) / 10
+    assert falsch_mit_round == 21.2
+    assert falsch_mit_round != _pct_wie_js(x, n)

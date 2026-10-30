@@ -2234,6 +2234,21 @@ Beleg = Abschnitt 3.)
   Wiederholversuch (höchstens 2, NUR für `ChromiumInfraFehler`, eine echte
   Layout-Abweichung wird nie wiederholt, kein skip/xfail). Nur Testcode
   geändert. 20x lokal hintereinander grün (kein Retry nötig, ~1,6 s/Lauf).
+- **30.10.2026 — JS/Python-Rundungs-Diskrepanz behoben (PR #206), blockierte
+  #203/#204/#205:** `tests/test_status_verteilung.py`/`tests/
+  test_verlustbild_anzeige.py` rechneten Prozentwerte mit Pythons `round()`
+  (Bankers-Rundung) nach, die App rundet mit `Math.round()` (immer halb
+  nach oben). Bei einem exakten `.5`-Promille-Grenzfall mit GERADEM
+  unterem Nachbarn (realer Auslöser: 51/240*1000 = 212,5 exakt) rundet
+  `round()` ab (212 -> 21,2 %), `Math.round()` auf (213 -> 21,3 %) — zwei
+  verschiedene Regeln für denselben Rechenweg. Fix: neuer Helfer
+  `_pct_wie_js()` in beiden Dateien, rechnet mit `Decimal`/`ROUND_HALF_UP`
+  auf dem exakten Bruch statt Pythons Binärfloat-`round()`. NUR Testcode
+  geändert, App (`Math.round`) unangetastet. 13 neue Tests (6 synthetische
+  Randfälle je Datei + 2 Mutationsproben, die `round()` als rot belegen).
+  Gegrept, keine weiteren gleichartigen Fälle gefunden (`tests/
+  test_schema.py` rundet nur gegen Pythons eigenen Produktionscode, kein
+  JS-Vergleich).
 
 ---
 
