@@ -2282,6 +2282,25 @@ Beleg = Abschnitt 3.)
 - **30.10.2026 — #204 = Bot-PR (handover-sync), am 30.10.2026 per
   Merge-Commit statt Squash gemergt; harmlos, Nummer hier genannt.**
   (Dieser Nachtrag: PR #207.)
+- **30.10.2026 — ntfy-Weiterleitung (Auftrag 4 von 6, Easy-Entscheid,
+  PR #208):** Neuer, kleiner Workflow
+  `.github/workflows/ntfy_weiterleitung.yml` (NUR `workflow_dispatch`,
+  `permissions: {}`), den geplante Agenten starten können, um Easy per
+  ntfy zu benachrichtigen, OHNE `NTFY_TOPIC` zu kennen — dasselbe Secret
+  wie `scripts/notify.py`, kein neues. Baut über `scripts/ntfy_payload.py`
+  (abhängigkeitsfrei) ein sicheres JSON-Payload (ntfys JSON-Publish-API,
+  `POST https://ntfy.sh/`, NICHT der Header-Modus-Pfad `/{topic}`, den
+  `notify.py` weiter nutzt) und sendet es per `curl --data-binary`.
+  **Regel: Agenten benachrichtigen Easy NUR über
+  `ntfy_weiterleitung.yml`; Meldungstexte kurz und ohne
+  Zugangsdaten/Kontodaten (Repo öffentlich, Lauf-Inputs und Logs sind
+  lesbar).** Kein Eingabewert steht je direkt als `${{ inputs.* }}`/
+  `${{ github.event.* }}` in einem `run:`-Block (strukturell per Test
+  erzwungen) — nur über `env:` ins Skript. `.github/workflows/` ist
+  bereits als Verzeichnis-Präfix geschützt (`schutz_zonen.py`), kein
+  neuer Zonen-Eintrag nötig; `schutz-sperre` ist für diesen PR
+  erwartungsgemäß rot. `scripts/notify.py`/`health_check.py` unangetastet
+  (GRENZEN, nicht Teil dieses Auftrags: Agenten-Mechanik, Auto-Merge).
 
 ---
 

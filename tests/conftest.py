@@ -49,6 +49,14 @@ NEUTRALE_UMGEBUNG = (
     # lokal nicht. Dieselbe Falle wie GITHUB_REF: ohne Wegräumen könnte ein
     # Test versehentlich in die echte Job-Summary-Datei des Läufers schreiben.
     "GITHUB_STEP_SUMMARY",
+    # ntfy-Weiterleitung (Easy-Entscheid 30.10.2026, Auftrag 4 von 6):
+    # scripts/ntfy_payload.py liest die vier Eingaben ausschließlich über
+    # die Umgebung (nie über eine Kommandozeile) — in der CI vom Workflow
+    # aus den workflow_dispatch-Inputs gesetzt, lokal nicht.
+    "NTFY_IN_TITLE",
+    "NTFY_IN_MESSAGE",
+    "NTFY_IN_TAGS",
+    "NTFY_IN_PRIORITY",
 )
 
 
