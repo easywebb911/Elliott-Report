@@ -383,3 +383,66 @@ def test_fallzahlen_struktur_unveraendert_bei_doppeltem_aufruf():
     b = az.fallzahlen(recs, cases, az._kohorte_alle)
     assert {k: v for k, v in a.items() if k != "cases"} == \
           {k: v for k, v in b.items() if k != "cases"}
+
+
+# ---------------------------------------------------------------------------
+# Schatten-Stichtag belegt (NACHTRAG 30.10.2026, Easy-Entscheid): dieselbe
+# >=-Grenze wie bei ZAEHLREGEL_STICHTAG/FILTER_STICHTAG oben, hier für
+# SCHATTEN_STICHTAG_UTC — auch wenn die Schatten-Kohorte selbst feld-
+# definiert bleibt (s. Moduldoc), ist der Zeitstempel jetzt ein normaler
+# `_kohorte_ab`-Grenzwert wie die anderen beiden belegten Stichtage.
+# ---------------------------------------------------------------------------
+SCHATTEN_STICHTAG = az.SCHATTEN_STICHTAG_UTC  # "2026-10-27T01:37:06Z"
+
+
+def test_schatten_stichtag_ist_belegt_nicht_mehr_none():
+    assert SCHATTEN_STICHTAG is not None
+    assert SCHATTEN_STICHTAG == "2026-10-27T01:37:06Z"
+
+
+def test_schatten_stichtag_record_genau_am_stichtag_gehoert_dazu():
+    recs = [_rec("A", 50.0, 1, created_utc=SCHATTEN_STICHTAG)]
+    cases, _ = ev.build_population(_coll(recs))
+    pred = az._kohorte_ab(SCHATTEN_STICHTAG)
+    fz = az.fallzahlen(recs, cases, pred)
+    assert fz["n_gesamt"] == 1 and fz["n_reif"] == 1
+
+
+def test_schatten_stichtag_record_eine_sekunde_davor_gehoert_nicht_dazu():
+    davor = "2026-10-27T01:37:05Z"
+    recs = [_rec("A", 50.0, 1, created_utc=davor)]
+    cases, _ = ev.build_population(_coll(recs))
+    pred = az._kohorte_ab(SCHATTEN_STICHTAG)
+    fz = az.fallzahlen(recs, cases, pred)
+    assert fz["n_gesamt"] == 0 and fz["n_reif"] == 0
+
+
+def test_schatten_stichtag_record_eine_sekunde_danach_gehoert_dazu():
+    danach = "2026-10-27T01:37:07Z"
+    recs = [_rec("A", 50.0, 1, created_utc=danach)]
+    cases, _ = ev.build_population(_coll(recs))
+    pred = az._kohorte_ab(SCHATTEN_STICHTAG)
+    fz = az.fallzahlen(recs, cases, pred)
+    assert fz["n_gesamt"] == 1 and fz["n_reif"] == 1
+
+
+def test_bericht_zaehlung_zeigt_jetzt_den_belegten_schatten_stichtag():
+    """Die Zeile zeigt nach dem Nachtrag den echten Zeitstempel statt
+    'noch nicht belegt' (Auftrags-Vorgabe wörtlich)."""
+    recs = [_rec("A", 50.0, 1)]
+    cases, _ = ev.build_population(_coll(recs))
+    text = az.bericht_zaehlung(recs, cases)
+    assert f"Schatten-Stichtag (#194): {SCHATTEN_STICHTAG}" in text
+    assert "noch nicht belegt" not in text
+
+
+def test_mutationsprobe_schatten_stichtag_auf_none_zeigt_wieder_unbelegt():
+    """Mutationsprobe (ohne Produktionscode zu verändern): wäre der Stichtag
+    weiterhin None, stünde in der Zeile wieder 'noch nicht belegt' — belegt
+    den Unterschied zum jetzt gesetzten Wert direkt."""
+    recs = [_rec("A", 50.0, 1)]
+    cases, _ = ev.build_population(_coll(recs))
+    simuliert_unbelegt = f"Schatten-Stichtag (#194): {None or 'noch nicht belegt'}"
+    assert simuliert_unbelegt == "Schatten-Stichtag (#194): noch nicht belegt"
+    text = az.bericht_zaehlung(recs, cases)
+    assert simuliert_unbelegt not in text

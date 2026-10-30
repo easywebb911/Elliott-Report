@@ -3033,12 +3033,21 @@ keine Referenz in `.github/workflows/`, `elliott_pipeline.py`,
   (Lauf #156, Merge-Commit `b5f13cf38660d5879edff2fd79eb0ae1ec8f0a49`,
   Commit `2a0f1a8`).
 - **ab Schatten (#194)** — über das Feld bestimmt
-  (`score_shadow_inval_cap20 is not None`), NICHT über einen Zeitstempel;
-  der Schatten-Stichtag selbst ist **weiterhin nicht belegt** (kein
-  `daily.yml`-Lauf seit dem Merge von #194) — Konstante bleibt `None`
-  mit Kommentar „wird mit dem Stichtag-Nachtrag gesetzt", **kein Datum
-  erfunden**; `--zaehlung` zeigt dafür „Schatten-Stichtag: noch nicht
-  belegt".
+  (`score_shadow_inval_cap20 is not None`), NICHT über einen Zeitstempel.
+  **NACHTRAG 30.10.2026 (PR #205, sichtbar nachgetragen, nicht still
+  überschrieben):** der Schatten-Stichtag ist jetzt belegt —
+  `SCHATTEN_STICHTAG_UTC = "2026-10-27T01:37:06Z"` (erster `daily.yml`-Lauf
+  nach dem #194-Merge, Lauf #161, Merge-Commit `f2b1a4762826fd29cc48e3cf
+  07e09c7c5a3193d8`, Report-Commit `b87d5120b3b8e2e86709122f3f748b4a01ec
+  8fec`). Grund für den vorherigen 3-Tage-Abstand (24.10. 09:03 UTC Merge
+  bis 27.10. 01:37 UTC Lauf): `daily.yml` lief weder am 25.10. noch am
+  26.10. morgens (Lauf-Nummern 160→161 ohne Lücke, kein versteckter
+  Zwischenlauf) — der erste SCHREIBENDE Lauf danach war der Mittagslauf
+  vom 26.10. (18:09 UTC, Commit `43b4376`, schreibt NUR `report.json`/
+  `source_coverage.json`, NICHT die Sammlung, s. `REPORT_ONLY`-Grenze in
+  `midday_report_refresh.yml`) — für die Schatten-/data_source-Stichtage
+  zählt deshalb erst der folgende `daily.yml`-Lauf. `--zaehlung` zeigt
+  jetzt den echten Zeitstempel statt „noch nicht belegt".
 - Jede der vier Kohorten zusätzlich **„ohne markierte Fälle"**
   (`invertiertes_risiko_bei_anlage` NICHT True, Marker aus #185; eigener,
   trivialer Filter in `auswertung_stichtage.py` — `filter_sensitivity_
@@ -3134,8 +3143,15 @@ unveränderlichen Git-Snapshot `6f3dfa127225b8ae38a593c9b7fae488a9bbd66e`).
 unverändert). Score/Ranking/Kandidaten-Auswahl/Filter/Schatten-Feld
 unangetastet.
 
-**Stichtag:** erster `daily.yml`-Lauf nach dem Merge dieses PRs
-(Platzhalter — konkretes Datum/Uhrzeit nach dem ersten Lauf nachtragen).
+**Stichtag:** **NACHTRAG 30.10.2026 (PR #205, sichtbar nachgetragen, nicht
+still überschrieben):** erster `daily.yml`-Lauf nach dem Merge dieses PRs
+(26.10.2026 18:55:04 UTC) — Lauf #161, `run_timestamp_utc`
+`2026-10-27T01:37:06Z`, Report-Commit `b87d5120b3b8e2e86709122f3f748b4a
+01ec8fec` (derselbe Lauf wie beim #194-Stichtag, s. Eintrag "24.10.2026 —
+Auswertungsskript für den 07.12.2026", da #201/#202 beide vor diesem Lauf
+mergten). 14 neue Records seit diesem Lauf, alle mit `data_source=
+"yfinance"`, keiner `null` (Belege: Eintrag "30.10.2026 — Stichtage
+belegt" unten).
 
 **Konsumenten geprüft:** `scripts/evaluate.py` (liest es nicht, nicht in
 FROZEN_FIELDS), `scripts/auswertung_stichtage.py` (kein Treffer),
@@ -3154,3 +3170,104 @@ geschrieben" -> KeyError, Bestandsvergleich gegen Git-Snapshot ohne
 Backfill, Mutationsprobe Backfill-Erkennung). Volle Suite: 2070 passed.
 SHA256 `evaluate.py` unverändert:
 `bc697df91235732c6c386abe38c79a98248488b9f30a239d9c26c3cbb3b513fc`.
+
+---
+
+### 30.10.2026 — Stichtage belegt (Easy-Entscheid, PR #205)
+
+Vier Platzhalter/offene Stichtage per Git-Historie und Workflow-Läufen
+belegt (Merge-Commit + Hash/UTC, ERSTER schreibender Lauf danach:
+Lauf-Nummer, Datum, Report-Commit, `run_timestamp_utc`). Nur Zählung und
+Belege, **keine** Trefferquote/AUC/Verdikt.
+
+**a) #194 Schatten-Score** — Merge `a52f3ad9f8512a0ff5b0acaf0e7997067d
+317167` (2026-10-24T09:03:33Z). Erster `daily.yml`-Lauf danach: **Lauf
+#161**, gestartet 2026-10-27T01:36:47Z, Report-Commit `b87d5120b3b8e2e
+86709122f3f748b4a01ec8fec`, `run_timestamp_utc` **2026-10-27T01:37:06Z**.
+Grund für den 3-Tage-Abstand: `daily.yml` lief weder am 25.10. noch am
+26.10. morgens (Lauf-Nummern 160→161 ohne Lücke) — die Sammlung wird nur
+dort geschrieben, der Mittagslauf vom 26.10. (18:09 UTC, Commit
+`43b4376`) schreibt nur `report.json`/`source_coverage.json`
+(`REPORT_ONLY`-Grenze in `midday_report_refresh.yml`).
+
+**b) #196 Daten-Abdeckungs-Wächter** — Merge `166992ec74df10a6dbe290c06
+d6eb3994ff3c275` (2026-10-24T13:23:25Z). Erster Lauf eines SCHREIBENDEN
+Workflows (daily.yml ODER midday_report_refresh.yml): **Midday-Lauf #33**,
+gestartet 2026-10-26T18:09:24Z, Report-Commit `43b4376db6bcd8bb09b6347d
+fad2cdd496410b65`, `recorded_utc` **2026-10-26T18:09:48Z** — erster
+Eintrag überhaupt in `data/source_coverage.json` (Datei entstand mit
+diesem Commit).
+
+**c) #198 Wiedervorlagen** — Merge `be2415725e26837fa5eba5b4d4391d3d1e3
+279cd` (2026-10-24T17:20:44Z). Erster Lauf nach dem Merge: derselbe
+Midday-Lauf #33 wie b) (nichts lief zwischen 24.10. 17:20 und 26.10.
+18:09).
+
+**#199/#200** (nicht in Auftrag a–d, zur Vollständigkeit mitgeführt): Merge
+`3b9c6a27eb01875820dee94f2c28359f46134652` (2026-10-25T00:14:34Z) bzw.
+`47b21d2fc55de028acd531829fa1c43dcf8d69c2` (2026-10-25T07:57:03Z) — beide
+VOR Midday-Lauf #33, derselbe Stichtag wie b)/c).
+
+**d) #202 data_source** — Merge `f2b1a4762826fd29cc48e3cf07e09c7c5a319
+3d8` (2026-10-26T18:55:04Z). Erster `daily.yml`-Lauf danach: derselbe
+Lauf #161 wie a) (2026-10-27T01:37:06Z), da #201 (Merge 2026-10-26T18:29:
+48Z) und #202 beide VOR diesem Lauf mergten, NACH dem Midday-Lauf #33.
+
+**Befunde (nur Zählung/Belege):**
+- **a) Schatten:** 14 neue Records seit dem Stichtag-Lauf — alle tragen
+  `score_shadow_inval_cap20` (0 `null`-Fälle). Schatten >= Live in allen
+  14 Fällen (0 Gegenbeispiele); keine Abweichung unter 10 % Abstand
+  geprüft und keine gefunden. Bestandsvergleich gegen den #194-Basis-
+  Snapshot `0c6c229bcb9ea248cc292a565ecbf03c2cc6c59d` (223 Records,
+  Teilmenge, nicht Gesamtzahl): `score_heuristic` bei allen 223
+  unverändert, 0 Backfill-Fälle (keiner trägt `score_shadow_inval_cap20`
+  nachträglich).
+- **b) source_coverage:** `data/source_coverage.json` existiert, 8
+  Einträge (Stand 30.10.2026), je `kurse_us`/`kurse_de` mit
+  `erwartet`/`beantwortet`/`mit_daten` (US konstant 236/236/235 — ein
+  Titel liefert nie Daten, unverändert über alle 8 Läufe; DE konstant
+  117/117/117); `ki_kommentare` nur auf `daily`-Einträgen (Midday
+  überspringt den Agent-Kommentar bewusst, Kosten-Entscheidung). Zweit-
+  eintrag vom Mittagslauf bestätigt (`2026-10-27T17|midday`). Digest-
+  Findings (`report.json` health) an den geprüften Commits (43b4376,
+  b87d512, abc9097, aktuell): 0–1 Treffer, ausschließlich `bar_freshness`
+  (DE-Kurse 1 Handelstag zurück) — **keine** Warnung zu
+  `source_coverage` oder Wiedervorlagen.
+- **c) data_source:** 14 neue Records seit dem #202-Stichtag — alle
+  `data_source="yfinance"`, keine `twelvedata_fallback` (seit #202 kein
+  Fallback-Kandidat in die Top-5 gerutscht), 0 `null`-Fälle.
+- **d) Läufe grün:** alle `daily.yml`/`midday_report_refresh.yml`-Läufe
+  seit den Merges (24.10.–30.10.2026, Läufe #153–#164 bzw. #28–#36)
+  `conclusion: success`. Kandidaten je Markt (aktueller Report):
+  DE 3 (= `HEALTH_MIN_CANDIDATES`), US 8 (TOP_N_STORED inkl. Ersatzbank)
+  — beide >= Schwelle. Top-5 plausibel (Large-Caps beider Märkte, keine
+  Auffälligkeiten).
+
+**Schatten-Stichtag-Konstante gesetzt:** `scripts/auswertung_stichtage.py`
+`SCHATTEN_STICHTAG_UTC = "2026-10-27T01:37:06Z"` (war `None`); `--zaehlung`
+zeigt jetzt den echten Zeitstempel statt „noch nicht belegt" (die
+Schatten-Kohorte selbst bleibt feld-definiert, s. Moduldoc — der Zeitstempel
+dient nur der Anzeige). 6 neue Tests (Grenze `>=` wie bei #186/#190,
+Berichts-Text, Mutationsprobe).
+
+**Probelauf `--zaehlung`** (nur Fallzahlen, keine Trefferquote/AUC/
+Verdikt): ALLE n=240/204, Schatten gesetzt=14; ab Zählregel-Stichtag
+n=38/9; ab Filter-Stichtag n=25/0; ab Schatten n=14/0 (Reifung noch
+offen — alle 14 sind frisch angelegt).
+
+**Fundstelle (unabhängig vom Auftrag, nicht behoben — außerhalb des
+Scopes "Score/Ranking/Sammlung/Workflows UNANGETASTET"):**
+`tests/test_status_verteilung.py::test_verteilung_von_hand_nachgerechnet_
+gegen_echte_records` und `::test_gerenderter_balken_und_zeilen_zeigen_die_
+echten_zahlen` sind seit dem Wachstum der Live-Sammlung (jetzt n=240) rot
+— Rundungs-Diskrepanz JS `toFixed(1)` vs. Python `round()` bei einem
+exakten `.25`-Fall (51/240*100 = 21,25 -> JS "21,3", Python 21,2).
+Vorhanden bereits auf `origin/main` VOR diesem PR (per `git stash`
+verifiziert), von diesem PR nicht verursacht und nicht behoben (Sammlung/
+Score/Ranking unangetastet, Auftrags-Scope). Separat zu melden/zu
+beheben.
+
+**evaluate.py SHA256 unverändert:**
+`bc697df91235732c6c386abe38c79a98248488b9f30a239d9c26c3cbb3b513fc`.
+Volle Suite: 2079 passed, 2 vorbestehend rot (s. o., unabhängig von
+diesem PR).

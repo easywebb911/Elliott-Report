@@ -2235,6 +2235,25 @@ Beleg = Abschnitt 3.)
   Wiederholversuch (höchstens 2, NUR für `ChromiumInfraFehler`, eine echte
   Layout-Abweichung wird nie wiederholt, kein skip/xfail). Nur Testcode
   geändert. 20x lokal hintereinander grün (kein Retry nötig, ~1,6 s/Lauf).
+- **30.10.2026 — Stichtage belegt (PR #205):** vier offene/Platzhalter-
+  Stichtage aus #194, #196, #198, #202 per Git-Historie/Workflow-Läufen
+  belegt (s. docs/validation_registry.md, Eintrag "30.10.2026 — Stichtage
+  belegt", volle Merge-Hashes/UTC und Lauf-Belege dort). Kurz: #194
+  (Schatten-Score) und #202 (`data_source`) teilen sich denselben
+  Stichtag-Lauf — `daily.yml` Lauf #161, 2026-10-27T01:37:06Z —, weil
+  `daily.yml` zwischen dem #194-Merge (24.10.) und diesem Lauf (27.10.)
+  drei Tage lang nicht lief (Lücke 25./26.10., per Lauf-Nummern 160→161
+  ohne Zwischenlauf belegt); #196 (Daten-Abdeckungs-Wächter) und #198
+  (Wiedervorlagen) teilen sich den Midday-Lauf #33 (26.10. 18:09 UTC,
+  Commit `43b4376`) als ersten SCHREIBENDEN Lauf danach. `scripts/
+  auswertung_stichtage.py`s `SCHATTEN_STICHTAG_UTC` ist jetzt gesetzt
+  (war `None`). PR-Nummern dieser Sequenz: #194, #196, #198, #199, #200,
+  #201, #202, #203.
+  **Nebenbefund, seit PR #206 behoben (s. u.):** `tests/
+  test_status_verteilung.py` hatte zwei rote Tests durch die JS/Python-
+  Rundungs-Diskrepanz bei einem exakten `.25`-Fall, seit die Live-
+  Sammlung auf n=240 gewachsen ist — vorbestehend auf `main`, von diesem
+  PR nicht verursacht, s. Registry-Eintrag für Details.
 - **30.10.2026 — JS/Python-Rundungs-Diskrepanz behoben (PR #206), blockierte
   #203/#204/#205:** `tests/test_status_verteilung.py`/`tests/
   test_verlustbild_anzeige.py` rechneten Prozentwerte mit Pythons `round()`
