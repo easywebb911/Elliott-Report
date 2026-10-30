@@ -1,0 +1,93 @@
+name: ntfy-Weiterleitung
+
+# Easy-Entscheid 30.10.2026 (Auftrag 4 von 6): EIN kleiner Workflow, den
+# geplante Agenten per workflow_dispatch starten koennen, um Easy ueber
+# ntfy zu benachrichtigen, OHNE das Secret NTFY_TOPIC selbst zu kennen.
+#
+# BEWUSST NICHT TEIL DIESES AUFTRAGS: Agenten-Mechanik, Auto-Merge,
+# Aenderungen an scripts/notify.py oder scripts/health_check.py (deren
+# bestehende Push-Wege bleiben unangetastet) — s. PR-Text.
+#
+# GRENZEN (Guardian-Auftrag: aktiv zum Ausbruch bringen):
+#   - Jeder Eingabewert (title/message/tags/priority) kommt NUR ueber
+#     `env:` in das Skript — NIRGENDS `${{ inputs.* }}` oder
+#     `${{ github.event.* }}` direkt in einem `run:`-Block (das waere
+#     Shell-Injektion durch die YAML-Interpolation selbst, nicht durch
+#     das Skript ueberhaupt erreichbar).
+#   - `permissions: {}` — dieser Workflow braucht KEIN GITHUB_TOKEN mit
+#     irgendeinem Recht, er liest/schreibt nichts im Repo.
+#   - Das Secret NTFY_TOPIC steht als `env:` NUR auf dem einen Schritt,
+#     der Payload baut UND sendet — kein zweiter Schritt sieht es.
+#   - Kein `set -x`, kein Echo der Eingaben, kein Schreiben des Textes
+#     nach GITHUB_STEP_SUMMARY — das Repo ist OEFFENTLICH, Lauf-Logs UND
+#     die Zusammenfassung sind fuer Fremde lesbar (belegt im PR-Text).
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Titel der Meldung (wird auf 100 Zeichen gekuerzt)"
+        type: string
+        required: false
+        default: "Elliott-Report"
+      message:
+        description: "Meldungstext (Pflicht, wird auf ~3900 Bytes gekuerzt)"
+        type: string
+        required: true
+      tags:
+        description: "Komma-getrennte Tags, nur a-z/0-9/_/- (optional)"
+        type: string
+        required: false
+        default: ""
+      priority:
+        description: "Prioritaet 1-5 (Default 3, sonst wird 3 verwendet)"
+        type: string
+        required: false
+        default: "3"
+
+permissions: {}
+
+concurrency:
+  group: ntfy-weiterleitung
+  cancel-in-progress: false
+
+jobs:
+  weiterleiten:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Payload bauen und an ntfy senden
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_IN_TITLE: ${{ inputs.title }}
+          NTFY_IN_MESSAGE: ${{ inputs.message }}
+          NTFY_IN_TAGS: ${{ inputs.tags }}
+          NTFY_IN_PRIORITY: ${{ inputs.priority }}
+        run: |
+          if [ -z "$NTFY_TOPIC" ]; then
+            echo "Fehler: Secret NTFY_TOPIC ist nicht gesetzt." >&2
+            exit 1
+          fi
+          DATEI="$(python3 scripts/ntfy_payload.py)"
+          STATUS=1
+          for VERSUCH in 1 2; do
+            ANTWORT="$(curl -sS -m 10 --fail-with-body \
+              -H "Content-Type: application/json" \
+              --data-binary "@${DATEI}" \
+              -w '\n%{http_code}' \
+              "https://ntfy.sh/")" && STATUS=0 && break
+            sleep 2
+          done
+          BYTES=$(wc -c < "${DATEI}")
+          rm -f "${DATEI}"
+          if [ "$STATUS" -ne 0 ]; then
+            echo "ntfy-Versand fehlgeschlagen (zwei Versuche)." >&2
+            exit 1
+          fi
+          HTTP_CODE="$(echo "$ANTWORT" | tail -n1)"
+          echo "ntfy gesendet, HTTP ${HTTP_CODE}, ${BYTES} Bytes"
