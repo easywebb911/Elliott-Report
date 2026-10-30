@@ -3034,7 +3034,7 @@ keine Referenz in `.github/workflows/`, `elliott_pipeline.py`,
   Commit `2a0f1a8`).
 - **ab Schatten (#194)** — über das Feld bestimmt
   (`score_shadow_inval_cap20 is not None`), NICHT über einen Zeitstempel.
-  **NACHTRAG 30.10.2026 (PR #204, sichtbar nachgetragen, nicht still
+  **NACHTRAG 30.10.2026 (PR #205, sichtbar nachgetragen, nicht still
   überschrieben):** der Schatten-Stichtag ist jetzt belegt —
   `SCHATTEN_STICHTAG_UTC = "2026-10-27T01:37:06Z"` (erster `daily.yml`-Lauf
   nach dem #194-Merge, Lauf #161, Merge-Commit `f2b1a4762826fd29cc48e3cf
@@ -3143,7 +3143,7 @@ unveränderlichen Git-Snapshot `6f3dfa127225b8ae38a593c9b7fae488a9bbd66e`).
 unverändert). Score/Ranking/Kandidaten-Auswahl/Filter/Schatten-Feld
 unangetastet.
 
-**Stichtag:** **NACHTRAG 30.10.2026 (PR #204, sichtbar nachgetragen, nicht
+**Stichtag:** **NACHTRAG 30.10.2026 (PR #205, sichtbar nachgetragen, nicht
 still überschrieben):** erster `daily.yml`-Lauf nach dem Merge dieses PRs
 (26.10.2026 18:55:04 UTC) — Lauf #161, `run_timestamp_utc`
 `2026-10-27T01:37:06Z`, Report-Commit `b87d5120b3b8e2e86709122f3f748b4a
@@ -3173,7 +3173,7 @@ SHA256 `evaluate.py` unverändert:
 
 ---
 
-### 30.10.2026 — Stichtage belegt (Easy-Entscheid, PR #204)
+### 30.10.2026 — Stichtage belegt (Easy-Entscheid, PR #205)
 
 Vier Platzhalter/offene Stichtage per Git-Historie und Workflow-Läufen
 belegt (Merge-Commit + Hash/UTC, ERSTER schreibender Lauf danach:
