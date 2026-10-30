@@ -2283,7 +2283,7 @@ Beleg = Abschnitt 3.)
   Merge-Commit statt Squash gemergt; harmlos, Nummer hier genannt.**
   (Dieser Nachtrag: PR #207.)
 - **30.10.2026 — ntfy-Weiterleitung (Auftrag 4 von 6, Easy-Entscheid,
-  PR #<NACHTRAGEN>):** Neuer, kleiner Workflow
+  PR #208):** Neuer, kleiner Workflow
   `.github/workflows/ntfy_weiterleitung.yml` (NUR `workflow_dispatch`,
   `permissions: {}`), den geplante Agenten starten können, um Easy per
   ntfy zu benachrichtigen, OHNE `NTFY_TOPIC` zu kennen — dasselbe Secret
