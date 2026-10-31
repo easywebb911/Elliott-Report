@@ -356,6 +356,7 @@ Sammel-Check, zwischen dem 06.11.- und dem 07.12.-Termin platziert.
 <!-- WIEDERVORLAGEN-START -->
 - faellig_am: 2026-11-06 | status: offen | titel: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren | ref: #196
 - faellig_am: 2026-11-06 | status: offen | titel: Ruleset Main am Laptop einschalten (Bedingung für Agent mit Selbstmerge) | ref: #209
+- faellig_am: 2026-11-06 | status: offen | titel: Nach Ruleset-Einschalten zweistufig prüfen: (1) harmloser Doku-PR muss per Squash durchgehen, (2) Easy tippt den daily-Lauf von Hand an, er muss grün enden und sein Commit muss auf main landen — erst danach Auftrag 5 neu starten | ref: #210
 - faellig_am: 2026-11-13 | status: offen | titel: Auftrag 5: Wächter-Agent neu angehen (Zugangsweg klären, dann Beobachtungsmodus) | ref: #209
 - faellig_am: 2026-11-24 | status: offen | titel: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen) | ref: #198
 - faellig_am: 2026-12-07 | status: offen | titel: Score-Review (Schatten-Score-Auswertung per scripts/auswertung_stichtage.py --zaehlung bzw. --auswerten, Regime-/Economic-Edge-Analysen, Stale-Markierungs-Entscheid u. a. GEPARKT-Punkte) | ref: #194, #190, #158, #160, #162, #199
@@ -2308,6 +2309,15 @@ Beleg = Abschnitt 3.)
   Sofort-Test, Aufgabe deaktiviert, ID `trig_01KveCoSKHa57F5bn3on73Rc`);
   Start erst nach Ruleset (Laptop) und aus einer Sitzung mit angehängtem
   Repo. (Dieser Nachtrag: PR #209.)
+- **31.10.2026 — Token-Prüfung der Push-Workflows (read-only):** `daily.yml`,
+  `maintenance.yml`, `midday_report_refresh.yml` und `daily_retry_watcher.yml`
+  pushen alle mit dem Standard-GITHUB_TOKEN als `github-actions[bot]`. Kein
+  PAT, kein Deploy-Key. Ergebnis: Das Ruleset „Main" (Bypass nur GitHub
+  Actions, Pflichtprüfung nur „test") blockiert sie laut Dateilage nicht. Ein
+  echter Push unter dem Ruleset ist noch nicht bewiesen. **Hinweis:** Der
+  Bypass „GitHub Actions" ist pauschal. Neue Workflow-Dateien mit
+  `contents: write` werden weiter nur von Easy gemerged. (Dieser Nachtrag:
+  PR #210.)
 
 ---
 
