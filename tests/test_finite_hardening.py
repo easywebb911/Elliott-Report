@@ -106,6 +106,91 @@ def test_diagnose_nur_letzte_zeile_ist_der_tagesfall():
     assert out.dropped_dates == ("2026-03-01",)
 
 
+# ---------------------------------------------------------------------------
+# ROHWERT DES CLOSE BEI VERWERFEN DER LETZTEN ZEILE (03.11.2026, Befund
+# DE-Lauf 03.11.: 115 von 117 Tickern verwarfen die 02.11.-Zeile, aber WELCHEN
+# Rohwert die Quelle dafür lieferte, war nirgends sichtbar — nur die Anzahl.
+# Nur Diagnose/Logging, siehe test_rohwert_erscheint_im_log_aber_nicht_im_
+# report_diag unten für den Beweis, dass sich am Report-Schema NICHTS ändert.
+# ---------------------------------------------------------------------------
+def test_dropped_last_raw_close_erfasst_den_rohwert_der_letzten_zeile():
+    closes = [10.0 + i for i in range(60)]
+    closes[-1] = NAN
+    out = pipe.parse_download_df(_df(closes), min_bars=10)
+    assert out.dropped_last_raw_close == repr(float("nan"))
+
+
+def test_dropped_last_raw_close_bleibt_none_bei_luecke_in_der_mitte():
+    """Nur die LETZTE Zeile wird für die Diagnose erfasst — eine Lücke mitten
+    in der Reihe ist ein anderer Fall (echter Datenausfall, kein unfertiger
+    Tagesbar) und bleibt ohne Rohwert-Diagnose."""
+    closes = [10.0 + i for i in range(60)]
+    closes[7] = NAN
+    out = pipe.parse_download_df(_df(closes), min_bars=10)
+    assert out.dropped_last_row == 0 and out.dropped_mid_row == 1
+    assert out.dropped_last_raw_close is None
+
+
+def test_dropped_last_raw_close_none_bei_gesunder_reihe():
+    out = pipe.parse_download_df(_df([10.0 + i for i in range(60)]), min_bars=10)
+    assert out.dropped_last_raw_close is None
+
+
+def test_rohwert_erscheint_im_log_aber_nicht_im_report_diag(monkeypatch, capsys):
+    """Teil 2 (03.11.2026): der Rohwert landet NUR im Actions-Log, NICHT im
+    `diag`-Schema von report.json — reine Logging-Ergänzung, kein neues
+    Report-Feld, keine Verhaltensänderung."""
+    def kaputt(ticker):
+        closes = [10.0 + i for i in range(60)]
+        closes[-1] = NAN
+        return pipe.parse_download_df(
+            _df(closes, [1000.0] * 60), min_bars=10)
+
+    monkeypatch.setattr(pipe.config, "MARKETS", {
+        "US": {"label": "USA", "universe": ["AAPL"]},
+        "DE": {"label": "Deutschland", "universe": ["SAP.DE"]},
+    })
+    monkeypatch.setattr(pipe, "load_watchlist", lambda: [])
+    report = pipe.build_report(kaputt, NOW, kaputt, kaputt)
+    out = capsys.readouterr().out
+    assert "Rohwert Close (letzte Zeile)" in out
+    assert "AAPL=nan" in out and "SAP.DE=nan" in out
+    for mk in ("US", "DE"):
+        d = report["markets"][mk]["diag"]
+        assert d["dropped_last_row"] == 1
+        # KEIN neues Feld im Schema — nur die bekannten, bereits vorher
+        # vorhandenen Diagnose-Felder.
+        for b in d["bad_bar_tickers"]:
+            assert set(b.keys()) == {
+                "ticker", "dropped", "invalid_volume",
+                "dropped_dates", "dropped_last_row", "dropped_mid_row"}
+
+
+def test_teil2_aendert_keine_ausgabe_ausser_dem_log(monkeypatch):
+    """Gegenprobe (Pflicht, Exzellenz-Kriterium): derselbe Lauf liefert exakt
+    denselben Report (byte-identisch über `json.dumps(sort_keys=True)`),
+    unabhängig davon, ob die letzte Zeile verworfen wird oder nicht — der
+    einzige sichtbare Unterschied ist die neue Log-Zeile, nicht der Report."""
+    def normal(ticker):
+        closes = [10.0 + i for i in range(60)]
+        return pipe.parse_download_df(_df(closes, [1000.0] * 60), min_bars=10)
+
+    monkeypatch.setattr(pipe.config, "MARKETS", {
+        "US": {"label": "USA", "universe": ["AAPL"]},
+    })
+    monkeypatch.setattr(pipe, "load_watchlist", lambda: [])
+    vorher = pipe.build_report(normal, NOW, normal, normal)
+
+    def nachher(ticker):
+        # Gleiche Daten, aber via dieselbe Extraktion erneut gebaut — reine
+        # Determinismus-Gegenprobe zur neuen `_merke_verworfen`-Signatur.
+        closes = [10.0 + i for i in range(60)]
+        return pipe.parse_download_df(_df(closes, [1000.0] * 60), min_bars=10)
+
+    nachher_report = pipe.build_report(nachher, NOW, nachher, nachher)
+    assert json.dumps(vorher, sort_keys=True) == json.dumps(nachher_report, sort_keys=True)
+
+
 def test_diagnose_gesunde_reihe_meldet_nichts():
     out = pipe.parse_download_df(_df([10.0 + i for i in range(60)]), min_bars=10)
     assert out.dropped_dates == () and out.dropped_bars == 0
