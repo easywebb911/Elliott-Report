@@ -169,6 +169,11 @@ class FetchOutcome:
     dropped_dates: Tuple[str, ...] = ()
     dropped_last_row: int = 0
     dropped_mid_row: int = 0
+    # Nur Diagnose (03.11.2026, Befund DE-Lauf 03.11.): der Rohwert des Close
+    # beim Verwerfen der LETZTEN Zeile, als `repr()` fürs Log — zeigt, ob die
+    # Quelle NaN, None oder etwas anderes lieferte. Rein additiv, keine
+    # Skip-/Zähl-Wirkung.
+    dropped_last_raw_close: Optional[str] = None
     # ATR(14) (Messfeld v2, 23.08.2026): EIN Skalar (aktueller Wert, nicht
     # Reihe), aus High/Low/Close DESSELBEN Downloads — kein Extra-Call. Fail-
     # soft None: fehlen High/Low (z. B. offline/synthetisch) oder ist die
@@ -327,7 +332,8 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
         )
 
     (dates, closes, volumes, dropped, bad_vol,
-     dropped_dates, dropped_last, dropped_mid, highs, lows) = _extract_bars(df)
+     dropped_dates, dropped_last, dropped_mid, highs, lows,
+     dropped_last_raw_close) = _extract_bars(df)
     if len(closes) < mb:
         return FetchOutcome(
             reason=EMPTY_DATA,
@@ -340,12 +346,14 @@ def parse_download_df(df, min_bars: Optional[int] = None) -> FetchOutcome:
             invalid_volume_bars=bad_vol,
             dropped_dates=tuple(dropped_dates),
             dropped_last_row=dropped_last, dropped_mid_row=dropped_mid,
+            dropped_last_raw_close=dropped_last_raw_close,
         )
     return FetchOutcome(data=(dates, closes), volumes=volumes,
                         dropped_bars=dropped, invalid_volume_bars=bad_vol,
                         dropped_dates=tuple(dropped_dates),
                         dropped_last_row=dropped_last,
                         dropped_mid_row=dropped_mid,
+                        dropped_last_raw_close=dropped_last_raw_close,
                         atr_14=atr14(highs, lows, closes),
                         highs=highs, lows=lows)
 
@@ -747,7 +755,8 @@ def _extract_bars(df):
     Verwerfen würde die Zählung von der Volumen-Verfügbarkeit abhängig machen.
 
     Returnt ``(dates, closes, volumes|None, dropped_bars, invalid_volume_bars,
-    dropped_dates, dropped_last_row, dropped_mid_row, highs|None, lows|None)``.
+    dropped_dates, dropped_last_row, dropped_mid_row, highs|None, lows|None,
+    dropped_last_raw_close|None)``.
 
     High/Low (23.08.2026, ATR-Auftrag): GENAU wie Volumen additiv aus
     DEMSELBEN Download mitgenommen, ausgerichtet auf dieselben (gefilterten)
@@ -777,15 +786,23 @@ def _extract_bars(df):
     dropped_dates: List[str] = []
     dropped_last = dropped_mid = 0
     letzte = len(close_col) - 1
+    # Nur Diagnose (03.11.2026, Befund DE-Lauf 03.11.): der ROHWERT des
+    # Close bei Verwerfen der LETZTEN Zeile — zeigt im Log, ob die Quelle
+    # NaN, None, einen String o. Ä. lieferte, statt nur „verworfen" zu
+    # zählen. NUR für die letzte Zeile (dort sitzt das bekannte Muster
+    # „unfertige Tages-Zeile"); Lücken mitten in der Reihe bleiben wie bisher
+    # nur über `dropped_dates` sichtbar. Ändert NICHTS am Verwerfen selbst.
+    dropped_last_raw_close: Optional[str] = None
 
-    def _merke_verworfen(i: int) -> None:
-        nonlocal dropped_last, dropped_mid
+    def _merke_verworfen(i: int, raw: object) -> None:
+        nonlocal dropped_last, dropped_mid, dropped_last_raw_close
         try:
             dropped_dates.append(idx[i].strftime("%Y-%m-%d"))
         except Exception:  # noqa: BLE001 — Index ohne Datum: ehrlich als „?"
             dropped_dates.append("?")
         if i == letzte:
             dropped_last += 1
+            dropped_last_raw_close = repr(raw)
         else:
             dropped_mid += 1
 
@@ -796,13 +813,13 @@ def _extract_bars(df):
             c = float("nan")
         if not finite(c):
             dropped += 1
-            _merke_verworfen(i)
+            _merke_verworfen(i, raw_close)
             continue                      # kein gültiger Preis = kein Bar
         try:
             dates.append(idx[i].strftime("%Y-%m-%d"))
         except Exception:  # noqa: BLE001 — Index ohne strftime: Bar unbrauchbar
             dropped += 1
-            _merke_verworfen(i)
+            _merke_verworfen(i, raw_close)
             continue
         closes.append(c)
         if high_col is not None:
@@ -831,7 +848,8 @@ def _extract_bars(df):
 
     return (dates, closes, (volumes if has_vol else None), dropped, bad_vol,
             dropped_dates, dropped_last, dropped_mid,
-            (highs if has_high else None), (lows if has_low else None))
+            (highs if has_high else None), (lows if has_low else None),
+            dropped_last_raw_close)
 
 
 def fetch_synthetic(ticker: str) -> FetchOutcome:
@@ -1944,8 +1962,10 @@ def _scan_market(
     # Nicht-finit-Härtung (27.07.2026): je Ticker die beim Parsen verworfenen
     # Bars. Soll im Normalbetrieb LEER sein — jeder Eintrag ist ein Hinweis auf
     # eine löchrige Kursquelle und landet im Lauf-Status.
-    # (ticker, dropped, bad_vol, dropped_dates, dropped_last_row, dropped_mid_row)
-    bad_bars: List[Tuple[str, int, int, Tuple[str, ...], int, int]] = []
+    # (ticker, dropped, bad_vol, dropped_dates, dropped_last_row, dropped_mid_row,
+    #  dropped_last_raw_close)
+    bad_bars: List[Tuple[str, int, int, Tuple[str, ...], int, int,
+                         Optional[str]]] = []
     # Jüngster Handelstag, der in diesem Markt ÜBERHAUPT als gültiger Bar
     # angekommen ist (30.07.2026, rein informativ). Er kann zwischen den
     # Märkten abweichen — abhängig davon, was die Quelle zum Abrufzeitpunkt
@@ -1980,7 +2000,8 @@ def _scan_market(
                              outcome.invalid_volume_bars,
                              outcome.dropped_dates,
                              outcome.dropped_last_row,
-                             outcome.dropped_mid_row))
+                             outcome.dropped_mid_row,
+                             outcome.dropped_last_raw_close))
 
         if outcome.data is None:
             _record_skip(ticker, outcome.reason or FETCH_ERROR, outcome.detail)
@@ -2125,6 +2146,15 @@ def build_market(
         _log(f"[elliott][diag] {market_key} verworfene Bars nach Datum: "
              f"{dict(sorted(_dropped_dates.items()))} "
              f"(letzte Zeile {_dropped_last}, mitten in der Reihe {_dropped_mid})")
+        # Nur Diagnose (03.11.2026, Befund DE-Lauf 03.11.): Rohwert des Close
+        # bei Verwerfen der letzten Zeile, je betroffenem Ticker — zeigt im
+        # Actions-Log, OB die Quelle NaN/None/einen String o. Ä. lieferte,
+        # statt nur die Anzahl zu zählen. Reines Log, keine Report-/Score-
+        # Wirkung (kein neues `diag`-Feld, kein verändertes Verhalten).
+        _raw_close_proben = [(b[0], b[6]) for b in bad_bars if b[4] and b[6] is not None]
+        if _raw_close_proben:
+            _log(f"[elliott][diag] {market_key} Rohwert Close (letzte Zeile): "
+                 + ", ".join(f"{tk}={raw}" for tk, raw in _raw_close_proben))
 
     return {
         "label": cfg["label"],

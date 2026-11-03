@@ -145,7 +145,8 @@ def test_extract_bars_liefert_high_low_aligned_zu_close():
     closes, highs, lows = _padded_series(20)
     df = _mk_df(20, closes, highs, lows, multiindex=False)
     (dates, got_closes, volumes, dropped, bad_vol, dropped_dates,
-     dropped_last, dropped_mid, got_highs, got_lows) = pipe._extract_bars(df)
+     dropped_last, dropped_mid, got_highs, got_lows,
+     _dropped_last_raw_close) = pipe._extract_bars(df)
     assert got_closes == closes
     assert got_highs == highs and got_lows == lows
     assert len(got_highs) == len(got_closes) == len(got_lows)
