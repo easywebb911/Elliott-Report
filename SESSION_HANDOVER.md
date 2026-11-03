@@ -354,12 +354,14 @@ Entscheidungen in einem Zug durchzugehen — kein Einzelpunkt, sondern ein
 Sammel-Check, zwischen dem 06.11.- und dem 07.12.-Termin platziert.
 
 <!-- WIEDERVORLAGEN-START -->
+- faellig_am: 2026-11-04 | status: offen | titel: Rohwert-Log (Close der verworfenen letzten Zeile) nach dem naechsten Tageslauf pruefen — Ursache NaN/None/String? | ref: #211
 - faellig_am: 2026-11-06 | status: offen | titel: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren | ref: #196
 - faellig_am: 2026-11-06 | status: offen | titel: Ruleset Main am Laptop einschalten (Bedingung für Agent mit Selbstmerge) | ref: #209
 - faellig_am: 2026-11-06 | status: offen | titel: Nach Ruleset-Einschalten zweistufig prüfen: (1) harmloser Doku-PR muss per Squash durchgehen, (2) Easy tippt den daily-Lauf von Hand an, er muss grün enden und sein Commit muss auf main landen — erst danach Auftrag 5 neu starten | ref: #210
 - faellig_am: 2026-11-13 | status: offen | titel: Auftrag 5: Wächter-Agent neu angehen (Zugangsweg klären, dann Beobachtungsmodus) | ref: #209
 - faellig_am: 2026-11-24 | status: offen | titel: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen) | ref: #198
 - faellig_am: 2026-12-07 | status: offen | titel: Score-Review (Schatten-Score-Auswertung per scripts/auswertung_stichtage.py --zaehlung bzw. --auswerten, Regime-/Economic-Edge-Analysen, Stale-Markierungs-Entscheid u. a. GEPARKT-Punkte) | ref: #194, #190, #158, #160, #162, #199
+- faellig_am: 2026-12-07 | status: offen | titel: prevclose_entry_suspect-Marker — drei offene Easy-Entscheidungen, nichts umgesetzt: (a) Marker mit --live fahren (Vorschlag: Probelauf + --live kurz vor 07.12.), (b) Marker in MARKERS von filter_sensitivity_sammlung.py aufnehmen, (c) Hinweis in docs/validation_registry.md | ref: #212
 <!-- WIEDERVORLAGEN-ENDE -->
 
 **Bewusst NICHT eingetragen:** die alte, vage Wiedervorlage „Selbstwartung
@@ -2318,6 +2320,27 @@ Beleg = Abschnitt 3.)
   Bypass „GitHub Actions" ist pauschal. Neue Workflow-Dateien mit
   `contents: write` werden weiter nur von Easy gemerged. (Dieser Nachtrag:
   PR #210.)
+- **03.11.2026 — PR #211: Close-Rohwert der verworfenen letzten Zeile ins
+  Log (nur Logging).** Teil 1 des Auftrags (`mark_stale_market_records.py`
+  auf die sitzungsbewusste Regel umstellen) bewusst **nicht** umgesetzt:
+  harte Grenze in `tests/test_sammlungs_schutz.py` (Zeilen 543–545,
+  989–996).
+- **03.11.2026 — PR #212: neues Skript `scripts/mark_prevclose_entry_
+  records.py`, Marker `prevclose_entry_suspect` (sitzungsbewusste Regel,
+  getrennt von `stale_market_suspect`).** Dry-Run: 23 Records an 10 Tagen
+  seit 20.10. Noch **kein** `--live`-Lauf, `forward_collection.json`
+  unverändert. Rückweg: Revert des PR, bei gelaufenem `--live` zusätzlich
+  `--purge --live`.
+- **Befund 03.11.2026 — DE-Kurse 1 Handelstag zurück:** 115 von 117
+  DE-Tickern verwarfen die 02.11.-Zeile wegen nicht-endlichem Close.
+  **Korrigierte Zählung** (nachgerechnet gegen alle committeten
+  Tagesläufe 20.10.–03.11., 11 Läufe insgesamt): **10 von 11** zeigten die
+  `bar_freshness`-Warnung, nur 30.10. blieb still — **nicht** „7 von 9" wie
+  in einem früheren Bericht dieser Sitzung behauptet (der hatte 23.10. und
+  24.10. übersehen, beide ebenfalls mit Warnung). Ursache weiterhin
+  **offen**; der Rohwert des Close steht ab dem nächsten Tageslauf im Log
+  (PR #211). Die Sammlung friert bei Lag 1 den Vortageskurs ein (heute:
+  NDX1.DE, DEQ.DE, AOF.DE).
 
 ---
 
