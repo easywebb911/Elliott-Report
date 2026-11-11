@@ -355,7 +355,7 @@ Entscheidungen in einem Zug durchzugehen — kein Einzelpunkt, sondern ein
 Sammel-Check, zwischen dem 06.11.- und dem 07.12.-Termin platziert.
 
 <!-- WIEDERVORLAGEN-START -->
-- faellig_am: 2026-11-04 | status: offen | titel: Rohwert-Log (Close der verworfenen letzten Zeile) nach dem naechsten Tageslauf pruefen — Ursache NaN/None/String? | ref: #211
+- faellig_am: 2026-11-04 | status: erledigt | erledigt_am: 2026-11-11 | titel: Rohwert-Log (Close der verworfenen letzten Zeile) nach dem naechsten Tageslauf pruefen — Ursache NaN/None/String? | ref: #211
 - faellig_am: 2026-11-06 | status: offen | titel: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren | ref: #196
 - faellig_am: 2026-11-06 | status: offen | titel: Ruleset Main am Laptop einschalten (Bedingung für Agent mit Selbstmerge) | ref: #209
 - faellig_am: 2026-11-06 | status: offen | titel: Nach Ruleset-Einschalten zweistufig prüfen: (1) harmloser Doku-PR muss per Squash durchgehen, (2) Easy tippt den daily-Lauf von Hand an, er muss grün enden und sein Commit muss auf main landen — erst danach Auftrag 5 neu starten | ref: #210
@@ -2342,6 +2342,30 @@ Beleg = Abschnitt 3.)
   **offen**; der Rohwert des Close steht ab dem nächsten Tageslauf im Log
   (PR #211). Die Sammlung friert bei Lag 1 den Vortageskurs ein (heute:
   NDX1.DE, DEQ.DE, AOF.DE).
+- **11.11.2026 — Wiedervorlage 04.11. (Rohwert-Log) ERLEDIGT:** In allen 6
+  Tagesläufen 04.11. bis 11.11. war der Rohwert der verworfenen Zeile
+  ausschließlich `nan`, immer die letzte Zeile. DE: jeden Tag dieselben 115
+  Ticker. US: am 07.11. und 11.11. je 22 Ticker. Ursache, warum Yahoo die
+  letzte Xetra-Zeile leer liefert, bleibt **OFFEN**.
+- **11.11.2026 — Wächter-Befund (Lauf #40,
+  https://github.com/easywebb911/Elliott-Report/actions/runs/42945033172):**
+  10 Funde. 8× „Testdaten veraltet" sind Fehlalarme (eingefrorener Snapshot
+  `43b4376`, Stichtag-Fenster, Wächter-Eigenbeispiele). Fund „Handover
+  veraltet" (#213 fehlt) durch #214 behoben. Fund „Dokumentation fehlt"
+  (`config.py` `SOURCE_COVERAGE_RING_MAX`) ist inhaltlich schwach; die
+  eigentliche Lücke: `SOURCE_COVERAGE_RING_MAX`,
+  `SOURCE_COVERAGE_WINDOW_HOURS` und `SOURCE_COVERAGE_WINDOW_DAYS` fehlen in
+  `docs/validation_registry.md`.
+- **11.11.2026 — Ruleset „Main" (id 19583923), Stand 11.11.:** Enforcement
+  DISABLED, kein Ziel, Bypass-Liste leer. Die Einrichtung vom 06.11. ist
+  **NICHT** erfolgt. Wiedervorlage 06.11. bleibt offen. **Hinweis:** Bot-PRs
+  lösen mit dem Standard-Token den Check „test" nicht aus; ein aktives
+  Ruleset mit Pflichtprüfung „test" würde sie blockieren. Lösungsweg wird
+  getestet: Bot-PR schließen und wieder öffnen startet die Checks. Ergebnis
+  folgt.
+- **11.11.2026 — Offen, Easys Entscheidung:** (a) Registry-Eintrag für die
+  drei Werte (geschützte Zone, Easy mergt, am besten zusammen mit der
+  Entscheidung zu den Schwellen), (b) Wächter von Fehlalarmen befreien.
 
 ---
 
