@@ -94,6 +94,8 @@ def test_sync_startet_ci_nur_auf_dem_bot_branch():
     assert re.search(r'gh workflow run ci\.yml --ref "\$BRANCH"', run)
     assert "--event workflow_dispatch" in run and '--commit "$sha"' in run, (
         "ohne Prüfung auf bestehende Läufe gäbe es doppelte CI-Läufe")
+    assert 'select(.status != "completed" or .conclusion == "success")' in run, (
+        "ein roter Lauf auf demselben Commit darf den Neustart nicht blockieren")
     # Der Start kommt NACH dem Sync-Schritt.
     namen = [s.get("name", "") for s in schritte]
     sync_idx = next(i for i, s in enumerate(schritte)

@@ -100,9 +100,13 @@ jobs:
             echo "Kein offener Bot-PR — kein CI-Start."
             exit 0
           fi
+          # Nur laufende oder erfolgreiche Läufe zählen als "schon gestartet" —
+          # ein roter/abgebrochener Lauf auf demselben Commit darf den
+          # nächsten Versuch nicht blockieren.
           schon="$(gh run list --workflow ci.yml --branch "$BRANCH" \
                    --event workflow_dispatch --commit "$sha" \
-                   --json databaseId -q 'length')"
+                   --json status,conclusion \
+                   -q '[.[] | select(.status != "completed" or .conclusion == "success")] | length')"
           if [ "$schon" != "0" ]; then
             echo "CI für $sha wurde schon gestartet — kein zweiter Lauf."
             exit 0
