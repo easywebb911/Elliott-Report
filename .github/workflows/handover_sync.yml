@@ -42,6 +42,7 @@ on:
 permissions:
   contents: write        # Branch/Commit/Push des Sync-PRs
   pull-requests: write    # NUR PR-Erstellung/-Aktualisierung — kein Merge-Aufruf im Code
+  actions: write          # NUR ci.yml per workflow_dispatch auf dem Bot-Branch starten
 
 concurrency:
   group: handover-sync
@@ -82,3 +83,33 @@ jobs:
 
       - name: Sync-Zyklus laufen lassen (legt PR an/aktualisiert ihn — nicht Draft, kein Merge)
         run: python scripts/handover_sync.py
+
+      # Der pull_request-Lauf eines vom Bot angelegten PRs wartet auf Freigabe
+      # (action_required, 0 Jobs — Läufe #553–#555 auf PR #214). Ein mit dem
+      # GITHUB_TOKEN ausgelöstes workflow_dispatch startet dagegen einen Lauf;
+      # sein Job "test" setzt den Check auf den Head-Commit des Bot-PRs.
+      # Startet nur, wenn ein Bot-PR offen ist und für diesen Commit noch
+      # kein solcher Lauf existiert. Kein Merge, kein Auto-Merge.
+      - name: CI (Check "test") für den offenen Bot-PR starten
+        run: |
+          set -euo pipefail
+          BRANCH="handover-sync/auto-pr-index"
+          sha="$(gh pr view "$BRANCH" --json state,headRefOid \
+                 -q 'if .state == "OPEN" then .headRefOid else "" end' 2>/dev/null || true)"
+          if [ -z "$sha" ]; then
+            echo "Kein offener Bot-PR — kein CI-Start."
+            exit 0
+          fi
+          # Nur laufende oder erfolgreiche Läufe zählen als "schon gestartet" —
+          # ein roter/abgebrochener Lauf auf demselben Commit darf den
+          # nächsten Versuch nicht blockieren.
+          schon="$(gh run list --workflow ci.yml --branch "$BRANCH" \
+                   --event workflow_dispatch --commit "$sha" \
+                   --json status,conclusion \
+                   -q '[.[] | select(.status != "completed" or .conclusion == "success")] | length')"
+          if [ "$schon" != "0" ]; then
+            echo "CI für $sha wurde schon gestartet — kein zweiter Lauf."
+            exit 0
+          fi
+          gh workflow run ci.yml --ref "$BRANCH" -f ref="$sha"
+          echo "CI per workflow_dispatch gestartet: $BRANCH @ $sha"

@@ -7,6 +7,16 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Handover-Sync-Bot (handover_sync.yml): seine PRs bekommen den
+  # pull_request-Lauf nur "zur Freigabe" (action_required, 0 Jobs). Der Bot
+  # startet deshalb diesen Workflow per workflow_dispatch auf seinem Branch;
+  # der Job "test" erzeugt dann den Check-Run "test" auf dem Head-Commit.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Erwarteter Head-Commit (SHA) des Branches. Weicht der Branch ab, bricht der Lauf ab."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -21,6 +31,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # Nur bei workflow_dispatch: der Lauf muss genau den Commit testen, für
+      # den er gestartet wurde — sonst stünde ein Check auf dem falschen Kopf.
+      - name: Head-Commit prüfen (nur workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && inputs.ref != ''
+        env:
+          ERWARTET: ${{ inputs.ref }}
+          IST: ${{ github.sha }}
+        run: |
+          if [ "$ERWARTET" != "$IST" ]; then
+            echo "::error::Branch steht auf $IST, erwartet war $ERWARTET — Abbruch."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
