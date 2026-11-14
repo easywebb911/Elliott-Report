@@ -357,8 +357,8 @@ Sammel-Check, zwischen dem 06.11.- und dem 07.12.-Termin platziert.
 <!-- WIEDERVORLAGEN-START -->
 - faellig_am: 2026-11-04 | status: erledigt | erledigt_am: 2026-11-11 | titel: Rohwert-Log (Close der verworfenen letzten Zeile) nach dem naechsten Tageslauf pruefen — Ursache NaN/None/String? | ref: #211
 - faellig_am: 2026-11-06 | status: offen | titel: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren | ref: #196
-- faellig_am: 2026-11-06 | status: offen | titel: Ruleset Main am Laptop einschalten (Bedingung für Agent mit Selbstmerge) | ref: #209
-- faellig_am: 2026-11-06 | status: offen | titel: Nach Ruleset-Einschalten zweistufig prüfen: (1) harmloser Doku-PR muss per Squash durchgehen, (2) Easy tippt den daily-Lauf von Hand an, er muss grün enden und sein Commit muss auf main landen — erst danach Auftrag 5 neu starten | ref: #210
+- faellig_am: 2026-11-06 | status: erledigt | erledigt_am: 2026-11-14 | grund: ENTFALLEN, Easy-Entscheid 14.11. (Ruleset bleibt aus) | titel: Ruleset Main am Laptop einschalten (Bedingung für Agent mit Selbstmerge) | ref: #209
+- faellig_am: 2026-11-06 | status: erledigt | erledigt_am: 2026-11-14 | grund: ENTFALLEN, Easy-Entscheid 14.11. (Ruleset bleibt aus) | titel: Nach Ruleset-Einschalten zweistufig prüfen: (1) harmloser Doku-PR muss per Squash durchgehen, (2) Easy tippt den daily-Lauf von Hand an, er muss grün enden und sein Commit muss auf main landen — erst danach Auftrag 5 neu starten | ref: #210
 - faellig_am: 2026-11-13 | status: offen | titel: Auftrag 5: Wächter-Agent neu angehen (Zugangsweg klären, dann Beobachtungsmodus) | ref: #209
 - faellig_am: 2026-11-24 | status: offen | titel: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen) | ref: #198
 - faellig_am: 2026-12-07 | status: offen | titel: Score-Review (Schatten-Score-Auswertung per scripts/auswertung_stichtage.py --zaehlung bzw. --auswerten, Regime-/Economic-Edge-Analysen, Stale-Markierungs-Entscheid u. a. GEPARKT-Punkte) | ref: #194, #190, #158, #160, #162, #199
@@ -2358,14 +2358,44 @@ Beleg = Abschnitt 3.)
   `docs/validation_registry.md`.
 - **11.11.2026 — Ruleset „Main" (id 19583923), Stand 11.11.:** Enforcement
   DISABLED, kein Ziel, Bypass-Liste leer. Die Einrichtung vom 06.11. ist
-  **NICHT** erfolgt. Wiedervorlage 06.11. bleibt offen. **Hinweis:** Bot-PRs
-  lösen mit dem Standard-Token den Check „test" nicht aus; ein aktives
-  Ruleset mit Pflichtprüfung „test" würde sie blockieren. Lösungsweg wird
-  getestet: Bot-PR schließen und wieder öffnen startet die Checks. Ergebnis
-  folgt.
+  **NICHT** erfolgt. Wiedervorlage 06.11. bleibt offen. **Bot-PRs, Stand
+  korrigiert (14.11.2026, ersetzt den Hinweis vom 11.11.):** Der Lauf für
+  „test" wird auf Bot-PRs angelegt, wartet aber auf Freigabe
+  (`action_required`). Belege: #175 grün nach Freigabe, #187 rot nach
+  Freigabe, #195/#204/#214 ohne Freigabe „failure mit 0 Jobs". #204 und
+  #214 wurden ohne laufende Tests gemergt (Doku-PRs, kein Schaden). Seit
+  #216 startet der Handover-Bot `ci.yml` selbst per `workflow_dispatch`.
+  **BEWEIS OFFEN:** Der nächste Bot-PR muss „CI / test" ohne Freigabe-Tap
+  zeigen.
 - **11.11.2026 — Offen, Easys Entscheidung:** (a) Registry-Eintrag für die
   drei Werte (geschützte Zone, Easy mergt, am besten zusammen mit der
   Entscheidung zu den Schwellen), (b) Wächter von Fehlalarmen befreien.
+- **14.11.2026 — ENTSCHEIDUNG Easy: Ruleset „Main" (id 19583923) bleibt
+  dauerhaft AUS (Disabled).** Grund: In der Bypass-Liste am iPhone war
+  „GitHub Actions" nicht auffindbar (nur Apps wie Claude, Copilot; ob weiter
+  unten doch vorhanden, ungeprüft). Ein aktives Ruleset mit Pflichtprüfung
+  „test" könnte die täglichen Daten-Commits der Workflows blockieren.
+  Schutz bleibt: `schutz-sperre`, Guardian, Easy mergt Zonen-PRs. Leichte
+  Variante (nur Force-Push und Löschen sperren, ohne Pflichtprüfung) bleibt
+  als Option, **nicht beschlossen**.
+- **14.11.2026 — Folgen daraus:** Die Wiedervorlagen „Ruleset Main am Laptop
+  einschalten" und „Nach Ruleset-Einschalten zweistufig prüfen (Doku-PR,
+  daily-Lauf)" sind **ENTFALLEN** (geschlossen mit Verweis auf die
+  Entscheidung oben). Klasse-A-Selbstmerge des Agenten war an das Ruleset
+  gebunden und entfällt; Auftrag 5 startet im Beobachtungsmodus (Entscheid
+  30.10.), mergt nichts selbst. Die Wiedervorlage zu Auftrag 5 (Zugangsweg
+  klären) bleibt **OFFEN**. Die Wiedervorlage „Fenster-Schwellen nach
+  Baseline feinjustieren" bleibt ebenfalls **offen**.
+- **14.11.2026 — Edge-Lit-Check: NULLBEFUND.** Kein neuer Beleg für einen
+  Vorsprung. Fibonacci-Level: kein Sonderstatus belegt (zu den
+  Extension-Zonen nichts Belastbares gefunden). Chance-Risiko: ändert die
+  Trefferquote, nicht den Erwartungswert bei Zufallskursen; zählt für
+  Positionsgröße, nicht als Edge-Beleg.
+- **14.11.2026 — Vormerkungen für 07.12. (VORSCHLAG Claude, Entscheidung bei
+  Easy, nichts umgesetzt):** (a) mittlerer R-Wert (`r_multiple`) gegen
+  Zufalls-R, (b) Transaktionskosten abziehen, besonders bei
+  DE-Nebenwerten, (c) Trennt der Fib-Bonus? Nur explorative Zusatzfrage,
+  Hauptwertung unberührt, keine Post-hoc-Variante.
 
 ---
 
