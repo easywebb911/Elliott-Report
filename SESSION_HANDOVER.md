@@ -283,6 +283,8 @@ anderen PRs.
 - #174 — Merge pull request #174 from easywebb911/claude/elliott-report-gate-diagnosis-sjs33w
 - #201 — Merge pull request #201 from easywebb911/claude/elliott-report-testdaten-drift-fix
 - #213 — Merge pull request #213 from easywebb911/claude/handover-pr211-212-befund-03-11
+- #215 — docs(handover): Rohwert-Wiedervorlage erledigt, Wächter-Befund 11.11., Ruleset-Stand (#215)
+- #217 — docs(handover): Ruleset bleibt aus (Easy 14.11.), Bot-PR-Stand korrigiert, Edge-Lit-Check (#217)
 <!-- AUTO-PR-INDEX-ENDE -->
 
 ---
