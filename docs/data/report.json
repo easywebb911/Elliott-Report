@@ -1,11 +1,85 @@
 {
   "disclaimer": "Heuristische Elliott-Wellen-Auszählung, unvalidiert. Keine Anlageberatung.",
-  "generated_in_seconds": 80.3,
+  "generated_in_seconds": 68.5,
   "generator": "elliott_pipeline",
+  "health": {
+    "checked_utc": "2026-11-24T06:23:58Z",
+    "findings": [
+      {
+        "detail": {
+          "crit_ab": 2,
+          "expected_bar_date": "2026-11-23",
+          "lag_trading_days": 1,
+          "last_bar_date": "2026-11-20"
+        },
+        "market": "DE",
+        "message": "DE: Kurse 1 Handelstag zurück — erwartet 2026-11-23, tatsächlich 2026-11-20",
+        "rule": "bar_freshness",
+        "severity": "warn"
+      },
+      {
+        "detail": {
+          "faellig_am": "2026-11-06",
+          "ref": "#196",
+          "tage_ueberfaellig": 18,
+          "titel": "Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren",
+          "zeile": "359"
+        },
+        "market": null,
+        "message": "⏰ Überfällig seit 18 Tagen: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren",
+        "rule": "wiedervorlage_2026-11-06_daten_abdeckungs_w_chter_fenster_schwell",
+        "severity": "warn"
+      },
+      {
+        "detail": {
+          "faellig_am": "2026-11-13",
+          "ref": "#209",
+          "tage_ueberfaellig": 11,
+          "titel": "Auftrag 5: Wächter-Agent neu angehen (Zugangsweg klären, dann Beobachtungsmodus)",
+          "zeile": "362"
+        },
+        "market": null,
+        "message": "⏰ Überfällig seit 11 Tagen: Auftrag 5: Wächter-Agent neu angehen (Zugangsweg klären, dann Beobachtungsmodus)",
+        "rule": "wiedervorlage_2026-11-13_auftrag_5_w_chter_agent_neu_angehen_zuga",
+        "severity": "warn"
+      },
+      {
+        "detail": {
+          "faellig_am": "2026-11-24",
+          "ref": "#198",
+          "titel": "Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen)",
+          "zeile": "363"
+        },
+        "market": null,
+        "message": "📅 Heute fällig: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen)",
+        "rule": "wiedervorlage_2026-11-24_gesamtdurchgang_aller_wiedervorlagen_gep",
+        "severity": "info"
+      }
+    ],
+    "heartbeat": false,
+    "push_gated": null,
+    "pushed": true,
+    "status": "warn",
+    "thresholds": {
+      "agent_min_ok": 5,
+      "bar_lag_crit": 2,
+      "max_dead_delta": 3,
+      "max_fetch_error_pct": 10.0,
+      "min_candidates": 3,
+      "warn_repeat_runs": 3
+    }
+  },
   "markets": {
     "DE": {
       "candidates": [
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "W4 retraced nur 31,3 % von W3, während W2 62,1 % retraced — das ist extreme Asymmetrie und verstößt gegen das Elliott-Prinzip der Alternation. Zudem liegt eine valide Alternative vor (W2-Ende statt W4-Ende), die denselben Datensatz anders deutet. Das W3-Volumen (0,96× W1) ist schwach für eine Impuls-Welle 3.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W5) mit W4 als Korrektur abgeschlossen. W5 wird erwartet und soll in die Zone 297,16–302,20 laufen. Der aktuelle Kurs bei 293,80 liegt unterhalb dieser Zielzone.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 250.8,
@@ -25,6 +99,7 @@
               "low": 344.6
             }
           },
+          "appearance_count": 2,
           "atr_14": 6.8143,
           "change_abs": 5.0,
           "change_pct": 1.7313,
@@ -244,6 +319,13 @@
           "vol_ratio_w4_w3": 1.6874
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "W2 mit 83 % Retracement ist ungewöhnlich tief für eine zweite Welle und nähert sich der Grenze zur Mehrdeutigkeit. Gleichzeitig existiert eine gleichwertige Alternative (W2-Ende, W3 erwartet), was darauf hindeutet, dass die Struktur noch nicht eindeutig ist. Das W3-Volumen (0,98 zu W1) ist schwach für eine Impulswelle und widerspricht der klassischen Volumenerwartung.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W5) mit W4 als Korrekturwelle abgeschlossen. W5 wird erwartet und soll in die Zone 43,85–44,41 führen. Der aktuelle Kurs bei 42,96 liegt unterhalb dieser Zielzone.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 37.45,
@@ -263,6 +345,7 @@
               "low": 50.49
             }
           },
+          "appearance_count": 1,
           "atr_14": 1.1021,
           "change_abs": -0.86,
           "change_pct": -1.9626,
@@ -478,6 +561,13 @@
           "vol_ratio_w4_w3": 1.8428
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "W3 zeigt mit 0,56x des W1-Volumens deutlich schwaches Volumen für eine Impulswelle — das ist ein klassisches Warnsignal. Gleichzeitig existiert eine alternative Zählung (W2-Ende statt W4-Ende), die bei nur 2 validen Zählungen insgesamt erhebliche Mehrdeutigkeit signalisiert. Die Invalidierung liegt bei 24,1, aber der aktuelle Kurs 24,55 ist bereits nah an der unteren Zielzone — wenig Spielraum für W5.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W5) mit W4 als Korrektur abgeschlossen. W5 wird erwartet und soll in die Zone 24,83–25,25 führen. Das Setup wird als Long-Einstieg am Ende von W4 interpretiert.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 23.55,
@@ -497,6 +587,7 @@
               "low": 25.2
             }
           },
+          "appearance_count": 3,
           "atr_14": 0.5464,
           "change_abs": 0.1,
           "change_pct": 0.409,
@@ -714,8 +805,16 @@
           "vol_ratio_w4_w3": 1.311
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das W2/W1-Volumen-Verhältnis von 0,47 ist deutlich schwach — W2 sollte typischerweise mindestens 50–70 % des W1-Volumens zeigen. Zudem liegt nur 1 validierte Zählung vor (top5_erscheinungen: 2), was auf geringe Bestätigung hindeutet. Die Invalidierungszone (15,00 €) ist nur 0,72 € unter dem aktuellen Kurs — sehr eng für einen Impuls.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung identifiziert einen Impuls (W1–W5) mit W2-Ende bei ~15,72 €. W3 wird erwartet, Zielzone liegt bei 17,58–18,73 €, Invalidierung bei 15,00 €.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
+          "appearance_count": 2,
           "atr_14": 0.4629,
           "change_abs": -0.38,
           "change_pct": -2.3602,
@@ -846,6 +945,13 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "W2 mit 85,59 % Retracement ist ungewöhnlich tief für eine Korrektur und nähert sich der Grenze zur Mehrdeutigkeit (klassisch: max. 78,6 %). Das W3-Volumen (0,9421 relativ zu W1) ist schwächer als erwartet — W3 sollte typischerweise das stärkste Volumen zeigen. Die Alternative (W2-Ende statt W4-Ende) existiert parallel und wird vom System selbst als valide erkannt (2 valide Zählungen).",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W4 abgeschlossen) mit W5 noch ausstehend. Das Long-Setup positioniert sich am Ende der Welle 4, die bei 28,74 % Retracement relativ flach ausfiel. Zielzone für W5 liegt bei 33,74–35,44.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 26.04,
@@ -865,6 +971,7 @@
               "low": 37.96
             }
           },
+          "appearance_count": 4,
           "atr_14": 1.0071,
           "change_abs": -1.44,
           "change_pct": -4.3636,
@@ -1088,8 +1195,16 @@
           "vol_ratio_w4_w3": 1.2314
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Die Invalidierung liegt bei 2,70 — nur 0,36 unter dem aktuellen Kurs (11,8 % Puffer). Das ist für ein W3-Setup ungewöhnlich eng und deutet auf hohe Unsicherheit über die tatsächliche Position innerhalb des Impulses hin. Zudem ist nur 1 valide Zählung vorhanden, und das W2/W1-Volumen-Verhältnis von 1,18 ist schwach — typischerweise sollte W2 deutlich weniger Volumen als W1 zeigen.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Nach Welle 2 wird ein Long-Setup erwartet, mit Welle 3 als nächste Bewegung. Die Zielzone liegt bei 3,52–3,92, die Extension bei 3,92–4,56. Der aktuelle Kurs von 3,06 befindet sich unterhalb dieser Zone.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
+          "appearance_count": 2,
           "atr_14": 0.2031,
           "change_abs": 0.15,
           "change_pct": 5.1546,
@@ -1218,6 +1333,13 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "W3 zeigt mit 0,6756 des W1-Volumens deutlich schwaches Volumen für eine Impulswelle — klassischerweise sollte W3 das höchste oder mindestens vergleichbares Volumen zu W1 aufweisen. W4 mit 0,8867 des W3-Volumens ist ebenfalls ungewöhnlich stark für eine Korrekturwelle. Die alternative Zählung (Long-Setup am Ende W2) konkurriert direkt und wird vom System selbst als valide eingestuft (3 valide Zählungen insgesamt).",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem Kurs aktuell am Ende von W4. W5 wird erwartet und soll in die Zone 16,165–16,44 führen. Die Alternation zwischen W2 (77,78% Retrace) und W4 (32,61% Retrace) ist vorhanden.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 15.1,
@@ -1237,6 +1359,7 @@
               "low": 16.64
             }
           },
+          "appearance_count": 1,
           "atr_14": 0.4,
           "change_abs": -0.02,
           "change_pct": -0.1272,
@@ -1373,6 +1496,13 @@
           "vol_ratio_w4_w3": 0.8867
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Die W4-Retrace von nur 22.1% ist ungewöhnlich flach für einen etablierten Impuls und liegt deutlich unter klassischen Erwartungen (typisch 33–50%). Das W4-Volumen beträgt nur 72% von W3 — ein Schwächesignal in der kritischen Konsolidierungsphase. Die Invalidierung liegt bei 265.3, was einen Spielraum von nur 7.8% (von 288.0) bietet — sehr eng für eine noch ausstehende W5.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem aktuellen Kurs (288.0) am Ende von Welle 4. Sie erwartet eine abschließende Welle 5 in die Zielzone 310–324.5, gestützt durch Alternation (W2: 49.2% Retrace, W4: 22.1% Retrace) und erhöhtes W3-Volumen (1.37× W1).",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 246.9,
@@ -1392,6 +1522,7 @@
               "low": 338.7
             }
           },
+          "appearance_count": 2,
           "atr_14": 8.1,
           "change_abs": -11.0,
           "change_pct": -3.6789,
@@ -2685,7 +2816,7 @@
           }
         ],
         "bar_lag_session_days": 1,
-        "bar_lag_trading_days": 1,
+        "bar_lag_trading_days": 2,
         "dead_tickers": [],
         "dropped_bar_dates": {
           "2026-11-23": 115
@@ -2693,7 +2824,7 @@
         "dropped_bars": 115,
         "dropped_last_row": 115,
         "dropped_mid_row": 0,
-        "expected_bar_date": "2026-11-23",
+        "expected_bar_date": "2026-11-24",
         "higher_degree_count": 4,
         "invalid_volume_bars": 0,
         "last_bar_date": "2026-11-20",
@@ -2732,9 +2863,17 @@
     "US": {
       "candidates": [
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das Volumen in W2 beträgt nur 74,8% von W1 — das ist schwach für eine korrigierende Welle und deutet auf mangelnde Verkaufsdruck hin. Zudem liegt die aktuelle Position (316,15) bereits deutlich unter der unteren Zielzone (357,43), was die Prognose einer unmittelbar bevorstehenden W3-Rallye in Frage stellt.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Nach Welle 2 wird ein Long-Setup erwartet, weil die Zählung einen Impuls 1–5 identifiziert hat. Zielzone für Welle 3 liegt bei 357–387, Invalidierung bei 291,86.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 11.5375,
+          "appearance_count": 2,
+          "atr_14": 11.5379,
           "change_abs": 6.15,
           "change_pct": 1.9839,
           "chart_points": [
@@ -2865,9 +3004,17 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das Volumen in W2 beträgt nur 87 % des W1-Volumens — für eine klassische Elliott-Struktur ist das schwach und deutet auf mangelnde Überzeugung in der Korrektur hin. Zudem liegt der aktuelle Kurs (35,07) deutlich unter der unteren Zielzone (38,90), was bedeutet, dass W2 noch nicht abgeschlossen sein kann oder die Zählung bereits invalidiert ist.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Nach einem Impuls 1–5 befindet sich GIS in Welle 2 (Korrektur), und die Zählung erwartet den Beginn von Welle 3 als nächste Aufwärtsbewegung. Die Zielzone liegt bei 38,90–42,23, die Extension bei 42,23–47,61.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 1.237,
+          "appearance_count": 1,
+          "atr_14": 1.2371,
           "change_abs": -0.67,
           "change_pct": -1.8747,
           "chart_points": [
@@ -2993,6 +3140,13 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Welle 2 mit 86,5% Retracement liegt deutlich über der klassischen Regel (max. 78,6%), was auf eine schwache oder mehrdeutige Impulsstruktur hindeutet. Zudem zeigt W3 zu W1 ein Volumen-Verhältnis von nur 0,977 — W3 sollte typischerweise stärker sein als W1, hier fehlt diese Dynamik.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung interpretiert GILD als Impuls in Welle 5, mit Welle 4 abgeschlossen bei 170.59 und Zielzone 172.92–176.64. Das Setup erwartet einen finalen Anstieg in W5 bis zur 52-Wochen-Höhe.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 144.23,
@@ -3012,6 +3166,7 @@
               "low": 197.14
             }
           },
+          "appearance_count": 3,
           "atr_14": 4.7336,
           "change_abs": 4.16,
           "change_pct": 2.4996,
@@ -3159,7 +3314,7 @@
                 "date": "2025-03-03",
                 "index": 432,
                 "kind": "H",
-                "price": 112.1985
+                "price": 112.1984
               },
               {
                 "date": "2025-05-05",
@@ -3254,8 +3409,16 @@
           "vol_ratio_w4_w3": 1.3617
         },
         {
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "Das Volumen in W2 liegt bei 98,6% von W1 — das ist für eine klassische Korrektur ungewöhnlich schwach und deutet auf mangelnde Überzeugung hin. Die Invalidierung sitzt bei 473.46, was einen Rückgang von aktuell 542.14 um fast 13% erlauben würde, bevor die Zählung ungültig wird — eine sehr breite Fehlertoleranz.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Nach Welle 2 bei 542.14 wird ein Impuls erwartet, der in Welle 3 anläuft und die Zielzone 616.96–673.79 ansteuert. Die Extension deutet auf mögliche Fortsetzung bis 765.74.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
+          "appearance_count": 1,
           "atr_14": 16.5836,
           "change_abs": 7.83,
           "change_pct": 1.4654,
@@ -3384,6 +3547,13 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "W3-Volumen (0.9804 relativ zu W1) liegt unter 1.0 und signalisiert schwächere Impulskraft in der kritischen dritten Welle; gleichzeitig existiert eine validierte Alternative (W2-Ende, W3 erwartet), die bei nur 2 validen Zählungen insgesamt die Eindeutigkeit der Hauptzählung in Frage stellt. Die Invalidierungszone (66.74) ist zudem sehr weit entfernt, was die unmittelbare Risikokontrolle schwächt.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem aktuellen Kurs (81.31) am Ende von W4. W5 wird erwartet und soll in die Zone 83.87–85.13 führen. Alternation ist vorhanden (W2: 85.1%, W4: 18.2% Retracement), was die Struktur stützt.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 63.9442,
@@ -3403,6 +3573,7 @@
               "low": 103.7058
             }
           },
+          "appearance_count": 1,
           "atr_14": 2.5144,
           "change_abs": 0.67,
           "change_pct": 0.8309,
@@ -3620,6 +3791,13 @@
           "vol_ratio_w4_w3": 1.1449
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das Volumen in W3 (0.79× des W1-Volumens) ist ungewöhnlich schwach für eine Impulswelle 3, die typischerweise die stärkste und volumenreichste Welle sein sollte. Zudem liegt die Invalidierung (421.21) nur 6,6 % unter dem aktuellen Kurs — eine sehr enge Invalidierungszone für einen Impuls in Ausbildung.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Die Zählung interpretiert die aktuelle Position (449.04) als Ende von Welle 4 eines Impulses, mit Erwartung einer finalen Welle 5 in die Zielzone 487–505. Das Setup basiert auf beobachteter Alternation und einem W4-Retracement von 24 %, das unter dem W2-Retracement von 44 % liegt.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 400.288,
@@ -3639,6 +3817,7 @@
               "low": 533.081
             }
           },
+          "appearance_count": 2,
           "atr_14": 12.892,
           "change_abs": 13.4,
           "change_pct": 3.0759,
@@ -3779,9 +3958,17 @@
           "vol_ratio_w4_w3": 1.6167
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Die Invalidierungslinie bei 124,09 liegt nur 1,05 Punkte unter dem aktuellen Kurs (125,14) — ein äußerst enges Risiko-Setup. Zudem ist unklar, ob W2 tatsächlich abgeschlossen ist oder noch läuft; die Zählung basiert auf einer einzelnen validen Erscheinung (top5_erscheinungen: 1) und wird als heuristisch, unvalidiert gekennzeichnet.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Nach Abschluss von W2 wird ein Impuls in den Wellen 1–5 gezählt; W3 wird erwartet und soll in die Zone 134,23–138,72 führen. Der aktuelle Kurs bei 125,14 liegt unterhalb dieser Zielzone, was auf einen noch laufenden oder unmittelbar bevorstehenden Aufstieg hindeutet.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 2.755,
+          "appearance_count": 1,
+          "atr_14": 2.7557,
           "change_abs": 2.64,
           "change_pct": 2.1551,
           "chart_points": [
@@ -3910,6 +4097,13 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das W2-zu-W1-Volumen beträgt nur 0,84 — deutlich unter 1,0 — was auf schwache Verkaufsintensität in der Korrektur hindeutet und die Überzeugungskraft eines nachfolgenden W3-Impulses schwächt. Gleichzeitig existiert eine konkurrierende Zählung (ABC-Korrektur im Aufbau), die den gleichen Preisbereich anders interpretiert.",
+            "generated_at": "2026-11-24T06:23:58Z",
+            "lesart": "Nach Welle 2 wird ein Impuls erwartet, der in Welle 3 startet. Der aktuelle Kurs bei 93.62 liegt am unteren Ende der Zielzone (93.66–96.30), was als Setup-Position für den Aufwärtsimpuls interpretiert wird.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": {
             "count_label": "Korrektur läuft · A (ABC im Aufbau)",
@@ -3918,6 +4112,7 @@
             "score_heuristic": null,
             "target_zone": null
           },
+          "appearance_count": 2,
           "atr_14": 2.0714,
           "change_abs": 0.97,
           "change_pct": 1.047,
@@ -4048,7 +4243,7 @@
       "diag": {
         "bad_bar_tickers": [],
         "bar_lag_session_days": 0,
-        "bar_lag_trading_days": 0,
+        "bar_lag_trading_days": 1,
         "dead_tickers": [
           {
             "reason": "empty_data",
@@ -4063,7 +4258,7 @@
         "dropped_bars": 0,
         "dropped_last_row": 0,
         "dropped_mid_row": 0,
-        "expected_bar_date": "2026-11-23",
+        "expected_bar_date": "2026-11-24",
         "higher_degree_count": 2,
         "invalid_volume_bars": 0,
         "last_bar_date": "2026-11-23",
@@ -4100,9 +4295,14 @@
       "universe_size": 236
     }
   },
-  "mode": "report_only",
-  "run_timestamp_utc": "2026-11-23T23:18:24Z",
+  "run_timestamp_utc": "2026-11-24T06:23:58Z",
   "schema_version": 1,
+  "validation": {
+    "collected": 308,
+    "eval_min_n": 100,
+    "evaluable": 261,
+    "matured": 267
+  },
   "watchlist": {
     "diag": {
       "error": 0,
