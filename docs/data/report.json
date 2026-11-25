@@ -1,11 +1,633 @@
 {
   "disclaimer": "Heuristische Elliott-Wellen-Auszählung, unvalidiert. Keine Anlageberatung.",
-  "generated_in_seconds": 86.5,
+  "generated_in_seconds": 105.5,
   "generator": "elliott_pipeline",
+  "health": {
+    "checked_utc": "2026-11-25T05:01:31Z",
+    "findings": [
+      {
+        "detail": {
+          "crit_ab": 2,
+          "expected_bar_date": "2026-11-24",
+          "lag_trading_days": 1,
+          "last_bar_date": "2026-11-23"
+        },
+        "market": "DE",
+        "message": "DE: Kurse 1 Handelstag zurück — erwartet 2026-11-24, tatsächlich 2026-11-23",
+        "rule": "bar_freshness",
+        "severity": "warn"
+      },
+      {
+        "detail": {
+          "faellig_am": "2026-11-06",
+          "ref": "#196",
+          "tage_ueberfaellig": 19,
+          "titel": "Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren",
+          "zeile": "359"
+        },
+        "market": null,
+        "message": "⏰ Überfällig seit 19 Tagen: Daten-Abdeckungs-Wächter — Fenster-Schwellen nach Baseline feinjustieren",
+        "rule": "wiedervorlage_2026-11-06_daten_abdeckungs_w_chter_fenster_schwell",
+        "severity": "warn"
+      },
+      {
+        "detail": {
+          "faellig_am": "2026-11-13",
+          "ref": "#209",
+          "tage_ueberfaellig": 12,
+          "titel": "Auftrag 5: Wächter-Agent neu angehen (Zugangsweg klären, dann Beobachtungsmodus)",
+          "zeile": "362"
+        },
+        "market": null,
+        "message": "⏰ Überfällig seit 12 Tagen: Auftrag 5: Wächter-Agent neu angehen (Zugangsweg klären, dann Beobachtungsmodus)",
+        "rule": "wiedervorlage_2026-11-13_auftrag_5_w_chter_agent_neu_angehen_zuga",
+        "severity": "warn"
+      },
+      {
+        "detail": {
+          "faellig_am": "2026-11-24",
+          "ref": "#198",
+          "tage_ueberfaellig": 1,
+          "titel": "Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen)",
+          "zeile": "363"
+        },
+        "market": null,
+        "message": "⏰ Überfällig seit 1 Tag: Gesamtdurchgang aller Wiedervorlagen (GEPARKT-Liste, Hygiene-Backlog, offene Entscheidungen)",
+        "rule": "wiedervorlage_2026-11-24_gesamtdurchgang_aller_wiedervorlagen_gep",
+        "severity": "warn"
+      }
+    ],
+    "heartbeat": false,
+    "push_gated": null,
+    "pushed": true,
+    "status": "warn",
+    "thresholds": {
+      "agent_min_ok": 5,
+      "bar_lag_crit": 2,
+      "max_dead_delta": 3,
+      "max_fetch_error_pct": 10.0,
+      "min_candidates": 3,
+      "warn_repeat_runs": 3
+    }
+  },
   "markets": {
     "DE": {
       "candidates": [
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das Volumen in W2 (0,47× des W1-Volumens) ist deutlich schwächer als in W1 — ein klassisches Warnsignal für mangelnde Überzeugung in der Korrektur. Zudem liegt der aktuelle Kurs (15,74) nur 0,74 Punkte über der Invalidierung (15,0), was einen sehr engen Stopp erzwingt und die Robustheit des Setups in Frage stellt.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung identifiziert einen Impuls (W1–W5) mit W2-Abschluss bei 15,74 und erwartet W3 aufwärts in die Zone 17,58–18,73. Das Setup basiert auf einer 200-Tage-Konfluenz und Round-Level-Invalidierung bei 15,0.",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "alt_count": null,
+          "alt_count_v2": null,
+          "appearance_count": 2,
+          "atr_14": 0.4514,
+          "change_abs": 0.02,
+          "change_pct": 0.1272,
+          "chart_points": [
+            {
+              "date": "2026-05-06",
+              "index": 361,
+              "kind": "H",
+              "price": 18.962
+            },
+            {
+              "date": "2026-05-13",
+              "index": 366,
+              "kind": "L",
+              "price": 18.62
+            },
+            {
+              "date": "2026-05-28",
+              "index": 377,
+              "kind": "H",
+              "price": 19.7125
+            },
+            {
+              "date": "2026-07-01",
+              "index": 401,
+              "kind": "L",
+              "price": 17.48
+            },
+            {
+              "date": "2026-07-24",
+              "index": 418,
+              "kind": "H",
+              "price": 18.7
+            },
+            {
+              "date": "2026-08-11",
+              "index": 430,
+              "kind": "L",
+              "price": 18.32
+            },
+            {
+              "date": "2026-08-31",
+              "index": 444,
+              "kind": "H",
+              "price": 18.72
+            },
+            {
+              "date": "2026-09-18",
+              "index": 458,
+              "kind": "L",
+              "price": 17.5
+            },
+            {
+              "date": "2026-09-24",
+              "index": 462,
+              "kind": "H",
+              "price": 18.0
+            },
+            {
+              "date": "2026-10-15",
+              "index": 477,
+              "kind": "L",
+              "price": 15.0
+            },
+            {
+              "date": "2026-10-16",
+              "index": 478,
+              "kind": "H",
+              "price": 16.86
+            },
+            {
+              "date": "2026-10-23",
+              "index": 483,
+              "kind": "L",
+              "price": 15.72
+            }
+          ],
+          "close": 15.74,
+          "company_name": "Deutsche EuroShop AG",
+          "confluence": {
+            "invalidation": [
+              "round"
+            ],
+            "target": [
+              "200d"
+            ]
+          },
+          "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+          "count_wave_labels": [
+            {
+              "index": 9,
+              "wave": 0
+            },
+            {
+              "index": 10,
+              "wave": 1
+            },
+            {
+              "index": 11,
+              "wave": 2
+            }
+          ],
+          "data_source": "yfinance",
+          "direction": "long",
+          "higher_degree": null,
+          "invalidation_price": 15.0,
+          "name": "DEQ.DE",
+          "score_heuristic": 71.37,
+          "sector": "Real Estate",
+          "status": "heuristisch · unvalidiert",
+          "target_zone": {
+            "high": 18.7295,
+            "low": 17.58
+          },
+          "target_zone_extended": {
+            "high": 20.5895,
+            "low": 18.7295
+          },
+          "ticker": "DEQ.DE",
+          "valid_count_total": 1,
+          "valid_count_total_v2": 1,
+          "vol_profile": {
+            "w1": 24435.0,
+            "w2": 11504.17
+          },
+          "vol_ratio_w2_w1": 0.4708,
+          "vol_ratio_w3_w1": null,
+          "vol_ratio_w4_w3": null
+        },
+        {
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "W3 zeigt mit 1,37× des W1-Volumens nur schwaches Impulsvolumen — typischerweise sollte W3 deutlich stärker sein. W4 mit 0,72× des W3-Volumens wirkt unauffällig. Die Extension [314,07–330,73] liegt bereits oberhalb der Zielzone, was auf Mehrdeutigkeit in der Welle-5-Projektion hindeutet. Mit Invalidierung bei 265,3 ist der Spielraum nach unten relativ groß.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W4 abgeschlossen) mit W5 noch ausstehend. Der aktuelle Kurs bei 293,8 liegt unterhalb der Zielzone 310–324,5, was einen Anstieg in W5 signalisieren soll. Alternation ist vorhanden (W2: 49,2% Retrace, W4: 22,1% Retrace).",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "alt_count": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 246.9,
+            "score_heuristic": 60.0,
+            "target_zone": {
+              "high": 370.5888,
+              "low": 338.7
+            }
+          },
+          "alt_count_v2": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 246.9,
+            "kind": "impulse",
+            "score_heuristic": 60.0,
+            "target_zone": {
+              "high": 370.5888,
+              "low": 338.7
+            }
+          },
+          "appearance_count": 2,
+          "atr_14": 8.1286,
+          "change_abs": 5.8,
+          "change_pct": 2.0139,
+          "chart_points": [
+            {
+              "date": "2026-06-04",
+              "index": 382,
+              "kind": "H",
+              "price": 249.8
+            },
+            {
+              "date": "2026-06-23",
+              "index": 395,
+              "kind": "L",
+              "price": 212.7
+            },
+            {
+              "date": "2026-07-14",
+              "index": 410,
+              "kind": "H",
+              "price": 250.0
+            },
+            {
+              "date": "2026-07-27",
+              "index": 419,
+              "kind": "L",
+              "price": 214.3
+            },
+            {
+              "date": "2026-08-10",
+              "index": 429,
+              "kind": "H",
+              "price": 238.6
+            },
+            {
+              "date": "2026-08-18",
+              "index": 435,
+              "kind": "L",
+              "price": 228.9
+            },
+            {
+              "date": "2026-08-28",
+              "index": 443,
+              "kind": "H",
+              "price": 253.5
+            },
+            {
+              "date": "2026-09-14",
+              "index": 454,
+              "kind": "L",
+              "price": 227.9
+            },
+            {
+              "date": "2026-09-24",
+              "index": 462,
+              "kind": "H",
+              "price": 265.3
+            },
+            {
+              "date": "2026-10-08",
+              "index": 472,
+              "kind": "L",
+              "price": 246.9
+            },
+            {
+              "date": "2026-10-29",
+              "index": 487,
+              "kind": "H",
+              "price": 298.5
+            },
+            {
+              "date": "2026-11-12",
+              "index": 497,
+              "kind": "L",
+              "price": 287.1
+            }
+          ],
+          "close": 293.8,
+          "company_name": "Sartorius AG",
+          "confluence": {
+            "invalidation": [],
+            "target": [
+              "round"
+            ]
+          },
+          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
+          "count_wave_labels": [
+            {
+              "index": 7,
+              "wave": 0
+            },
+            {
+              "index": 8,
+              "wave": 1
+            },
+            {
+              "index": 9,
+              "wave": 2
+            },
+            {
+              "index": 10,
+              "wave": 3
+            },
+            {
+              "index": 11,
+              "wave": 4
+            }
+          ],
+          "data_source": "yfinance",
+          "direction": "long",
+          "higher_degree": {
+            "alt_count": null,
+            "alt_count_v2": null,
+            "chart_points": [
+              {
+                "date": "2025-06-23",
+                "index": 448,
+                "kind": "H",
+                "price": 220.7394
+              },
+              {
+                "date": "2025-08-04",
+                "index": 454,
+                "kind": "L",
+                "price": 180.3785
+              },
+              {
+                "date": "2026-01-12",
+                "index": 477,
+                "kind": "H",
+                "price": 259.4062
+              },
+              {
+                "date": "2026-03-16",
+                "index": 486,
+                "kind": "L",
+                "price": 205.4919
+              },
+              {
+                "date": "2026-04-13",
+                "index": 490,
+                "kind": "H",
+                "price": 238.8
+              },
+              {
+                "date": "2026-05-11",
+                "index": 494,
+                "kind": "L",
+                "price": 204.9
+              },
+              {
+                "date": "2026-05-25",
+                "index": 496,
+                "kind": "H",
+                "price": 245.1
+              },
+              {
+                "date": "2026-07-27",
+                "index": 505,
+                "kind": "L",
+                "price": 218.0
+              }
+            ],
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "count_wave_labels": [
+              {
+                "index": 5,
+                "wave": 0
+              },
+              {
+                "index": 6,
+                "wave": 1
+              },
+              {
+                "index": 7,
+                "wave": 2
+              }
+            ],
+            "invalidation_price": 204.9,
+            "target_zone": {
+              "high": 283.0436,
+              "low": 258.2
+            },
+            "target_zone_extended": {
+              "high": 323.2436,
+              "low": 283.0436
+            },
+            "valid_count_total": 1,
+            "valid_count_total_v2": 1
+          },
+          "invalidation_price": 265.3,
+          "name": "SRT3.DE",
+          "score_heuristic": 69.55,
+          "sector": "Health Care",
+          "status": "heuristisch · unvalidiert",
+          "target_zone": {
+            "high": 324.5,
+            "low": 310.2132
+          },
+          "target_zone_extended": {
+            "high": 330.7308,
+            "low": 314.0692
+          },
+          "ticker": "SRT3.DE",
+          "valid_count_total": 2,
+          "valid_count_total_v2": 2,
+          "vol_profile": {
+            "w1": 95039.11,
+            "w2": 123155.64,
+            "w3": 129930.88,
+            "w4": 93668.18
+          },
+          "vol_ratio_w2_w1": null,
+          "vol_ratio_w3_w1": 1.3671,
+          "vol_ratio_w4_w3": 0.7209
+        },
+        {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "W3 zeigt mit 0.6756 nur 67,6% des W1-Volumens — deutlich schwächer als die Elliott-Norm (W3 sollte typisch das stärkste Volumen haben). W4 retraced nur 32,6% von W3, was zwar regelkonform ist, aber die schwache W3-Dynamik unterminiert die Impulskraft. Die Existenz von 3 validen Zählungen parallel deutet auf Mehrdeutigkeit hin, nicht auf Klarheit.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem aktuellen Kurs (15.84) am Ende von W4. W5 wird erwartet und soll in die Zone 16.165–16.44 führen. Alternativ wird ein Long-Setup am Ende von W2 mit W3-Erwartung diskutiert.",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "alt_count": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 15.1,
+            "score_heuristic": 52.01,
+            "target_zone": {
+              "high": 17.2086,
+              "low": 16.64
+            }
+          },
+          "alt_count_v2": {
+            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+            "invalidation_price": 15.1,
+            "kind": "impulse",
+            "score_heuristic": 52.01,
+            "target_zone": {
+              "high": 17.2086,
+              "low": 16.64
+            }
+          },
+          "appearance_count": 1,
+          "atr_14": 0.3871,
+          "change_abs": 0.14,
+          "change_pct": 0.8917,
+          "chart_points": [
+            {
+              "date": "2026-05-07",
+              "index": 362,
+              "kind": "H",
+              "price": 20.1587
+            },
+            {
+              "date": "2026-05-22",
+              "index": 373,
+              "kind": "L",
+              "price": 18.84
+            },
+            {
+              "date": "2026-05-28",
+              "index": 377,
+              "kind": "H",
+              "price": 19.38
+            },
+            {
+              "date": "2026-06-11",
+              "index": 387,
+              "kind": "L",
+              "price": 17.86
+            },
+            {
+              "date": "2026-07-02",
+              "index": 402,
+              "kind": "H",
+              "price": 19.6
+            },
+            {
+              "date": "2026-07-23",
+              "index": 417,
+              "kind": "L",
+              "price": 18.04
+            },
+            {
+              "date": "2026-08-04",
+              "index": 425,
+              "kind": "H",
+              "price": 19.02
+            },
+            {
+              "date": "2026-10-08",
+              "index": 472,
+              "kind": "L",
+              "price": 14.94
+            },
+            {
+              "date": "2026-10-21",
+              "index": 481,
+              "kind": "H",
+              "price": 15.66
+            },
+            {
+              "date": "2026-10-29",
+              "index": 487,
+              "kind": "L",
+              "price": 15.1
+            },
+            {
+              "date": "2026-11-05",
+              "index": 492,
+              "kind": "H",
+              "price": 16.02
+            },
+            {
+              "date": "2026-11-11",
+              "index": 496,
+              "kind": "L",
+              "price": 15.72
+            }
+          ],
+          "close": 15.84,
+          "company_name": "Deutsche Wohnen SE",
+          "confluence": {
+            "invalidation": [],
+            "target": []
+          },
+          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
+          "count_wave_labels": [
+            {
+              "index": 7,
+              "wave": 0
+            },
+            {
+              "index": 8,
+              "wave": 1
+            },
+            {
+              "index": 9,
+              "wave": 2
+            },
+            {
+              "index": 10,
+              "wave": 3
+            },
+            {
+              "index": 11,
+              "wave": 4
+            }
+          ],
+          "data_source": "yfinance",
+          "direction": "long",
+          "higher_degree": null,
+          "invalidation_price": 15.66,
+          "name": "DWNI.DE",
+          "score_heuristic": 69.25,
+          "sector": "Real Estate",
+          "status": "heuristisch · unvalidiert",
+          "target_zone": {
+            "high": 16.44,
+            "low": 16.165
+          },
+          "target_zone_extended": {
+            "high": 16.3874,
+            "low": 16.1326
+          },
+          "ticker": "DWNI.DE",
+          "valid_count_total": 2,
+          "valid_count_total_v2": 3,
+          "vol_profile": {
+            "w1": 119202.8,
+            "w2": 89045.57,
+            "w3": 80528.33,
+            "w4": 71405.2
+          },
+          "vol_ratio_w2_w1": null,
+          "vol_ratio_w3_w1": 0.6756,
+          "vol_ratio_w4_w3": 0.8867
+        },
+        {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Die W2-Retracement von 85,59 % ist ungewöhnlich tief für eine Welle 2 und nähert sich kritischen Invalidierungsschwellen; gleichzeitig zeigt W3 mit 0,94× des W1-Volumens schwaches Impulsvolumen, was die Kraft des Aufwärtsimpulses in Frage stellt. Die Alternative (W2-Ende statt W4-Ende) wird explizit genannt und hat gleiche Validität.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W4 abgeschlossen) mit W5 noch ausstehend. Das Long-Setup positioniert sich am Ende der Welle 4, die bei 28,74 % Retracement relativ flach ausfiel. Zielzone für W5 liegt bei 33,74–35,44.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 26.04,
@@ -25,9 +647,10 @@
               "low": 37.96
             }
           },
-          "atr_14": 1.0914,
-          "change_abs": 0.76,
-          "change_pct": 2.4312,
+          "appearance_count": 4,
+          "atr_14": 1.0343,
+          "change_abs": -0.3,
+          "change_pct": -0.9506,
           "chart_points": [
             {
               "date": "2026-05-12",
@@ -102,7 +725,7 @@
               "price": 31.0
             }
           ],
-          "close": 32.02,
+          "close": 31.26,
           "company_name": "Gerresheimer AG",
           "confluence": {
             "invalidation": [
@@ -223,7 +846,7 @@
           },
           "invalidation_price": 29.84,
           "name": "GXI.DE",
-          "score_heuristic": 72.59,
+          "score_heuristic": 69.19,
           "sector": "Health Care",
           "status": "heuristisch · unvalidiert",
           "target_zone": {
@@ -248,402 +871,19 @@
           "vol_ratio_w4_w3": 1.2314
         },
         {
-          "alt_count": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 15.1,
-            "score_heuristic": 53.26,
-            "target_zone": {
-              "high": 17.2086,
-              "low": 16.64
-            }
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "Nur 1 valide Zählung in der Pipeline und 2 Top-5-Erscheinungen deuten auf schwache Bestätigung hin. Das Volumen W2/W1 von 1.1777 ist moderat und kein starkes Kaufsignal für W3-Beginn. Die weite Invalidierungsspanne (3.072 → 2.696 = 12,2 %) relativiert die Aussagekraft des Setups.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung identifiziert einen Impuls (W1–W5) mit Long-Setup am Ende von W2. W3 wird erwartet, Zielzone liegt bei 3.523–3.9173, Invalidierung bei 2.696.",
+            "model": "claude-haiku-4-5-20251001"
           },
-          "alt_count_v2": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 15.1,
-            "kind": "impulse",
-            "score_heuristic": 53.26,
-            "target_zone": {
-              "high": 17.2086,
-              "low": 16.64
-            }
-          },
-          "atr_14": 0.3557,
-          "change_abs": 0.14,
-          "change_pct": 0.8838,
-          "chart_points": [
-            {
-              "date": "2026-05-07",
-              "index": 362,
-              "kind": "H",
-              "price": 20.1587
-            },
-            {
-              "date": "2026-05-22",
-              "index": 373,
-              "kind": "L",
-              "price": 18.84
-            },
-            {
-              "date": "2026-05-28",
-              "index": 377,
-              "kind": "H",
-              "price": 19.38
-            },
-            {
-              "date": "2026-06-11",
-              "index": 387,
-              "kind": "L",
-              "price": 17.86
-            },
-            {
-              "date": "2026-07-02",
-              "index": 402,
-              "kind": "H",
-              "price": 19.6
-            },
-            {
-              "date": "2026-07-23",
-              "index": 417,
-              "kind": "L",
-              "price": 18.04
-            },
-            {
-              "date": "2026-08-04",
-              "index": 425,
-              "kind": "H",
-              "price": 19.02
-            },
-            {
-              "date": "2026-10-08",
-              "index": 472,
-              "kind": "L",
-              "price": 14.94
-            },
-            {
-              "date": "2026-10-21",
-              "index": 481,
-              "kind": "H",
-              "price": 15.66
-            },
-            {
-              "date": "2026-10-29",
-              "index": 487,
-              "kind": "L",
-              "price": 15.1
-            },
-            {
-              "date": "2026-11-05",
-              "index": 492,
-              "kind": "H",
-              "price": 16.02
-            },
-            {
-              "date": "2026-11-11",
-              "index": 496,
-              "kind": "L",
-              "price": 15.72
-            }
-          ],
-          "close": 15.98,
-          "company_name": "Deutsche Wohnen SE",
-          "confluence": {
-            "invalidation": [],
-            "target": []
-          },
-          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
-          "count_wave_labels": [
-            {
-              "index": 7,
-              "wave": 0
-            },
-            {
-              "index": 8,
-              "wave": 1
-            },
-            {
-              "index": 9,
-              "wave": 2
-            },
-            {
-              "index": 10,
-              "wave": 3
-            },
-            {
-              "index": 11,
-              "wave": 4
-            }
-          ],
-          "data_source": "yfinance",
-          "direction": "long",
-          "higher_degree": null,
-          "invalidation_price": 15.66,
-          "name": "DWNI.DE",
-          "score_heuristic": 70.55,
-          "sector": "Real Estate",
-          "status": "heuristisch · unvalidiert",
-          "target_zone": {
-            "high": 16.44,
-            "low": 16.165
-          },
-          "target_zone_extended": {
-            "high": 16.3874,
-            "low": 16.1326
-          },
-          "ticker": "DWNI.DE",
-          "valid_count_total": 2,
-          "valid_count_total_v2": 3,
-          "vol_profile": {
-            "w1": 119202.8,
-            "w2": 89045.57,
-            "w3": 80528.33,
-            "w4": 71405.2
-          },
-          "vol_ratio_w2_w1": null,
-          "vol_ratio_w3_w1": 0.6756,
-          "vol_ratio_w4_w3": 0.8867
-        },
-        {
-          "alt_count": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 246.9,
-            "score_heuristic": 60.0,
-            "target_zone": {
-              "high": 370.5888,
-              "low": 338.7
-            }
-          },
-          "alt_count_v2": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 246.9,
-            "kind": "impulse",
-            "score_heuristic": 60.0,
-            "target_zone": {
-              "high": 370.5888,
-              "low": 338.7
-            }
-          },
-          "atr_14": 7.95,
-          "change_abs": -1.0,
-          "change_pct": -0.3404,
-          "chart_points": [
-            {
-              "date": "2026-06-04",
-              "index": 382,
-              "kind": "H",
-              "price": 249.8
-            },
-            {
-              "date": "2026-06-23",
-              "index": 395,
-              "kind": "L",
-              "price": 212.7
-            },
-            {
-              "date": "2026-07-14",
-              "index": 410,
-              "kind": "H",
-              "price": 250.0
-            },
-            {
-              "date": "2026-07-27",
-              "index": 419,
-              "kind": "L",
-              "price": 214.3
-            },
-            {
-              "date": "2026-08-10",
-              "index": 429,
-              "kind": "H",
-              "price": 238.6
-            },
-            {
-              "date": "2026-08-18",
-              "index": 435,
-              "kind": "L",
-              "price": 228.9
-            },
-            {
-              "date": "2026-08-28",
-              "index": 443,
-              "kind": "H",
-              "price": 253.5
-            },
-            {
-              "date": "2026-09-14",
-              "index": 454,
-              "kind": "L",
-              "price": 227.9
-            },
-            {
-              "date": "2026-09-24",
-              "index": 462,
-              "kind": "H",
-              "price": 265.3
-            },
-            {
-              "date": "2026-10-08",
-              "index": 472,
-              "kind": "L",
-              "price": 246.9
-            },
-            {
-              "date": "2026-10-29",
-              "index": 487,
-              "kind": "H",
-              "price": 298.5
-            },
-            {
-              "date": "2026-11-12",
-              "index": 497,
-              "kind": "L",
-              "price": 287.1
-            }
-          ],
-          "close": 292.8,
-          "company_name": "Sartorius AG",
-          "confluence": {
-            "invalidation": [],
-            "target": [
-              "round"
-            ]
-          },
-          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
-          "count_wave_labels": [
-            {
-              "index": 7,
-              "wave": 0
-            },
-            {
-              "index": 8,
-              "wave": 1
-            },
-            {
-              "index": 9,
-              "wave": 2
-            },
-            {
-              "index": 10,
-              "wave": 3
-            },
-            {
-              "index": 11,
-              "wave": 4
-            }
-          ],
-          "data_source": "yfinance",
-          "direction": "long",
-          "higher_degree": {
-            "alt_count": null,
-            "alt_count_v2": null,
-            "chart_points": [
-              {
-                "date": "2025-06-23",
-                "index": 448,
-                "kind": "H",
-                "price": 220.7394
-              },
-              {
-                "date": "2025-08-04",
-                "index": 454,
-                "kind": "L",
-                "price": 180.3785
-              },
-              {
-                "date": "2026-01-12",
-                "index": 477,
-                "kind": "H",
-                "price": 259.4062
-              },
-              {
-                "date": "2026-03-16",
-                "index": 486,
-                "kind": "L",
-                "price": 205.4919
-              },
-              {
-                "date": "2026-04-13",
-                "index": 490,
-                "kind": "H",
-                "price": 238.8
-              },
-              {
-                "date": "2026-05-11",
-                "index": 494,
-                "kind": "L",
-                "price": 204.9
-              },
-              {
-                "date": "2026-05-25",
-                "index": 496,
-                "kind": "H",
-                "price": 245.1
-              },
-              {
-                "date": "2026-07-27",
-                "index": 505,
-                "kind": "L",
-                "price": 218.0
-              }
-            ],
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "count_wave_labels": [
-              {
-                "index": 5,
-                "wave": 0
-              },
-              {
-                "index": 6,
-                "wave": 1
-              },
-              {
-                "index": 7,
-                "wave": 2
-              }
-            ],
-            "invalidation_price": 204.9,
-            "target_zone": {
-              "high": 283.0436,
-              "low": 258.2
-            },
-            "target_zone_extended": {
-              "high": 323.2436,
-              "low": 283.0436
-            },
-            "valid_count_total": 1,
-            "valid_count_total_v2": 1
-          },
-          "invalidation_price": 265.3,
-          "name": "SRT3.DE",
-          "score_heuristic": 69.09,
-          "sector": "Health Care",
-          "status": "heuristisch · unvalidiert",
-          "target_zone": {
-            "high": 324.5,
-            "low": 310.2132
-          },
-          "target_zone_extended": {
-            "high": 330.7308,
-            "low": 314.0692
-          },
-          "ticker": "SRT3.DE",
-          "valid_count_total": 2,
-          "valid_count_total_v2": 2,
-          "vol_profile": {
-            "w1": 95039.11,
-            "w2": 123155.64,
-            "w3": 129930.88,
-            "w4": 93668.18
-          },
-          "vol_ratio_w2_w1": null,
-          "vol_ratio_w3_w1": 1.3671,
-          "vol_ratio_w4_w3": 0.7209
-        },
-        {
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 0.1881,
-          "change_abs": 0.079,
-          "change_pct": 2.5716,
+          "appearance_count": 2,
+          "atr_14": 0.2006,
+          "change_abs": 0.012,
+          "change_pct": 0.3922,
           "chart_points": [
             {
               "date": "2026-06-17",
@@ -718,7 +958,7 @@
               "price": 2.885
             }
           ],
-          "close": 3.151,
+          "close": 3.072,
           "company_name": "HelloFresh SE",
           "confluence": {
             "invalidation": [],
@@ -769,219 +1009,17 @@
           "vol_ratio_w4_w3": null
         },
         {
-          "alt_count": null,
-          "alt_count_v2": null,
-          "atr_14": 2.8286,
-          "change_abs": 2.4,
-          "change_pct": 2.952,
-          "chart_points": [
-            {
-              "date": "2026-05-19",
-              "index": 370,
-              "kind": "H",
-              "price": 81.5
-            },
-            {
-              "date": "2026-05-27",
-              "index": 376,
-              "kind": "L",
-              "price": 76.0
-            },
-            {
-              "date": "2026-06-01",
-              "index": 379,
-              "kind": "H",
-              "price": 83.0
-            },
-            {
-              "date": "2026-06-30",
-              "index": 400,
-              "kind": "L",
-              "price": 66.9
-            },
-            {
-              "date": "2026-07-07",
-              "index": 405,
-              "kind": "H",
-              "price": 73.6
-            },
-            {
-              "date": "2026-07-23",
-              "index": 417,
-              "kind": "L",
-              "price": 69.3
-            },
-            {
-              "date": "2026-08-28",
-              "index": 443,
-              "kind": "H",
-              "price": 101.8
-            },
-            {
-              "date": "2026-09-11",
-              "index": 453,
-              "kind": "L",
-              "price": 89.2
-            },
-            {
-              "date": "2026-09-18",
-              "index": 458,
-              "kind": "H",
-              "price": 92.9
-            },
-            {
-              "date": "2026-09-28",
-              "index": 464,
-              "kind": "L",
-              "price": 80.3
-            },
-            {
-              "date": "2026-10-22",
-              "index": 482,
-              "kind": "H",
-              "price": 95.9
-            },
-            {
-              "date": "2026-10-23",
-              "index": 483,
-              "kind": "L",
-              "price": 87.3
-            }
-          ],
-          "close": 83.7,
-          "company_name": "ATOSS Software SE",
-          "confluence": {
-            "invalidation": [
-              "round"
-            ],
-            "target": []
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Alternation ist nicht beobachtet worden — W2 und W4 zeigen mit 61,99% und 60,64% nahezu identische Retracements, was gegen die Elliott-Regel spricht. Zudem existiert eine plausible Alternative (W2-Ende statt W4-Ende), die das System selbst als valide Zählung (2 valide Zählungen insgesamt) anerkennt, was die Mehrdeutigkeit der aktuellen Position unterstreicht.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung sieht einen vollständigen Impuls (W1–W4 abgeschlossen) und erwartet W5 als Abschluss. Der aktuelle Kurs bei 43,78 liegt am unteren Ende der Zielzone 44,83–46,14, was ein Long-Setup am Ende von W4 darstellen soll.",
+            "model": "claude-haiku-4-5-20251001"
           },
-          "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-          "count_wave_labels": [
-            {
-              "index": 9,
-              "wave": 0
-            },
-            {
-              "index": 10,
-              "wave": 1
-            },
-            {
-              "index": 11,
-              "wave": 2
-            }
-          ],
-          "data_source": "yfinance",
-          "direction": "long",
-          "higher_degree": {
-            "alt_count": null,
-            "alt_count_v2": null,
-            "chart_points": [
-              {
-                "date": "2024-10-14",
-                "index": 412,
-                "kind": "H",
-                "price": 129.7656
-              },
-              {
-                "date": "2024-12-16",
-                "index": 421,
-                "kind": "L",
-                "price": 104.3476
-              },
-              {
-                "date": "2025-07-14",
-                "index": 451,
-                "kind": "H",
-                "price": 140.4373
-              },
-              {
-                "date": "2025-09-01",
-                "index": 458,
-                "kind": "L",
-                "price": 97.5097
-              },
-              {
-                "date": "2025-10-20",
-                "index": 465,
-                "kind": "H",
-                "price": 117.1282
-              },
-              {
-                "date": "2026-06-22",
-                "index": 500,
-                "kind": "L",
-                "price": 67.7
-              },
-              {
-                "date": "2026-08-24",
-                "index": 509,
-                "kind": "H",
-                "price": 101.8
-              },
-              {
-                "date": "2026-09-21",
-                "index": 513,
-                "kind": "L",
-                "price": 83.0
-              }
-            ],
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "count_wave_labels": [
-              {
-                "index": 5,
-                "wave": 0
-              },
-              {
-                "index": 6,
-                "wave": 1
-              },
-              {
-                "index": 7,
-                "wave": 2
-              }
-            ],
-            "invalidation_price": 67.7,
-            "target_zone": {
-              "high": 138.1738,
-              "low": 117.1
-            },
-            "target_zone_extended": {
-              "high": 172.2738,
-              "low": 138.1738
-            },
-            "valid_count_total": 1,
-            "valid_count_total_v2": 1
-          },
-          "invalidation_price": 80.3,
-          "name": "AOF.DE",
-          "score_heuristic": 64.26,
-          "sector": "Technology",
-          "status": "heuristisch · unvalidiert",
-          "target_zone": {
-            "high": 112.5408,
-            "low": 102.9
-          },
-          "target_zone_extended": {
-            "high": 128.1408,
-            "low": 112.5408
-          },
-          "ticker": "AOF.DE",
-          "valid_count_total": 1,
-          "valid_count_total_v2": 1,
-          "vol_profile": {
-            "w1": 22112.05,
-            "w2": 36073.0
-          },
-          "vol_ratio_w2_w1": 1.6314,
-          "vol_ratio_w3_w1": null,
-          "vol_ratio_w4_w3": null
-        },
-        {
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 40.5,
-            "score_heuristic": 72.96,
+            "score_heuristic": 74.69,
             "target_zone": {
               "high": 51.8455,
               "low": 48.36
@@ -991,15 +1029,16 @@
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 40.5,
             "kind": "impulse",
-            "score_heuristic": 72.96,
+            "score_heuristic": 74.69,
             "target_zone": {
               "high": 51.8455,
               "low": 48.36
             }
           },
-          "atr_14": 0.6529,
-          "change_abs": -0.54,
-          "change_pct": -1.2334,
+          "appearance_count": 4,
+          "atr_14": 0.6457,
+          "change_abs": -0.12,
+          "change_pct": -0.2734,
           "chart_points": [
             {
               "date": "2026-06-02",
@@ -1074,7 +1113,7 @@
               "price": 42.72
             }
           ],
-          "close": 43.24,
+          "close": 43.78,
           "company_name": "Fuchs SE",
           "confluence": {
             "invalidation": [],
@@ -1111,7 +1150,7 @@
           "higher_degree": null,
           "invalidation_price": 42.62,
           "name": "FPE3.DE",
-          "score_heuristic": 62.97,
+          "score_heuristic": 64.79,
           "sector": "Materials",
           "status": "heuristisch · unvalidiert",
           "target_zone": {
@@ -1136,168 +1175,19 @@
           "vol_ratio_w4_w3": 1.0786
         },
         {
-          "alt_count": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 47.54,
-            "score_heuristic": 70.07,
-            "target_zone": {
-              "high": 54.3383,
-              "low": 52.2
-            }
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das Volumen in W2 beträgt nur 93,84 % von W1 — eine Welle 2 sollte typischerweise kräftiges Volumen zeigen, um Verkaufsdruck zu demonstrieren. Zudem liegt der aktuelle Kurs (65,9) so weit unter der Zielzone (96,7–113,4), dass unklar ist, ob die Zählung noch gültig ist oder bereits invalidiert wurde; die Invalidierungslinie bei 52,15 ist zwar noch nicht erreicht, aber die Distanz zur erwarteten W3-Zone ist ungewöhnlich groß.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Nach Welle 2 wird ein Long-Setup erwartet, mit Welle 3 als nächste Bewegung. Die Zielzone liegt bei 96,7–113,4, die Extension reicht bis 140,5. Der aktuelle Kurs von 65,9 befindet sich deutlich unterhalb dieser Zonen.",
+            "model": "claude-haiku-4-5-20251001"
           },
-          "alt_count_v2": {
-            "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
-            "invalidation_price": 47.54,
-            "kind": "impulse",
-            "score_heuristic": 70.07,
-            "target_zone": {
-              "high": 54.3383,
-              "low": 52.2
-            }
-          },
-          "atr_14": 1.1686,
-          "change_abs": 0.55,
-          "change_pct": 1.0934,
-          "chart_points": [
-            {
-              "date": "2026-06-16",
-              "index": 390,
-              "kind": "H",
-              "price": 53.6
-            },
-            {
-              "date": "2026-06-23",
-              "index": 395,
-              "kind": "L",
-              "price": 52.6
-            },
-            {
-              "date": "2026-07-02",
-              "index": 402,
-              "kind": "H",
-              "price": 57.25
-            },
-            {
-              "date": "2026-07-23",
-              "index": 417,
-              "kind": "L",
-              "price": 51.1
-            },
-            {
-              "date": "2026-07-28",
-              "index": 420,
-              "kind": "H",
-              "price": 53.45
-            },
-            {
-              "date": "2026-08-06",
-              "index": 427,
-              "kind": "L",
-              "price": 52.0
-            },
-            {
-              "date": "2026-08-27",
-              "index": 442,
-              "kind": "H",
-              "price": 50.25
-            },
-            {
-              "date": "2026-10-08",
-              "index": 472,
-              "kind": "L",
-              "price": 44.36
-            },
-            {
-              "date": "2026-10-22",
-              "index": 482,
-              "kind": "H",
-              "price": 48.54
-            },
-            {
-              "date": "2026-10-28",
-              "index": 486,
-              "kind": "L",
-              "price": 47.54
-            },
-            {
-              "date": "2026-11-09",
-              "index": 494,
-              "kind": "H",
-              "price": 51.0
-            },
-            {
-              "date": "2026-11-17",
-              "index": 500,
-              "kind": "L",
-              "price": 48.74
-            }
-          ],
-          "close": 50.85,
-          "company_name": "LEG Immobilien SE",
-          "confluence": {
-            "invalidation": [],
-            "target": [
-              "200d"
-            ]
-          },
-          "count_label": "Impuls 1–5 · Long-Setup am Ende W4 (W5 erwartet)",
-          "count_wave_labels": [
-            {
-              "index": 7,
-              "wave": 0
-            },
-            {
-              "index": 8,
-              "wave": 1
-            },
-            {
-              "index": 9,
-              "wave": 2
-            },
-            {
-              "index": 10,
-              "wave": 3
-            },
-            {
-              "index": 11,
-              "wave": 4
-            }
-          ],
-          "data_source": "yfinance",
-          "direction": "long",
-          "higher_degree": null,
-          "invalidation_price": 48.54,
-          "name": "LEG.DE",
-          "score_heuristic": 61.81,
-          "sector": "Real Estate",
-          "status": "heuristisch · unvalidiert",
-          "target_zone": {
-            "high": 52.92,
-            "low": 51.3232
-          },
-          "target_zone_extended": {
-            "high": 52.8435,
-            "low": 51.2765
-          },
-          "ticker": "LEG.DE",
-          "valid_count_total": 2,
-          "valid_count_total_v2": 3,
-          "vol_profile": {
-            "w1": 648921.82,
-            "w2": 427054.6,
-            "w3": 378251.67,
-            "w4": 344645.43
-          },
-          "vol_ratio_w2_w1": null,
-          "vol_ratio_w3_w1": 0.5829,
-          "vol_ratio_w4_w3": 0.9112
-        },
-        {
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 3.0857,
-          "change_abs": -5.1,
-          "change_pct": -7.739,
+          "appearance_count": 2,
+          "atr_14": 2.8679,
+          "change_abs": 2.5,
+          "change_pct": 3.9432,
           "chart_points": [
             {
               "date": "2026-06-03",
@@ -1372,7 +1262,7 @@
               "price": 69.6
             }
           ],
-          "close": 60.8,
+          "close": 65.9,
           "company_name": "Redcare Pharmacy NV",
           "confluence": {
             "invalidation": [],
@@ -1419,43 +1309,1334 @@
           "vol_ratio_w2_w1": 0.9384,
           "vol_ratio_w3_w1": null,
           "vol_ratio_w4_w3": null
+        },
+        {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Der aktuelle Kurs (81,3) liegt deutlich unter der Invalidierungsmarke (80,3) — das ist ein kritischer Fehler in der Datenlogik. Zudem ist unklar, wo genau W1 und W2 enden; die Extension [112,5–128,1] deutet auf ein mögliches W3/W5-Ziel hin, widerspricht aber der Zielzone. Mit nur 1 valider Zählung und score_heuristisch 60 ist die Konfidenz schwach.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Nach Welle 2 (Korrektur) wird ein Long-Setup erwartet, weil die Zählung einen Impuls 1–5 mit Welle 3 als nächste Bewegung annimmt. Die Zielzone 102,9–112,5 markiert das angestrebte W3-Ziel.",
+            "model": "claude-haiku-4-5-20251001"
+          },
+          "alt_count": null,
+          "alt_count_v2": null,
+          "appearance_count": 4,
+          "atr_14": 2.9786,
+          "change_abs": 0.6,
+          "change_pct": 0.7435,
+          "chart_points": [
+            {
+              "date": "2026-05-19",
+              "index": 370,
+              "kind": "H",
+              "price": 81.5
+            },
+            {
+              "date": "2026-05-27",
+              "index": 376,
+              "kind": "L",
+              "price": 76.0
+            },
+            {
+              "date": "2026-06-01",
+              "index": 379,
+              "kind": "H",
+              "price": 83.0
+            },
+            {
+              "date": "2026-06-30",
+              "index": 400,
+              "kind": "L",
+              "price": 66.9
+            },
+            {
+              "date": "2026-07-07",
+              "index": 405,
+              "kind": "H",
+              "price": 73.6
+            },
+            {
+              "date": "2026-07-23",
+              "index": 417,
+              "kind": "L",
+              "price": 69.3
+            },
+            {
+              "date": "2026-08-28",
+              "index": 443,
+              "kind": "H",
+              "price": 101.8
+            },
+            {
+              "date": "2026-09-11",
+              "index": 453,
+              "kind": "L",
+              "price": 89.2
+            },
+            {
+              "date": "2026-09-18",
+              "index": 458,
+              "kind": "H",
+              "price": 92.9
+            },
+            {
+              "date": "2026-09-28",
+              "index": 464,
+              "kind": "L",
+              "price": 80.3
+            },
+            {
+              "date": "2026-10-22",
+              "index": 482,
+              "kind": "H",
+              "price": 95.9
+            },
+            {
+              "date": "2026-10-23",
+              "index": 483,
+              "kind": "L",
+              "price": 87.3
+            }
+          ],
+          "close": 81.3,
+          "company_name": "ATOSS Software SE",
+          "confluence": {
+            "invalidation": [
+              "round"
+            ],
+            "target": []
+          },
+          "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
+          "count_wave_labels": [
+            {
+              "index": 9,
+              "wave": 0
+            },
+            {
+              "index": 10,
+              "wave": 1
+            },
+            {
+              "index": 11,
+              "wave": 2
+            }
+          ],
+          "data_source": "yfinance",
+          "direction": "long",
+          "higher_degree": null,
+          "invalidation_price": 80.3,
+          "name": "AOF.DE",
+          "score_heuristic": 60.01,
+          "sector": "Technology",
+          "status": "heuristisch · unvalidiert",
+          "target_zone": {
+            "high": 112.5408,
+            "low": 102.9
+          },
+          "target_zone_extended": {
+            "high": 128.1408,
+            "low": 112.5408
+          },
+          "ticker": "AOF.DE",
+          "valid_count_total": 1,
+          "valid_count_total_v2": 1,
+          "vol_profile": {
+            "w1": 22112.05,
+            "w2": 36073.0
+          },
+          "vol_ratio_w2_w1": 1.6314,
+          "vol_ratio_w3_w1": null,
+          "vol_ratio_w4_w3": null
         }
       ],
       "candidates_found": 10,
       "diag": {
-        "bad_bar_tickers": [],
-        "bar_lag_session_days": 0,
-        "bar_lag_trading_days": 0,
+        "bad_bar_tickers": [
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SAP.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SIE.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "ALV.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DTE.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "AIR.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "MBG.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BMW.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BAS.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BAYN.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "ADS.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DBK.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DB1.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "MUV2.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "IFX.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "VOW3.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "RWE.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "EOAN.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "MRK.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "HEN3.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "FRE.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "HEI.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "CON.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DHL.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "PAH3.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "P911.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "QIA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SHL.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SY1.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "VNA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "ZAL.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BEI.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "MTX.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "RHM.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "CBK.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SRT3.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "ENR.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "HNR1.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "FME.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BNR.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "AFX.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "LHA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SDF.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "EVK.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "FRA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "G1A.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "HFG.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "KGX.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "LEG.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "NDA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "PUM.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SZG.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "TEG.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "WCH.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "AT1.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BOSS.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DUE.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "FNTN.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "GXI.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "JUN3.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "KRN.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "LXS.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "NEM.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "RAA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "TLX.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "WAF.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "AIXA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "COK.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "EVT.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "PSM.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SAX.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "TMV.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BC8.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "UTDI.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "G24.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DHER.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "NDX1.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "RDC.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "TKA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "FPE3.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "KBX.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "HAG.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "GBF.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DWNI.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "8TRA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "1U1.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "HOT.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "R3NK.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "S92.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DRW3.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "GFT.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "INH.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "KWS.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "PFV.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SFQ.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "VBK.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "WUW.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "ADN1.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "BFSA.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DEQ.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "ELG.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "GYC.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "HYQ.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "JEN.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "KTN.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "NOEJ.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "PBB.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SMHN.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SIX2.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "STM.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "TPE.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "VOS.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "WAC.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "AOF.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "SGL.DE"
+          },
+          {
+            "dropped": 1,
+            "dropped_dates": [
+              "2026-11-24"
+            ],
+            "dropped_last_row": 1,
+            "dropped_mid_row": 0,
+            "invalid_volume": 0,
+            "ticker": "DBAN.DE"
+          }
+        ],
+        "bar_lag_session_days": 1,
+        "bar_lag_trading_days": 2,
         "dead_tickers": [],
-        "dropped_bar_dates": {},
-        "dropped_bars": 0,
-        "dropped_last_row": 0,
+        "dropped_bar_dates": {
+          "2026-11-24": 115
+        },
+        "dropped_bars": 115,
+        "dropped_last_row": 115,
         "dropped_mid_row": 0,
-        "expected_bar_date": "2026-11-24",
-        "higher_degree_count": 3,
+        "expected_bar_date": "2026-11-25",
+        "higher_degree_count": 2,
         "invalid_volume_bars": 0,
-        "last_bar_date": "2026-11-24",
+        "last_bar_date": "2026-11-23",
         "new_episodes_gated": false,
         "reason_counts": {
           "empty_data": 0,
           "fetch_error": 0,
-          "invalidated_at_creation": 1,
-          "no_valid_count": 62,
-          "short_setup_excluded": 42,
+          "invalidated_at_creation": 2,
+          "no_valid_count": 61,
+          "short_setup_excluded": 41,
           "target_exceeded": 2,
-          "target_ext_exceeded": 0,
+          "target_ext_exceeded": 1,
           "too_few_pivots": 0
         },
         "series": {
-          "bars_max": 506,
-          "bars_median": 506,
+          "bars_max": 505,
+          "bars_median": 505,
           "bars_min": 100,
           "first_bar_max": "2026-03-25",
           "first_bar_min": "2023-03-20",
-          "last_bar_max": "2026-11-24",
+          "last_bar_max": "2026-11-23",
           "last_bar_min": "2023-08-09",
           "schema": 1,
-          "shape_digest": "f54e6e197e52",
+          "shape_digest": "e6eb9c5116d1",
           "tickers": 117,
           "tickers_at_last_bar": 115
         },
@@ -1470,9 +2651,17 @@
     "US": {
       "candidates": [
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das Volumen in W2 liegt bei 75 % von W1 — das ist schwach für eine klassische Korrektur und deutet auf mangelnde Verkaufsdruck hin. Mit nur einer validierten Zählung (valide_zaehlungen_v2: 1) und zwei Erscheinungen in den Top 5 ist die Zählungsqualität dünn; die Mehrdeutigkeit bleibt hoch.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Nach Welle 2 wird ein Long-Setup erwartet, mit Welle 3 als nächste Bewegung. Die Zielzone liegt bei 357–387, die Invalidierung bei 291,86. Das Setup basiert auf einem Impuls 1–5 mit nur einer validierten Zählung in der Pipeline.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 10.3668,
+          "appearance_count": 2,
+          "atr_14": 10.3671,
           "change_abs": 7.93,
           "change_pct": 2.5083,
           "chart_points": [
@@ -1603,9 +2792,17 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Das W2-zu-W1-Volumen liegt bei 0,87 — deutlich unter 1,0 — was auf schwache Verkaufsintensität in der Korrektur hindeutet und die Impulskraft anzweifelt. Zudem existiert nur 1 valide Zählung bei 1 Top-5-Erscheinung, was auf geringe Bestätigung durch alternative Strukturen deutet.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung identifiziert einen Impuls (W1–W5) mit W2-Abschluss bei 35,59 und erwartet W3 aufwärts in die Zone 38,90–42,23. Das Setup basiert auf einer einzigen validierten Zählung und positioniert sich Long nach einer Korrektur.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 1.1718,
+          "appearance_count": 1,
+          "atr_14": 1.175,
           "change_abs": 0.52,
           "change_pct": 1.4828,
           "chart_points": [
@@ -1731,9 +2928,17 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "Das W2-zu-W1-Volumen beträgt nur 1,02× — das ist praktisch identisch und zeigt keine Bestätigung durch Volumenexpansion in der Gegenbewegung. Zudem liegt der aktuelle Kurs (220,41) bereits im unteren Bereich der Zielzone, was wenig Raum für eine klassische W3-Dynamik lässt, bevor die Extension erreicht wird.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Nach Welle 2 wird ein Long-Setup erwartet, weil die Zählung einen Impuls 1–5 identifiziert hat. Die Zielzone liegt bei 245–270, die Extension bei 270–311, Invalidierung bei 190.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 15.0061,
+          "appearance_count": 1,
+          "atr_14": 15.0057,
           "change_abs": 11.05,
           "change_pct": 5.278,
           "chart_points": [
@@ -1864,6 +3069,13 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "Das Volumen in W3 (0,7895 relativ zu W1) ist schwach für eine Impulswelle 3, die typischerweise die stärkste Welle sein sollte. W4-Volumen (1,6167 relativ zu W3) ist dagegen überraschend hoch — das deutet eher auf Konsolidierung oder Umverteilung hin, nicht auf klassische Impulsstruktur. Die Invalidierung liegt bei 421,21, was eine breite Fehlertoleranz bedeutet.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem aktuellen Kurs (473,94) am Ende von W4. W5 wird erwartet und soll in die Zone 487,12–505,35 laufen. Alternation ist vorhanden (W2: 43,84% Retrace vs. W4: 23,99%), und die Extension liegt bei 496,69–520,82.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 400.288,
@@ -1883,9 +3095,10 @@
               "low": 533.081
             }
           },
-          "atr_14": 13.175,
-          "change_abs": 24.895,
-          "change_pct": 5.544,
+          "appearance_count": 2,
+          "atr_14": 13.1772,
+          "change_abs": 24.9,
+          "change_pct": 5.5452,
           "chart_points": [
             {
               "date": "2026-05-22",
@@ -1960,7 +3173,7 @@
               "price": 457.6367
             }
           ],
-          "close": 473.935,
+          "close": 473.94,
           "company_name": "Amgen Inc.",
           "confluence": {
             "invalidation": [
@@ -2102,6 +3315,13 @@
           "vol_ratio_w4_w3": 1.6167
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "W3 zeigt mit 0,9804 ein Volumen-Verhältnis zu W1, das unter 1,0 liegt — klassischerweise sollte W3 (die dynamischste Welle) deutlich stärker voluminös sein als W1. Zudem existiert eine alternative Zählung (W2-Ende statt W4-Ende), die bei nur 2 validen Zählungen insgesamt erhebliche Mehrdeutigkeit signalisiert.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Die Zählung identifiziert einen vollständigen Impuls (W1–W5) mit dem aktuellen Kurs (82,52) am Ende von W4. W5 wird erwartet und soll in die Zone 83,87–85,13 laufen. Die Alternation zwischen W2 (85,1% Retrace) und W4 (18,2% Retrace) ist vorhanden.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": {
             "count_label": "Impuls 1–5 · Long-Setup am Ende W2 (W3 erwartet)",
             "invalidation_price": 63.9442,
@@ -2121,7 +3341,8 @@
               "low": 103.7058
             }
           },
-          "atr_14": 2.1771,
+          "appearance_count": 1,
+          "atr_14": 2.1786,
           "change_abs": 1.21,
           "change_pct": 1.4881,
           "chart_points": [
@@ -2338,8 +3559,16 @@
           "vol_ratio_w4_w3": 1.1449
         },
         {
+          "agent_comment": {
+            "concern_level": "low",
+            "gegenargument": "Das Volumen in W2 beträgt nur 77,71% von W1 — bei einem klassischen Impuls sollte W2 typischerweise ähnliches oder höheres Volumen zeigen. Dies schwächt die Struktur ab und deutet auf mögliche Unentschlossenheit hin.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Nach Abschluss von Welle 2 wird ein Long-Setup erwartet, bei dem Welle 3 ansteht. Die Zielzone liegt zwischen 154,30 und 169,42, mit Konfluenz zu 52-Wochen-Hoch und runden Niveaus.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
+          "appearance_count": 1,
           "atr_14": 4.6379,
           "change_abs": 4.61,
           "change_pct": 3.3106,
@@ -2348,7 +3577,7 @@
               "date": "2026-03-04",
               "index": 316,
               "kind": "H",
-              "price": 160.1296
+              "price": 160.1297
             },
             {
               "date": "2026-03-18",
@@ -2469,8 +3698,16 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Die Extension [138.72–145.99] deutet auf ein mögliches W3-Ziel deutlich über der Zielzone hin; gleichzeitig liegt die Invalidierung bei 124.09 nur 3.23 Punkte unter dem aktuellen Kurs — ein sehr enges Risiko-Setup. Das Volumen W2/W1 von 1.26 ist moderat und gibt keine starke Bestätigung für einen kraftvollen W3-Start.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Nach Abschluss von Welle 2 bei 127.32 wird ein Impuls erwartet, der in Welle 3 nach oben führt. Die Zielzone liegt bei 134–139, mit längerfristiger Konfluenz um 200 Tage oder runde Niveaus.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
+          "appearance_count": 1,
           "atr_14": 2.6886,
           "change_abs": 2.18,
           "change_pct": 1.742,
@@ -2600,9 +3837,17 @@
           "vol_ratio_w4_w3": null
         },
         {
+          "agent_comment": {
+            "concern_level": "high",
+            "gegenargument": "Die Zielzone liegt teilweise unterhalb des aktuellen Kurses (351,55), was für ein W3-Setup ungewöhnlich ist. Zudem ist nur eine valide Zählung vorhanden (valide_zaehlungen_v2: 1), und die Konfluenz-Validierung ist leer — es fehlt also externe Bestätigung durch Pivot-Punkte oder andere Marker.",
+            "generated_at": "2026-11-25T05:01:31Z",
+            "lesart": "Nach einem Impuls 1–5 befindet sich GD am Ende der Welle 2 (Korrektur). Die Zählung erwartet nun den Beginn von Welle 3 als nächste Aufwärtsbewegung in die Zielzone 403,50–434,06.",
+            "model": "claude-haiku-4-5-20251001"
+          },
           "alt_count": null,
           "alt_count_v2": null,
-          "atr_14": 8.2786,
+          "appearance_count": 1,
+          "atr_14": 8.2864,
           "change_abs": 3.71,
           "change_pct": 1.0666,
           "chart_points": [
@@ -2734,7 +3979,7 @@
       "diag": {
         "bad_bar_tickers": [],
         "bar_lag_session_days": 0,
-        "bar_lag_trading_days": 0,
+        "bar_lag_trading_days": 1,
         "dead_tickers": [
           {
             "reason": "empty_data",
@@ -2749,7 +3994,7 @@
         "dropped_bars": 0,
         "dropped_last_row": 0,
         "dropped_mid_row": 0,
-        "expected_bar_date": "2026-11-24",
+        "expected_bar_date": "2026-11-25",
         "higher_degree_count": 2,
         "invalid_volume_bars": 0,
         "last_bar_date": "2026-11-24",
@@ -2786,9 +4031,14 @@
       "universe_size": 236
     }
   },
-  "mode": "report_only",
-  "run_timestamp_utc": "2026-11-24T21:52:51Z",
+  "run_timestamp_utc": "2026-11-25T05:01:31Z",
   "schema_version": 1,
+  "validation": {
+    "collected": 313,
+    "eval_min_n": 100,
+    "evaluable": 264,
+    "matured": 270
+  },
   "watchlist": {
     "diag": {
       "error": 0,
@@ -2797,9 +4047,9 @@
     },
     "entries": [
       {
-        "atr_14": 0.5533,
-        "change_abs": -0.355,
-        "change_pct": -3.4151,
+        "atr_14": 0.5564,
+        "change_abs": 0.085,
+        "change_pct": 0.8244,
         "chart_points": [
           {
             "date": "2026-07-09",
@@ -2874,7 +4124,7 @@
             "price": 12.62
           }
         ],
-        "close": 10.04,
+        "close": 10.395,
         "company_name": "thyssenkrupp AG",
         "count_label": null,
         "count_wave_labels": [],
@@ -3054,8 +4304,8 @@
               "invalidation_price": 31.4566,
               "score_heuristic": 72.42,
               "target_zone": {
-                "high": 255.9724,
-                "low": 192.1748
+                "high": 255.9723,
+                "low": 192.1747
               }
             },
             "alt_count_v2": {
@@ -3064,8 +4314,8 @@
               "kind": "impulse",
               "score_heuristic": 72.42,
               "target_zone": {
-                "high": 255.9724,
-                "low": 192.1748
+                "high": 255.9723,
+                "low": 192.1747
               }
             },
             "chart_points": [
